@@ -28,14 +28,15 @@ function seletorEntidade(atual) {
 }
 
 // Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
-function avisoEntidade(ps, g, editar) {
+// A lista de quem cambona por causa da linha só aparece para o admin.
+function avisoEntidade(ps, g, editar, admin) {
   const comLinhas = ps.filter(usaLinhas);
   if (!comLinhas.length) return '';
   if (!linhaDaEntidade(g.entidade)) {
     return editar ? `<div class="warnbox">Escolha a entidade do dia: é ela que define quem atua como extra ou passe e quem cambona.</div>` : '';
   }
   const viram = comLinhas.filter((p) => funcaoNaGira(p, g) === 'cambone');
-  return viram.length
+  return admin && viram.length
     ? `<p class="muted" style="margin:0;font-size:.88rem">Nesta gira de ${esc(LINHA_LABEL[linhaDaEntidade(g.entidade)])}, cambonam: ${viram.map((p) => esc(p.nome)).join(', ')}.</p>`
     : '';
 }
@@ -87,7 +88,7 @@ export function render() {
       ${editar ? `<label class="field grow">Entidade que trabalha no dia${seletorEntidade(g.entidade)}</label>` : ''}
     </div>
     ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</div>` : ''}
-    ${avisoEntidade(ps, g, editar)}
+    ${avisoEntidade(ps, g, editar, admin)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
   </div>`;
 
