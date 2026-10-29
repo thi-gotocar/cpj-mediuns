@@ -35,11 +35,14 @@ export function rota(metodos) {
       const corpo = await fn(req, res);
       if (!res.headersSent) res.status(200).json(corpo ?? { ok: true });
     } catch (e) {
-      const err = e instanceof HttpError ? e : deErroDoBanco(e) || e;
+      const nossa = e instanceof HttpError;
+      const err = nossa ? e : deErroDoBanco(e) || e;
       const status = err.status || 500;
       if (status >= 500) console.error('[api]', req.method, req.url, e);
       if (!res.headersSent) {
-        res.status(status).json({ erro: status >= 500 ? 'Erro interno. Tente de novo.' : err.message });
+        // Mensagens escritas por nós (HttpError) podem ir para a tela; erros inesperados não.
+        const mostrar = nossa || err !== e;
+        res.status(status).json({ erro: mostrar ? err.message : 'Erro interno. Tente de novo.' });
       }
     }
   };

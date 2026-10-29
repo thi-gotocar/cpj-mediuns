@@ -11,7 +11,7 @@ import { HttpError } from './http.js';
 
 function env(nome) {
   const v = process.env[nome];
-  if (!v) throw new HttpError(500, `Variável de ambiente ${nome} não configurada.`);
+  if (!v) throw new HttpError(503, `Variável de ambiente ${nome} não configurada na Vercel.`);
   return v;
 }
 const base = () => env('SUPABASE_URL').replace(/\/+$/, '');

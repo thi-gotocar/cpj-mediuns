@@ -155,3 +155,22 @@ test('importar backup da versão anterior', async () => {
   assert.equal(g.pares.length, 1);
   assert.deepEqual(Object.values(g.presenca).sort(), ['a', 'sup']);
 });
+
+test('/api/config diz quais variáveis faltam (só os nomes)', async () => {
+  const salvo = { ...process.env };
+  process.env.SUPABASE_URL = 'https://x.supabase.co';
+  delete process.env.SUPABASE_ANON_KEY;
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const r = await api('GET', '/api/config');
+  assert.equal(r.status, 503);
+  assert.match(r.json.erro, /SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(r.json.erro, /x\.supabase\.co/);
+  process.env.SUPABASE_ANON_KEY = 'a';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 's';
+  const ok = await api('GET', '/api/config');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.supabaseUrl, 'https://x.supabase.co');
+  assert.equal(ok.json.supabaseAnonKey, 'a');
+  Object.keys(process.env).forEach((k) => { if (!(k in salvo)) delete process.env[k]; });
+  Object.assign(process.env, salvo);
+});
