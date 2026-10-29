@@ -2,7 +2,7 @@
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, status, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar } from '../util.js';
+import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 
@@ -121,31 +121,51 @@ export function render() {
   const selo = (e) => (!e ? `<span class="badge new">1ª vez juntos</span>`
     : e.recente ? `<span class="badge hot">repetiu da última</span>`
       : `<span class="badge rep">${e.n + 1}ª vez · última ${dDM(e.ultima)}</span>`);
+  const passada = g.data < hoje();
   const linha = (k, p, idx, opts, mp, rotulo) => {
     const quem = editar
       ? `<select id="sel-${k}-${idx}" data-act="troca" data-k="${k}" data-i="${idx}" aria-label="Trocar">${opts.map((c) => `<option value="${c.id}" ${c.id === p.c ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select>`
       : `<span class="nmc">${esc(nome(p.c))}</span>`;
-    const fixar = editar
+    const fixar = editar && !passada
       ? `<button class="lock" data-act="fixo" data-k="${k}" data-i="${idx}" aria-pressed="${!!p.fixo}" title="Manter no próximo sorteio">${p.fixo ? 'Fixada' : 'Fixar'}</button>`
       : p.fixo ? '<span class="badge rep">fixada</span>' : '';
     return `<div class="camrow">${rotulo ? `<span class="tag">${rotulo}</span>` : ''}${quem}${selo(mp[p.m + '|' + p.c])}${p.remanejado ? '<span class="badge re">remanejado</span>' : ''}${fixar}</div>`;
   };
   const temDuplas = validos.length || passesV.length;
+  // Ajuste manual: em gira passada fica sempre ligado (registrar como foi);
+  // nas outras, o admin liga pelo botão.
+  const manual = editar && (passada || estado.manual === g.data);
+  const comQuem = (id, k) => (g[k] || []).filter((p) => p.c === id).map((p) => nome(p.m));
+  const adicionar = (x) => {
+    const naoCam = new Set(x.cams.map((p) => p.c));
+    const cams = camsPres.filter((c) => c.id !== x.m.id && !naoCam.has(c.id));
+    const naoPas = new Set(x.passes.map((p) => p.c));
+    const pas = passPres.filter((c) => !naoPas.has(c.id));
+    const opt = (c, k, txt) => { const j = comQuem(c.id, k); return `<option value="${c.id}">${esc(c.nome)}${j.length ? ` (${txt} ${esc(j.join(', '))})` : ''}</option>`; };
+    return `<div class="addrow">
+      ${cams.length ? `<select data-act="addcam" data-m="${x.m.id}" aria-label="Adicionar cambone a ${esc(x.m.nome)}"><option value="">+ cambone</option>${cams.map((c) => opt(c, 'pares', 'também com')).join('')}</select>` : ''}
+      ${pas.length ? `<select data-act="addpasse" data-m="${x.m.id}" aria-label="Adicionar médium de passe a ${esc(x.m.nome)}"><option value="">+ médium de passe</option>${pas.map((c) => opt(c, 'passes', 'sai de')).join('')}</select>` : ''}
+    </div>`;
+  };
   h += `<div class="card"><div class="grp-h"><h2>Médiuns e cambones</h2>
-      ${sortearOk ? `<div class="row">${temDuplas
+      <div class="row">${sortearOk ? (temDuplas
         ? '<button class="btn primary" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button>'
-        : '<button class="btn primary" data-act="sortear">Sortear</button>'}</div>` : ''}</div>`;
+        : '<button class="btn primary" data-act="sortear">Sortear</button>') : ''}
+      ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}</div></div>`;
+  if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
-  if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
+  if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
   if (!lista.length) h += `<p class="muted">Nenhum médium presente.</p>`;
-  else if (!temDuplas) h += `<p class="muted">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes.${sortearOk ? ' Toque em sortear para montar as duplas.' : ' As duplas ainda não foram sorteadas.'}</p>`;
+  else if (!temDuplas && !manual) h += `<p class="muted">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes.${sortearOk ? ' Toque em sortear para montar as duplas.' : ' As duplas ainda não foram sorteadas.'}</p>`;
   else {
+    const tirar = (k, i) => (manual ? `<button class="lock rm" data-act="remover" data-k="${k}" data-i="${i}" title="Tirar deste médium" aria-label="Tirar">✕</button>` : '');
     h += `<div class="pairs">`;
     lista.forEach((x) => {
       h += `<div class="pair"><span class="med">${esc(x.m.nome)}${x.m.funcao === 'extra' ? ' <span class="badge rep">Extra</span>' : ''}</span><span class="muted" style="font-size:.85rem">${x.cams.length} cambone${x.cams.length === 1 ? '' : 's'}</span><div class="cams">`;
-      x.cams.forEach((p) => { h += linha('pares', p, (g.pares || []).indexOf(p), camsPres, map, ''); });
-      if (!x.cams.length) h += `<span class="muted">Sem cambone.${sortearOk ? ' Sorteie de novo.' : ''}</span>`;
-      x.passes.forEach((p) => { h += linha('passes', p, (g.passes || []).indexOf(p), passPres, mapP, 'Passe'); });
+      x.cams.forEach((p) => { const i = (g.pares || []).indexOf(p); h += linha('pares', p, i, camsPres, map, '').replace(/<\/div>$/, tirar('pares', i) + '</div>'); });
+      if (!x.cams.length) h += `<span class="muted">Sem cambone.${manual ? '' : sortearOk ? ' Sorteie de novo.' : ''}</span>`;
+      x.passes.forEach((p) => { const i = (g.passes || []).indexOf(p); h += linha('passes', p, i, passPres, mapP, 'Passe').replace(/<\/div>$/, tirar('passes', i) + '</div>'); });
+      if (manual) h += adicionar(x);
       h += `</div></div>`;
     });
     h += `</div>`;
@@ -200,6 +220,17 @@ export const cliques = {
     avisar();
   },
   sortear: () => sortear(),
+  manual() {
+    const d = giraAtual().data;
+    estado.manual = estado.manual === d ? null : d;
+    avisar();
+  },
+  remover(el) {
+    const k = el.dataset.k;
+    const g = giraAtual();
+    editarGira({ [k]: (g[k] || []).filter((_, i) => i !== +el.dataset.i) });
+    avisar();
+  },
   remanejar: () => remanejar(),
   fixo(el) {
     const k = el.dataset.k;
@@ -239,6 +270,19 @@ export const mudancas = {
     const pr = { ...(g.presenca || {}) };
     if (t.value === 'p') delete pr[t.dataset.id]; else pr[t.dataset.id] = t.value;
     editarGira({ presenca: pr });
+    avisar();
+  },
+  // Cambone pode acompanhar mais de um médium; médium de passe fica com um só (sai do anterior).
+  addcam(t) {
+    if (!t.value) return;
+    const g = giraAtual();
+    editarGira({ pares: [...(g.pares || []), { m: t.dataset.m, c: t.value, fixo: false, remanejado: false }] });
+    avisar();
+  },
+  addpasse(t) {
+    if (!t.value) return;
+    const g = giraAtual();
+    editarGira({ passes: [...(g.passes || []).filter((p) => p.c !== t.value), { m: t.dataset.m, c: t.value, fixo: false, remanejado: false }] });
     avisar();
   },
   troca(t) {

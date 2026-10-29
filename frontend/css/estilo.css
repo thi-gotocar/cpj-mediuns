@@ -70,6 +70,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .pair .med{font-weight:700;font-size:1.02rem}
 .pair .cams{grid-column:1/-1;display:grid;gap:6px}
 .camrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.addrow{display:flex;gap:8px;flex-wrap:wrap}
+.addrow select{width:auto;flex:1 1 160px;padding:6px 9px;border-style:dashed;color:var(--muted)}
+.lock.rm{padding:5px 8px;line-height:1}
 .camrow select{width:auto;flex:1 1 140px;padding:6px 9px}
 .badge{font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 8px;white-space:nowrap}
 .badge.new{background:var(--ok-soft);color:var(--ok)}
