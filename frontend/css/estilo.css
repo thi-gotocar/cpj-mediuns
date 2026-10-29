@@ -93,6 +93,10 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .ppl{display:grid;gap:0}
 .pp{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .pp:last-child{border-bottom:0}
+.nmline{display:flex;align-items:baseline;gap:6px;min-width:0}
+.nmline .btn.link{padding:0 2px;font-size:.8rem;flex:none}
+.ren{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ren input{flex:1 1 140px;padding:6px 9px;min-width:0}
 .pp .nm{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pp select{width:auto;padding:6px 8px;font-size:.92rem}
 .hist{display:grid;gap:0}

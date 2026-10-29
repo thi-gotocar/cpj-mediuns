@@ -188,6 +188,8 @@ main.addEventListener('submit', async (e) => {
     }
   } else if (id === 'f-erva') {
     await ervas.enviarFormulario();
+  } else if (id === 'f-ren') {
+    await pessoas.renomear(e.target);
   } else if (id === 'f-add') {
     await pessoas.enviarFormulario();
   } else if (id === 'f-user') {

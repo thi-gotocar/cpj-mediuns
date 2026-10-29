@@ -60,7 +60,10 @@ export function render() {
         return;
       }
       const conf = estado.confirm === 'p:' + p.id;
-      h += `<div class="pp"><span class="nmcell"><span class="nm">${esc(p.nome)}</span>${p.funcao === 'medium' ? `<label class="check small"><input type="checkbox" id="exp-${p.id}" data-act="exp" data-id="${p.id}" ${p.experiente ? 'checked' : ''}> Pode ter médium de passe junto</label>` : ''}</span>
+      const nomeHtml = estado.renomear === p.id
+        ? `<form id="f-ren" class="ren" data-id="${p.id}"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Novo nome de ${esc(p.nome)}"><button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelren">Cancelar</button></form>`
+        : `<span class="nmline"><span class="nm">${esc(p.nome)}</span><button class="btn link small" data-act="ren" data-id="${p.id}" title="Editar nome" aria-label="Editar nome de ${esc(p.nome)}">✎ editar</button></span>`;
+      h += `<div class="pp"><span class="nmcell">${nomeHtml}${p.funcao === 'medium' ? `<label class="check small"><input type="checkbox" id="exp-${p.id}" data-act="exp" data-id="${p.id}" ${p.experiente ? 'checked' : ''}> Pode ter médium de passe junto</label>` : ''}</span>
         <select id="fn-${p.id}" data-act="func" data-id="${p.id}" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
         ${conf ? `<button class="btn small danger" data-act="delpessoa" data-id="${p.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="p:${p.id}">Excluir</button>`}
         ${p.funcao === 'extra' || p.funcao === 'passe' ? editorLinhas(p) : ''}</div>`;
@@ -72,7 +75,29 @@ export function render() {
 
 export const cliques = {
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
+  ren(el) {
+    estado.renomear = el.dataset.id;
+    avisar();
+    const inp = document.getElementById('ren-in');
+    if (inp) { inp.focus(); inp.select(); }
+  },
+  cancelren() { estado.renomear = null; avisar(); },
 };
+
+// Salva o nome editado (Enter ou "Salvar").
+export async function renomear(form) {
+  const id = form.dataset.id;
+  const novo = document.getElementById('ren-in').value.trim().replace(/\s+/g, ' ');
+  const p = estado.pessoas.find((x) => x.id === id);
+  if (!novo) { toast('Digite o nome.'); return; }
+  estado.renomear = null;
+  if (!p || novo === p.nome) { avisar(); return; }
+  if (estado.pessoas.some((x) => x.id !== id && x.nome.toLowerCase() === novo.toLowerCase())) {
+    estado.renomear = id; toast('Já existe um cadastro com esse nome.'); return;
+  }
+  await atualizarPessoa(id, { nome: novo });
+  toast('Nome alterado.');
+}
 
 export const mudancas = {
   exp(t) { atualizarPessoa(t.dataset.id, { experiente: t.checked }); },

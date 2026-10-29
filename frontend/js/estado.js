@@ -15,7 +15,8 @@ export const estado = {
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
   img: null,           // imagem gerada da escala
-  manual: null,        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
+  manual: null,
+  renomear: null,      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
 
