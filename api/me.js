@@ -5,7 +5,7 @@ import { PERMISSOES } from '../shared/permissoes.js';
 
 export default rota({
   GET: async (req) => {
-    const perfil = await exigir(req);
-    return { ...perfil, permissoes: PERMISSOES[perfil.papel] || [] };
+    const u = await exigir(req);
+    return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, permissoes: PERMISSOES[u.papel] || [] };
   },
 });

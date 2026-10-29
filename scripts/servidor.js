@@ -97,6 +97,6 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const srv = await criarServidor();
   srv.listen(porta, () => {
     console.log(`Sort Médiuns rodando em http://localhost:${porta}`);
-    if (!process.env.SUPABASE_URL) console.log('Aviso: crie o arquivo .env (veja .env.example) para conectar ao Supabase.');
+    if (!process.env.DATABASE_URL) console.log('Aviso: crie o arquivo .env (veja .env.example) com a DATABASE_URL do banco.');
   });
 }

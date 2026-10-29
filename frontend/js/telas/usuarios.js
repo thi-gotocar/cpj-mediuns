@@ -22,7 +22,7 @@ export function render() {
     <form id="f-user" class="row" autocomplete="off">
       <label class="field grow">Nome<input type="text" id="u-nome" required maxlength="80"></label>
       <label class="field grow">E-mail<input type="email" id="u-email" required></label>
-      <label class="field" style="flex:1 1 140px">Senha inicial<input type="password" id="u-senha" required minlength="6" autocomplete="new-password"></label>
+      <label class="field" style="flex:1 1 140px">Senha inicial<input type="password" id="u-senha" required minlength="8" autocomplete="new-password"></label>
       <label class="field" style="flex:0 1 140px">Perfil<select id="u-papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${k === 'usuario' ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       <button class="btn primary" type="submit">Criar</button>
     </form>
@@ -47,9 +47,9 @@ export function render() {
 export const cliques = {
   novasenha(el) {
     const u = estado.usuarios.find((x) => x.id === el.dataset.id);
-    const s = prompt(`Nova senha para ${u?.nome || 'o usuário'} (mínimo 6 caracteres):`);
+    const s = prompt(`Nova senha para ${u?.nome || 'o usuário'} (mínimo 8 caracteres):`);
     if (s === null) return;
-    if (s.length < 6) { toast('A senha precisa ter pelo menos 6 caracteres.'); return; }
+    if (s.length < 8) { toast('A senha precisa ter pelo menos 8 caracteres.'); return; }
     atualizarUsuario(el.dataset.id, { senha: s });
   },
   deluser(el) { estado.confirm = null; excluirUsuario(el.dataset.id); },

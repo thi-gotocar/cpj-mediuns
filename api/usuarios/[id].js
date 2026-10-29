@@ -2,7 +2,8 @@
 // DELETE /api/usuarios/:id
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
-import { auth, db } from '../_lib/supabase.js';
+import { db } from '../_lib/db.js';
+import { gerarHash, SENHA_MINIMA } from '../_lib/senhas.js';
 import { PAPEIS } from '../../shared/permissoes.js';
 
 export default rota({
@@ -21,23 +22,18 @@ export default rota({
       if (id === eu.id && b.papel !== 'admin') throw new HttpError(400, 'Você não pode tirar o seu próprio acesso de admin.');
       p.papel = b.papel;
     }
-    const senha = b.senha ? String(b.senha) : '';
-    if (senha && senha.length < 6) throw new HttpError(400, 'A senha precisa ter pelo menos 6 caracteres.');
-    const perfil = await db.rpc('perfil_atualizar', p);
-    if (senha || p.papel) await auth.atualizarUsuario(id, { senha, papel: p.papel });
-    return perfil;
+    if (b.senha) {
+      const senha = String(b.senha);
+      if (senha.length < SENHA_MINIMA || senha.length > 200) throw new HttpError(400, `A senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.`);
+      p.senhaHash = await gerarHash(senha);
+    }
+    const { sessaoVersao, ...u } = await db.rpc('usuario_atualizar', p);
+    return u;
   },
   DELETE: async (req) => {
     const eu = await exigir(req, 'usuarios:gerenciar');
     const id = validarId(req.query.id);
     if (id === eu.id) throw new HttpError(400, 'Você não pode excluir o seu próprio usuário.');
-    const todos = await db.rpc('perfis_listar');
-    const alvo = todos.find((u) => u.id === id);
-    if (!alvo) throw new HttpError(404, 'Usuário não encontrado.');
-    if (alvo.papel === 'admin' && todos.filter((u) => u.papel === 'admin').length <= 1) {
-      throw new HttpError(400, 'Precisa existir pelo menos um admin.');
-    }
-    await auth.excluirUsuario(id);
-    return { ok: true };
+    return db.rpc('usuario_excluir', { id });
   },
 });

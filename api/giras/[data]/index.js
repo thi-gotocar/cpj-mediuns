@@ -3,7 +3,7 @@
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
-import { db } from '../../_lib/supabase.js';
+import { db } from '../../_lib/db.js';
 import { giraVazia, STATUS_KEYS } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {

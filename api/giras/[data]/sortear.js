@@ -1,7 +1,7 @@
 // POST /api/giras/:data/sortear — sorteio completo (mantém as duplas fixadas).
 import { rota, validarData } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
-import { db } from '../../_lib/supabase.js';
+import { db } from '../../_lib/db.js';
 import { giraVazia, sortear } from '../../../shared/regras.js';
 
 export default rota({

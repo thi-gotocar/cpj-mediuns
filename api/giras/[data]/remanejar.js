@@ -1,7 +1,7 @@
 // POST /api/giras/:data/remanejar — ajusta só quem foi afetado por faltas.
 import { rota, validarData } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
-import { db } from '../../_lib/supabase.js';
+import { db } from '../../_lib/db.js';
 import { giraVazia, remanejar } from '../../../shared/regras.js';
 
 export default rota({

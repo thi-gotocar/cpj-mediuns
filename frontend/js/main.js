@@ -1,6 +1,6 @@
 // Ponto de entrada do frontend: login, abas, renderização e eventos.
 
-import { carregarConfig, logado, entrar, sair, trocarSenha } from './auth.js';
+import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
 import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor } from './estado.js';
 import { esc, toast } from './util.js';
@@ -17,6 +17,7 @@ const conta = document.getElementById('conta');
 const TELAS = { gira, pessoas, hist: historico, usuarios };
 let erroLogin = '';
 let emailLogin = '';
+let instalado = true;
 
 // ---------- render ----------
 function renderConta() {
@@ -31,7 +32,7 @@ function render() {
   if (!logado() || !estado.pronto) {
     tabs.hidden = true;
     renderConta();
-    if (!logado()) main.innerHTML = login.render(erroLogin, emailLogin);
+    if (!logado()) main.innerHTML = instalado ? login.render(erroLogin, emailLogin) : login.renderInstalacao(erroLogin);
     return;
   }
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
@@ -58,13 +59,16 @@ aoMudar(render);
 
 // ---------- início ----------
 async function iniciar() {
-  try {
-    await carregarConfig();
-  } catch (e) {
-    main.innerHTML = `<div class="card"><h2>App não configurado</h2><p class="erro">${esc(e.message)}</p><p class="muted">Confira as variáveis de ambiente na Vercel (veja o README).</p></div>`;
+  if (!logado()) {
+    try {
+      instalado = (await estadoDoApp()).instalado;
+    } catch (e) {
+      main.innerHTML = `<div class="card"><h2>App não configurado</h2><p class="erro">${esc(e.message)}</p><p class="muted">Veja a seção “Como colocar no ar” do README.</p><button class="btn" data-conta="recarregar">Tentar de novo</button></div>`;
+      return;
+    }
+    render();
     return;
   }
-  if (!logado()) { render(); return; }
   main.innerHTML = '<div class="loading">Carregando a corrente…</div>';
   try {
     await carregarTudo();
@@ -97,15 +101,17 @@ conta.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-conta]');
   if (!b) return;
   if (b.dataset.conta === 'sair') {
-    await sair();
+    sair();
     Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {
-    const s = prompt('Nova senha (mínimo 6 caracteres):');
-    if (s === null) return;
-    if (s.length < 6) { toast('A senha precisa ter pelo menos 6 caracteres.'); return; }
-    try { await trocarSenha(s); toast('Senha alterada.'); } catch (err) { toast(err.message); }
+    const atual = prompt('Sua senha atual:');
+    if (atual === null) return;
+    const nova = prompt('Nova senha (mínimo 8 caracteres):');
+    if (nova === null) return;
+    if (nova.length < 8) { toast('A senha precisa ter pelo menos 8 caracteres.'); return; }
+    try { await trocarSenha(atual, nova); toast('Senha alterada. Outras sessões abertas foram encerradas.'); } catch (err) { toast(err.message); }
   }
 });
 
@@ -149,6 +155,22 @@ main.addEventListener('submit', async (e) => {
       await iniciar();
     } catch (err) {
       erroLogin = err.message;
+      render();
+    }
+  } else if (id === 'f-instalar') {
+    const v = (x) => document.getElementById(x).value;
+    if (v('i-senha') !== v('i-senha2')) { erroLogin = 'As senhas não conferem.'; render(); return; }
+    const btn = document.getElementById('i-btn');
+    btn.disabled = true;
+    btn.textContent = 'Instalando…';
+    try {
+      await instalar({ codigo: v('i-codigo'), nome: v('i-nome').trim(), email: v('i-email').trim(), senha: v('i-senha') });
+      erroLogin = '';
+      instalado = true;
+      await iniciar();
+    } catch (err) {
+      erroLogin = err.message;
+      if (/já foi instalado/.test(err.message)) instalado = true;
       render();
     }
   } else if (id === 'f-add') {

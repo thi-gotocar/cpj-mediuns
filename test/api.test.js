@@ -3,12 +3,12 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { prepararBanco, simularSupabase, criarUsuarioDireto, sql } from './apoio.js';
+import { prepararBanco, usarBancoLocal, sql } from './apoio.js';
 import { criarServidor } from '../scripts/servidor.js';
 
 let srv, base;
-const ADMIN = 'tok-admin@corrente.org';
-const USER = 'tok-user@corrente.org';
+let ADMIN, USER;  // tokens de sessão
+process.env.CODIGO_INSTALACAO = 'codigo-de-teste';
 
 async function api(metodo, rota, token, corpo) {
   const r = await fetch(base + rota, {
@@ -22,18 +22,50 @@ async function api(metodo, rota, token, corpo) {
 
 before(async () => {
   prepararBanco();
-  simularSupabase();
-  criarUsuarioDireto('admin@corrente.org', 'Mãe Joana');   // primeiro = admin
-  criarUsuarioDireto('user@corrente.org', 'Zé');            // depois = usuário
+  usarBancoLocal();
   srv = await criarServidor();
   await new Promise((ok) => srv.listen(0, ok));
   base = 'http://127.0.0.1:' + srv.address().port;
 });
 after(() => srv?.close());
 
-test('sem login: 401; token inválido: 401', async () => {
+test('instalação: código obrigatório e só uma vez', async () => {
+  assert.deepEqual((await api('GET', '/api/auth/estado')).json, { instalado: false });
+  const dados = { nome: 'Mãe Joana', email: 'Admin@Corrente.org', senha: 'senha-forte-1' };
+  assert.equal((await api('POST', '/api/auth/instalar', null, { ...dados, codigo: 'errado' })).status, 403);
+  assert.equal((await api('POST', '/api/auth/instalar', null, { ...dados, codigo: 'codigo-de-teste', senha: '123' })).status, 400);
+  const r = await api('POST', '/api/auth/instalar', null, { ...dados, codigo: 'codigo-de-teste' });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.usuario.papel, 'admin');
+  assert.equal(r.json.usuario.email, 'admin@corrente.org');
+  ADMIN = r.json.token;
+  const de2 = await api('POST', '/api/auth/instalar', null, { ...dados, email: 'outro@x.org', codigo: 'codigo-de-teste' });
+  assert.equal(de2.status, 400);
+  assert.match(de2.json.erro, /já foi instalado/);
+  assert.deepEqual((await api('GET', '/api/auth/estado')).json, { instalado: true });
+  // senha guardada com hash, nunca em texto
+  assert.match(sql("select senha_hash from usuarios"), /^scrypt\$/);
+});
+
+test('login: senha certa, errada e bloqueio', async () => {
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'user@corrente.org', nome: 'Zé', senha: 'senha-do-ze', papel: 'usuario' })).status, 200);
+  const errado = await api('POST', '/api/auth/entrar', null, { email: 'user@corrente.org', senha: 'nao' });
+  assert.equal(errado.status, 401);
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ninguem@x.org', senha: 'nao' })).status, 401);
+  const ok = await api('POST', '/api/auth/entrar', null, { email: ' USER@corrente.org ', senha: 'senha-do-ze' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(ok.json.usuario.permissoes, ['pessoas:ler', 'giras:ler']);
+  USER = ok.json.token;
+  for (let i = 0; i < 8; i++) await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' + i });
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' })).status, 429);
+});
+
+test('sem login: 401; token inválido ou adulterado: 401', async () => {
   assert.equal((await api('GET', '/api/pessoas')).status, 401);
-  assert.equal((await api('GET', '/api/pessoas', 'tok-ninguem@x.com')).status, 401);
+  assert.equal((await api('GET', '/api/pessoas', 'lixo')).status, 401);
+  const [corpo, ass] = ADMIN.split('.');
+  const falso = Buffer.from(JSON.stringify({ u: JSON.parse(Buffer.from(corpo, 'base64url')).u, v: 1, exp: 9e9 })).toString('base64url');
+  assert.equal((await api('GET', '/api/pessoas', falso + '.' + ass)).status, 401);
 });
 
 test('/api/me mostra papel e permissões', async () => {
@@ -119,10 +151,11 @@ test('remanejar falta mantém as outras duplas', async () => {
 
 test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('GET', '/api/usuarios', USER)).status, 403);
-  const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', nome: 'Novo', senha: '123456', papel: 'usuario' });
+  const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', nome: 'Novo', senha: '12345678', papel: 'usuario' });
   assert.equal(novo.status, 200, JSON.stringify(novo.json));
   assert.equal(novo.json.length, 3);
-  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'novo@corrente.org', nome: 'N', senha: '123456', papel: 'usuario' })).status, 400);
+  assert.ok(!('sessaoVersao' in novo.json[0]) && !('senhaHash' in novo.json[0]));
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'novo@corrente.org', nome: 'N', senha: '12345678', papel: 'usuario' })).status, 400);
   assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'z@z.org', nome: 'Z', senha: '1', papel: 'usuario' })).status, 400);
 
   const eu = (await api('GET', '/api/me', ADMIN)).json;
@@ -130,9 +163,26 @@ test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('DELETE', '/api/usuarios/' + eu.id, ADMIN)).status, 400);
 
   const user = novo.json.find((u) => u.email === 'novo@corrente.org');
+  const tokNovo = (await api('POST', '/api/auth/entrar', null, { email: 'novo@corrente.org', senha: '12345678' })).json.token;
+  assert.equal((await api('GET', '/api/me', tokNovo)).status, 200);
+  // Mudar o perfil encerra as sessões abertas daquela pessoa.
   assert.equal((await api('PATCH', '/api/usuarios/' + user.id, ADMIN, { papel: 'admin' })).json.papel, 'admin');
+  assert.equal((await api('GET', '/api/me', tokNovo)).status, 401);
+  // Admin redefine a senha.
+  assert.equal((await api('PATCH', '/api/usuarios/' + user.id, ADMIN, { senha: 'outra-senha' })).status, 200);
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'novo@corrente.org', senha: 'outra-senha' })).status, 200);
   assert.equal((await api('DELETE', '/api/usuarios/' + user.id, ADMIN)).status, 200);
-  assert.equal(sql("select count(*) from perfis where email = 'novo@corrente.org'"), '0');
+  assert.equal(sql("select count(*) from usuarios where email = 'novo@corrente.org'"), '0');
+});
+
+test('trocar a própria senha encerra as outras sessões', async () => {
+  const outra = (await api('POST', '/api/auth/entrar', null, { email: 'user@corrente.org', senha: 'senha-do-ze' })).json.token;
+  assert.equal((await api('POST', '/api/auth/senha', USER, { atual: 'errada', nova: 'nova-senha-ze' })).status, 400);
+  const r = await api('POST', '/api/auth/senha', USER, { atual: 'senha-do-ze', nova: 'nova-senha-ze' });
+  assert.equal(r.status, 200);
+  assert.equal((await api('GET', '/api/me', outra)).status, 401);
+  assert.equal((await api('GET', '/api/me', r.json.token)).status, 200);
+  USER = r.json.token;
 });
 
 test('importar backup da versão anterior', async () => {
@@ -156,21 +206,3 @@ test('importar backup da versão anterior', async () => {
   assert.deepEqual(Object.values(g.presenca).sort(), ['a', 'sup']);
 });
 
-test('/api/config diz quais variáveis faltam (só os nomes)', async () => {
-  const salvo = { ...process.env };
-  process.env.SUPABASE_URL = 'https://x.supabase.co';
-  delete process.env.SUPABASE_ANON_KEY;
-  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const r = await api('GET', '/api/config');
-  assert.equal(r.status, 503);
-  assert.match(r.json.erro, /SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY/);
-  assert.doesNotMatch(r.json.erro, /x\.supabase\.co/);
-  process.env.SUPABASE_ANON_KEY = 'a';
-  process.env.SUPABASE_SERVICE_ROLE_KEY = 's';
-  const ok = await api('GET', '/api/config');
-  assert.equal(ok.status, 200);
-  assert.equal(ok.json.supabaseUrl, 'https://x.supabase.co');
-  assert.equal(ok.json.supabaseAnonKey, 'a');
-  Object.keys(process.env).forEach((k) => { if (!(k in salvo)) delete process.env[k]; });
-  Object.assign(process.env, salvo);
-});

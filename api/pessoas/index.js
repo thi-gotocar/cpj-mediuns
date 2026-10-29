@@ -2,7 +2,7 @@
 // POST /api/pessoas            { nomes: [..] | nome: "A, B; C", funcao }
 import { rota, corpo, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
-import { db } from '../_lib/supabase.js';
+import { db } from '../_lib/db.js';
 import { FUNCAO_KEYS } from '../../shared/regras.js';
 
 export default rota({

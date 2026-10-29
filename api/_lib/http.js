@@ -7,7 +7,7 @@ export class HttpError extends Error {
   }
 }
 
-// Traduz erros do Postgres (vindos da API REST do Supabase) para respostas claras.
+// Traduz erros do Postgres para respostas claras.
 function deErroDoBanco(e) {
   switch (e.code) {
     case '23505': return new HttpError(409, 'Já existe um cadastro com esse nome.');
