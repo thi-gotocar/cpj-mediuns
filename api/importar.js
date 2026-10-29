@@ -4,7 +4,7 @@
 import { rota, corpo, validarData, HttpError } from './_lib/http.js';
 import { exigir } from './_lib/sessao.js';
 import { db } from './_lib/db.js';
-import { FUNCAO_KEYS } from '../shared/regras.js';
+import { FUNCAO_KEYS, LINHA_KEYS } from '../shared/regras.js';
 
 // Status das versões anteriores: true = presente, false = ausente, 'nc' = suporte.
 function statusAntigo(v) {
@@ -45,6 +45,11 @@ export default rota({
       if (p.experiente && !atual.experiente) {
         await db.rpc('pessoas_atualizar', { id: atual.id, experiente: true });
         atual.experiente = true;
+      }
+      const linhas = Array.isArray(p.linhas) ? p.linhas.filter((l) => LINHA_KEYS.includes(l)) : [];
+      if (linhas.length && !(atual.linhas || []).length) {
+        await db.rpc('pessoas_atualizar', { id: atual.id, linhas });
+        atual.linhas = linhas;
       }
     }
 

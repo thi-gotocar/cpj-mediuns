@@ -1,9 +1,9 @@
-// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente? }
+// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente?, linhas? }
 // DELETE /api/pessoas/:id
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
-import { FUNCAO_KEYS } from '../../shared/regras.js';
+import { FUNCAO_KEYS, LINHA_KEYS } from '../../shared/regras.js';
 
 export default rota({
   PATCH: async (req) => {
@@ -21,6 +21,10 @@ export default rota({
       p.funcao = b.funcao;
     }
     if ('experiente' in b) p.experiente = !!b.experiente;
+    if ('linhas' in b) {
+      if (!Array.isArray(b.linhas) || b.linhas.some((l) => !LINHA_KEYS.includes(l))) throw new HttpError(400, 'Linha inválida.');
+      p.linhas = [...new Set(b.linhas)];
+    }
     return db.rpc('pessoas_atualizar', p);
   },
   DELETE: async (req) => {

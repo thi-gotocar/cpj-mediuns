@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 1;
+export const VERSAO = 2;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -45,6 +45,8 @@ export const MIGRACOES = [
      criado_em   timestamptz not null default now()
    )`,
   `create unique index if not exists pessoas_nome_unico on pessoas (lower(btrim(nome)))`,
+  // v2: linhas em que Extra/Passe atuam na própria função (nas outras, cambonam)
+  `alter table pessoas add column if not exists linhas text[] not null default '{}'`,
 
   // ------------------------------------------------------------------ giras
   `create table if not exists giras (
@@ -194,7 +196,7 @@ export const MIGRACOES = [
   `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select id, nome, funcao, experiente from pessoas
+       select id, nome, funcao, experiente, linhas from pessoas
      ) x;
    $$`,
   // p = { nomes: [...], funcao }. Nomes repetidos são ignorados.
@@ -223,10 +225,13 @@ export const MIGRACOES = [
      update pessoas set
        nome       = case when p ? 'nome'       then btrim(p ->> 'nome')            else nome end,
        funcao     = case when p ? 'funcao'     then p ->> 'funcao'                 else funcao end,
-       experiente = case when p ? 'experiente' then (p ->> 'experiente')::boolean else experiente end
+       experiente = case when p ? 'experiente' then (p ->> 'experiente')::boolean else experiente end,
+       linhas     = case when p ? 'linhas'
+                         then array(select distinct jsonb_array_elements_text(p -> 'linhas') order by 1)
+                         else linhas end
      where id = v_id;
      if not found then raise exception 'Pessoa não encontrada.'; end if;
-     return (select to_jsonb(x) from (select id, nome, funcao, experiente from pessoas where id = v_id) x);
+     return (select to_jsonb(x) from (select id, nome, funcao, experiente, linhas from pessoas where id = v_id) x);
    end;
    $$`,
   `create or replace function pessoas_excluir(p jsonb)

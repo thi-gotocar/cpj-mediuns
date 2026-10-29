@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, status, presente, cambonaHoje, paresPorMedium, custos } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, status, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar } from '../util.js';
 import { textoWhats } from '../exportar.js';
@@ -17,12 +17,34 @@ function podeCompartilhar() {
   } catch { return false; }
 }
 
+// Lista das linhas; mantém um valor antigo (texto livre) se a gira já tinha um.
+function seletorEntidade(atual) {
+  const conhecida = linhaDaEntidade(atual);
+  const valor = conhecida ? LINHA_LABEL[conhecida] : atual || '';
+  const antigo = valor && !conhecida ? `<option value="${esc(valor)}" selected>${esc(valor)} (fora da lista)</option>` : '';
+  return `<select id="f-ent"><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
+    ${LINHAS.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, label]) => `<option ${label === valor ? 'selected' : ''}>${label}</option>`).join('')}</optgroup>`).join('')}
+  </select>`;
+}
+
+// Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
+function avisoEntidade(ps, g, editar) {
+  const comLinhas = ps.filter(usaLinhas);
+  if (!comLinhas.length) return '';
+  if (!linhaDaEntidade(g.entidade)) {
+    return editar ? `<div class="warnbox">Escolha a entidade do dia: é ela que define quem atua como extra ou passe e quem cambona.</div>` : '';
+  }
+  const viram = comLinhas.filter((p) => funcaoNaGira(p, g) === 'cambone');
+  return viram.length
+    ? `<p class="muted" style="margin:0;font-size:.88rem">Nesta gira de ${esc(LINHA_LABEL[linhaDaEntidade(g.entidade)])}, cambonam: ${viram.map((p) => esc(p.nome)).join(', ')}.</p>`
+    : '';
+}
+
 export function render() {
   const ps = pessoasOrd();
   const g = giraAtual();
   const editar = pode('giras:editar');
   const sortearOk = pode('giras:sortear');
-  const ents = [...new Set(girasLista().map((x) => x.entidade).filter(Boolean))];
   const existe = !!estado.giras[g.data];
 
   let h = `<section class="panel">
@@ -30,9 +52,9 @@ export function render() {
     <div class="datehead"><span class="eyebrow">Gira de</span><span class="dia">${esc(dLong(g.data))}</span>${g.entidade ? `<span class="ent">${esc(g.entidade)}</span>` : ''}</div>
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
-      ${editar ? `<label class="field grow">Entidade que trabalha no dia<input type="text" id="f-ent" list="ents" maxlength="120" placeholder="Ex.: Pretos Velhos" value="${esc(g.entidade || '')}"></label>
-      <datalist id="ents">${ents.map((e) => `<option value="${esc(e)}">`).join('')}</datalist>` : ''}
+      ${editar ? `<label class="field grow">Entidade que trabalha no dia${seletorEntidade(g.entidade)}</label>` : ''}
     </div>
+    ${avisoEntidade(ps, g, editar)}
     ${!editar ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
   </div>`;
 
@@ -58,10 +80,11 @@ export function render() {
       <div class="plist">${gp.map((p) => {
         const s = status(p, g);
         const xp = p.experiente && p.funcao === 'medium' ? ' <span class="xp" title="Pode ter médium de passe junto">P</span>' : '';
+        const hoje = funcaoNaGira(p, g) !== p.funcao ? ' <span class="badge rep" title="Esta entidade não está nas linhas da pessoa">hoje: cambone</span>' : '';
         const ctl = editar
           ? `<select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${STATUS_KEYS.map((k) => `<option value="${k}" ${k === s ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>`
           : `<span class="st-txt">${STATUS[s]}</span>`;
-        return `<div class="pres ${classeStatus(s)}"><span class="nm">${esc(p.nome)}${xp}</span>${ctl}</div>`;
+        return `<div class="pres ${classeStatus(s)}"><span class="nm">${esc(p.nome)}${xp}${hoje}</span>${ctl}</div>`;
       }).join('')}</div></div>`;
   });
   h += `</div>`;
@@ -70,8 +93,9 @@ export function render() {
   const { lista, validos, passesV, semPasse, invalidos } = paresPorMedium(estado.pessoas, g);
   const map = custos(girasLista(), g.data, 'pares');
   const mapP = custos(girasLista(), g.data, 'passes');
-  const camsPres = ps.filter((p) => cambonaHoje(p, g));
-  const passPres = ps.filter((p) => presente(p, g) && p.funcao === 'passe');
+  const psg = pessoasDaGira(ps, g);
+  const camsPres = psg.filter((p) => cambonaHoje(p, g));
+  const passPres = psg.filter((p) => presente(p, g) && p.funcao === 'passe');
   const selo = (e) => (!e ? `<span class="badge new">1ª vez juntos</span>`
     : e.recente ? `<span class="badge hot">repetiu da última</span>`
       : `<span class="badge rep">${e.n + 1}ª vez · última ${dDM(e.ultima)}</span>`);
@@ -186,6 +210,7 @@ export const cliques = {
 };
 
 export const mudancas = {
+  entidade(t) { editarGira({ entidade: t.value }); avisar(); },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
   status(t) {
     const g = giraAtual();
@@ -201,16 +226,3 @@ export const mudancas = {
     avisar();
   },
 };
-
-export function digitarEntidade(valor) {
-  editarGira({ entidade: valor }, { atraso: 700 });
-  const ta = document.getElementById('f-txt');
-  if (ta) ta.value = textoWhats(estado.pessoas, giraAtual(), prefs.fmt);
-  const head = document.querySelector('.datehead');
-  if (head) {
-    let s = head.querySelector('.ent');
-    if (!s) { s = document.createElement('span'); s.className = 'ent'; head.appendChild(s); }
-    s.textContent = valor;
-  }
-}
-

@@ -19,6 +19,58 @@ export const FUNCAO_KEYS = FUNCOES.map((f) => f.k);
 export const STATUS = { p: 'Presente', na: 'Não atende', sup: 'Suporte', f: 'Falta', a: 'Ausente' };
 export const STATUS_KEYS = Object.keys(STATUS);
 
+// Linhas (entidades) de trabalho. A entidade da gira é uma delas.
+export const LINHAS = [
+  {
+    grupo: 'Linhas',
+    itens: [
+      ['preto-velho', 'Preto Velho'], ['malandro', 'Malandro'], ['baiano', 'Baiano'], ['cigano', 'Cigano'],
+      ['marinheiro', 'Marinheiro'], ['boiadeiro', 'Boiadeiro'], ['eres', 'Erês'], ['caboclo', 'Caboclo'], ['mista', 'Mista'],
+    ],
+  },
+  {
+    grupo: 'Esquerda',
+    itens: [['exu', 'Exu'], ['pomba-gira', 'Pomba Gira'], ['exu-mirim', 'Exu Mirim']],
+  },
+];
+export const LINHA_KEYS = LINHAS.flatMap((g) => g.itens.map(([k]) => k));
+export const LINHA_LABEL = Object.fromEntries(LINHAS.flatMap((g) => g.itens));
+
+const normalizar = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+const APELIDOS = {};
+LINHAS.flatMap((g) => g.itens).forEach(([k, label]) => {
+  const n = normalizar(label);
+  APELIDOS[n] = k;
+  APELIDOS[n.split(' ').map((w) => w + 's').join(' ')] = k;   // plural: "Pretos Velhos"
+  APELIDOS[n.replace(/ /g, '')] = k;                           // junto: "Pombagira"
+});
+APELIDOS[normalizar('Ere')] = 'eres';
+APELIDOS[normalizar('Erê')] = 'eres';
+
+// Linha correspondente ao texto da entidade da gira (ou null se não for uma das linhas).
+export function linhaDaEntidade(entidade) {
+  return APELIDOS[normalizar(entidade)] || null;
+}
+
+// Extra e Passe podem ter as linhas em que atuam nessa função. Nas outras giras, cambonam.
+// Sem nenhuma linha marcada, a pessoa atua sempre na própria função.
+export const usaLinhas = (p) => (p.funcao === 'extra' || p.funcao === 'passe') && Array.isArray(p.linhas) && p.linhas.length > 0;
+
+export function funcaoNaGira(p, g) {
+  if (!usaLinhas(p)) return p.funcao;
+  const linha = linhaDaEntidade(g.entidade);
+  if (!linha) return p.funcao; // gira sem entidade definida: ninguém é convertido
+  return p.linhas.includes(linha) ? p.funcao : 'cambone';
+}
+
+// Lista de pessoas com a função que cada uma exerce nesta gira.
+export function pessoasDaGira(pessoas, g) {
+  return pessoas.map((p) => {
+    const f = funcaoNaGira(p, g);
+    return f === p.funcao ? p : { ...p, funcao: f, funcaoCadastro: p.funcao };
+  });
+}
+
 export function giraVazia(data) {
   return { data, entidade: '', presenca: {}, pares: [], passes: [] };
 }
@@ -123,7 +175,7 @@ function balancear(big, small, cost, fixos) {
 
 // Sorteio completo. Mantém só as duplas fixadas. Retorna o que mudar na gira.
 export function sortear(pessoas, giras, g) {
-  const ps = ordenarPessoas(pessoas);
+  const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
   const pres = ps.filter((p) => presente(p, g));
   const meds = pres.filter(recebe).map((p) => p.id);
   const cams = ps.filter((p) => cambonaHoje(p, g)).map((p) => p.id);
@@ -161,7 +213,7 @@ export function sortear(pessoas, giras, g) {
 
 // Remanejamento de última hora: mantém as duplas válidas e realoca só quem foi afetado.
 export function remanejar(pessoas, giras, g) {
-  const all = ordenarPessoas(pessoas);
+  const all = ordenarPessoas(pessoasDaGira(pessoas, g));
   const nome = (id) => all.find((p) => p.id === id)?.nome || '(removido)';
   const pr = { ...(g.presenca || {}) };
   const gx = { presenca: pr };
@@ -267,7 +319,7 @@ export function remanejar(pessoas, giras, g) {
 
 // Agrupa as duplas válidas por médium, para exibir e exportar.
 export function paresPorMedium(pessoas, g) {
-  const ps = ordenarPessoas(pessoas);
+  const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
   const pres = ps.filter((p) => presente(p, g));
   const ids = new Set(ps.filter((p) => presente(p, g) || status(p, g) === 'na').map((p) => p.id));
   const meds = pres.filter(recebe).sort(ordRecebe);

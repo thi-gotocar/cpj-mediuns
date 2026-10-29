@@ -131,15 +131,13 @@ main.addEventListener('click', (e) => {
 main.addEventListener('change', (e) => {
   const t = e.target;
   if (t.id === 'f-data') { gira.mudancas.data(t); return; }
+  if (t.id === 'f-ent') { gira.mudancas.entidade(t); return; }
   if (t.id === 'f-import' && t.files && t.files[0]) { const f = t.files[0]; t.value = ''; historico.restaurar(f); return; }
   const tela = TELAS[prefs.tab];
   const fn = t.dataset.act && tela.mudancas && tela.mudancas[t.dataset.act];
   if (fn) fn(t);
 });
 
-main.addEventListener('input', (e) => {
-  if (e.target.id === 'f-ent') gira.digitarEntidade(e.target.value);
-});
 
 main.addEventListener('submit', async (e) => {
   e.preventDefault();
