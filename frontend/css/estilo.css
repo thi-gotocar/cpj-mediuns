@@ -172,3 +172,5 @@ table.pedidos td,table.pedidos th{white-space:normal}
 table.pedidos td.rh{text-align:left;color:var(--muted)}
 table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--bg)}
 @media (max-width:560px){.pp.ev{grid-template-columns:minmax(0,1fr) 90px}.pp.ev .acts{grid-column:1/-1}}
+
+.pp.ev input.falta{border-color:var(--warn);background:var(--warn-soft)}

@@ -40,3 +40,20 @@ test('chave da pessoa e exportações', () => {
   assert.ok(csv.startsWith('﻿Nome;Erva'));
   assert.match(csv, /"Ana; ""Lu""";Guiné;2;7,50;15,00;5,00;20,00/);
 });
+
+test('erva sem preço: entra no pedido como "a definir" até o admin fechar o preço', () => {
+  const lista = [{ id: 'a', nome: 'Arruda', preco: 5 }, { id: 'c', nome: 'Comigo-ninguém-pode', preco: null }];
+  const escolhas = [{ chave: 'n:ana', nome: 'Ana', ervaId: 'a', quantidade: 1 }, { chave: 'n:ana', nome: 'Ana', ervaId: 'c', quantidade: 2 }];
+  const r = calcularPedidos(lista, escolhas, 4);
+  assert.deepEqual(r.faltamPrecos, ['Comigo-ninguém-pode']);
+  assert.equal(r.pessoas[0].semPreco, true);
+  assert.equal(r.pessoas[0].subtotal, 500);
+  assert.match(textoPedidos(r, 4), /Preço a definir: Comigo-ninguém-pode/);
+  assert.match(textoPedidos(r, 4), /Comigo-ninguém-pode x2 · preço a definir/);
+  assert.match(csvPedidos(r), /Comigo-ninguém-pode;2;a definir;a definir/);
+  // Depois de definir o preço, fecha o valor.
+  lista[1].preco = 3;
+  const r2 = calcularPedidos(lista, escolhas, 4);
+  assert.deepEqual(r2.faltamPrecos, []);
+  assert.equal(r2.pessoas[0].total, 500 + 600 + 400);
+});

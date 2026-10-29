@@ -13,7 +13,9 @@ export function chavePessoa(quem) {
   return quem.id ? 'u:' + quem.id : 'n:' + normalizarNome(quem.nome);
 }
 
-// ervas:    [{ id, nome, preco }]
+export const temPreco = (erva) => erva && erva.preco !== null && erva.preco !== undefined && erva.preco !== '';
+
+// ervas:    [{ id, nome, preco }]   (preco null = a definir; conta como 0 até ser preenchido)
 // escolhas: [{ chave, nome, ervaId, quantidade }]
 // frete:    em reais
 // Frete dividido por igual entre quem escolheu pelo menos uma erva; os centavos
@@ -27,8 +29,9 @@ export function calcularPedidos(ervas, escolhas, frete) {
     if (!erva || !qtd) continue;
     let p = pessoas.get(s.chave);
     if (!p) { p = { chave: s.chave, nome: s.nome, itens: [], subtotal: 0, frete: 0, total: 0 }; pessoas.set(s.chave, p); }
-    const preco = centavos(erva.preco);
-    p.itens.push({ ervaId: erva.id, nome: erva.nome, quantidade: qtd, preco, valor: preco * qtd });
+    const preco = temPreco(erva) ? centavos(erva.preco) : 0;
+    p.itens.push({ ervaId: erva.id, nome: erva.nome, quantidade: qtd, preco, valor: preco * qtd, semPreco: !temPreco(erva) });
+    if (!temPreco(erva)) p.semPreco = true;
     p.subtotal += preco * qtd;
   }
   const lista = [...pessoas.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -42,7 +45,9 @@ export function calcularPedidos(ervas, escolhas, frete) {
   lista.forEach((p) => { p.total = p.subtotal + p.frete; });
   const totalItens = lista.reduce((a, p) => a + p.subtotal, 0);
   const totalFrete = lista.length ? freteC : 0;
-  return { pessoas: lista, totalItens, totalFrete, totalGeral: totalItens + totalFrete, fretePorPessoa: lista.length ? freteC / lista.length : 0 };
+  // Ervas escolhidas que ainda estão sem preço: os valores só fecham depois de preenchê-las.
+  const faltamPrecos = [...new Set(lista.flatMap((p) => p.itens.filter((i) => i.semPreco).map((i) => i.nome)))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return { pessoas: lista, totalItens, totalFrete, totalGeral: totalItens + totalFrete, fretePorPessoa: lista.length ? freteC / lista.length : 0, faltamPrecos };
 }
 
 // Quantidade de cada erva somada (para fazer a compra).
@@ -60,13 +65,14 @@ export function totaisPorErva(resumo) {
 export function textoPedidos(resumo, frete, data = new Date()) {
   const L = [];
   L.push('*ERVAS · ' + data.toLocaleDateString('pt-BR') + '*');
+  if (resumo.faltamPrecos?.length) L.push('⚠ Preço a definir: ' + resumo.faltamPrecos.join(', ') + ' (valores ainda incompletos)');
   if (resumo.pessoas.length && resumo.totalFrete) {
     L.push(`Frete: ${reais(resumo.totalFrete)} ÷ ${resumo.pessoas.length} = ${reais(Math.round(resumo.fretePorPessoa))} por pessoa`);
   }
   L.push('');
   resumo.pessoas.forEach((p) => {
     L.push(`*${p.nome}* · ${reais(p.total)}`);
-    p.itens.forEach((i) => L.push(`• ${i.nome}${i.quantidade > 1 ? ' x' + i.quantidade : ''} · ${reais(i.valor)}`));
+    p.itens.forEach((i) => L.push(`• ${i.nome}${i.quantidade > 1 ? ' x' + i.quantidade : ''} · ${i.semPreco ? 'preço a definir' : reais(i.valor)}`));
     if (p.frete) L.push(`• frete · ${reais(p.frete)}`);
     L.push('');
   });
@@ -91,7 +97,7 @@ export function csvPedidos(resumo) {
   };
   const linhas = [['Nome', 'Erva', 'Quantidade', 'Preço unitário', 'Valor', 'Frete', 'Total da pessoa']];
   resumo.pessoas.forEach((p) => {
-    p.itens.forEach((i, k) => linhas.push([p.nome, i.nome, i.quantidade, num(i.preco), num(i.valor), k === 0 ? num(p.frete) : '', k === 0 ? num(p.total) : '']));
+    p.itens.forEach((i, k) => linhas.push([p.nome, i.nome, i.quantidade, i.semPreco ? 'a definir' : num(i.preco), i.semPreco ? 'a definir' : num(i.valor), k === 0 ? num(p.frete) : '', k === 0 ? num(p.total) : '']));
   });
   linhas.push([]);
   linhas.push(['Total', '', '', '', num(resumo.totalItens), num(resumo.totalFrete), num(resumo.totalGeral)]);

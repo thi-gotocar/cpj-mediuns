@@ -235,6 +235,13 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.equal((await add('Guiné', 7.5)).status, 200);
   assert.equal((await add('arruda', 1)).status, 400);           // nome repetido
   assert.equal((await add('Erva', -1)).status, 400);
+  // Preço é opcional no cadastro.
+  const semPreco = (await add('Espada de São Jorge', '')).json;
+  assert.equal(semPreco.ervas.find((x) => x.nome === 'Espada de São Jorge').preco, null);
+  const espada = semPreco.ervas.find((x) => x.nome === 'Espada de São Jorge');
+  assert.equal((await api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', id: espada.id, nome: espada.nome, preco: 'R$ 4,50' })).json
+    .ervas.find((x) => x.id === espada.id).preco, 4.5);
+  await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: espada.id });
   assert.equal((await api('POST', '/api/ervas', USER, { acao: 'salvarErva', nome: 'X', preco: 1 })).status, 403);
   let e = (await api('POST', '/api/ervas', ADMIN, { acao: 'config', frete: '12' })).json;
   assert.equal(e.frete, 12);

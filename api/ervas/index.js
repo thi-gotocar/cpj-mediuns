@@ -3,7 +3,7 @@
 //                     (admin recebe também todos os pedidos calculados)
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //   POST /api/ervas   { acao, ... }  — só admin:
-//        salvarErva { id?, nome, preco } · excluirErva { id } · config { frete?, aberta? } · novaCompra
+//        salvarErva { id?, nome, preco? } (preço vazio = a definir) · excluirErva { id } · config { frete?, aberta? } · novaCompra
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -16,7 +16,7 @@ function resposta(estado, eu) {
   const base = {
     frete: Number(estado.frete),
     aberta: estado.aberta,
-    ervas: estado.ervas.map((e) => ({ ...e, preco: Number(e.preco) })),
+    ervas: estado.ervas.map((e) => ({ ...e, preco: e.preco === null ? null : Number(e.preco) })),
     minhas: estado.escolhas.filter((s) => s.chave === chave).map(({ ervaId, quantidade }) => ({ ervaId, quantidade })),
     eu: { chave, nome: eu.nome },
     participantes: participantes.size,
@@ -29,7 +29,7 @@ function resposta(estado, eu) {
 }
 
 function valor(v, oque) {
-  const n = Number(String(v ?? '').replace(',', '.'));
+  const n = Number(String(v ?? '').replace(/\s|R\$/g, '').replace(',', '.'));
   if (!Number.isFinite(n) || n < 0 || n > 100000) throw new HttpError(400, oque + ' inválido.');
   return Math.round(n * 100) / 100;
 }
@@ -61,7 +61,8 @@ export default rota({
       case 'salvarErva': {
         const nome = String(b.nome || '').replace(/\s+/g, ' ').trim();
         if (!nome || nome.length > 60) throw new HttpError(400, 'Informe o nome da erva.');
-        estado = await db.rpc('erva_salvar', { id: b.id ? validarId(b.id, 'Erva') : null, nome, preco: valor(b.preco, 'Preço') });
+        const vazio = b.preco === null || b.preco === undefined || String(b.preco).trim() === '';
+        estado = await db.rpc('erva_salvar', { id: b.id ? validarId(b.id, 'Erva') : null, nome, preco: vazio ? null : valor(b.preco, 'Preço') });
         break;
       }
       case 'excluirErva':

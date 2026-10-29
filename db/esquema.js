@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 4;
+export const VERSAO = 5;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -326,10 +326,12 @@ export const MIGRACOES = [
   `create table if not exists ervas (
      id         uuid primary key default gen_random_uuid(),
      nome       text not null check (length(btrim(nome)) between 1 and 60),
-     preco      numeric(10, 2) not null check (preco >= 0 and preco <= 100000),
+     preco      numeric(10, 2) check (preco >= 0 and preco <= 100000),  -- vazio = preço a definir
      criado_em  timestamptz not null default now()
    )`,
   `create unique index if not exists ervas_nome_unico on ervas (lower(btrim(nome)))`,
+  // v5: o preço pode ficar para o fim da compra
+  `alter table ervas alter column preco drop not null`,
   // Quem escolheu o quê. pessoa_chave: "u:<id do usuário>" ou "n:<nome>" (acesso da corrente)
   `create table if not exists ervas_escolhas (
      pessoa_chave   text not null check (length(pessoa_chave) between 3 and 120),
