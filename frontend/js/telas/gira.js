@@ -122,13 +122,16 @@ export function render() {
   const psg = pessoasDaGira(ps, g);
   const camsPres = psg.filter((p) => cambonaHoje(p, g));
   const passPres = psg.filter((p) => presente(p, g) && p.funcao === 'passe');
+  // Quem está no Suporte também pode ser posto como cambone (sai do Suporte).
+  const doSuporte = psg.filter((p) => status(p, g) === 'sup');
+  const grupoSup = (lista, fn) => (lista.length ? `<optgroup label="Do Suporte">${lista.map(fn).join('')}</optgroup>` : '');
   const selo = (e) => (!e ? `<span class="badge new">1ª vez juntos</span>`
     : e.recente ? `<span class="badge hot">repetiu da última</span>`
       : `<span class="badge rep">${e.n + 1}ª vez · última ${dDM(e.ultima)}</span>`);
   const passada = g.data < hoje();
   const linha = (k, p, idx, opts, mp, rotulo) => {
     const quem = editar
-      ? `<select id="sel-${k}-${idx}" data-act="troca" data-k="${k}" data-i="${idx}" aria-label="Trocar">${opts.map((c) => `<option value="${c.id}" ${c.id === p.c ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}</select>`
+      ? `<select id="sel-${k}-${idx}" data-act="troca" data-k="${k}" data-i="${idx}" aria-label="Trocar">${opts.map((c) => `<option value="${c.id}" ${c.id === p.c ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}${k === 'pares' ? grupoSup(doSuporte, (c) => `<option value="${c.id}">${esc(c.nome)}</option>`) : ''}</select>`
       : `<span class="nmc">${esc(nome(p.c))}</span>`;
     const fixar = editar && !passada
       ? `<button class="lock" data-act="fixo" data-k="${k}" data-i="${idx}" aria-pressed="${!!p.fixo}" title="Manter no próximo sorteio">${p.fixo ? 'Fixada' : 'Fixar'}</button>`
@@ -143,11 +146,12 @@ export function render() {
   const adicionar = (x) => {
     const naoCam = new Set(x.cams.map((p) => p.c));
     const cams = camsPres.filter((c) => c.id !== x.m.id && !naoCam.has(c.id));
+    const sups = doSuporte.filter((c) => c.id !== x.m.id);
     const naoPas = new Set(x.passes.map((p) => p.c));
     const pas = passPres.filter((c) => !naoPas.has(c.id));
     const opt = (c, k, txt) => { const j = comQuem(c.id, k); return `<option value="${c.id}">${esc(c.nome)}${j.length ? ` (${txt} ${esc(j.join(', '))})` : ''}</option>`; };
     return `<div class="addrow">
-      ${cams.length ? `<select data-act="addcam" data-m="${x.m.id}" aria-label="Adicionar cambone a ${esc(x.m.nome)}"><option value="">+ cambone</option>${cams.map((c) => opt(c, 'pares', 'também com')).join('')}</select>` : ''}
+      ${cams.length || sups.length ? `<select data-act="addcam" data-m="${x.m.id}" aria-label="Adicionar cambone a ${esc(x.m.nome)}"><option value="">+ cambone</option>${cams.map((c) => opt(c, 'pares', 'também com')).join('')}${grupoSup(sups, (c) => opt(c, 'pares', 'também com'))}</select>` : ''}
       ${pas.length ? `<select data-act="addpasse" data-m="${x.m.id}" aria-label="Adicionar médium de passe a ${esc(x.m.nome)}"><option value="">+ médium de passe</option>${pas.map((c) => opt(c, 'passes', 'sai de')).join('')}</select>` : ''}
     </div>`;
   };
@@ -279,6 +283,16 @@ export const cliques = {
   },
 };
 
+// Quem estava no Suporte e foi posto como cambone volta para a gira:
+// cambone (na função do dia) fica Presente; outra função fica "Não atende" (cambona).
+function saiDoSuporte(g, id) {
+  const p = pessoasDaGira(estado.pessoas, g).find((x) => x.id === id);
+  if (!p || status(p, g) !== 'sup') return {};
+  const presenca = { ...(g.presenca || {}) };
+  if (p.funcao === 'cambone') delete presenca[id]; else presenca[id] = 'na';
+  return { presenca };
+}
+
 export const mudancas = {
   entidade(t) { editarGira({ entidade: t.value }); avisar(); },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
@@ -293,7 +307,7 @@ export const mudancas = {
   addcam(t) {
     if (!t.value) return;
     const g = giraAtual();
-    editarGira({ pares: [...(g.pares || []), { m: t.dataset.m, c: t.value, fixo: false, remanejado: false }] });
+    editarGira({ pares: [...(g.pares || []), { m: t.dataset.m, c: t.value, fixo: false, remanejado: false }], ...saiDoSuporte(g, t.value) });
     avisar();
   },
   addpasse(t) {
@@ -305,7 +319,7 @@ export const mudancas = {
   troca(t) {
     const k = t.dataset.k;
     const g = giraAtual();
-    editarGira({ [k]: (g[k] || []).map((p, i) => (i === +t.dataset.i ? { ...p, c: t.value } : p)) });
+    editarGira({ [k]: (g[k] || []).map((p, i) => (i === +t.dataset.i ? { ...p, c: t.value } : p)), ...(k === 'pares' ? saiDoSuporte(g, t.value) : {}) });
     avisar();
   },
 };
