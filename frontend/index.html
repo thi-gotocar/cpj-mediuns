@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sort Médiuns</title>
+<meta name="description" content="Escala da gira: presença, sorteio de cambones e médiuns de passe, exportação para o WhatsApp.">
+<meta name="theme-color" content="#2c4ea3">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sort Médiuns">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@600;700&family=Alegreya+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="/css/estilo.css">
+<script type="module" src="/js/main.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Escala da corrente</div>
+      <h1>Sort Médiuns</h1>
+    </div>
+    <div class="conta" id="conta"></div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs" hidden>
+    <button role="tab" data-tab="gira">Gira</button>
+    <button role="tab" data-tab="pessoas">Pessoas</button>
+    <button role="tab" data-tab="hist">Histórico</button>
+    <button role="tab" data-tab="usuarios" hidden>Usuários</button>
+  </nav>
+  <main id="main"><div class="loading">Carregando…</div></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

@@ -1,80 +1,124 @@
 # Sort Médiuns
 
-Escala da gira: cadastro da corrente, presença, entidade do dia, sorteio de cambones e de médiuns de passe com rodízio, remanejamento de faltas e exportação para o WhatsApp (texto ou imagem).
+Escala da gira: cadastro da corrente, presença, entidade do dia, sorteio de cambones e médiuns de passe com rodízio, remanejamento de faltas e exportação para o WhatsApp (texto e imagem).
 
-Site estático: um único `index.html`, sem build e sem dependências.
+Frontend e backend separados, no mesmo repositório e no mesmo projeto da Vercel. Dados e login no Supabase. **Sem dependências npm.**
 
-## Arquivos
+## Estrutura
 
-| Arquivo | Para quê |
+```
+frontend/              Site (HTML, CSS e módulos JS que o navegador carrega direto)
+  index.html
+  css/estilo.css
+  js/main.js           login, abas e eventos
+  js/auth.js           login individual (Supabase Auth)
+  js/api.js            cliente do backend
+  js/estado.js         estado da tela e chamadas à API
+  js/exportar.js       texto para o WhatsApp
+  js/imagem.js         imagem PNG da escala
+  js/telas/            gira, pessoas, histórico, usuários, login
+api/                   Backend: funções da Vercel (Node)
+  _lib/                http, sessão/permissões, acesso ao Supabase
+  config.js  me.js  importar.js
+  pessoas/  giras/  usuarios/
+shared/                Usado pelos dois lados
+  regras.js            regras do sorteio, rodízio e remanejamento
+  permissoes.js        o que cada perfil pode fazer
+supabase/migrations/   SQL do banco (tabelas, funções e segurança)
+scripts/               servidor local e build
+test/                  testes do backend (Postgres local)
+```
+
+O backend é quem decide: valida o login, confere a permissão de cada chamada e roda o sorteio. O frontend só mostra e envia.
+
+## Perfis
+
+| | Admin | Usuário |
+|---|---|---|
+| Ver a corrente, a escala e o histórico | ✓ | ✓ |
+| Copiar texto e gerar imagem para o WhatsApp | ✓ | ✓ |
+| Cadastrar e editar pessoas | ✓ | |
+| Presença, entidade, trocar e fixar duplas | ✓ | |
+| Sortear e remanejar faltas | ✓ | |
+| Excluir giras | ✓ | |
+| Criar usuários, mudar perfil, redefinir senha | ✓ | |
+| Backup e restauração | ✓ | |
+
+Para mudar, edite `shared/permissoes.js`. Vale para o backend e para a tela.
+
+## Rotas da API
+
+Todas exigem `Authorization: Bearer <token do Supabase>`, exceto `/api/config`.
+
+| Método e rota | Permissão |
 |---|---|
-| `index.html` | O app inteiro (HTML, CSS e JavaScript). |
-| `manifest.webmanifest`, `icon*.png`, `icon.svg` | Permitem "Adicionar à tela inicial" no celular, com ícone próprio. |
-| `vercel.json` | Configuração da Vercel (URLs limpas e cabeçalhos). |
+| `GET /api/config` | pública |
+| `GET /api/me` | logado |
+| `GET /api/pessoas` · `POST /api/pessoas` | `pessoas:ler` · `pessoas:editar` |
+| `PATCH/DELETE /api/pessoas/:id` | `pessoas:editar` |
+| `GET /api/giras` · `GET /api/giras/:data` | `giras:ler` |
+| `PUT /api/giras/:data` | `giras:editar` |
+| `DELETE /api/giras/:data` | `giras:excluir` |
+| `POST /api/giras/:data/sortear` · `/remanejar` | `giras:sortear` |
+| `GET/POST /api/usuarios` · `PATCH/DELETE /api/usuarios/:id` | `usuarios:gerenciar` |
+| `POST /api/importar` | `dados:importar` |
 
-## Subir na Vercel
+## Como colocar no ar
 
-### Opção 1: pelo site, arrastando a pasta
+### 1. Supabase
 
-1. Entre em https://vercel.com e faça login.
-2. **Add New… → Project**.
-3. Arraste a pasta `sort-mediuns` (ou importe de um repositório do GitHub, opção 2).
-4. Em **Framework Preset**, deixe **Other**. Não precisa de Build Command nem de Output Directory.
-5. Clique em **Deploy**.
+1. Crie um projeto em https://supabase.com.
+2. **SQL Editor → New query**: cole e rode `supabase/migrations/001_inicial.sql`. Depois, numa nova query, `supabase/migrations/002_funcoes_api.sql`.
+3. **Authentication → Sign In / Providers**: desligue **Allow new users to sign up**. Só o admin cria usuários, pelo app.
+4. **Authentication → Users → Add user → Create new user**: crie o seu usuário (e-mail e senha, marque *Auto Confirm User*). **O primeiro usuário criado vira admin automaticamente.**
+5. Em **Project Settings → API** (ou **API Keys**), anote: a URL do projeto, a chave pública (`anon` ou `publishable`) e a chave de serviço (`service_role` ou `secret`).
 
-### Opção 2: pelo GitHub (recomendado, atualiza sozinho)
+### 2. Vercel
 
-1. Crie um repositório no GitHub e envie estes arquivos:
-   ```bash
-   cd sort-mediuns
-   git init
-   git add .
-   git commit -m "Sort Médiuns"
-   git branch -M main
-   git remote add origin https://github.com/SEU-USUARIO/sort-mediuns.git
-   git push -u origin main
-   ```
-2. Na Vercel: **Add New… → Project → Import** o repositório.
-3. **Framework Preset: Other** → **Deploy**.
-4. Cada `git push` publica uma versão nova.
+1. Suba o repositório no GitHub e importe na Vercel (**Add New → Project**).
+2. As configurações de build já estão no `vercel.json`; não mude nada na tela de importação.
+3. Em **Settings → Environment Variables**, cadastre:
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+4. **Deploy** (ou **Redeploy**, se já tinha publicado antes das variáveis).
+5. Abra o site, entre com o usuário admin e cadastre os demais na aba **Usuários**.
 
-### Opção 3: pela linha de comando
+Plano Hobby: o projeto usa 11 funções (o limite é 12).
+
+### Vindo da versão anterior (dados no aparelho)
+
+Na versão antiga, use **Histórico → Baixar backup**. Na nova, entre como admin e use **Histórico → Restaurar backup** com esse arquivo. As pessoas são casadas pelo nome.
+
+## Rodar no computador
+
+Precisa do Node 20 ou mais novo.
 
 ```bash
-npm i -g vercel
-cd sort-mediuns
-vercel          # primeira vez: responde as perguntas, aceita os padrões
-vercel --prod   # publica em produção
+cp .env.example .env      # no Windows: copy .env.example .env
+# preencha o .env com os dados do Supabase
+npm run dev
 ```
 
-## Testar no computador antes de subir
+Abra http://localhost:3000. O servidor local imita a Vercel: serve o `frontend/` e roda as funções de `api/`.
+
+## Testes
+
+Os testes do backend usam um Postgres local (com as migrações) no lugar do Supabase:
 
 ```bash
-cd sort-mediuns
-npx serve .
-# ou: python3 -m http.server 8000
+npm test
 ```
 
-Abra o endereço mostrado no terminal.
+Veja `test/apoio.js` para os requisitos (Postgres local acessível pelo usuário `postgres`).
 
-## Onde ficam os dados
+## Segurança
 
-Os dados ficam salvos **no navegador de cada aparelho** (localStorage). Não há servidor nem banco de dados. Isso significa:
+- As tabelas têm RLS ligado e sem políticas, e as funções do banco só podem ser executadas pela chave de serviço. A chave pública não lê nem grava nada.
+- A chave de serviço fica só nas variáveis de ambiente do backend.
+- O perfil de cada usuário fica em `public.perfis`; o papel de quem é criado pelo app vai em `app_metadata`, que o próprio usuário não consegue alterar.
+- Não é possível remover o último admin, nem tirar o seu próprio acesso de admin.
 
-- Cada aparelho tem a sua própria corrente e histórico.
-- Limpar os dados do navegador apaga tudo.
+## Regras do sorteio
 
-Por isso, use a aba **Histórico → Backup**:
-
-- **Baixar backup** gera um arquivo `.json` com pessoas e giras.
-- **Restaurar backup** carrega esse arquivo em outro aparelho (substitui os dados que estavam lá).
-
-Para a corrente toda usar os mesmos dados ao mesmo tempo, é preciso ligar um banco de dados (por exemplo Supabase ou Vercel KV). O código de armazenamento está isolado nas funções `loadLocal`, `saveLocal`, `setPessoa`, `setGira`, `delPessoa` e `delGira` do `index.html`.
-
-## Instalar no celular
-
-Abra o site no celular e use **Compartilhar → Adicionar à Tela de Início** (iPhone) ou **⋮ → Instalar app / Adicionar à tela inicial** (Android).
-
-## Regras
-
-As regras de negócio (status, sorteio, rodízio, remanejamento, exportação) estão no documento `regras-sort-mediuns.md` do projeto.
+Estão em `shared/regras.js` e documentadas em `regras-sort-mediuns.md` no projeto do Claude.
