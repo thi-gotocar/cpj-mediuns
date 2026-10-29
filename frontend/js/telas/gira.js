@@ -57,7 +57,7 @@ function resultado(g) {
   let h = `<div class="card"><h2>Médiuns e cambones</h2><div class="pairs">`;
   lista.forEach((x) => {
     h += `<div class="pair"><span class="med">${esc(x.m.nome)}${x.m.funcao === 'extra' ? ' <span class="badge rep">Extra</span>' : ''}</span><span></span><div class="cams">`;
-    h += x.cams.length ? x.cams.map((p) => `<div class="camrow"><span class="nmc">${esc(nome(p.c))}</span></div>`).join('') : '<span class="muted">Sem cambone</span>';
+    h += x.cams.length ? x.cams.map((p) => `<div class="camrow"><span class="tag cam">Cambone</span><span class="nmc">${esc(nome(p.c))}</span></div>`).join('') : '<span class="muted">Sem cambone</span>';
     h += x.passes.map((p) => `<div class="camrow"><span class="tag">Passe</span><span class="nmc">${esc(nome(p.c))}</span></div>`).join('');
     h += `</div></div>`;
   });
@@ -146,7 +146,7 @@ export function render() {
     const fixar = editar && !passada
       ? `<button class="lock" data-act="fixo" data-k="${k}" data-i="${idx}" aria-pressed="${!!p.fixo}" title="Manter no próximo sorteio">${p.fixo ? 'Fixada' : 'Fixar'}</button>`
       : p.fixo ? '<span class="badge rep">fixada</span>' : '';
-    return `<div class="camrow">${rotulo ? `<span class="tag">${rotulo}</span>` : ''}${quem}${selo(mp[p.m + '|' + p.c])}${p.remanejado ? '<span class="badge re">remanejado</span>' : ''}${fixar}</div>`;
+    return `<div class="camrow">${rotulo ? `<span class="tag ${rotulo === 'Cambone' ? 'cam' : ''}">${rotulo}</span>` : ''}${quem}${selo(mp[p.m + '|' + p.c])}${p.remanejado ? '<span class="badge re">remanejado</span>' : ''}${fixar}</div>`;
   };
   const temDuplas = validos.length || passesV.length;
   // Ajuste manual: em gira passada fica sempre ligado (registrar como foi);
@@ -185,7 +185,7 @@ export function render() {
     h += `<div class="pairs">`;
     lista.forEach((x) => {
       h += `<div class="pair"><span class="med">${esc(x.m.nome)}${x.m.funcao === 'extra' ? ' <span class="badge rep">Extra</span>' : ''}</span><span class="muted" style="font-size:.85rem">${x.cams.length} cambone${x.cams.length === 1 ? '' : 's'}</span><div class="cams">`;
-      x.cams.forEach((p) => { const i = (g.pares || []).indexOf(p); h += linha('pares', p, i, camsPres, map, '').replace(/<\/div>$/, tirar('pares', i) + '</div>'); });
+      x.cams.forEach((p) => { const i = (g.pares || []).indexOf(p); h += linha('pares', p, i, camsPres, map, 'Cambone').replace(/<\/div>$/, tirar('pares', i) + '</div>'); });
       if (!x.cams.length) h += `<span class="muted">Sem cambone.${manual ? '' : sortearOk ? ' Sorteie de novo.' : ''}</span>`;
       x.passes.forEach((p) => { const i = (g.passes || []).indexOf(p); h += linha('passes', p, i, passPres, mapP, 'Passe').replace(/<\/div>$/, tirar('passes', i) + '</div>'); });
       if (manual) h += adicionar(x);
