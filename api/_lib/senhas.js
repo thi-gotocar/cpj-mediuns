@@ -50,7 +50,13 @@ export async function emitirToken(usuario) {
   return corpo + '.' + assinar(corpo, await obterSegredo());
 }
 
-// Devolve { id, versao } ou null se o token for inválido ou estiver vencido.
+// Sessão de quem entra com o acesso da corrente: só o nome, sem conta.
+export async function emitirTokenCorrente(nome) {
+  const corpo = b64url(JSON.stringify({ c: nome, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
+  return corpo + '.' + assinar(corpo, await obterSegredo());
+}
+
+// Devolve { id, versao } (usuário), { corrente: true, nome } ou null se inválido/vencido.
 export async function lerToken(token) {
   const [corpo, assinatura] = String(token || '').split('.');
   if (!corpo || !assinatura) return null;
@@ -59,7 +65,9 @@ export async function lerToken(token) {
   if (esperado.length !== recebido.length || !timingSafeEqual(esperado, recebido)) return null;
   try {
     const d = JSON.parse(Buffer.from(corpo, 'base64url').toString('utf8'));
-    if (!d.u || !d.exp || d.exp < Date.now() / 1000) return null;
+    if (!d.exp || d.exp < Date.now() / 1000) return null;
+    if (typeof d.c === 'string' && d.c.trim()) return { corrente: true, nome: d.c };
+    if (!d.u) return null;
     return { id: d.u, versao: d.v };
   } catch {
     return null;

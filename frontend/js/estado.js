@@ -10,6 +10,7 @@ export const estado = {
   pessoas: [],
   giras: {},           // por data
   usuarios: null,      // só admin
+  ervas: null,         // compra de ervas (GET /api/ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
   img: null,           // imagem gerada da escala
@@ -210,4 +211,45 @@ export async function importarBackup(obj) {
   const r = await api('POST', '/importar', obj);
   await carregarTudo();
   return r;
+}
+
+// ---------- ervas ----------
+export async function carregarErvas() {
+  try { estado.ervas = await api('GET', '/ervas'); } catch (e) { toast(e.message); estado.ervas = estado.ervas || { ervas: [], minhas: [], frete: 0, aberta: false, participantes: 0 }; }
+  avisar();
+}
+
+let timerErvas = null;
+let filaErvas = Promise.resolve();
+// Muda a quantidade de uma erva no meu pedido (0 = tira) e salva em seguida.
+export function escolherErva(ervaId, quantidade) {
+  const minhas = (estado.ervas.minhas || []).filter((m) => m.ervaId !== ervaId);
+  if (quantidade > 0) minhas.push({ ervaId, quantidade });
+  estado.ervas = { ...estado.ervas, minhas };
+  avisar();
+  clearTimeout(timerErvas);
+  timerErvas = setTimeout(() => {
+    const itens = estado.ervas.minhas;
+    filaErvas = filaErvas.then(async () => {
+      try {
+        estado.ervas = await api('PUT', '/ervas', { itens });
+        toast('Pedido salvo.');
+      } catch (e) {
+        toast(e.message);
+        await carregarErvas();
+      }
+      avisar();
+    });
+  }, 600);
+}
+
+export async function acaoErvas(acao, dados = {}) {
+  try {
+    estado.ervas = await api('POST', '/ervas', { acao, ...dados });
+    avisar();
+    return true;
+  } catch (e) {
+    toast(e.message);
+    return false;
+  }
 }

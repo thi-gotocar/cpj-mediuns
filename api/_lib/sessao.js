@@ -13,6 +13,12 @@ export async function exigir(req, permissao) {
   const sessao = await lerToken(token);
   if (!sessao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
 
+  if (sessao.corrente) {
+    const quem = { id: null, nome: sessao.nome, email: '', papel: 'corrente' };
+    if (permissao && !pode('corrente', permissao)) throw new HttpError(403, 'Este acesso não tem permissão para isso.');
+    return quem;
+  }
+
   const usuario = await db.rpc('usuario_obter', { id: sessao.id });
   // Trocar a senha ou o perfil muda a versão e encerra as sessões antigas.
   if (!usuario || usuario.sessaoVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');

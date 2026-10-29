@@ -4,17 +4,18 @@ import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha } from './auth
 import { quandoSessaoExpirar } from './api.js';
 import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor } from './estado.js';
 import { esc, toast } from './util.js';
-import { PAPEIS } from '/shared/permissoes.js';
+import { ROTULOS, ehAcessoCorrente } from '/shared/permissoes.js';
 import * as gira from './telas/gira.js';
 import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
 import * as usuarios from './telas/usuarios.js';
+import * as ervas from './telas/ervas.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
 const tabs = document.getElementById('tabs');
 const conta = document.getElementById('conta');
-const TELAS = { gira, pessoas, hist: historico, usuarios };
+const TELAS = { gira, pessoas, hist: historico, ervas, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let instalado = true;
@@ -23,8 +24,8 @@ let instalado = true;
 function renderConta() {
   if (!estado.me) { conta.innerHTML = ''; return; }
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : 'Salvo'}</span>` : ''}
-    <span class="quem">${esc(estado.me.nome)}</span><span class="papel ${estado.me.papel}">${PAPEIS[estado.me.papel] || estado.me.papel}</span>
-    <button class="btn small" data-conta="senha">Trocar senha</button>
+    <span class="quem">${esc(estado.me.nome)}</span><span class="papel ${estado.me.papel}">${ROTULOS[estado.me.papel] || estado.me.papel}</span>
+    ${estado.me.corrente ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}
     <button class="btn small" data-conta="sair">Sair</button>`;
 }
 
@@ -32,12 +33,17 @@ function render() {
   if (!logado() || !estado.pronto) {
     tabs.hidden = true;
     renderConta();
-    if (!logado()) main.innerHTML = instalado ? login.render(erroLogin, emailLogin) : login.renderInstalacao(erroLogin);
+    if (!logado()) {
+      main.innerHTML = instalado ? login.render(erroLogin, emailLogin) : login.renderInstalacao(erroLogin);
+      if (instalado && ehAcessoCorrente(emailLogin)) login.ajustarCampoSenha(true);
+    }
     return;
   }
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
+  if (prefs.tab === 'ervas' && !pode('ervas:escolher')) prefs.tab = 'gira';
   tabs.hidden = false;
   tabs.querySelector('[data-tab="usuarios"]').hidden = !pode('usuarios:gerenciar');
+  tabs.querySelector('[data-tab="ervas"]').hidden = !pode('ervas:escolher');
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();
 
@@ -82,6 +88,7 @@ quandoSessaoExpirar(() => {
   estado.me = null;
   estado.pronto = false;
   estado.usuarios = null;
+  estado.ervas = null;
   erroLogin = 'Sua sessão terminou. Entre de novo.';
   render();
 });
@@ -93,6 +100,7 @@ tabs.addEventListener('click', (e) => {
   prefs.tab = b.dataset.tab;
   estado.confirm = null;
   if (b.dataset.tab === 'usuarios') estado.usuarios = null;
+  if (b.dataset.tab === 'ervas') estado.ervas = null;
   salvarPrefs();
   render();
 });
@@ -102,7 +110,7 @@ conta.addEventListener('click', async (e) => {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {
@@ -139,6 +147,10 @@ main.addEventListener('change', (e) => {
 });
 
 
+main.addEventListener('input', (e) => {
+  if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoCorrente(e.target.value));
+});
+
 main.addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = e.target.id;
@@ -171,6 +183,8 @@ main.addEventListener('submit', async (e) => {
       if (/já foi instalado/.test(err.message)) instalado = true;
       render();
     }
+  } else if (id === 'f-erva') {
+    await ervas.enviarFormulario();
   } else if (id === 'f-add') {
     await pessoas.enviarFormulario();
   } else if (id === 'f-user') {

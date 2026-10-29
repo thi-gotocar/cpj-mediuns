@@ -20,11 +20,13 @@ api/                   Backend: funções da Vercel (Node)
   _lib/senhas.js       senhas (scrypt) e sessões (token assinado)
   _lib/sessao.js       quem está chamando e permissões
   auth/[acao].js       estado, instalar, entrar, trocar senha
+  ervas/index.js       compra coletiva de ervas
   me.js  importar.js  pessoas/  giras/  usuarios/
 db/esquema.js          tabelas e funções do banco (aplicadas sozinhas)
 shared/                Usado pelos dois lados
   regras.js            regras do sorteio, rodízio e remanejamento
   permissoes.js        o que cada perfil pode fazer
+  ervas.js             cálculo dos pedidos, divisão do frete e exportação
 scripts/               servidor local e build
 test/                  testes do backend (Postgres local)
 ```
@@ -43,8 +45,19 @@ O backend é quem decide: valida o login, confere a permissão de cada chamada e
 | Excluir giras | ✓ | |
 | Criar usuários, mudar perfil, redefinir senha | ✓ | |
 | Backup e restauração | ✓ | |
+| Escolher ervas | ✓ | ✓ |
+| Cadastrar ervas, frete e exportar pedidos | ✓ | |
 
 Para mudar, edite `shared/permissoes.js`. Vale para o backend e para a tela.
+
+### Acesso da corrente (sem senha)
+
+No login, quem digita **`corrente-cpj`** no campo de e-mail entra sem senha: o campo de senha vira **"Seu nome"**. Esse acesso vê a escala como um usuário e escolhe ervas; o nome digitado é o que aparece nos pedidos. Entrar de novo com o mesmo nome continua o mesmo pedido. Para mudar o texto do acesso, edite `ACESSO_CORRENTE` em `shared/permissoes.js`.
+
+### Ervas (compra coletiva)
+
+- **Todos** (admin, usuário e corrente) escolhem as ervas e a quantidade na aba **Ervas**.
+- **Admin** cadastra ervas e preços, define o **frete** (dividido por igual entre quem pediu), fecha/reabre a lista, vê os pedidos e exporta (texto para o WhatsApp e planilha `.csv`). **Nova compra** apaga os pedidos e reabre a lista.
 
 ## Como colocar no ar
 
@@ -90,8 +103,9 @@ Todas exigem `Authorization: Bearer <token>`, exceto `GET /api/auth/estado`, `PO
 | `POST /api/giras/:data/sortear` · `/remanejar` | `giras:sortear` |
 | `GET/POST /api/usuarios` · `PATCH/DELETE /api/usuarios/:id` | `usuarios:gerenciar` |
 | `POST /api/importar` | `dados:importar` |
+| `GET/PUT /api/ervas` · `POST /api/ervas` | `ervas:escolher` · `ervas:gerenciar` |
 
-Plano Hobby: o projeto usa 11 funções (o limite é 12).
+Plano Hobby: o projeto usa 12 funções, que é o limite do plano. Uma rota nova precisa reaproveitar um arquivo existente.
 
 ## Segurança
 

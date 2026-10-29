@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 2;
+export const VERSAO = 3;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -319,6 +319,98 @@ export const MIGRACOES = [
    begin
      delete from giras where data = (p ->> 'data')::date;
      return jsonb_build_object('ok', found);
+   end;
+   $$`,
+
+  // ================================================== v3: compra de ervas
+  `create table if not exists ervas (
+     id         uuid primary key default gen_random_uuid(),
+     nome       text not null check (length(btrim(nome)) between 1 and 60),
+     preco      numeric(10, 2) not null check (preco >= 0 and preco <= 100000),
+     criado_em  timestamptz not null default now()
+   )`,
+  `create unique index if not exists ervas_nome_unico on ervas (lower(btrim(nome)))`,
+  // Quem escolheu o quê. pessoa_chave: "u:<id do usuário>" ou "n:<nome>" (acesso da corrente)
+  `create table if not exists ervas_escolhas (
+     pessoa_chave   text not null check (length(pessoa_chave) between 3 and 120),
+     pessoa_nome    text not null check (length(btrim(pessoa_nome)) between 1 and 80),
+     erva_id        uuid not null references ervas (id) on delete cascade,
+     quantidade     integer not null check (quantidade between 1 and 99),
+     atualizado_em  timestamptz not null default now(),
+     primary key (pessoa_chave, erva_id)
+   )`,
+  `insert into sistema (chave, valor) values ('ervas_frete', '0') on conflict (chave) do nothing`,
+  `insert into sistema (chave, valor) values ('ervas_aberta', 'true') on conflict (chave) do nothing`,
+  `create or replace function ervas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'frete', coalesce((select valor::numeric from sistema where chave = 'ervas_frete'), 0),
+       'aberta', coalesce((select valor = 'true' from sistema where chave = 'ervas_aberta'), true),
+       'ervas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'preco', e.preco) order by lower(e.nome))
+                          from ervas e), '[]'::jsonb),
+       'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave, 'nome', x.pessoa_nome,
+                                                                 'ervaId', x.erva_id, 'quantidade', x.quantidade)
+                                              order by lower(x.pessoa_nome))
+                             from ervas_escolhas x), '[]'::jsonb)
+     );
+   $$`,
+  `create or replace function erva_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into ervas (nome, preco) values (btrim(p ->> 'nome'), (p ->> 'preco')::numeric);
+     else
+       update ervas set nome = btrim(p ->> 'nome'), preco = (p ->> 'preco')::numeric where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Erva não encontrada.'; end if;
+     end if;
+     return ervas_estado();
+   exception when unique_violation then
+     raise exception 'Já existe uma erva com esse nome.';
+   end;
+   $$`,
+  `create or replace function erva_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from ervas where id = (p ->> 'id')::uuid;
+     return ervas_estado();
+   end;
+   $$`,
+  `create or replace function ervas_config(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if p ? 'frete' then
+       update sistema set valor = ((p ->> 'frete')::numeric(10, 2))::text where chave = 'ervas_frete';
+     end if;
+     if p ? 'aberta' then
+       update sistema set valor = case when (p ->> 'aberta')::boolean then 'true' else 'false' end where chave = 'ervas_aberta';
+     end if;
+     return ervas_estado();
+   end;
+   $$`,
+  // Substitui as escolhas de uma pessoa. Só com a lista aberta.
+  `create or replace function ervas_escolher(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_chave text := p ->> 'chave';
+   begin
+     if (select valor from sistema where chave = 'ervas_aberta') <> 'true' then
+       raise exception 'A lista de ervas está fechada. Fale com um admin.';
+     end if;
+     delete from ervas_escolhas where pessoa_chave = v_chave;
+     insert into ervas_escolhas (pessoa_chave, pessoa_nome, erva_id, quantidade)
+     select v_chave, btrim(p ->> 'nome'), (i ->> 'ervaId')::uuid, (i ->> 'quantidade')::integer
+     from jsonb_array_elements(coalesce(p -> 'itens', '[]'::jsonb)) i
+     where exists (select 1 from ervas e where e.id = (i ->> 'ervaId')::uuid)
+     on conflict (pessoa_chave, erva_id) do update set quantidade = excluded.quantidade;
+     return ervas_estado();
+   end;
+   $$`,
+  // Nova compra: apaga todas as escolhas e reabre a lista (o catálogo e o frete ficam).
+  `create or replace function ervas_nova_compra(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from ervas_escolhas;
+     update sistema set valor = 'true' where chave = 'ervas_aberta';
+     return ervas_estado();
    end;
    $$`,
 ];

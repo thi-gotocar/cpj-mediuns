@@ -54,7 +54,7 @@ test('login: senha certa, errada e bloqueio', async () => {
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ninguem@x.org', senha: 'nao' })).status, 401);
   const ok = await api('POST', '/api/auth/entrar', null, { email: ' USER@corrente.org ', senha: 'senha-do-ze' });
   assert.equal(ok.status, 200);
-  assert.deepEqual(ok.json.usuario.permissoes, ['pessoas:ler', 'giras:ler']);
+  assert.deepEqual(ok.json.usuario.permissoes, ['pessoas:ler', 'giras:ler', 'ervas:escolher']);
   USER = ok.json.token;
   for (let i = 0; i < 8; i++) await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' + i });
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' })).status, 429);
@@ -75,7 +75,7 @@ test('/api/me mostra papel e permissões', async () => {
   assert.ok(a.json.permissoes.includes('giras:sortear'));
   const u = await api('GET', '/api/me', USER);
   assert.equal(u.json.papel, 'usuario');
-  assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler']);
+  assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler', 'ervas:escolher']);
 });
 
 test('admin cadastra a corrente; usuário só lê', async () => {
@@ -212,5 +212,61 @@ test('importar backup da versão anterior', async () => {
   assert.equal(g.entidade, 'Exus');
   assert.equal(g.pares.length, 1);
   assert.deepEqual(Object.values(g.presenca).sort(), ['a', 'sup']);
+});
+
+test('acesso da corrente: entra só com o nome, sem senha', async () => {
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: '' })).status, 400);
+  const r = await api('POST', '/api/auth/entrar', null, { email: ' Corrente-CPJ ', senha: '  Dona   Maria ' });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.usuario.nome, 'Dona Maria');
+  assert.equal(r.json.usuario.papel, 'corrente');
+  const tok = r.json.token;
+  const me = (await api('GET', '/api/me', tok)).json;
+  assert.equal(me.corrente, true);
+  assert.equal((await api('GET', '/api/giras', tok)).status, 200);
+  assert.equal((await api('POST', '/api/pessoas', tok, { nome: 'X', funcao: 'medium' })).status, 403);
+  assert.equal((await api('GET', '/api/usuarios', tok)).status, 403);
+  assert.equal((await api('POST', '/api/auth/senha', tok, { atual: 'x', nova: 'yyyyyyyy' })).status, 400);
+});
+
+test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', async () => {
+  const add = (nome, preco) => api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', nome, preco });
+  assert.equal((await add('Arruda', '5,00')).status, 200);
+  assert.equal((await add('Guiné', 7.5)).status, 200);
+  assert.equal((await add('arruda', 1)).status, 400);           // nome repetido
+  assert.equal((await add('Erva', -1)).status, 400);
+  assert.equal((await api('POST', '/api/ervas', USER, { acao: 'salvarErva', nome: 'X', preco: 1 })).status, 403);
+  let e = (await api('POST', '/api/ervas', ADMIN, { acao: 'config', frete: '12' })).json;
+  assert.equal(e.frete, 12);
+  const [arruda, guine] = ['Arruda', 'Guiné'].map((n) => e.ervas.find((x) => x.nome === n));
+
+  const maria = (await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: 'Maria' })).json.token;
+  const r1 = await api('PUT', '/api/ervas', maria, { itens: [{ ervaId: arruda.id, quantidade: 2 }] });
+  assert.equal(r1.status, 200, JSON.stringify(r1.json));
+  assert.deepEqual(r1.json.minhas, [{ ervaId: arruda.id, quantidade: 2 }]);
+  assert.equal(r1.json.pedidos, undefined, 'quem não é admin não vê os pedidos dos outros');
+  // Mesmo nome, outro aparelho: continua as mesmas escolhas.
+  const maria2 = (await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: 'maria' })).json.token;
+  assert.deepEqual((await api('GET', '/api/ervas', maria2)).json.minhas, [{ ervaId: arruda.id, quantidade: 2 }]);
+  assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 1 }] })).status, 200);
+  assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 0 }] })).status, 400);
+
+  e = (await api('GET', '/api/ervas', ADMIN)).json;
+  assert.equal(e.pedidos.pessoas.length, 2);
+  assert.deepEqual(e.pedidos.pessoas.map((p) => p.frete), [600, 600]);
+  assert.equal(e.pedidos.totalGeral, 1000 + 750 + 1200);
+
+  await api('POST', '/api/ervas', ADMIN, { acao: 'config', aberta: false });
+  const fechado = await api('PUT', '/api/ervas', maria, { itens: [] });
+  assert.equal(fechado.status, 400);
+  assert.match(fechado.json.erro, /fechada/);
+
+  // Excluir a erva remove as escolhas dela; nova compra limpa tudo e reabre.
+  e = (await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: guine.id })).json;
+  assert.equal(e.pedidos.pessoas.length, 1);
+  e = (await api('POST', '/api/ervas', ADMIN, { acao: 'novaCompra' })).json;
+  assert.equal(e.aberta, true);
+  assert.equal(e.pedidos.pessoas.length, 0);
+  assert.equal(e.ervas.length, 1);
 });
 

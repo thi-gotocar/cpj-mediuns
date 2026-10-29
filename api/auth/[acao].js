@@ -7,8 +7,8 @@
 import { rota, corpo, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
-import { gerarHash, conferirSenha, emitirToken, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
-import { PERMISSOES } from '../../shared/permissoes.js';
+import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
+import { PERMISSOES, ehAcessoCorrente } from '../../shared/permissoes.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -45,6 +45,13 @@ const acoes = {
   async entrar(req) {
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const b = corpo(req);
+    // Acesso da corrente: no lugar da senha vem o nome da pessoa.
+    if (ehAcessoCorrente(b.email)) {
+      const nome = String(b.senha || '').replace(/\s+/g, ' ').trim();
+      if (nome.length < 2 || nome.length > 60) throw new HttpError(400, 'Digite o seu nome.');
+      const usuario = { id: null, nome, email: '', papel: 'corrente' };
+      return { token: await emitirTokenCorrente(nome), usuario: publico(usuario) };
+    }
     const email = String(b.email || '').trim().toLowerCase();
     const senha = String(b.senha || '');
     if (!email || !senha) throw new HttpError(400, 'Informe e-mail e senha.');
@@ -62,6 +69,7 @@ const acoes = {
   async senha(req) {
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const eu = await exigir(req);
+    if (eu.papel === 'corrente') throw new HttpError(400, 'O acesso da corrente não tem senha.');
     const b = corpo(req);
     const info = await db.rpc('usuario_para_login', { email: eu.email });
     if (!(await conferirSenha(String(b.atual || ''), info.senhaHash))) throw new HttpError(400, 'A senha atual está incorreta.');

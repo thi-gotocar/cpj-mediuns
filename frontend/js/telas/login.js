@@ -8,8 +8,8 @@ export function render(erro, email = '') {
     <p class="muted" style="margin:0;font-size:.92rem">Use o e-mail e a senha que o admin da corrente cadastrou para você.</p>
     ${erro ? `<div class="erro" role="alert">${esc(erro)}</div>` : ''}
     <form id="f-login">
-      <label class="field">E-mail<input type="email" id="l-email" autocomplete="username" required value="${esc(email)}"></label>
-      <label class="field">Senha<input type="password" id="l-senha" autocomplete="current-password" required></label>
+      <label class="field">E-mail<input type="text" inputmode="email" id="l-email" autocomplete="username" autocapitalize="none" spellcheck="false" required value="${esc(email)}"></label>
+      <label class="field"><span id="l-senha-rotulo">Senha</span><input type="password" id="l-senha" autocomplete="current-password" required></label>
       <button class="btn primary" type="submit" id="l-btn">Entrar</button>
     </form>
   </div>`;
@@ -29,4 +29,24 @@ export function renderInstalacao(erro) {
       <button class="btn primary" type="submit" id="i-btn">Criar admin e entrar</button>
     </form>
   </div>`;
+}
+
+// Com o acesso da corrente no campo de e-mail, o campo de senha vira "Seu nome".
+export function ajustarCampoSenha(ehCorrente) {
+  const rot = document.getElementById('l-senha-rotulo');
+  const inp = document.getElementById('l-senha');
+  if (!rot || !inp) return;
+  if (ehCorrente && inp.type !== 'text') {
+    rot.textContent = 'Seu nome';
+    inp.type = 'text';
+    inp.value = '';
+    inp.autocomplete = 'name';
+    inp.placeholder = 'Como você quer aparecer na lista';
+  } else if (!ehCorrente && inp.type !== 'password') {
+    rot.textContent = 'Senha';
+    inp.type = 'password';
+    inp.value = '';
+    inp.autocomplete = 'current-password';
+    inp.placeholder = '';
+  }
 }
