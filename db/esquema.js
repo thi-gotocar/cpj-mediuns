@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 7;
+export const VERSAO = 8;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -400,12 +400,14 @@ export const MIGRACOES = [
      return ervas_estado();
    end;
    $$`,
-  // Substitui as escolhas de uma pessoa. Só com a lista aberta.
+  // Substitui as escolhas de uma pessoa. Só com a lista aberta (o admin pode com ela fechada: forcar).
+  // v8: admin monta o pedido de outra pessoa (forcar).
   `create or replace function ervas_escolher(p jsonb)
    returns jsonb language plpgsql as $$
    declare v_chave text := p ->> 'chave';
    begin
-     if (select valor from sistema where chave = 'ervas_aberta') <> 'true' then
+     if not coalesce((p ->> 'forcar')::boolean, false)
+        and (select valor from sistema where chave = 'ervas_aberta') <> 'true' then
        raise exception 'A lista de ervas está fechada. Fale com um admin.';
      end if;
      delete from ervas_escolhas where pessoa_chave = v_chave;

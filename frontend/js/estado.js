@@ -11,7 +11,8 @@ export const estado = {
   giras: {},           // por data
   usuarios: null,      // só admin
   ervas: null,         // compra de ervas (GET /api/ervas)
-  ervasVista: null,    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
+  ervasVista: null,
+  ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
   img: null,           // imagem gerada da escala
@@ -268,6 +269,18 @@ export function escolherErva(ervaId, quantidade) {
       avisar();
     });
   }, 600);
+}
+
+// Admin: salva o pedido de outra pessoa (sem itens = apaga o pedido).
+export async function salvarPedidoDe(para, itens) {
+  try {
+    estado.ervas = await api('PUT', '/ervas', { para, itens });
+    avisar();
+    return true;
+  } catch (e) {
+    toast(e.message);
+    return false;
+  }
 }
 
 export async function acaoErvas(acao, dados = {}) {

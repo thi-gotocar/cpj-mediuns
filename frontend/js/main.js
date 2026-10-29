@@ -186,6 +186,8 @@ main.addEventListener('submit', async (e) => {
       if (/já foi instalado/.test(err.message)) instalado = true;
       render();
     }
+  } else if (id === 'f-para') {
+    ervas.enviarPara();
   } else if (id === 'f-erva') {
     await ervas.enviarFormulario();
   } else if (id === 'f-ren') {

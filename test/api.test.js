@@ -297,9 +297,21 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.equal(fechado.status, 400);
   assert.match(fechado.json.erro, /fechada/);
 
+  // Admin faz o pedido de outra pessoa, mesmo com a lista fechada; o mesmo nome da corrente é a mesma pessoa.
+  assert.equal((await api('PUT', '/api/ervas', USER, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 1 }] })).status, 403);
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 3 }] })).json;
+  assert.deepEqual(e.pedidos.pessoas.map((p) => p.nome), ['Dona Rosa', 'José Carlos', 'Maria']);
+  assert.deepEqual(e.minhas, [], 'o pedido do admin não muda');
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'MARIA' }, itens: [{ ervaId: guine.id, quantidade: 1 }] })).json;
+  assert.deepEqual((await api('GET', '/api/ervas', maria)).json.minhas, [{ ervaId: guine.id, quantidade: 1 }]);
+  const rosa = e.pedidos.pessoas.find((p) => p.nome === 'Dona Rosa');
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { chave: rosa.chave }, itens: [] })).json;
+  assert.ok(!e.pedidos.pessoas.some((p) => p.nome === 'Dona Rosa'), 'lista vazia apaga o pedido');
+  assert.equal((await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'x' }, itens: [] })).status, 400);
+
   // Excluir a erva remove as escolhas dela; nova compra limpa tudo e reabre.
   e = (await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: guine.id })).json;
-  assert.equal(e.pedidos.pessoas.length, 1);
+  assert.equal(e.pedidos.pessoas.length, 0, 'Maria e José só tinham Guiné');
   e = (await api('POST', '/api/ervas', ADMIN, { acao: 'novaCompra' })).json;
   assert.equal(e.aberta, true);
   assert.equal(e.pedidos.pessoas.length, 0);

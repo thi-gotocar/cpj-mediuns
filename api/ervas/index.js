@@ -2,13 +2,14 @@
 //   GET  /api/ervas   catálogo, frete, lista aberta/fechada e as minhas escolhas
 //                     (admin recebe também todos os pedidos calculados)
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
+//                     admin: { para: { chave?, nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin:
 //        salvarErva { id?, nome, preco? } (preço vazio = a definir) · excluirErva { id } · config { frete?, aberta? } · novaCompra
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
-import { chavePessoa, calcularPedidos } from '../../shared/ervas.js';
+import { chavePessoa, calcularPedidos, normalizarNome } from '../../shared/ervas.js';
 
 function resposta(estado, eu) {
   const chave = chavePessoa(eu);
@@ -49,6 +50,16 @@ export default rota({
       if (!Number.isInteger(q) || q < 1 || q > 99) throw new HttpError(400, 'Quantidade inválida (de 1 a 99).');
       return { ervaId: validarId(i?.ervaId, 'Erva'), quantidade: q };
     });
+    if (b.para) {
+      if (!pode(eu.papel, 'ervas:gerenciar')) throw new HttpError(403, 'Só um admin pode fazer o pedido de outra pessoa.');
+      const nome = String(b.para.nome || '').replace(/\s+/g, ' ').trim();
+      const atual = await db.rpc('ervas_estado');
+      const existente = typeof b.para.chave === 'string' && atual.escolhas.find((s) => s.chave === b.para.chave);
+      if (!existente && (nome.length < 2 || nome.length > 60)) throw new HttpError(400, 'Informe o nome da pessoa (2 a 60 letras).');
+      const chave = existente ? existente.chave : 'n:' + normalizarNome(nome);
+      const estado = await db.rpc('ervas_escolher', { chave, nome: existente ? existente.nome : nome, itens, forcar: true });
+      return resposta(estado, eu);
+    }
     const estado = await db.rpc('ervas_escolher', { chave: chavePessoa(eu), nome: eu.nome, itens });
     return resposta(estado, eu);
   },
