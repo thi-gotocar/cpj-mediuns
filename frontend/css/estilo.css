@@ -186,3 +186,5 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 
 .infobox{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;font-size:.92rem}
 .infobox .row{gap:8px}
+.grp.fora p{color:var(--muted)}
+.grp-h{flex-wrap:wrap}.grp-h h2{flex:1 0 auto}

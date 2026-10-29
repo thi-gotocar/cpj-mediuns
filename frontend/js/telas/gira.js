@@ -181,6 +181,11 @@ export function render() {
   }
   const sup = ps.filter((p) => status(p, g) === 'sup');
   if (sup.length) h += `<div class="grp"><div class="grp-h"><h3>Suporte</h3><span class="count">${sup.length}</span></div><p style="margin:0">${sup.map((p) => esc(p.nome)).join(', ')}</p></div>`;
+  // Faltas e ausentes: só aqui, para conferência (não entram na lista do evento).
+  [['f', 'Faltaram'], ['a', 'Ausentes']].forEach(([st, titulo]) => {
+    const quem = ps.filter((p) => status(p, g) === st);
+    if (quem.length) h += `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>`;
+  });
   h += `<details><summary class="muted" style="cursor:pointer;font-size:.9rem">Como o sorteio decide</summary>
     <ul class="rule">
       <li>Médiuns e extras recebem cambone.</li>
