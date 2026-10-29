@@ -87,7 +87,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .nmcell{display:grid;gap:2px;min-width:0}
 .tag{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}
 .tag.cam{color:var(--accent)}
-.camrow .tag{min-width:66px}
+.camrow .tag{min-width:74px}
 .xp{display:inline-grid;place-items:center;width:1.2em;height:1.2em;border-radius:50%;background:var(--warn-soft);color:var(--gold);font-size:.7rem;font-weight:700;vertical-align:1px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg button{border:0;background:var(--surface);color:var(--muted);font:700 .85rem var(--f-body);padding:7px 12px;cursor:pointer}
@@ -191,4 +191,4 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .grp.fora p{color:var(--muted)}
 .grp-h{flex-wrap:wrap}.grp-h h2{flex:1 0 auto}
 .camrow select{flex:1 1 90px;min-width:0}
-.tag.med-t{color:var(--ok);margin-right:8px;display:inline-block;min-width:66px}
+.tag.med-t{color:var(--ok);margin-right:8px;display:inline-block;min-width:74px}
