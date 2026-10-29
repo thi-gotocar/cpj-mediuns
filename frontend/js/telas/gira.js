@@ -40,6 +40,14 @@ function avisoEntidade(ps, g, editar) {
     : '';
 }
 
+// Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
+function blocosFora(ps, g) {
+  return [['f', 'Faltaram'], ['a', 'Ausentes']].map(([st, titulo]) => {
+    const quem = ps.filter((p) => status(p, g) === st);
+    return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
+  }).join('');
+}
+
 // Só o resultado do sorteio (acesso da corrente).
 function resultado(g) {
   const { lista, semPasse } = paresPorMedium(estado.pessoas, g);
@@ -57,6 +65,7 @@ function resultado(g) {
   gruposExtras(estado.pessoas, g).forEach(([t, nomes]) => {
     h += `<div class="grp"><h3>${t}</h3><p style="margin:0">${nomes.map(esc).join(', ')}</p></div>`;
   });
+  h += blocosFora(pessoasOrd(), g);
   return h + `</div>`;
 }
 
@@ -185,11 +194,7 @@ export function render() {
   }
   const sup = ps.filter((p) => status(p, g) === 'sup');
   if (sup.length) h += `<div class="grp"><div class="grp-h"><h3>Suporte</h3><span class="count">${sup.length}</span></div><p style="margin:0">${sup.map((p) => esc(p.nome)).join(', ')}</p></div>`;
-  // Faltas e ausentes: só aqui, para conferência (não entram na lista do evento).
-  [['f', 'Faltaram'], ['a', 'Ausentes']].forEach(([st, titulo]) => {
-    const quem = ps.filter((p) => status(p, g) === st);
-    if (quem.length) h += `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>`;
-  });
+  h += blocosFora(ps, g);
   h += `<details><summary class="muted" style="cursor:pointer;font-size:.9rem">Como o sorteio decide</summary>
     <ul class="rule">
       <li>Médiuns e extras recebem cambone.</li>
