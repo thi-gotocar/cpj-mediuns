@@ -173,8 +173,11 @@ test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda 
   assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'X' })).status, 409);
   assert.equal((await api('POST', `/api/giras/${d}/sortear`, ADMIN)).status, 409);
   assert.equal((await api('POST', `/api/giras/${d}/remanejar`, ADMIN)).status, 409);
+  // Ao reabrir, quem foi para o Suporte ao encerrar volta a Presente.
   const re = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'reabrir' });
   assert.equal(re.json.gira.encerrada, false);
+  for (const n of ['Fábio', 'Gabi', 'Kátia']) assert.equal(re.json.gira.presenca[id(n)], undefined, n + ' devia voltar a Presente');
+  assert.match(re.json.mensagem, /Voltaram do Suporte/);
   assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' })).status, 200);
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });

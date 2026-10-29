@@ -344,13 +344,29 @@ export function encerrar(pessoas, g) {
   const comMedium = new Set(passesV.map((p) => p.c));
   const presenca = { ...(g.presenca || {}) };
   const movidos = [];
+  const suporteAuto = {};   // id -> status de antes (para voltar ao reabrir)
   ps.forEach((p) => {
     const semCambonar = cambonaHoje(p, g) && !cambonando.has(p.id);
     const passeSolto = presente(p, g) && p.funcao === 'passe' && !comMedium.has(p.id);
-    if (semCambonar || passeSolto) { presenca[p.id] = 'sup'; movidos.push(p.nome); }
+    if (semCambonar || passeSolto) { suporteAuto[p.id] = status(p, g); presenca[p.id] = 'sup'; movidos.push(p.nome); }
   });
   const mensagem = 'Gira encerrada.' + (movidos.length
     ? ` ${movidos.length === 1 ? 'Foi' : 'Foram'} para o Suporte (sem médium): ${movidos.join(', ')}.`
     : ' Todos os presentes estão na escala.');
-  return { patch: { presenca, pares: validos, passes: passesV, encerrada: true }, movidos, mensagem };
+  return { patch: { presenca, pares: validos, passes: passesV, encerrada: true, suporteAuto }, movidos, mensagem };
+}
+
+// Reabrir: quem foi para o Suporte ao encerrar (e ainda está lá) volta ao status de antes.
+export function reabrir(pessoas, g) {
+  const presenca = { ...(g.presenca || {}) };
+  const nomes = [];
+  for (const [id, antes] of Object.entries(g.suporteAuto || {})) {
+    if (presenca[id] !== 'sup') continue;
+    if (antes === 'p') delete presenca[id]; else presenca[id] = antes;
+    const p = pessoas.find((x) => x.id === id);
+    if (p) nomes.push(p.nome);
+  }
+  nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const mensagem = 'Gira reaberta.' + (nomes.length ? ` ${nomes.length === 1 ? 'Voltou' : 'Voltaram'} do Suporte: ${nomes.join(', ')}.` : '');
+  return { patch: { presenca, encerrada: false, suporteAuto: {} }, mensagem };
 }

@@ -5,7 +5,7 @@
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS, encerrar } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, encerrar, reabrir } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -51,11 +51,13 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const { acao } = corpo(req);
-    if (acao === 'reabrir') {
-      return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, encerrada: false }), mensagem: 'Gira reaberta.' };
-    }
-    if (acao !== 'encerrar') throw new HttpError(400, 'Ação inválida.');
+    if (acao !== 'encerrar' && acao !== 'reabrir') throw new HttpError(400, 'Ação inválida.');
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
+    if (acao === 'reabrir') {
+      if (!atual?.encerrada) return { gira: atual || giraVazia(data), mensagem: 'A gira já estava aberta.' };
+      const { patch, mensagem } = reabrir(pessoas, atual);
+      return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }), mensagem };
+    }
     if (atual?.encerrada) return { gira: atual, mensagem: 'A gira já estava encerrada.' };
     const { patch, mensagem } = encerrar(pessoas, atual || giraVazia(data));
     return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }), mensagem };

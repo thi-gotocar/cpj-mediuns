@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 6;
+export const VERSAO = 7;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -57,6 +57,8 @@ export const MIGRACOES = [
    )`,
   // v6: gira encerrada (ninguém altera até reabrir)
   `alter table giras add column if not exists encerrada boolean not null default false`,
+  // v7: quem foi para o Suporte ao encerrar e o status que tinha antes (volta ao reabrir)
+  `alter table giras add column if not exists suporte_auto jsonb not null default '{}'::jsonb`,
   // Status na gira. Sem linha = Presente. p, na (não atende), sup, f (falta), a (ausente)
   `create table if not exists presencas (
      gira_data  date not null references giras (data) on delete cascade,
@@ -251,6 +253,7 @@ export const MIGRACOES = [
        'data', g.data,
        'entidade', g.entidade,
        'encerrada', g.encerrada,
+       'suporteAuto', g.suporte_auto,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
@@ -283,6 +286,7 @@ export const MIGRACOES = [
      on conflict (data) do update set
        entidade       = case when p ? 'entidade' then coalesce(p ->> 'entidade', '') else giras.entidade end,
        encerrada      = case when p ? 'encerrada' then (p ->> 'encerrada')::boolean else giras.encerrada end,
+       suporte_auto   = case when p ? 'suporteAuto' then coalesce(p -> 'suporteAuto', '{}'::jsonb) else giras.suporte_auto end,
        atualizado_em  = now(),
        atualizado_por = excluded.atualizado_por;
 
