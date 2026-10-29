@@ -1,10 +1,11 @@
 // GET    /api/giras/:data
 // PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes? }  (só substitui o que vier)
+// POST   /api/giras/:data   { acao: 'encerrar' | 'reabrir' }  → { gira, mensagem }
 // DELETE /api/giras/:data
-import { rota, corpo, validarData, validarId, HttpError } from '../../_lib/http.js';
+import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, encerrar } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -26,6 +27,7 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const b = corpo(req);
+    if ((await db.rpc('gira_obter', { data }))?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
     const p = { data, usuario: perfil.id };
     if ('entidade' in b) {
       const e = String(b.entidade ?? '').trim();
@@ -44,6 +46,19 @@ export default rota({
     if ('pares' in b) p.pares = validarDuplas(b.pares, 'cambones');
     if ('passes' in b) p.passes = validarDuplas(b.passes, 'médiuns de passe');
     return db.rpc('gira_salvar', p);
+  },
+  POST: async (req) => {
+    const perfil = await exigir(req, 'giras:editar');
+    const data = validarData(req.query.data);
+    const { acao } = corpo(req);
+    if (acao === 'reabrir') {
+      return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, encerrada: false }), mensagem: 'Gira reaberta.' };
+    }
+    if (acao !== 'encerrar') throw new HttpError(400, 'Ação inválida.');
+    const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
+    if (atual?.encerrada) return { gira: atual, mensagem: 'A gira já estava encerrada.' };
+    const { patch, mensagem } = encerrar(pessoas, atual || giraVazia(data));
+    return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }), mensagem };
   },
   DELETE: async (req) => {
     await exigir(req, 'giras:excluir');

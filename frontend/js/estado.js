@@ -136,6 +136,25 @@ async function acaoDaGira(rota) {
     avisar();
   }
 }
+// Encerrar / reabrir a gira (POST /api/giras/:data { acao }).
+async function situacaoDaGira(acao) {
+  const data = prefs.data;
+  await descarregar(data);
+  estado.salvando++;
+  try {
+    const r = await api('POST', '/giras/' + data, { acao });
+    estado.giras[data] = r.gira;
+    estado.manual = null;
+    toast(r.mensagem);
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    estado.salvando--;
+    avisar();
+  }
+}
+export const encerrarGira = () => situacaoDaGira('encerrar');
+export const reabrirGira = () => situacaoDaGira('reabrir');
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = () => acaoDaGira('remanejar');
 
@@ -212,7 +231,7 @@ export function montarBackup() {
     versao: 2,
     exportado: new Date().toISOString(),
     pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [] }])),
-    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
+    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, encerrada: !!g.encerrada, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
   };
 }
 export async function importarBackup(obj) {

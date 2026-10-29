@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 5;
+export const VERSAO = 6;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -55,6 +55,8 @@ export const MIGRACOES = [
      atualizado_em   timestamptz not null default now(),
      atualizado_por  uuid references usuarios (id) on delete set null
    )`,
+  // v6: gira encerrada (ninguém altera até reabrir)
+  `alter table giras add column if not exists encerrada boolean not null default false`,
   // Status na gira. Sem linha = Presente. p, na (não atende), sup, f (falta), a (ausente)
   `create table if not exists presencas (
      gira_data  date not null references giras (data) on delete cascade,
@@ -248,6 +250,7 @@ export const MIGRACOES = [
      select jsonb_build_object(
        'data', g.data,
        'entidade', g.entidade,
+       'encerrada', g.encerrada,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
@@ -275,10 +278,11 @@ export const MIGRACOES = [
      v_data date := (p ->> 'data')::date;
      v_user uuid := nullif(p ->> 'usuario', '')::uuid;
    begin
-     insert into giras (data, entidade, atualizado_em, atualizado_por)
-     values (v_data, coalesce(p ->> 'entidade', ''), now(), v_user)
+     insert into giras (data, entidade, encerrada, atualizado_em, atualizado_por)
+     values (v_data, coalesce(p ->> 'entidade', ''), coalesce((p ->> 'encerrada')::boolean, false), now(), v_user)
      on conflict (data) do update set
        entidade       = case when p ? 'entidade' then coalesce(p ->> 'entidade', '') else giras.entidade end,
+       encerrada      = case when p ? 'encerrada' then (p ->> 'encerrada')::boolean else giras.encerrada end,
        atualizado_em  = now(),
        atualizado_por = excluded.atualizado_por;
 

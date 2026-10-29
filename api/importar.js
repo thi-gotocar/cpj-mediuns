@@ -68,7 +68,7 @@ export default rota({
       }
       await db.rpc('gira_salvar', {
         data, usuario: perfil.id, entidade: String(g.entidade || '').slice(0, 120),
-        presenca, pares: mapa(g.pares), passes: mapa(g.passes),
+        presenca, pares: mapa(g.pares), passes: mapa(g.passes), encerrada: g.encerrada === true,
       });
       giras++;
     }

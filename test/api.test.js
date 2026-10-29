@@ -157,6 +157,28 @@ test('remanejar falta mantém as outras duplas', async () => {
   assert.ok(Math.max(...Object.values(carga)) <= 2);
 });
 
+test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda até reabrir', async () => {
+  const d = '2027-01-02';
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const id = (n) => ps.find((p) => p.nome === n).id;
+  await api('PUT', `/api/giras/${d}`, ADMIN, { pares: [{ m: id('Ana'), c: id('Elisa') }], passes: [{ m: id('Ana'), c: id('Helena') }] });
+  assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'encerrar' })).status, 403);
+  const r = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar' });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.gira.encerrada, true);
+  const pr = r.json.gira.presenca;
+  for (const n of ['Fábio', 'Gabi', 'Kátia']) assert.equal(pr[id(n)], 'sup', n + ' devia ir para o Suporte');
+  for (const n of ['Elisa', 'Helena', 'Ana', 'Bruno', 'Igor']) assert.equal(pr[id(n)], undefined, n + ' continua presente');
+  assert.match(r.json.mensagem, /Suporte/);
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'X' })).status, 409);
+  assert.equal((await api('POST', `/api/giras/${d}/sortear`, ADMIN)).status, 409);
+  assert.equal((await api('POST', `/api/giras/${d}/remanejar`, ADMIN)).status, 409);
+  const re = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'reabrir' });
+  assert.equal(re.json.gira.encerrada, false);
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' })).status, 200);
+  await api('DELETE', `/api/giras/${d}`, ADMIN);
+});
+
 test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('GET', '/api/usuarios', USER)).status, 403);
   const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', nome: 'Novo', senha: '12345678', papel: 'usuario' });

@@ -333,3 +333,24 @@ export function paresPorMedium(pessoas, g) {
     lista: meds.map((m) => ({ m, cams: validos.filter((p) => p.m === m.id), passes: passesV.filter((p) => p.m === m.id) })),
   };
 }
+
+// Encerrar a gira: todo presente precisa aparecer na escala.
+// Quem estava para cambonar (ou médium de passe) e não ficou com nenhum médium vai para o Suporte.
+// Duplas que envolvem quem faltou ou mudou de status são descartadas.
+export function encerrar(pessoas, g) {
+  const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
+  const { validos, passesV } = paresPorMedium(pessoas, g);
+  const cambonando = new Set(validos.map((p) => p.c));
+  const comMedium = new Set(passesV.map((p) => p.c));
+  const presenca = { ...(g.presenca || {}) };
+  const movidos = [];
+  ps.forEach((p) => {
+    const semCambonar = cambonaHoje(p, g) && !cambonando.has(p.id);
+    const passeSolto = presente(p, g) && p.funcao === 'passe' && !comMedium.has(p.id);
+    if (semCambonar || passeSolto) { presenca[p.id] = 'sup'; movidos.push(p.nome); }
+  });
+  const mensagem = 'Gira encerrada.' + (movidos.length
+    ? ` ${movidos.length === 1 ? 'Foi' : 'Foram'} para o Suporte (sem médium): ${movidos.join(', ')}.`
+    : ' Todos os presentes estão na escala.');
+  return { patch: { presenca, pares: validos, passes: passesV, encerrada: true }, movidos, mensagem };
+}

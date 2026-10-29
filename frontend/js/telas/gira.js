@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, status, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
@@ -63,8 +63,11 @@ function resultado(g) {
 export function render() {
   const ps = pessoasOrd();
   const g = giraAtual();
-  const editar = pode('giras:editar');
-  const sortearOk = pode('giras:sortear');
+  const admin = pode('giras:editar');
+  const encerrada = !!g.encerrada;
+  // Gira encerrada não muda até ser reaberta.
+  const editar = admin && !encerrada;
+  const sortearOk = pode('giras:sortear') && !encerrada;
   const existe = !!estado.giras[g.data];
 
   let h = `<section class="panel">
@@ -74,6 +77,7 @@ export function render() {
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
       ${editar ? `<label class="field grow">Entidade que trabalha no dia${seletorEntidade(g.entidade)}</label>` : ''}
     </div>
+    ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</div>` : ''}
     ${avisoEntidade(ps, g, editar)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
   </div>`;
@@ -151,7 +155,12 @@ export function render() {
       <div class="row">${sortearOk ? (temDuplas
         ? '<button class="btn primary" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button>'
         : '<button class="btn primary" data-act="sortear">Sortear</button>') : ''}
-      ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}</div></div>`;
+      ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}
+      ${editar && (temDuplas || existe) && estado.confirm !== 'enc:' + g.data ? `<button class="btn" data-act="askdel" data-k="enc:${g.data}">Encerrar gira</button>` : ''}</div></div>`;
+  if (editar && estado.confirm === 'enc:' + g.data) {
+    h += `<div class="infobox"><span>Encerrar a gira? Quem estava para cambonar e não ficou com nenhum médium, e médium de passe sem médium, vão para o <b>Suporte</b>. Depois disso a escala não muda até ser reaberta.</span>
+      <span class="row"><button class="btn small primary" data-act="encerrar">Encerrar</button><button class="btn small" data-act="cancelenc">Cancelar</button></span></div>`;
+  }
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
   if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
@@ -220,6 +229,9 @@ export const cliques = {
     avisar();
   },
   sortear: () => sortear(),
+  encerrar() { estado.confirm = null; encerrarGira(); },
+  reabrir: () => reabrirGira(),
+  cancelenc() { estado.confirm = null; avisar(); },
   manual() {
     const d = giraAtual().data;
     estado.manual = estado.manual === d ? null : d;

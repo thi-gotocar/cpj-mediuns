@@ -15,7 +15,7 @@ export function render() {
       const np = ps.filter((p) => presente(p, g)).length;
       const conf = estado.confirm === 'g:' + g.data;
       h += `<div class="hi"><div><div class="d">${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span></div>
-        <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${(g.pares || []).length} duplas · ${np} presentes</div></div>
+        <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${(g.pares || []).length} duplas · ${np} presentes${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div></div>
         <div class="acts"><button class="btn small" data-act="abrir" data-d="${g.data}">Abrir</button>
         ${pode('giras:excluir') ? (conf ? `<button class="btn small danger" data-act="delgira" data-d="${g.data}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="g:${g.data}">Excluir</button>`) : ''}</div></div>`;
     });

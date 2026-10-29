@@ -23,6 +23,8 @@ function deErroDoBanco(e) {
 
 // Monta o handler de uma rota: { GET: fn, POST: fn, ... }.
 // Cada fn recebe (req, res) e devolve o corpo JSON da resposta.
+export const MSG_ENCERRADA = 'Esta gira está encerrada. Toque em Reabrir para alterar.';
+
 export function rota(metodos) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
