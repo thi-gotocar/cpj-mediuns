@@ -114,9 +114,11 @@ function cardPedidos(E) {
   let h = `<div class="card"><div class="grp-h"><h2>Pedidos</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'}</span></div>`;
   if (!r.pessoas.length) return h + `<p class="muted" style="margin:0">Ninguém escolheu ervas ainda.</p></div>`;
   if (r.faltamPrecos.length) h += `<div class="warnbox">Preço a definir: <b>${r.faltamPrecos.map(esc).join(', ')}</b>. Preencha em “Ervas e preços” para fechar o valor de cada um.</div>`;
-  h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Nome</th><th class="rh">Ervas</th><th>Ervas R$</th><th>Frete</th><th>Total</th></tr></thead><tbody>
-    ${r.pessoas.map((p) => `<tr><th class="rh">${esc(p.nome)} <button class="btn link small" data-act="editarpedido" data-chave="${esc(p.chave)}" aria-label="Editar pedido de ${esc(p.nome)}">✎</button></th><td class="rh">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</td><td>${reais(p.subtotal)}${p.semPreco ? ' +?' : ''}</td><td>${reais(p.frete)}</td><td><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></td></tr>`).join('')}
-    </tbody><tfoot><tr><th class="rh">Total</th><td></td><td>${reais(r.totalItens)}</td><td>${reais(r.totalFrete)}</td><td><b>${reais(r.totalGeral)}</b></td></tr></tfoot></table></div>`;
+  h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Nome</th><th class="rh">Ervas</th><th>Ervas R$</th><th>Frete</th><th>Total</th><th></th></tr></thead><tbody>
+    ${r.pessoas.map((p) => `<tr><th class="rh">${esc(p.nome)} <button class="btn link small" data-act="editarpedido" data-chave="${esc(p.chave)}" aria-label="Editar pedido de ${esc(p.nome)}">✎</button></th><td class="rh">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</td><td>${reais(p.subtotal)}${p.semPreco ? ' +?' : ''}</td><td>${reais(p.frete)}</td><td><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></td><td>${estado.confirm === 'ped:' + p.chave
+      ? `<button class="btn small danger" data-act="delpedido" data-chave="${esc(p.chave)}">Confirmar</button>`
+      : `<button class="btn small" data-act="askdel" data-k="ped:${esc(p.chave)}" aria-label="Excluir pedido de ${esc(p.nome)}">Excluir</button>`}</td></tr>`).join('')}
+    </tbody><tfoot><tr><th class="rh">Total</th><td></td><td>${reais(r.totalItens)}</td><td>${reais(r.totalFrete)}</td><td><b>${reais(r.totalGeral)}</b></td><td></td></tr></tfoot></table></div>`;
   const tot = totaisPorErva(r);
   const vista = estado.ervasVista;
   const faltam = r.faltamPrecos.length;
@@ -178,6 +180,13 @@ export const cliques = {
   },
   pamais(el) { const P = estado.ervasPara; P.itens[el.dataset.id] = Math.min(99, (P.itens[el.dataset.id] || 0) + 1); avisar(); },
   pamenos(el) { const P = estado.ervasPara; const q = (P.itens[el.dataset.id] || 0) - 1; if (q > 0) P.itens[el.dataset.id] = q; else delete P.itens[el.dataset.id]; avisar(); },
+  async delpedido(el) {
+    estado.confirm = null;
+    const p = (estado.ervas.pedidos?.pessoas || []).find((x) => x.chave === el.dataset.chave);
+    if (!p) return;
+    if (await salvarPedidoDe({ chave: p.chave }, [])) toast(`Pedido de ${p.nome} excluído.`);
+    if (estado.ervasPara?.chave === p.chave) { estado.ervasPara = null; avisar(); }
+  },
   pacancelar() { estado.ervasPara = null; avisar(); },
   async pasalvar() {
     const P = estado.ervasPara;
