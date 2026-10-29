@@ -50,6 +50,11 @@ export async function carregarTudo() {
   definirGiras(giras);
   estado.pronto = true;
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
+  // Acesso da corrente: abre direto a próxima gira com escala (ou a mais recente).
+  if (!pode('escala:completa') && !estado.giras[prefs.data]) {
+    const datas = Object.keys(estado.giras).sort();
+    prefs.data = datas.find((d) => d >= hoje()) || datas[datas.length - 1] || hoje();
+  }
   avisar();
 }
 

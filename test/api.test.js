@@ -54,7 +54,7 @@ test('login: senha certa, errada e bloqueio', async () => {
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ninguem@x.org', senha: 'nao' })).status, 401);
   const ok = await api('POST', '/api/auth/entrar', null, { email: ' USER@corrente.org ', senha: 'senha-do-ze' });
   assert.equal(ok.status, 200);
-  assert.deepEqual(ok.json.usuario.permissoes, ['pessoas:ler', 'giras:ler', 'ervas:escolher']);
+  assert.deepEqual(ok.json.usuario.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher']);
   USER = ok.json.token;
   for (let i = 0; i < 8; i++) await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' + i });
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' })).status, 429);
@@ -75,7 +75,7 @@ test('/api/me mostra papel e permissões', async () => {
   assert.ok(a.json.permissoes.includes('giras:sortear'));
   const u = await api('GET', '/api/me', USER);
   assert.equal(u.json.papel, 'usuario');
-  assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler', 'ervas:escolher']);
+  assert.deepEqual(u.json.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher']);
 });
 
 test('admin cadastra a corrente; usuário só lê', async () => {
@@ -251,7 +251,11 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 1 }] })).status, 200);
   assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 0 }] })).status, 400);
 
+  // Quem tem conta aparece com o nome cadastrado atual, mesmo se mudar depois.
+  const ze = (await api('GET', '/api/usuarios', ADMIN)).json.find((u) => u.email === 'user@corrente.org');
+  await api('PATCH', '/api/usuarios/' + ze.id, ADMIN, { nome: 'José Carlos' });
   e = (await api('GET', '/api/ervas', ADMIN)).json;
+  assert.deepEqual(e.pedidos.pessoas.map((p) => p.nome), ['José Carlos', 'Maria']);
   assert.equal(e.pedidos.pessoas.length, 2);
   assert.deepEqual(e.pedidos.pessoas.map((p) => p.frete), [600, 600]);
   assert.equal(e.pedidos.totalGeral, 1000 + 750 + 1200);

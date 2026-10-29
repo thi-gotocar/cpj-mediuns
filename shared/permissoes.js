@@ -5,6 +5,7 @@
 
 export const PERMISSOES = {
   admin: [
+    'escala:completa',  // presença, abas Pessoas e Histórico
     'pessoas:ler',
     'pessoas:editar',   // cadastrar, trocar função, marcar "pode ter passe", linhas, excluir
     'giras:ler',
@@ -17,13 +18,15 @@ export const PERMISSOES = {
     'ervas:gerenciar',  // cadastrar ervas e preços, frete, fechar a lista, ver e exportar pedidos
   ],
   usuario: [
+    'escala:completa',
     'pessoas:ler',
     'giras:ler',        // ver a escala, o histórico e exportar (texto e imagem)
     'ervas:escolher',   // escolher as ervas que quer comprar
   ],
-  // Quem entra com o acesso da corrente (sem senha, só com o nome).
+  // Quem entra com o acesso da corrente (sem senha, só com o nome):
+  // só a aba Gira com o resultado do sorteio e a aba Ervas.
   corrente: [
-    'pessoas:ler',
+    'pessoas:ler',      // os nomes, para mostrar as duplas
     'giras:ler',
     'ervas:escolher',
   ],

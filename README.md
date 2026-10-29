@@ -52,11 +52,11 @@ Para mudar, edite `shared/permissoes.js`. Vale para o backend e para a tela.
 
 ### Acesso da corrente (sem senha)
 
-No login, quem digita **`corrente-cpj`** no campo de e-mail entra sem senha: o campo de senha vira **"Seu nome"**. Esse acesso vê a escala como um usuário e escolhe ervas; o nome digitado é o que aparece nos pedidos. Entrar de novo com o mesmo nome continua o mesmo pedido. Para mudar o texto do acesso, edite `ACESSO_CORRENTE` em `shared/permissoes.js`.
+No login, quem digita **`corrente-cpj`** no campo de e-mail entra sem senha: o campo de senha vira **"Seu nome"**. Esse acesso vê só duas abas: **Gira**, com o resultado do sorteio (abre direto na próxima gira sorteada), e **Ervas**. O nome digitado é o que aparece nos pedidos. Entrar de novo com o mesmo nome continua o mesmo pedido. Para mudar o texto do acesso, edite `ACESSO_CORRENTE` em `shared/permissoes.js`.
 
 ### Ervas (compra coletiva)
 
-- **Todos** (admin, usuário e corrente) escolhem as ervas e a quantidade na aba **Ervas**.
+- **Todos** (admin, usuário e corrente) escolhem as ervas e a quantidade na aba **Ervas**. Quem tem conta aparece sempre com o nome cadastrado.
 - **Admin** cadastra ervas e preços, define o **frete** (dividido por igual entre quem pediu), fecha/reabre a lista, vê os pedidos e exporta (texto para o WhatsApp e planilha `.csv`). **Nova compra** apaga os pedidos e reabre a lista.
 
 ## Como colocar no ar

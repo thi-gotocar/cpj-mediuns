@@ -3,7 +3,7 @@
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, status, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar } from '../util.js';
-import { textoWhats } from '../exportar.js';
+import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : '');
@@ -40,6 +40,26 @@ function avisoEntidade(ps, g, editar) {
     : '';
 }
 
+// Só o resultado do sorteio (acesso da corrente).
+function resultado(g) {
+  const { lista, semPasse } = paresPorMedium(estado.pessoas, g);
+  const comDuplas = lista.some((x) => x.cams.length || x.passes.length);
+  if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
+  let h = `<div class="card"><h2>Médiuns e cambones</h2><div class="pairs">`;
+  lista.forEach((x) => {
+    h += `<div class="pair"><span class="med">${esc(x.m.nome)}${x.m.funcao === 'extra' ? ' <span class="badge rep">Extra</span>' : ''}</span><span></span><div class="cams">`;
+    h += x.cams.length ? x.cams.map((p) => `<div class="camrow"><span class="nmc">${esc(nome(p.c))}</span></div>`).join('') : '<span class="muted">Sem cambone</span>';
+    h += x.passes.map((p) => `<div class="camrow"><span class="tag">Passe</span><span class="nmc">${esc(nome(p.c))}</span></div>`).join('');
+    h += `</div></div>`;
+  });
+  h += `</div>`;
+  if (semPasse.length) h += `<p class="muted" style="margin:0">Passe sem médium: ${semPasse.map(nome).map(esc).join(', ')}</p>`;
+  gruposExtras(estado.pessoas, g).forEach(([t, nomes]) => {
+    h += `<div class="grp"><h3>${t}</h3><p style="margin:0">${nomes.map(esc).join(', ')}</p></div>`;
+  });
+  return h + `</div>`;
+}
+
 export function render() {
   const ps = pessoasOrd();
   const g = giraAtual();
@@ -55,7 +75,7 @@ export function render() {
       ${editar ? `<label class="field grow">Entidade que trabalha no dia${seletorEntidade(g.entidade)}</label>` : ''}
     </div>
     ${avisoEntidade(ps, g, editar)}
-    ${!editar ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
+    ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
   </div>`;
 
   if (!ps.length) {
@@ -63,9 +83,11 @@ export function render() {
       ${pode('pessoas:editar') ? '<button class="btn primary" data-act="goto" data-tab="pessoas">Cadastrar pessoas</button>' : ''}</div></section>`;
   }
   if (!editar && !existe) {
-    return h + `<div class="card empty"><h2>Escala ainda não montada</h2><p class="muted">Não há escala salva para esta data. Escolha outra data ou veja as giras no Histórico.</p>
-      <button class="btn" data-act="goto" data-tab="hist">Ver histórico</button></div></section>`;
+    const completa = pode('escala:completa');
+    return h + `<div class="card empty"><h2>Escala ainda não montada</h2><p class="muted">Não há escala salva para esta data.${completa ? ' Escolha outra data ou veja as giras no Histórico.' : ' Escolha outra data.'}</p>
+      ${completa ? '<button class="btn" data-act="goto" data-tab="hist">Ver histórico</button>' : ''}</div></section>`;
   }
+  if (!pode('escala:completa')) return h + resultado(g) + '</section>';
 
   // presença
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;

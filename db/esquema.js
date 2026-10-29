@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 3;
+export const VERSAO = 4;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -348,10 +348,13 @@ export const MIGRACOES = [
        'aberta', coalesce((select valor = 'true' from sistema where chave = 'ervas_aberta'), true),
        'ervas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'preco', e.preco) order by lower(e.nome))
                           from ervas e), '[]'::jsonb),
-       'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave, 'nome', x.pessoa_nome,
+       -- Quem tem conta aparece sempre com o nome cadastrado atual.
+       'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave,
+                                                                 'nome', coalesce(u.nome, x.pessoa_nome),
                                                                  'ervaId', x.erva_id, 'quantidade', x.quantidade)
-                                              order by lower(x.pessoa_nome))
-                             from ervas_escolhas x), '[]'::jsonb)
+                                              order by lower(coalesce(u.nome, x.pessoa_nome)))
+                             from ervas_escolhas x
+                             left join usuarios u on x.pessoa_chave = 'u:' || u.id::text), '[]'::jsonb)
      );
    $$`,
   `create or replace function erva_salvar(p jsonb)

@@ -41,9 +41,12 @@ function render() {
   }
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
   if (prefs.tab === 'ervas' && !pode('ervas:escolher')) prefs.tab = 'gira';
+  if ((prefs.tab === 'pessoas' || prefs.tab === 'hist') && !pode('escala:completa')) prefs.tab = 'gira';
   tabs.hidden = false;
   tabs.querySelector('[data-tab="usuarios"]').hidden = !pode('usuarios:gerenciar');
   tabs.querySelector('[data-tab="ervas"]').hidden = !pode('ervas:escolher');
+  tabs.querySelector('[data-tab="pessoas"]').hidden = !pode('escala:completa');
+  tabs.querySelector('[data-tab="hist"]').hidden = !pode('escala:completa');
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();
 

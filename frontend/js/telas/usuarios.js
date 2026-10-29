@@ -13,6 +13,9 @@ const DESCRICAO = {
   'giras:excluir': 'Excluir giras',
   'usuarios:gerenciar': 'Gerenciar usuários',
   'dados:importar': 'Backup e restauração',
+  'escala:completa': 'Ver presença, pessoas e histórico',
+  'ervas:escolher': 'Escolher ervas',
+  'ervas:gerenciar': 'Cadastrar ervas, frete e exportar pedidos',
 };
 
 export function render() {
