@@ -1,7 +1,7 @@
 // Cálculo da compra de ervas (sem banco).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularPedidos, textoPedidos, csvPedidos, chavePessoa, totaisPorErva } from '../shared/ervas.js';
+import { calcularPedidos, textoPedidos, csvPedidos, chavePessoa, totaisPorErva, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca } from '../shared/ervas.js';
 
 const ervas = [{ id: 'a', nome: 'Arruda', preco: 5 }, { id: 'g', nome: 'Guiné', preco: 7.5 }, { id: 'r', nome: 'Alecrim', preco: 3.33 }];
 
@@ -56,4 +56,26 @@ test('erva sem preço: entra no pedido como "a definir" até o admin fechar o pr
   const r2 = calcularPedidos(lista, escolhas, 4);
   assert.deepEqual(r2.faltamPrecos, []);
   assert.equal(r2.pessoas[0].total, 500 + 600 + 400);
+});
+
+test('pedido ao fornecedor (sem valores) e cobrança por pessoa', () => {
+  const lista = [{ id: 'a', nome: 'Arruda', preco: 5 }, { id: 'g', nome: 'Guiné', preco: null }];
+  const escolhas = [
+    { chave: '1', nome: 'Ana', ervaId: 'a', quantidade: 2 },
+    { chave: '2', nome: 'Bia', ervaId: 'a', quantidade: 1 },
+    { chave: '2', nome: 'Bia', ervaId: 'g', quantidade: 1 },
+  ];
+  const r = calcularPedidos(lista, escolhas, 10);
+  const forn = textoFornecedor(r, new Date(2026, 10, 1));
+  assert.match(forn, /• Arruda: 3/);
+  assert.match(forn, /• Guiné: 1/);
+  assert.doesNotMatch(forn, /R\$/, 'o pedido ao fornecedor não leva valores');
+  assert.equal(csvFornecedor(r), '\uFEFFErva;Quantidade;Pessoas que pediram\r\nArruda;3;2\r\nGuiné;1;1');
+  lista[1].preco = 7.5;
+  const r2 = calcularPedidos(lista, escolhas, 10);
+  const cob = textoCobranca(r2);
+  assert.match(cob, /\*Ana\*: R\$\s15,00/);
+  assert.match(cob, /\*Bia\*: R\$\s17,50/);
+  assert.match(cob, /Total a receber:\* R\$\s32,50/);
+  assert.match(csvCobranca(r2), /Bia;Arruda, Guiné;12,50;5,00;17,50/);
 });

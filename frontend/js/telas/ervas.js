@@ -1,6 +1,6 @@
 // Tela "Ervas": escolher as ervas da compra coletiva; o admin cadastra, define o frete e exporta.
 
-import { centavos, reais, calcularPedidos, textoPedidos, csvPedidos, totaisPorErva, temPreco } from '/shared/ervas.js';
+import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca } from '/shared/ervas.js';
 import { estado, pode, carregarErvas, escolherErva, acaoErvas, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 
@@ -89,16 +89,30 @@ function cardPedidos(E) {
     ${r.pessoas.map((p) => `<tr><th class="rh">${esc(p.nome)}</th><td class="rh">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</td><td>${reais(p.subtotal)}${p.semPreco ? ' +?' : ''}</td><td>${reais(p.frete)}</td><td><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></td></tr>`).join('')}
     </tbody><tfoot><tr><th class="rh">Total</th><td></td><td>${reais(r.totalItens)}</td><td>${reais(r.totalFrete)}</td><td><b>${reais(r.totalGeral)}</b></td></tr></tfoot></table></div>`;
   const tot = totaisPorErva(r);
-  h += `<div class="grp"><h3>Para comprar</h3><p style="margin:0">${tot.map((t) => `${esc(t.nome)} x${t.quantidade}`).join(' · ')}</p></div>`;
-  const txt = textoPedidos(r, E.frete);
-  h += `<textarea id="ev-txt" readonly aria-label="Lista para o WhatsApp">${esc(txt)}</textarea>
+  const vista = estado.ervasVista;
+  const faltam = r.faltamPrecos.length;
+  h += `<div class="grp"><h3>Para comprar</h3><p style="margin:0">${tot.map((t) => `${esc(t.nome)} x${t.quantidade}`).join(' · ')}</p></div>
     <div class="row">
-      <button class="btn primary" data-act="copiarervas">Copiar lista</button>
-      <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Abrir no WhatsApp</a>
-      <button class="btn" data-act="csvervas">Baixar planilha</button>
+      <button class="btn ${vista === 'fornecedor' ? 'primary' : ''}" data-act="vista" data-v="fornecedor" aria-pressed="${vista === 'fornecedor'}">Pedido ao fornecedor</button>
+      <button class="btn ${vista === 'cobranca' ? 'primary' : ''}" data-act="vista" data-v="cobranca" aria-pressed="${vista === 'cobranca'}" ${faltam ? 'disabled' : ''}>Cobrança</button>
     </div>
-    <div class="grp" style="border-top:1px solid var(--line);padding-top:12px">
-      <p class="muted" style="margin:0;font-size:.85rem">Depois de exportar, comece uma nova compra: os pedidos são apagados e a lista reabre. As ervas, os preços e o frete ficam.</p>
+    ${faltam ? `<p class="muted" style="margin:0;font-size:.85rem">A cobrança libera quando todas as ervas pedidas tiverem preço. Faltam: ${r.faltamPrecos.map(esc).join(', ')}.</p>` : ''}`;
+  if (vista === 'fornecedor' || (vista === 'cobranca' && !faltam)) {
+    const txt = vista === 'fornecedor' ? textoFornecedor(r) : textoCobranca(r);
+    const titulo = vista === 'fornecedor' ? 'Pedido ao fornecedor' : 'Cobrança';
+    const dica = vista === 'fornecedor'
+      ? 'Cada erva com a quantidade total pedida. Envie ao fornecedor.'
+      : 'Quanto cada pessoa paga: ervas + parte do frete.';
+    h += `<div class="grp exp"><h3>${titulo}</h3><p class="muted" style="margin:0;font-size:.85rem">${dica}</p>
+      <textarea id="ev-txt" readonly aria-label="${titulo}">${esc(txt)}</textarea>
+      <div class="row">
+        <button class="btn primary" data-act="copiarervas">Copiar</button>
+        <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Abrir no WhatsApp</a>
+        <button class="btn" data-act="csvervas">Baixar planilha</button>
+      </div></div>`;
+  }
+  h += `<div class="grp" style="border-top:1px solid var(--line);padding-top:12px">
+      <p class="muted" style="margin:0;font-size:.85rem">Depois de cobrar, comece uma nova compra: os pedidos são apagados e a lista reabre. As ervas, os preços e o frete ficam.</p>
       ${estado.confirm === 'nova-compra'
         ? '<button class="btn danger" data-act="novacompra">Confirmar: apagar pedidos e começar nova compra</button>'
         : '<button class="btn" data-act="askdel" data-k="nova-compra">Nova compra</button>'}
@@ -130,12 +144,19 @@ export const cliques = {
   copiarervas() {
     const txt = val('ev-txt');
     const fb = () => { const t = document.getElementById('ev-txt'); t.focus(); t.select(); toast('Lista selecionada. Copie com o menu do aparelho.'); };
-    try { navigator.clipboard.writeText(txt).then(() => toast('Lista copiada.'), fb); } catch { fb(); }
+    try { navigator.clipboard.writeText(txt).then(() => toast('Copiado.'), fb); } catch { fb(); }
+  },
+  vista(el) {
+    estado.ervasVista = estado.ervasVista === el.dataset.v ? null : el.dataset.v;
+    avisar();
+    document.getElementById('ev-txt')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   },
   csvervas() {
     const r = estado.ervas.pedidos;
     if (!r) return;
-    baixar(new Blob([csvPedidos(r)], { type: 'text/csv;charset=utf-8' }), 'ervas-' + hoje() + '.csv');
+    const fornecedor = estado.ervasVista === 'fornecedor';
+    const csv = fornecedor ? csvFornecedor(r) : csvCobranca(r);
+    baixar(new Blob([csv], { type: 'text/csv;charset=utf-8' }), (fornecedor ? 'pedido-ervas-' : 'cobranca-ervas-') + hoje() + '.csv');
   },
 };
 

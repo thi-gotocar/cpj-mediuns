@@ -174,3 +174,5 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 @media (max-width:560px){.pp.ev{grid-template-columns:minmax(0,1fr) 90px}.pp.ev .acts{grid-column:1/-1}}
 
 .pp.ev input.falta{border-color:var(--warn);background:var(--warn-soft)}
+.grp.exp{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg)}
+.grp.exp textarea{min-height:180px}

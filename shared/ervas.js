@@ -54,9 +54,10 @@ export function calcularPedidos(ervas, escolhas, frete) {
 export function totaisPorErva(resumo) {
   const m = new Map();
   resumo.pessoas.forEach((p) => p.itens.forEach((i) => {
-    const t = m.get(i.nome) || { nome: i.nome, quantidade: 0, valor: 0 };
+    const t = m.get(i.nome) || { nome: i.nome, quantidade: 0, valor: 0, pessoas: 0 };
     t.quantidade += i.quantidade;
     t.valor += i.valor;
+    t.pessoas += 1;
     m.set(i.nome, t);
   }));
   return [...m.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -102,4 +103,52 @@ export function csvPedidos(resumo) {
   linhas.push([]);
   linhas.push(['Total', '', '', '', num(resumo.totalItens), num(resumo.totalFrete), num(resumo.totalGeral)]);
   return '﻿' + linhas.map((l) => l.map(cel).join(';')).join('\r\n');
+}
+
+// ---------- Pedido ao fornecedor: erva + quantidade total (sem valores) ----------
+export function textoFornecedor(resumo, data = new Date()) {
+  const tot = totaisPorErva(resumo);
+  const L = ['*PEDIDO DE ERVAS · ' + data.toLocaleDateString('pt-BR') + '*', ''];
+  tot.forEach((t) => L.push(`• ${t.nome}: ${t.quantidade}`));
+  L.push('');
+  L.push(`Total: ${tot.reduce((a, t) => a + t.quantidade, 0)} itens, ${tot.length} erva${tot.length === 1 ? '' : 's'}`);
+  return L.join('\n');
+}
+
+export function csvFornecedor(resumo) {
+  const linhas = [['Erva', 'Quantidade', 'Pessoas que pediram']];
+  totaisPorErva(resumo).forEach((t) => linhas.push([t.nome, t.quantidade, t.pessoas]));
+  return '\uFEFF' + linhas.map((l) => l.map(celCsv).join(';')).join('\r\n');
+}
+
+// ---------- Cobrança: quanto cada pessoa paga ----------
+// Só faz sentido com todos os preços definidos (resumo.faltamPrecos vazio).
+export function textoCobranca(resumo, data = new Date()) {
+  const L = ['*COBRANÇA DAS ERVAS · ' + data.toLocaleDateString('pt-BR') + '*'];
+  if (resumo.totalFrete) L.push(`Frete: ${reais(resumo.totalFrete)} ÷ ${resumo.pessoas.length} pessoas`);
+  L.push('');
+  resumo.pessoas.forEach((p) => {
+    const itens = p.itens.map((i) => `${i.nome}${i.quantidade > 1 ? ' x' + i.quantidade : ''}`).join(', ');
+    L.push(`*${p.nome}*: ${reais(p.total)}`);
+    L.push(`   ${itens} (${reais(p.subtotal)})${p.frete ? ` + frete ${reais(p.frete)}` : ''}`);
+  });
+  L.push('');
+  L.push(`*Total a receber:* ${reais(resumo.totalGeral)}`);
+  return L.join('\n');
+}
+
+export function csvCobranca(resumo) {
+  const num = (c) => (c / 100).toFixed(2).replace('.', ',');
+  const linhas = [['Nome', 'Ervas', 'Valor das ervas', 'Frete', 'Total a pagar']];
+  resumo.pessoas.forEach((p) => linhas.push([
+    p.nome, p.itens.map((i) => i.nome + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', '), num(p.subtotal), num(p.frete), num(p.total),
+  ]));
+  linhas.push([]);
+  linhas.push(['Total', '', num(resumo.totalItens), num(resumo.totalFrete), num(resumo.totalGeral)]);
+  return '\uFEFF' + linhas.map((l) => l.map(celCsv).join(';')).join('\r\n');
+}
+
+function celCsv(v) {
+  const s = String(v ?? '');
+  return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }

@@ -11,6 +11,7 @@ export const estado = {
   giras: {},           // por data
   usuarios: null,      // só admin
   ervas: null,         // compra de ervas (GET /api/ervas)
+  ervasVista: null,    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
   img: null,           // imagem gerada da escala
