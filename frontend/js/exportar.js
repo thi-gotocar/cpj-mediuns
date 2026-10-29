@@ -15,6 +15,7 @@ function tabela(L, h1, h2, rows) {
 }
 
 // Grupos que aparecem depois das duplas (também usados pela imagem).
+// Quem faltou ou está ausente não entra na lista do evento.
 export function gruposExtras(pessoas, g) {
   const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
   const usados = new Set((g.pares || []).map((p) => p.c));
@@ -22,8 +23,6 @@ export function gruposExtras(pessoas, g) {
     ['Senha', ps.filter((p) => presente(p, g) && p.funcao === 'senha').map((p) => p.nome)],
     ['Suporte', ps.filter((p) => status(p, g) === 'sup').map((p) => p.nome)],
     ['Cambones de apoio', ps.filter((p) => cambonaHoje(p, g) && !usados.has(p.id)).map((p) => p.nome)],
-    ['Faltas', ps.filter((p) => status(p, g) === 'f').map((p) => p.nome)],
-    ['Ausentes', ps.filter((p) => status(p, g) === 'a').map((p) => p.nome)],
   ].filter((x) => x[1].length);
 }
 
