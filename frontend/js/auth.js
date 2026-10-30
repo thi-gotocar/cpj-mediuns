@@ -37,9 +37,12 @@ export const token = () => tok;
 
 export const estadoDoApp = () => chamar('GET', 'estado');
 
+// Acesso da corrente com nome em dúvida: devolve { candidatos } e não entra.
 export async function entrar(email, senha) {
   const r = await chamar('POST', 'entrar', { email, senha });
+  if (r.confirmar) return { candidatos: r.candidatos || [] };
   guardar(r.token);
+  return {};
 }
 
 export async function instalar(dados) {

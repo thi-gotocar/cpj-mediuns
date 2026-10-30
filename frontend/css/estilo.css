@@ -230,3 +230,5 @@ nav.tabs{overflow-x:auto;scrollbar-width:none}
 nav.tabs::-webkit-scrollbar{display:none}
 nav.tabs button{flex:1 0 auto}
 @media (max-width:420px){nav.tabs button{padding:10px 4px;font-size:.88rem}}
+.candidatos{display:grid;gap:8px}
+.candidatos .btn{justify-content:flex-start;text-align:left;font-size:1.05rem}

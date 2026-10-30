@@ -277,9 +277,18 @@ test('importar backup da versão anterior', async () => {
 });
 
 test('acesso da corrente: entra só com o nome, sem senha', async () => {
-  const curto = await api('POST', '/api/auth/entrar', null, { email: ' CPJ ', senha: 'Lúcia' });
+  // Só entra quem está na lista da corrente; o nome fica sempre como no cadastro.
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Dona Maria, Maria, Lúcia', funcao: 'senha' });
+  const curto = await api('POST', '/api/auth/entrar', null, { email: ' CPJ ', senha: 'lucia' });
   assert.equal(curto.status, 200, 'também aceita só "cpj"');
   assert.equal(curto.json.usuario.papel, 'corrente');
+  assert.equal(curto.json.usuario.nome, 'Lúcia', 'salvo com o nome do cadastro');
+  const duvida = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'mari' })).json;
+  assert.equal(duvida.confirmar, true);
+  assert.equal(duvida.token, undefined, 'na dúvida não entra: pede para confirmar');
+  assert.deepEqual(duvida.candidatos, ['Maria', 'Dona Maria']);
+  assert.ok((await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Lucya' })).json.candidatos.includes('Lúcia'), 'nome com erro de digitação');
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Zuleica' })).status, 404);
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: '' })).status, 400);
   const r = await api('POST', '/api/auth/entrar', null, { email: ' Corrente-CPJ ', senha: '  Dona   Maria ' });
   assert.equal(r.status, 200, JSON.stringify(r.json));

@@ -2,7 +2,15 @@
 
 import { esc } from '../util.js';
 
-export function render(erro, email = '') {
+export function render(erro, email = '', candidatos = null) {
+  if (candidatos) {
+    return `<div class="card login">
+      <h2>Quem é você?</h2>
+      <p class="muted" style="margin:0;font-size:.92rem">Não encontrei exatamente esse nome. Toque no seu nome como está cadastrado na corrente:</p>
+      <div class="candidatos">${candidatos.map((n) => `<button class="btn" data-soueu="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+      <button class="btn link" data-soueu="">Não sou nenhum destes · digitar de novo</button>
+    </div>`;
+  }
   return `<div class="card login">
     <h2>Entrar</h2>
     <p class="muted" style="margin:0;font-size:.92rem">Use o e-mail e a senha que o admin da corrente cadastrou para você.</p>
@@ -41,7 +49,7 @@ export function ajustarCampoSenha(ehCorrente) {
     inp.type = 'text';
     inp.value = '';
     inp.autocomplete = 'name';
-    inp.placeholder = 'Como você quer aparecer na lista';
+    inp.placeholder = 'Seu nome como está cadastrado na corrente';
   } else if (!ehCorrente && inp.type !== 'password') {
     rot.textContent = 'Senha';
     inp.type = 'password';

@@ -9,6 +9,37 @@ export const reais = (c) => (c / 100).toLocaleString('pt-BR', { style: 'currency
 export function normalizarNome(nome) {
   return String(nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
+// Nomes da corrente parecidos com o que a pessoa digitou (para ela confirmar quem é).
+function distancia(a, b) {
+  const m = a.length, n = b.length;
+  if (Math.abs(m - n) > 3) return 99;
+  let ant = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    ant = cur;
+  }
+  return ant[n];
+}
+export function nomesParecidos(nomes, digitado, max = 8) {
+  const d = normalizarNome(digitado);
+  if (d.length < 2) return [];
+  const dt = d.split(' ').filter((t) => t.length >= 2);
+  const pontos = nomes.map((nome) => {
+    const n = normalizarNome(nome);
+    const nt = n.split(' ');
+    let p = 0;
+    if (n.startsWith(d)) p = 5;
+    else if (n.includes(d)) p = 4;
+    else if (dt.some((t) => nt.some((x) => x.startsWith(t) || (x.length >= 3 && t.startsWith(x))))) p = 3;
+    else if (distancia(d, n) <= (d.length <= 5 ? 1 : 2) || dt.some((t) => t.length >= 4 && nt.some((x) => distancia(t, x) <= 1))) p = 2;
+    return { nome, p };
+  });
+  // Havendo nomes que batem pelo começo, não mostra os que só se parecem na grafia.
+  const melhor = Math.max(0, ...pontos.map((x) => x.p));
+  return pontos.filter((x) => x.p > 0 && (melhor < 3 || x.p >= 3)).sort((a, b) => b.p - a.p || a.nome.localeCompare(b.nome, 'pt-BR')).slice(0, max).map((x) => x.nome);
+}
+
 export function chavePessoa(quem) {
   return quem.id ? 'u:' + quem.id : 'n:' + normalizarNome(quem.nome);
 }

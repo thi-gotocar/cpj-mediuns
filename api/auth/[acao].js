@@ -2,6 +2,8 @@
 //   GET  /api/auth/estado   { instalado }  — o app já tem um admin?
 //   POST /api/auth/instalar { codigo, nome, email, senha }  — cria o primeiro admin
 //   POST /api/auth/entrar   { email, senha }  → { token, usuario }
+//                           acesso da corrente: a "senha" é o nome; precisa estar na lista de pessoas.
+//                           Se não for exato → { confirmar: true, candidatos: [nomes parecidos] } (sem token)
 //   POST /api/auth/senha    { atual, nova }   → { token }  (logado)
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
 
@@ -10,6 +12,7 @@ import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { PERMISSOES, ehAcessoCorrente } from '../../shared/permissoes.js';
+import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,10 +57,18 @@ const acoes = {
     const b = corpo(req);
     // Acesso da corrente: no lugar da senha vem o nome da pessoa.
     if (ehAcessoCorrente(b.email)) {
-      const nome = String(b.senha || '').replace(/\s+/g, ' ').trim();
-      if (nome.length < 2 || nome.length > 60) throw new HttpError(400, 'Digite o seu nome.');
-      const usuario = { id: null, nome, email: '', papel: 'corrente' };
-      return { token: await emitirTokenCorrente(nome), usuario: publico(usuario) };
+      const digitado = String(b.senha || '').replace(/\s+/g, ' ').trim();
+      if (digitado.length < 2 || digitado.length > 80) throw new HttpError(400, 'Digite o seu nome.');
+      // O nome tem que ser de alguém cadastrado na corrente; fica sempre salvo com o nome do cadastro.
+      const pessoas = await db.rpc('pessoas_listar');
+      const exata = pessoas.find((p) => normalizarNome(p.nome) === normalizarNome(digitado));
+      if (exata) {
+        const usuario = { id: null, nome: exata.nome, email: '', papel: 'corrente' };
+        return { token: await emitirTokenCorrente(exata.nome), usuario: publico(usuario) };
+      }
+      const candidatos = nomesParecidos(pessoas.map((p) => p.nome), digitado);
+      if (candidatos.length) return { confirmar: true, candidatos };
+      throw new HttpError(404, 'Não encontrei esse nome na corrente. Digite como está no cadastro ou fale com um admin.');
     }
     const email = String(b.email || '').trim().toLowerCase();
     const senha = String(b.senha || '');

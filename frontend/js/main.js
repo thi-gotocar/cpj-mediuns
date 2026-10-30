@@ -19,6 +19,7 @@ const conta = document.getElementById('conta');
 const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, usuarios };
 let erroLogin = '';
 let emailLogin = '';
+let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
 let instalado = true;
 
 // ---------- render ----------
@@ -35,7 +36,7 @@ function render() {
     tabs.hidden = true;
     renderConta();
     if (!logado()) {
-      main.innerHTML = instalado ? login.render(erroLogin, emailLogin) : login.renderInstalacao(erroLogin);
+      main.innerHTML = instalado ? login.render(erroLogin, emailLogin, candidatosLogin) : login.renderInstalacao(erroLogin);
       if (instalado && ehAcessoCorrente(emailLogin)) login.ajustarCampoSenha(true);
     }
     return;
@@ -135,8 +136,21 @@ conta.addEventListener('click', async (e) => {
   }
 });
 
-main.addEventListener('click', (e) => {
+main.addEventListener('click', async (e) => {
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }
+  // Acesso da corrente: a pessoa confirma qual nome cadastrado é o dela.
+  const eu = e.target.closest('[data-soueu]');
+  if (eu) {
+    candidatosLogin = null;
+    if (!eu.dataset.soueu) { render(); return; }
+    try {
+      const r = await entrar(emailLogin, eu.dataset.soueu);
+      erroLogin = '';
+      if (r.candidatos) { candidatosLogin = r.candidatos; render(); return; }
+      await iniciar();
+    } catch (err) { erroLogin = err.message; render(); }
+    return;
+  }
   const el = e.target.closest('[data-act]');
   if (!el || el.tagName === 'SELECT' || el.tagName === 'INPUT') return;
   const a = el.dataset.act;
@@ -172,8 +186,9 @@ main.addEventListener('submit', async (e) => {
     btn.disabled = true;
     btn.textContent = 'Entrando…';
     try {
-      await entrar(emailLogin, document.getElementById('l-senha').value);
+      const r = await entrar(emailLogin, document.getElementById('l-senha').value);
       erroLogin = '';
+      if (r.candidatos) { candidatosLogin = r.candidatos; render(); return; }
       await iniciar();
     } catch (err) {
       erroLogin = err.message;
