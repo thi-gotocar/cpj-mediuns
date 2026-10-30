@@ -240,6 +240,9 @@ test('importar backup da versão anterior', async () => {
 });
 
 test('acesso da corrente: entra só com o nome, sem senha', async () => {
+  const curto = await api('POST', '/api/auth/entrar', null, { email: ' CPJ ', senha: 'Lúcia' });
+  assert.equal(curto.status, 200, 'também aceita só "cpj"');
+  assert.equal(curto.json.usuario.papel, 'corrente');
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: '' })).status, 400);
   const r = await api('POST', '/api/auth/entrar', null, { email: ' Corrente-CPJ ', senha: '  Dona   Maria ' });
   assert.equal(r.status, 200, JSON.stringify(r.json));

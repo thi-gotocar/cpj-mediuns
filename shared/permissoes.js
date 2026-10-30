@@ -37,9 +37,11 @@ export const PAPEIS = { admin: 'Admin', usuario: 'Usuário' };
 // Rótulo de cada perfil (inclui o acesso da corrente).
 export const ROTULOS = { ...PAPEIS, corrente: 'Corrente' };
 
-// No login, quem digita isto no campo de e-mail entra sem senha, informando só o nome.
+// No login, quem digita isto (ou só "cpj") no campo de e-mail entra sem senha, informando só o nome.
 export const ACESSO_CORRENTE = 'corrente-cpj';
-export const ehAcessoCorrente = (email) => String(email || '').trim().toLowerCase() === ACESSO_CORRENTE;
+// Textos aceitos no campo de e-mail para o acesso da corrente.
+export const ACESSOS_CORRENTE = [ACESSO_CORRENTE, 'cpj'];
+export const ehAcessoCorrente = (email) => ACESSOS_CORRENTE.includes(String(email || '').trim().toLowerCase());
 
 export function pode(papel, permissao) {
   return (PERMISSOES[papel] || []).includes(permissao);
