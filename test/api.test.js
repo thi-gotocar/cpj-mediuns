@@ -276,7 +276,7 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   const r1 = await api('PUT', '/api/ervas', maria, { itens: [{ ervaId: arruda.id, quantidade: 2 }] });
   assert.equal(r1.status, 200, JSON.stringify(r1.json));
   assert.deepEqual(r1.json.minhas, [{ ervaId: arruda.id, quantidade: 2 }]);
-  assert.equal(r1.json.pedidos, undefined, 'quem não é admin não vê os pedidos dos outros');
+  assert.equal(r1.json.pedidos.pessoas.length, 1, 'todos veem o andamento dos pedidos');
   // Mesmo nome, outro aparelho: continua as mesmas escolhas.
   const maria2 = (await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: 'maria' })).json.token;
   assert.deepEqual((await api('GET', '/api/ervas', maria2)).json.minhas, [{ ervaId: arruda.id, quantidade: 2 }]);
@@ -290,7 +290,7 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.deepEqual(e.pedidos.pessoas.map((p) => p.nome), ['José Carlos', 'Maria']);
   assert.equal(e.pedidos.pessoas.length, 2);
   assert.deepEqual(e.pedidos.pessoas.map((p) => p.frete), [600, 600]);
-  assert.equal(e.pedidos.totalGeral, 1000 + 750 + 1200);
+  assert.equal(e.pedidos.totalGeral, 500 + 750 + 1200, 'cada erva é dividida entre quem a escolheu');
 
   await api('POST', '/api/ervas', ADMIN, { acao: 'config', aberta: false });
   const fechado = await api('PUT', '/api/ervas', maria, { itens: [] });

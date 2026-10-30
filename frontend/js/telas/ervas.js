@@ -8,14 +8,28 @@ const qtdDe = (ervaId) => (estado.ervas.minhas || []).find((m) => m.ervaId === e
 const precoTxt = (v) => (v === null || v === undefined ? 'preço a definir' : reais(centavos(v)));
 const precoCampo = (v) => (v === null || v === undefined ? '' : Number(v).toFixed(2).replace('.', ','));
 
-function meuPedido(E) {
-  const itens = E.ervas.filter((e) => qtdDe(e.id) > 0);
-  const subtotal = itens.reduce((a, e) => a + (temPreco(e) ? centavos(e.preco) * qtdDe(e.id) : 0), 0);
-  const pendente = itens.some((e) => !temPreco(e));
-  // Estimativa do frete: o frete dividido por quem já pediu (contando você).
-  const pessoas = itens.length ? E.participantes + (E.euParticipo ? 0 : 1) : 0;
-  const frete = pessoas ? Math.round(centavos(E.frete) / pessoas) : 0;
-  return { itens, subtotal, frete, total: subtotal + frete, pessoas, pendente };
+// Recalcula os pedidos com as minhas escolhas da tela (antes de salvar), para mostrar
+// a minha parte de cada erva e do frete já com quem mais pediu.
+function simular(E) {
+  const eu = E.eu.chave;
+  const outros = (E.pedidos?.pessoas || []).filter((p) => p.chave !== eu)
+    .flatMap((p) => p.itens.map((i) => ({ chave: p.chave, nome: p.nome, ervaId: i.ervaId, quantidade: i.quantidade })));
+  const minhas = (E.minhas || []).map((m) => ({ chave: eu, nome: E.eu.nome, ervaId: m.ervaId, quantidade: m.quantidade }));
+  return calcularPedidos(E.ervas, [...outros, ...minhas], E.frete);
+}
+
+function meuPedido(E, r) {
+  const p = r.pessoas.find((x) => x.chave === E.eu.chave);
+  if (!p) return { itens: [], subtotal: 0, frete: 0, total: 0, pessoas: r.pessoas.length + 1, pendente: false, porErva: {} };
+  return { itens: p.itens, subtotal: p.subtotal, frete: p.frete, total: p.total, pessoas: r.pessoas.length, pendente: !!p.semPreco,
+    porErva: Object.fromEntries(p.itens.map((i) => [i.ervaId, i])) };
+}
+
+// Quantas pessoas escolheram cada erva (para mostrar antes de eu escolher).
+function pessoasPorErva(r) {
+  const m = {};
+  r.pessoas.forEach((p) => p.itens.forEach((i) => { m[i.ervaId] = (m[i.ervaId] || 0) + 1; }));
+  return m;
 }
 
 function cardEscolha(E) {
@@ -23,11 +37,18 @@ function cardEscolha(E) {
   let h = `<div class="card"><div class="grp-h"><h2>Escolher ervas</h2><span class="count">${esc(E.eu.nome)}</span></div>`;
   if (!aberta) h += `<div class="warnbox">A lista está fechada. Seu pedido não pode mais ser alterado.</div>`;
   if (!E.ervas.length) return h + `<p class="muted" style="margin:0">Nenhuma erva cadastrada ainda.${pode('ervas:gerenciar') ? ' Cadastre abaixo.' : ''}</p></div>`;
+  const r = simular(E);
+  const m = meuPedido(E, r);
+  const nPor = pessoasPorErva(r);
   h += `<div class="ervas">`;
   E.ervas.forEach((e) => {
     const q = qtdDe(e.id);
+    const n = nPor[e.id] || 0;
+    const minha = m.porErva[e.id];
+    const info = !temPreco(e) ? 'preço a definir'
+      : `${reais(centavos(e.preco))} no total${n ? ` · ${n} pessoa${n > 1 ? 's' : ''}` : ''}${minha ? ` · sua parte ≈ ${reais(minha.valor)}` : ''}`;
     h += `<div class="erva ${q ? 'sel' : ''}">
-      <span class="nmcell"><span class="nm">${esc(e.nome)}</span><span class="muted" style="font-size:.85rem">${precoTxt(e.preco)}${q > 1 && temPreco(e) ? ` · ${q} = ${reais(centavos(e.preco) * q)}` : ''}</span></span>
+      <span class="nmcell"><span class="nm">${esc(e.nome)}</span><span class="muted" style="font-size:.85rem">${info}</span></span>
       <span class="qtd">
         <button class="btn small" data-act="menos" data-id="${e.id}" ${!aberta || !q ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
         <span class="n" aria-live="polite">${q}</span>
@@ -35,14 +56,13 @@ function cardEscolha(E) {
       </span></div>`;
   });
   h += `</div>`;
-  const m = meuPedido(E);
   h += `<div class="resumo">
     <div><span>Ervas</span><b>${reais(m.subtotal)}${m.pendente ? ' + a definir' : ''}</b></div>
     <div><span>Frete${m.pessoas ? ` (÷ ${m.pessoas})` : ''}</span><b>${m.itens.length ? '≈ ' + reais(m.frete) : '—'}</b></div>
     <div class="tot"><span>Total</span><b>${m.itens.length ? '≈ ' + reais(m.total) + (m.pendente ? ' + a definir' : '') : reais(0)}</b></div>
   </div>
   ${m.pendente ? '<p class="muted" style="margin:0;font-size:.85rem">Algumas ervas ainda estão sem preço. O valor final sai quando o admin fechar os preços.</p>' : ''}
-  <p class="muted" style="margin:0;font-size:.85rem">O frete de ${precoTxt(E.frete)} é dividido por todos que pedirem; o valor final depende de quantas pessoas pedirem.</p></div>`;
+  <p class="muted" style="margin:0;font-size:.85rem">O preço de cada erva é dividido entre quem escolheu aquela erva (na proporção da quantidade), e o frete de ${precoTxt(E.frete)} entre todos que pedirem. Os valores mudam conforme mais pessoas pedem.</p></div>`;
   return h;
 }
 
@@ -75,6 +95,21 @@ function cardPedidoDe(E) {
   return h;
 }
 
+// Andamento geral dos pedidos (para quem não é admin): só leitura.
+function cardStatus(E) {
+  const r = E.pedidos;
+  if (!r) return '';
+  let h = `<div class="card"><div class="grp-h"><h2>Pedidos da corrente</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'} · lista ${E.aberta ? 'aberta' : 'fechada'}</span></div>`;
+  if (!r.pessoas.length) return h + `<p class="muted" style="margin:0">Ninguém escolheu ervas ainda.</p></div>`;
+  if (r.faltamPrecos.length) h += `<p class="muted" style="margin:0;font-size:.85rem">Preço a definir: ${r.faltamPrecos.map(esc).join(', ')}. Os valores ainda vão mudar.</p>`;
+  h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Nome</th><th class="rh">Ervas</th><th>Total</th></tr></thead><tbody>
+    ${r.pessoas.map((p) => `<tr${p.chave === E.eu.chave ? ' class="eu"' : ''}><th class="rh">${esc(p.nome)}</th><td class="rh">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</td><td><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></td></tr>`).join('')}
+    </tbody><tfoot><tr><th class="rh">Total</th><td></td><td><b>${reais(r.totalGeral)}</b></td></tr></tfoot></table></div>`;
+  const tot = totaisPorErva(r);
+  h += `<div class="grp"><h3>Por erva</h3><p style="margin:0">${tot.map((t) => `${esc(t.nome)}: ${t.quantidade} (${t.pessoas} pessoa${t.pessoas > 1 ? 's' : ''})`).join(' · ')}</p></div>`;
+  return h + `</div>`;
+}
+
 function cardCompra(E) {
   return `<div class="card"><h2>Compra</h2>
     <div class="row">
@@ -90,7 +125,7 @@ function cardCatalogo(E) {
   let h = `<div class="card"><h2>Ervas e preços</h2>
     <form id="f-erva" class="row" autocomplete="off">
       <label class="field grow">Erva<input type="text" id="ev-nome" maxlength="60" required placeholder="Ex.: Arruda"></label>
-      <label class="field" style="flex:0 1 150px">Preço (R$, opcional)<input type="text" inputmode="decimal" id="ev-preco" placeholder="a definir"></label>
+      <label class="field" style="flex:0 1 170px">Preço total (R$, opcional)<input type="text" inputmode="decimal" id="ev-preco" placeholder="a definir"></label>
       <button class="btn primary" type="submit">Adicionar</button>
     </form>`;
   if (E.ervas.length) {
@@ -104,7 +139,7 @@ function cardCatalogo(E) {
         ${conf ? `<button class="btn small danger" data-act="delerva" data-id="${e.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="e:${e.id}">Excluir</button>`}</span></div>`;
     });
     const sem = E.ervas.filter((e) => !temPreco(e)).length;
-    h += `</div><p class="muted" style="margin:0;font-size:.85rem">O preço pode ficar em branco e ser preenchido no fim, para fechar os valores de cada um.${sem ? ` ${sem} erva${sem > 1 ? 's' : ''} sem preço.` : ''} Excluir uma erva tira ela dos pedidos de quem a escolheu.</p>`;
+    h += `</div><p class="muted" style="margin:0;font-size:.85rem">O preço é o valor total pago pela erva; ele é dividido entre quem a escolheu. Pode ficar em branco e ser preenchido no fim, para fechar os valores de cada um.${sem ? ` ${sem} erva${sem > 1 ? 's' : ''} sem preço.` : ''} Excluir uma erva tira ela dos pedidos de quem a escolheu.</p>`;
   }
   return h + `</div>`;
 }
@@ -156,6 +191,7 @@ export function render() {
   const E = estado.ervas;
   let h = `<section class="panel">${cardEscolha(E)}`;
   if (pode('ervas:gerenciar')) h += (E.ervas.length ? cardPedidoDe(E) : '') + cardCompra(E) + cardCatalogo(E) + cardPedidos(E);
+  else h += cardStatus(E);
   return h + `</section>`;
 }
 

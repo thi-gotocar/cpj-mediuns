@@ -5,7 +5,7 @@ import { calcularPedidos, textoPedidos, csvPedidos, chavePessoa, totaisPorErva, 
 
 const ervas = [{ id: 'a', nome: 'Arruda', preco: 5 }, { id: 'g', nome: 'Guiné', preco: 7.5 }, { id: 'r', nome: 'Alecrim', preco: 3.33 }];
 
-test('frete dividido por quem escolheu, fechando o valor exato', () => {
+test('preço da erva dividido entre quem a escolheu; frete entre todos; valor exato', () => {
   const escolhas = [
     { chave: 'n:ana', nome: 'Ana', ervaId: 'a', quantidade: 2 },
     { chave: 'n:ana', nome: 'Ana', ervaId: 'g', quantidade: 1 },
@@ -16,9 +16,13 @@ test('frete dividido por quem escolheu, fechando o valor exato', () => {
   assert.deepEqual(r.pessoas.map((p) => p.nome), ['Ana', 'Bruno', 'Caio']);
   assert.deepEqual(r.pessoas.map((p) => p.frete), [334, 333, 333]);
   assert.equal(r.totalFrete, 1000);
-  assert.equal(r.pessoas[0].subtotal, 1750);
-  assert.equal(r.pessoas[1].subtotal, 999);
-  assert.equal(r.totalGeral, 1750 + 999 + 500 + 1000);
+  // Arruda R$ 5,00: Ana pediu 2 e Caio 1 → 3,33 + 1,67. Guiné só a Ana. Alecrim só o Bruno.
+  assert.equal(r.pessoas[0].subtotal, 333 + 750);
+  assert.equal(r.pessoas[1].subtotal, 333);
+  assert.equal(r.pessoas[2].subtotal, 167);
+  assert.equal(r.pessoas[0].itens.find((i) => i.nome === 'Arruda').pessoas, 2);
+  assert.equal(r.totalItens, 500 + 750 + 333, 'a soma das partes fecha o preço de cada erva');
+  assert.equal(r.totalGeral, 500 + 750 + 333 + 1000);
   assert.deepEqual(totaisPorErva(r).map((t) => [t.nome, t.quantidade]), [['Alecrim', 3], ['Arruda', 3], ['Guiné', 1]]);
 });
 
@@ -35,10 +39,10 @@ test('chave da pessoa e exportações', () => {
   const txt = textoPedidos(r, 5, new Date(2026, 9, 31));
   assert.match(txt, /\*ERVAS · 31\/10\/2026\*/);
   assert.match(txt, /Guiné x2/);
-  assert.match(txt, /\*Total:\* R\$\s20,00/);
+  assert.match(txt, /\*Total:\* R\$\s12,50/);
   const csv = csvPedidos(r);
   assert.ok(csv.startsWith('﻿Nome;Erva'));
-  assert.match(csv, /"Ana; ""Lu""";Guiné;2;7,50;15,00;5,00;20,00/);
+  assert.match(csv, /"Ana; ""Lu""";Guiné;2;7,50;1;7,50;5,00;12,50/);
 });
 
 test('erva sem preço: entra no pedido como "a definir" até o admin fechar o preço', () => {
@@ -50,12 +54,12 @@ test('erva sem preço: entra no pedido como "a definir" até o admin fechar o pr
   assert.equal(r.pessoas[0].subtotal, 500);
   assert.match(textoPedidos(r, 4), /Preço a definir: Comigo-ninguém-pode/);
   assert.match(textoPedidos(r, 4), /Comigo-ninguém-pode x2 · preço a definir/);
-  assert.match(csvPedidos(r), /Comigo-ninguém-pode;2;a definir;a definir/);
+  assert.match(csvPedidos(r), /Comigo-ninguém-pode;2;a definir;1;a definir/);
   // Depois de definir o preço, fecha o valor.
   lista[1].preco = 3;
   const r2 = calcularPedidos(lista, escolhas, 4);
   assert.deepEqual(r2.faltamPrecos, []);
-  assert.equal(r2.pessoas[0].total, 500 + 600 + 400);
+  assert.equal(r2.pessoas[0].total, 500 + 300 + 400);
 });
 
 test('pedido ao fornecedor (sem valores) e cobrança por pessoa', () => {
@@ -74,8 +78,17 @@ test('pedido ao fornecedor (sem valores) e cobrança por pessoa', () => {
   lista[1].preco = 7.5;
   const r2 = calcularPedidos(lista, escolhas, 10);
   const cob = textoCobranca(r2);
-  assert.match(cob, /\*Ana\*: R\$\s15,00/);
-  assert.match(cob, /\*Bia\*: R\$\s17,50/);
-  assert.match(cob, /Total a receber:\* R\$\s32,50/);
-  assert.match(csvCobranca(r2), /Bia;Arruda, Guiné;12,50;5,00;17,50/);
+  // Arruda R$ 5,00 entre Ana (2) e Bia (1); Guiné R$ 7,50 só da Bia; frete R$ 10,00 ÷ 2.
+  assert.match(cob, /\*Ana\*: R\$\s8,33/);
+  assert.match(cob, /\*Bia\*: R\$\s14,17/);
+  assert.match(cob, /Total a receber:\* R\$\s22,50/);
+  assert.match(csvCobranca(r2), /Bia;Arruda, Guiné;9,17;5,00;14,17/);
+});
+
+test('rateio igual com quantidade 1 e sem perder centavo', () => {
+  const lista = [{ id: 'a', nome: 'Arruda', preco: 10 }];
+  const esc = ['Ana', 'Bia', 'Caio'].map((n) => ({ chave: n, nome: n, ervaId: 'a', quantidade: 1 }));
+  const r = calcularPedidos(lista, esc, 0);
+  assert.deepEqual(r.pessoas.map((p) => p.subtotal), [334, 333, 333]);
+  assert.equal(r.totalItens, 1000);
 });

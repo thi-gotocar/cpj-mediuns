@@ -1,6 +1,6 @@
 // Compra coletiva de ervas.
 //   GET  /api/ervas   catálogo, frete, lista aberta/fechada e as minhas escolhas
-//                     (admin recebe também todos os pedidos calculados)
+//                     e todos os pedidos calculados (andamento geral)
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //                     admin: { para: { chave?, nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin:
@@ -23,9 +23,8 @@ function resposta(estado, eu) {
     participantes: participantes.size,
     euParticipo: participantes.has(chave),
   };
-  if (pode(eu.papel, 'ervas:gerenciar')) {
-    base.pedidos = calcularPedidos(base.ervas, estado.escolhas, base.frete);
-  }
+  // Todos veem o andamento geral dos pedidos (quem pediu o quê e quanto dá cada um).
+  base.pedidos = calcularPedidos(base.ervas, estado.escolhas, base.frete);
   return base;
 }
 
