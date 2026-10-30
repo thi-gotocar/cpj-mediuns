@@ -1,7 +1,7 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
 import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR } from '/shared/oferendas.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
+import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 
@@ -126,7 +126,8 @@ function cardOferenda(of, admin) {
       <p class="muted" style="margin:0;font-size:.88rem">${of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
-  const fechada = (prefs.ofFechadas || []).includes(of.id);
+  // Sempre começa minimizada; abre só enquanto o app estiver aberto.
+  const fechada = of.itens.length > 0 && !(u.abertas || []).includes(of.id);
   if (u.editar !== of.id && of.itens.length) {
     h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? '▸ Ver os itens' : '▾ Minimizar'}</button>`;
   }
@@ -229,10 +230,9 @@ export const cliques = {
   editarof(el) { U().editar = el.dataset.id; avisar(); },
   cancelarof() { U().editar = null; avisar(); },
   dobrarof(el) {
-    const set = new Set(prefs.ofFechadas || []);
+    const set = new Set(U().abertas || []);
     if (set.has(el.dataset.id)) set.delete(el.dataset.id); else set.add(el.dataset.id);
-    prefs.ofFechadas = [...set];
-    salvarPrefs();
+    U().abertas = [...set];
     avisar();
   },
   async statusof(el) {
@@ -312,6 +312,7 @@ export async function enviar(form) {
   const dados = { nome: v('nome'), quantidade: Number(v('qtd')), entrega };
   if (form.dataset.form === 'item') {
     U().novoItem = form.dataset.of;
+    U().abertas = [...new Set([...(U().abertas || []), form.dataset.of])];   // continua aberta para cadastrar mais
     if (await acaoOferendas('item', { oferendaId: form.dataset.of, ...dados })) {
       toast('Item adicionado.');
       document.querySelector(`form[data-form=item][data-of="${form.dataset.of}"] input[name=nome]`)?.focus();
