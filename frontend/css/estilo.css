@@ -280,3 +280,4 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-bt.encerrar.ligado{background:#e3b021;color:#3d2b00;border-color:#b98b0d}
 .st-bt.publicado.ligado:disabled{opacity:1}
 .st-of.encerrado{background:#fbefc4;color:#7a5600}
+.of-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}

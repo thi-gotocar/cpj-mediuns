@@ -134,8 +134,8 @@ function cardOferenda(of, admin) {
     ].join('');
     h += `${admin ? `<div class="row st-of-linha">${of.status === 'publicado' ? '' : etiqueta(of.status)}${of.status === 'publicado' ? '' : `<span class="muted" style="font-size:.82rem;flex-basis:100%">${enc ? 'Oferenda encerrada: saiu da lista da corrente.' : bloq ? 'Bloqueada: a corrente vê a oferenda, mas não a lista de itens.' : 'A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.'}</span>`}
         <span class="st-of-bts">${bts}</span></div>` : ''}
-      ${!admin && of.status === 'rascunho' ? `<div>${etiqueta('rascunho')}</div>` : ''}
-      <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
+      ${!admin && (of.status === 'rascunho' || of.responsavel) ? `<div class="of-topo">${of.status === 'rascunho' ? etiqueta('rascunho') : '<span></span>'}${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</div>` : ''}
+      <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${admin && of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       <p class="muted" style="margin:0;font-size:.88rem">${of.bloqueada ? 'Lista bloqueada no momento.' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
