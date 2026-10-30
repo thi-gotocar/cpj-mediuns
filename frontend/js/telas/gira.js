@@ -42,8 +42,11 @@ function avisoEntidade(ps, g, editar, admin) {
 }
 
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
+// Antes, o total de presentes: quem está na gira (presente, não atende ou no suporte).
 function blocosFora(ps, g) {
-  return [['f', 'Faltaram'], ['a', 'Ausentes']].map(([st, titulo]) => {
+  const naGira = ps.filter((p) => ['p', 'na', 'sup'].includes(status(p, g))).length;
+  const presentes = naGira ? `<div class="grp"><div class="grp-h"><h3>Presentes</h3><span class="count">${naGira}</span></div></div>` : '';
+  return presentes + [['f', 'Faltaram'], ['a', 'Ausentes']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
     return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
   }).join('');
