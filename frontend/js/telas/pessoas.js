@@ -4,6 +4,11 @@ import { FUNCOES, LINHAS, LINHA_LABEL, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
+// Ordem dos blocos de função nesta tela.
+const ORDEM_FUNCOES = ['medium', 'extra', 'passe', 'cambone', 'senha'].map((k) => FUNCOES.find((f) => f.k === k)).filter(Boolean);
+const cabDobra = (act, titulo, count, aberto) => `<button class="grp-h dobra" data-act="${act}" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'}">
+  <h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+
 const dBR = (s) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
 
 // Licenças em vigor ou futuras (as que já terminaram saem da lista sozinhas).
@@ -77,8 +82,10 @@ document.addEventListener('toggle', (e) => {
 function cardCurimba(todas, editar) {
   const cs = todas.filter(ehCurimba);
   if (!cs.length) return '';
-  let h = `<div class="card"><div class="grp-h"><h2>🥁 Curimba</h2><span class="count">${cs.length}</span></div>
-    <p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
+  const aberto = !!estado.curimbaAberta;
+  let h = `<div class="card">${cabDobra('dobrarcurimba', '🥁 Curimba', cs.length, aberto)}`;
+  if (!aberto) return h + `</div>`;
+  h += `<p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
   h += `<div class="ppl">${cs.map((p) => {
     if (!editar) return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nm">${esc(p.nome)}</span>${p.limpeza ? `<span class="muted" style="font-size:.85rem">🧹 Turma ${p.limpeza}</span>` : ''}</div>`;
     const conf = estado.confirm === 'p:' + p.id;
@@ -96,7 +103,10 @@ function cardCurimba(todas, editar) {
 const MODOS = [['pessoas', 'Pessoas'], ['licenca', 'Licença'], ['curimba', 'Curimba']];
 function cardAdicionar(ps) {
   const modo = estado.addModo || 'pessoas';
-  let h = `<div class="card"><h2>＋ Adicionar</h2>
+  // Começa minimizado (aberto só quando ainda não há ninguém cadastrado).
+  const aberto = estado.addAberto ?? !ps.length;
+  if (!aberto) return `<div class="card">${cabDobra('dobraradd', '＋ Adicionar', '', false)}</div>`;
+  let h = `<div class="card">${cabDobra('dobraradd', '＋ Adicionar', '', true)}
     <div class="seg add-seg" role="group" aria-label="O que adicionar">${MODOS.map(([k, t]) => `<button data-act="addmodo" data-v="${k}" aria-pressed="${modo === k}">${t}</button>`).join('')}</div>`;
   if (modo === 'pessoas') {
     h += `<form id="f-add" class="row">
@@ -133,12 +143,12 @@ export function render() {
   if (!ps.length) {
     return h + cardCurimba(todas, editar) + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div></section>`;
   }
-  h += cardLicencas(ps, editar);   // licença: só a corrente
-  // Totalizador da corrente, por função.
+  // Ordem: Adicionar, Corrente, Licenças, Turmas da limpeza, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba.
   h += `<div class="card"><div class="grp-h"><h2>Corrente</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
-    <div class="presentes">${FUNCOES.map((f) => `<span><span class="muted">${f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div></div>`;
+    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span><span class="muted">${f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div></div>`;
+  h += cardLicencas(ps, editar);   // licença: só a corrente
   h += cardTurmas(todas);
-  FUNCOES.forEach((f) => {
+  ORDEM_FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
     const fechado = (prefs.pessoasFechadas || []).includes(f.k);
@@ -168,6 +178,8 @@ export function render() {
 }
 
 export const cliques = {
+  dobraradd() { estado.addAberto = !(estado.addAberto ?? !pessoasOrd().some((p) => !ehCurimba(p))); avisar(); },
+  dobrarcurimba() { estado.curimbaAberta = !estado.curimbaAberta; avisar(); },
   addmodo(el) { estado.addModo = el.dataset.v; avisar(); document.querySelector('#f-nome, #lic-p, #cur-nome')?.focus(); },
   // Minimiza / expande o bloco de uma função (lembra no aparelho).
   dobrar(el) {
