@@ -196,8 +196,8 @@ export function render() {
       ${editar && (temDuplas || existe) && estado.confirm !== 'enc:' + g.data ? `<button class="btn" data-act="askdel" data-k="enc:${g.data}">Encerrar gira</button>` : ''}</div></div>`;
   if (editar && estado.confirm === 'enc:' + g.data) {
     const a = g.atendimentos || {};
-    h += `<div class="infobox enc"><span><b>Encerrar a gira.</b> Quantas pessoas foram atendidas?</span>
-      <div class="row">${ATEND.map(([k, t]) => `<label class="field" style="flex:1 1 90px">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" value="${a[k] ?? ''}" placeholder="0"></label>`).join('')}</div>
+    h += `<div class="infobox enc"><span><b>Encerrar a gira.</b> Quantas pessoas foram atendidas? (pode ser 0)</span>
+      <div class="row">${ATEND.map(([k, t]) => `<label class="field" style="flex:1 1 90px">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" value="${a[k] ?? 0}"></label>`).join('')}</div>
       <span class="muted" style="font-size:.85rem">Quem estava para cambonar e não ficou com nenhum médium, e médium de passe sem médium, vão para o <b>Suporte</b>. Depois disso a escala não muda até ser reaberta; ao reabrir, essas pessoas voltam para a lista.</span>
       <span class="row"><button class="btn small primary" data-act="encerrar">Encerrar</button><button class="btn small" data-act="cancelenc">Cancelar</button></span></div>`;
   }
@@ -273,8 +273,8 @@ export const cliques = {
   encerrar() {
     const at = {};
     for (const [k, t] of ATEND) {
-      const v = (document.getElementById('at-' + k)?.value || '').trim();
-      if (!/^\d+$/.test(v)) { toast(`Informe quantas pessoas foram atendidas: ${t}.`); document.getElementById('at-' + k)?.focus(); return; }
+      const v = (document.getElementById('at-' + k)?.value || '').trim() || '0';   // em branco = 0
+      if (!/^\d+$/.test(v)) { toast(`Número inválido em ${t}.`); document.getElementById('at-' + k)?.focus(); return; }
       at[k] = Number(v);
     }
     estado.confirm = null;
