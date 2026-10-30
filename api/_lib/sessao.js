@@ -14,7 +14,9 @@ export async function exigir(req, permissao) {
   if (!sessao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
 
   if (sessao.corrente) {
-    const quem = { id: null, nome: sessao.nome, email: '', papel: 'corrente' };
+    // Sessões antigas (antes de ligar o acesso à pessoa cadastrada) precisam entrar de novo.
+    if (!sessao.pessoaId) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
+    const quem = { id: null, nome: sessao.nome, email: '', papel: 'corrente', pessoaId: sessao.pessoaId };
     if (permissao && !pode('corrente', permissao)) throw new HttpError(403, 'Este acesso não tem permissão para isso.');
     return quem;
   }

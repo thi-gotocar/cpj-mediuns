@@ -63,8 +63,11 @@ const acoes = {
       const pessoas = await db.rpc('pessoas_listar');
       const exata = pessoas.find((p) => normalizarNome(p.nome) === normalizarNome(digitado));
       if (exata) {
+        // Junta no cadastro da pessoa o que ela (ou o admin por ela) preencheu antes com o nome digitado.
+        const antigas = [...new Set([exata.nome, digitado, String(b.digitado || '')].filter(Boolean).map((n) => 'n:' + normalizarNome(n)))];
+        await db.rpc('corrente_vincular', { chave: 'p:' + exata.id, nome: exata.nome, antigas });
         const usuario = { id: null, nome: exata.nome, email: '', papel: 'corrente' };
-        return { token: await emitirTokenCorrente(exata.nome), usuario: publico(usuario) };
+        return { token: await emitirTokenCorrente(exata.nome, exata.id), usuario: publico(usuario) };
       }
       const candidatos = nomesParecidos(pessoas.map((p) => p.nome), digitado);
       if (candidatos.length) return { confirmar: true, candidatos };

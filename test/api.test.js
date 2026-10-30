@@ -311,6 +311,9 @@ test('acesso da corrente: entra só com o nome, sem senha', async () => {
   assert.deepEqual(duvida.candidatos, ['Maria', 'Dona Maria']);
   assert.ok((await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Lucya' })).json.candidatos.includes('Lúcia'), 'nome com erro de digitação');
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Zuleica' })).status, 404);
+  // Sessão antiga do acesso da corrente (sem a pessoa) pede para entrar de novo.
+  const antigo = (await import('../api/_lib/senhas.js'));
+  assert.equal((await api('GET', '/api/auth/me', await antigo.emitirTokenCorrente('Lúcia'))).status, 401);
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: '' })).status, 400);
   const r = await api('POST', '/api/auth/entrar', null, { email: ' Corrente-CPJ ', senha: '  Dona   Maria ' });
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -359,6 +362,7 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.deepEqual((await api('GET', '/api/ervas', maria2)).json.minhas, [{ ervaId: arruda.id, quantidade: 2 }]);
   assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 1 }] })).status, 200);
   const visto = (await api('GET', '/api/ervas', maria)).json.pedidos.pessoas;
+  assert.ok(visto.some((p) => p.chave.startsWith('p:') && p.nome === 'Maria'), 'a corrente fica no cadastro da pessoa');
   assert.equal(visto.length, 2);
   assert.deepEqual(visto.map((p) => p.nome).sort(), ['', 'Maria'], 'quem não é admin não vê o nome dos outros');
   assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 0 }] })).status, 400);
@@ -426,4 +430,24 @@ test('oferendas: admin cria itens, todos doam até o limite, admin marca entregu
   assert.equal((await of({ acao: 'entregue', id: velas.id, entregue: true }, USER)).status, 403);
   r = (await of({ acao: 'excluir', id: o.id })).json;
   assert.ok(!r.oferendas.some((x) => x.id === o.id));
+});
+
+test('acesso da corrente: tudo o que a pessoa preencheu aparece quando ela entra', async () => {
+  const lista = (await api('GET', '/api/ervas', ADMIN)).json;
+  const erva = lista.ervas[0];
+  const lucia = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Lúcia');
+  // Pedido antigo, gravado com o nome digitado (antes de ligar à pessoa).
+  sql(`insert into ervas_escolhas (pessoa_chave, pessoa_nome, erva_id, quantidade) values ('n:lucia', 'lucia', '${erva.id}', 2)`);
+  // O admin faz um pedido por ela: vai para o cadastro da pessoa.
+  await api('POST', '/api/ervas', ADMIN, { acao: 'config', aberta: true });
+  const tok = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'LUCIA' })).json.token;
+  const minhas = (await api('GET', '/api/ervas', tok)).json.minhas;
+  assert.deepEqual(minhas, [{ ervaId: erva.id, quantidade: 2 }], 'o pedido antigo aparece para ela');
+  assert.equal(sql("select count(*) from ervas_escolhas where pessoa_chave = 'n:lucia'"), '0');
+  assert.equal(sql(`select count(*) from ervas_escolhas where pessoa_chave = 'p:${lucia.id}'`), '1');
+  // Renomear a pessoa não perde o que ela preencheu.
+  await api('PATCH', '/api/pessoas/' + lucia.id, ADMIN, { nome: 'Lúcia Helena' });
+  const tok2 = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Lúcia Helena' })).json.token;
+  assert.deepEqual((await api('GET', '/api/ervas', tok2)).json.minhas, [{ ervaId: erva.id, quantidade: 2 }]);
+  assert.equal((await api('GET', '/api/ervas', ADMIN)).json.pedidos.pessoas.find((p) => p.chave === 'p:' + lucia.id).nome, 'Lúcia Helena');
 });

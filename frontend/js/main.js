@@ -20,6 +20,7 @@ const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
+let digitadoLogin = '';       // o nome como a pessoa digitou (para juntar o que ela preencheu antes)
 let instalado = true;
 
 // ---------- render ----------
@@ -144,7 +145,7 @@ main.addEventListener('click', async (e) => {
     candidatosLogin = null;
     if (!eu.dataset.soueu) { render(); return; }
     try {
-      const r = await entrar(emailLogin, eu.dataset.soueu);
+      const r = await entrar(emailLogin, eu.dataset.soueu, digitadoLogin);
       erroLogin = '';
       if (r.candidatos) { candidatosLogin = r.candidatos; render(); return; }
       await iniciar();
@@ -184,9 +185,10 @@ main.addEventListener('submit', async (e) => {
     const btn = document.getElementById('l-btn');
     emailLogin = document.getElementById('l-email').value.trim();
     btn.disabled = true;
-    btn.textContent = ehAcessoCorrente(emailLogin) ? 'Procurando…' : 'Entrando…';
+    btn.textContent = ehAcessoCorrente(emailLogin) ? 'Procurando usuário…' : 'Entrando…';
     try {
-      const r = await entrar(emailLogin, document.getElementById('l-senha').value);
+      digitadoLogin = document.getElementById('l-senha').value;
+      const r = await entrar(emailLogin, digitadoLogin);
       erroLogin = '';
       if (r.candidatos) { candidatosLogin = r.candidatos; render(); return; }
       await iniciar();

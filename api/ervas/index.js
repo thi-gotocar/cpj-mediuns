@@ -61,8 +61,11 @@ export default rota({
       const atual = await db.rpc('ervas_estado');
       const existente = typeof b.para.chave === 'string' && atual.escolhas.find((s) => s.chave === b.para.chave);
       if (!existente && (nome.length < 2 || nome.length > 60)) throw new HttpError(400, 'Informe o nome da pessoa (2 a 60 letras).');
-      const chave = existente ? existente.chave : 'n:' + normalizarNome(nome);
-      const estado = await db.rpc('ervas_escolher', { chave, nome: existente ? existente.nome : nome, itens, forcar: true });
+      // Quem está na lista da corrente fica no cadastro da pessoa (o mesmo de quando ela entra pelo cpj).
+      const pessoa = existente ? null : (await db.rpc('pessoas_listar')).find((p) => normalizarNome(p.nome) === normalizarNome(nome));
+      if (pessoa) await db.rpc('corrente_vincular', { chave: 'p:' + pessoa.id, nome: pessoa.nome, antigas: ['n:' + normalizarNome(nome)] });
+      const chave = existente ? existente.chave : pessoa ? 'p:' + pessoa.id : 'n:' + normalizarNome(nome);
+      const estado = await db.rpc('ervas_escolher', { chave, nome: existente ? existente.nome : pessoa ? pessoa.nome : nome, itens, forcar: true });
       return resposta(estado, eu);
     }
     const estado = await db.rpc('ervas_escolher', { chave: chavePessoa(eu), nome: eu.nome, itens });

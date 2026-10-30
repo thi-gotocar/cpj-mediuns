@@ -50,13 +50,13 @@ export async function emitirToken(usuario) {
   return corpo + '.' + assinar(corpo, await obterSegredo());
 }
 
-// Sessão de quem entra com o acesso da corrente: só o nome, sem conta.
-export async function emitirTokenCorrente(nome) {
-  const corpo = b64url(JSON.stringify({ c: nome, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
+// Sessão de quem entra com o acesso da corrente: sem conta, ligada à pessoa cadastrada.
+export async function emitirTokenCorrente(nome, pessoaId) {
+  const corpo = b64url(JSON.stringify({ c: nome, p: pessoaId, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
   return corpo + '.' + assinar(corpo, await obterSegredo());
 }
 
-// Devolve { id, versao } (usuário), { corrente: true, nome } ou null se inválido/vencido.
+// Devolve { id, versao } (usuário), { corrente: true, nome, pessoaId } ou null se inválido/vencido.
 export async function lerToken(token) {
   const [corpo, assinatura] = String(token || '').split('.');
   if (!corpo || !assinatura) return null;
@@ -66,7 +66,7 @@ export async function lerToken(token) {
   try {
     const d = JSON.parse(Buffer.from(corpo, 'base64url').toString('utf8'));
     if (!d.exp || d.exp < Date.now() / 1000) return null;
-    if (typeof d.c === 'string' && d.c.trim()) return { corrente: true, nome: d.c };
+    if (typeof d.c === 'string' && d.c.trim()) return { corrente: true, nome: d.c, pessoaId: typeof d.p === 'string' ? d.p : null };
     if (!d.u) return null;
     return { id: d.u, versao: d.v };
   } catch {

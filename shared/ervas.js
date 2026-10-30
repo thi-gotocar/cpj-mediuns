@@ -40,8 +40,12 @@ export function nomesParecidos(nomes, digitado, max = 8) {
   return pontos.filter((x) => x.p > 0 && (melhor < 3 || x.p >= 3)).sort((a, b) => b.p - a.p || a.nome.localeCompare(b.nome, 'pt-BR')).slice(0, max).map((x) => x.nome);
 }
 
+//   acesso da corrente: "p:<id da pessoa cadastrada>" (o mesmo em qualquer aparelho, mesmo se o nome mudar)
+//   pedido de alguém fora da lista (feito pelo admin): "n:<nome normalizado>"
 export function chavePessoa(quem) {
-  return quem.id ? 'u:' + quem.id : 'n:' + normalizarNome(quem.nome);
+  if (quem.id) return 'u:' + quem.id;
+  if (quem.pessoaId) return 'p:' + quem.pessoaId;
+  return 'n:' + normalizarNome(quem.nome);
 }
 
 export const temPreco = (erva) => erva && erva.preco !== null && erva.preco !== undefined && erva.preco !== '';

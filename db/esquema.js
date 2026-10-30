@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 14;  // v14: perfis admin_oferendas e admin_ervas
+export const VERSAO = 15;  // v15: acesso da corrente ligado à pessoa cadastrada
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -407,11 +407,12 @@ export const MIGRACOES = [
                           from ervas e), '[]'::jsonb),
        -- Quem tem conta aparece sempre com o nome cadastrado atual.
        'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave,
-                                                                 'nome', coalesce(u.nome, x.pessoa_nome),
+                                                                 'nome', coalesce(u.nome, pe.nome, x.pessoa_nome),
                                                                  'ervaId', x.erva_id, 'quantidade', x.quantidade)
-                                              order by lower(coalesce(u.nome, x.pessoa_nome)))
+                                              order by lower(coalesce(u.nome, pe.nome, x.pessoa_nome)))
                              from ervas_escolhas x
-                             left join usuarios u on x.pessoa_chave = 'u:' || u.id::text), '[]'::jsonb)
+                             left join usuarios u on x.pessoa_chave = 'u:' || u.id::text
+                             left join pessoas pe on x.pessoa_chave = 'p:' || pe.id::text), '[]'::jsonb)
      );
    $$`,
   `create or replace function erva_salvar(p jsonb)
@@ -514,9 +515,10 @@ export const MIGRACOES = [
        'id', o.id, 'titulo', o.titulo, 'data', o.data,
        'itens', coalesce((select jsonb_agg(jsonb_build_object(
            'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, d.pessoa_nome),
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
                                                                     'quantidade', d.quantidade) order by d.atualizado_em)
                                 from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
                                 where d.item_id = i.id), '[]'::jsonb)
          ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
      ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
@@ -604,4 +606,25 @@ export const MIGRACOES = [
   // ================================================== v14: perfis admin_oferendas e admin_ervas
   `alter table usuarios drop constraint if exists usuarios_papel_check`,
   `alter table usuarios add constraint usuarios_papel_check check (papel in ('admin', 'usuario', 'admin_oferendas', 'admin_ervas'))`,
+
+  // ================================================== v15: acesso da corrente ligado à pessoa cadastrada
+  // Passa para a chave da pessoa ("p:<id>") o que foi preenchido com chaves antigas ("n:<nome>").
+  `create or replace function corrente_vincular(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_chave text := p ->> 'chave';
+     v_nome text := p ->> 'nome';
+     v_antigas text[] := array(select jsonb_array_elements_text(coalesce(p -> 'antigas', '[]'::jsonb)));
+   begin
+     insert into ervas_escolhas (pessoa_chave, pessoa_nome, erva_id, quantidade)
+     select v_chave, v_nome, erva_id, quantidade from ervas_escolhas where pessoa_chave = any(v_antigas)
+     on conflict (pessoa_chave, erva_id) do nothing;
+     delete from ervas_escolhas where pessoa_chave = any(v_antigas);
+     insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
+     select item_id, v_chave, v_nome, quantidade from oferenda_doacoes where pessoa_chave = any(v_antigas)
+     on conflict (item_id, pessoa_chave) do nothing;
+     delete from oferenda_doacoes where pessoa_chave = any(v_antigas);
+     return jsonb_build_object('ok', true);
+   end;
+   $$`,
 ];
