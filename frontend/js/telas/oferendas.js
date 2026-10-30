@@ -128,8 +128,9 @@ function cardOferenda(of, admin) {
           const on = of.status === st;
           return `<button class="btn small st-bt ${st} ${on ? 'ligado' : ''}" data-act="statusof" data-id="${of.id}" data-v="${on ? 'aguardando' : st}" aria-pressed="${on}" title="${on ? 'Tocar de novo desfaz' : ''}">${on ? ligado : t}</button>`;
         }).join('')}</span></div>` : ''}
+      ${!admin && of.status === 'rascunho' ? `<div>${etiqueta('rascunho')}</div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
-      <p class="muted" style="margin:0;font-size:.88rem">${of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
+      <p class="muted" style="margin:0;font-size:.88rem">${of.bloqueada ? 'Lista bloqueada no momento.' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
   // Sempre começa minimizada; abre só enquanto o app estiver aberto.
@@ -147,7 +148,8 @@ function cardOferenda(of, admin) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
-  h += `<div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
+  h += `<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>
+    <div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
   return h + rodapeOferenda(of, admin) + `</div>`;
 }
 
@@ -193,7 +195,6 @@ export function render() {
       <button class="btn primary" type="submit">Criar</button></form></div>`;
   }
   if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda ainda. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação no momento. Quando o admin publicar, ela aparece aqui.'}</p></div></section>`;
-  h += `<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>`;
   h += proximas.map((o) => cardOferenda(o, admin)).join('');
   if (!proximas.length) h += `<div class="card empty"><p class="muted">Nenhuma oferenda marcada para os próximos dias.</p></div>`;
   if (anteriores.length) {

@@ -489,10 +489,13 @@ test('oferendas: admin cria itens, todos doam até o limite, admin marca entregu
   assert.match((await of({ acao: 'doar', itemId: velas.id, quantidade: 1 }, ana)).json.erro, /não está aberta/);
   assert.equal((await of({ acao: 'status', id: o.id, status: 'publicado' }, USER)).status, 403);
   assert.equal((await of({ acao: 'status', id: o.id, status: 'xyz' })).status, 400);
-  for (const st of ['rascunho', 'encerrado']) {
-    await of({ acao: 'status', id: o.id, status: st });
-    assert.ok(!(await api('GET', '/api/oferendas', ana)).json.oferendas.some((x) => x.id === o.id), st + ' não aparece para a corrente');
-  }
+  await of({ acao: 'status', id: o.id, status: 'encerrado' });
+  assert.ok(!(await api('GET', '/api/oferendas', ana)).json.oferendas.some((x) => x.id === o.id), 'encerrada não aparece para a corrente');
+  // Bloqueada: a corrente vê a oferenda, mas sem os itens, e não doa.
+  await of({ acao: 'status', id: o.id, status: 'rascunho' });
+  const bloq = (await api('GET', '/api/oferendas', ana)).json.oferendas.find((x) => x.id === o.id);
+  assert.deepEqual([bloq.status, bloq.itens.length], ['rascunho', 0]);
+  assert.match((await of({ acao: 'doar', itemId: velas.id, quantidade: 1 }, ana)).json.erro, /não está aberta/);
   await of({ acao: 'status', id: o.id, status: 'publicado' });
   assert.ok((await api('GET', '/api/oferendas', ana)).json.oferendas.some((x) => x.id === o.id), 'publicada aparece');
   assert.equal((await of({ acao: 'doar', itemId: velas.id, quantidade: 2 }, ana)).status, 200);

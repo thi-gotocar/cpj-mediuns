@@ -6,7 +6,7 @@
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
-// Quem não administra as oferendas só vê (e só doa em) oferendas publicadas.
+// Quem não administra as oferendas vê as publicadas (e doa nelas) e as bloqueadas (sem os itens).
 //                doarPor { itemId, pessoaId | chave, quantidade }  — doação de outra pessoa (0 = exclui)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
@@ -15,10 +15,21 @@ import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
-const resposta = (oferendas, eu) => ({
-  oferendas: pode(eu.papel, 'oferendas:gerenciar') ? oferendas : oferendas.filter((o) => o.status === 'publicado'),
-  eu: { chave: chavePessoa(eu), nome: eu.nome },
-});
+function resposta(oferendas, eu) {
+  const chave = chavePessoa(eu);
+  // Bloqueada: só os itens em que a pessoa se comprometeu (para "Seus compromissos"), sem os outros doadores.
+  const soMeus = (o) => ({
+    ...o, bloqueada: true,
+    itens: o.itens.filter((i) => i.doacoes.some((d) => d.chave === chave)).map((i) => ({ ...i, doacoes: i.doacoes.filter((d) => d.chave === chave) })),
+  });
+  return {
+    // Quem não administra: vê as publicadas e as bloqueadas (estas sem a lista de itens).
+    oferendas: pode(eu.papel, 'oferendas:gerenciar') ? oferendas : oferendas
+      .filter((o) => o.status === 'publicado' || o.status === 'rascunho')
+      .map((o) => (o.status === 'rascunho' ? soMeus(o) : o)),
+    eu: { chave, nome: eu.nome },
+  };
+}
 
 function inteiro(v, oque, min, max) {
   const n = Number(v);
