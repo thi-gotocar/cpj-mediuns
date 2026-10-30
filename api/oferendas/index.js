@@ -5,6 +5,7 @@
 //        admin:  salvar { id?, titulo, data } · excluir { id }
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
+//                doarPor { itemId, pessoaId | chave, quantidade }  — doação de outra pessoa (0 = exclui)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -57,6 +58,25 @@ export default rota({
           entrega: b.entrega ? validarData(String(b.entrega)) : '',
         });
         break;
+      case 'doarPor': {
+        const itemId = validarId(b.itemId, 'Item');
+        const quantidade = inteiro(b.quantidade, 'Quantidade', 0, 10000);
+        let chave, nome;
+        if (b.pessoaId) {
+          const pessoa = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.pessoaId, 'Pessoa'));
+          if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
+          chave = 'p:' + pessoa.id;
+          nome = pessoa.nome;
+        } else {
+          const item = (await db.rpc('oferendas_estado')).flatMap((o) => o.itens).find((i) => i.id === itemId);
+          const d = item?.doacoes.find((x) => x.chave === b.chave);
+          if (!d) throw new HttpError(400, 'Doação não encontrada.');
+          chave = d.chave;
+          nome = d.nome;
+        }
+        estado = await db.rpc('oferenda_doar', { itemId, chave, nome, quantidade, forcar: true });
+        break;
+      }
       case 'excluirItem':
         estado = await db.rpc('oferenda_item_excluir', { id: validarId(b.id, 'Item') });
         break;

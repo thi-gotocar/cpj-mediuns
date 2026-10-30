@@ -381,6 +381,12 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.equal(fechado.status, 400);
   assert.match(fechado.json.erro, /fechada/);
 
+  // Pedido escolhendo a pessoa cadastrada (combo): fica no cadastro dela.
+  const bru = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Bruno');
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { pessoaId: bru.id }, itens: [{ ervaId: arruda.id, quantidade: 1 }] })).json;
+  assert.ok(e.pedidos.pessoas.some((p) => p.chave === 'p:' + bru.id && p.nome === 'Bruno'));
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'p:' + bru.id }, itens: [] })).json;
+  assert.ok(!e.pedidos.pessoas.some((p) => p.nome === 'Bruno'));
   // Admin faz o pedido de outra pessoa, mesmo com a lista fechada; o mesmo nome da corrente é a mesma pessoa.
   assert.equal((await api('PUT', '/api/ervas', USER, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 1 }] })).status, 403);
   e = (await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 3 }] })).json;
@@ -428,6 +434,18 @@ test('oferendas: admin cria itens, todos doam até o limite, admin marca entregu
   assert.equal(r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === velas.id).entregue, true);
   assert.match((await of({ acao: 'doar', itemId: velas.id, quantidade: 0 }, ana)).json.erro, /entregue/);
   assert.equal((await of({ acao: 'entregue', id: velas.id, entregue: true }, USER)).status, 403);
+  // Admin registra, muda e exclui a doação de alguém da corrente (mesmo com o item entregue).
+  const bruno = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Bruno');
+  assert.equal((await of({ acao: 'doarPor', itemId: rosas.id, pessoaId: bruno.id, quantidade: 4 }, USER)).status, 403);
+  r = (await of({ acao: 'doarPor', itemId: rosas.id, pessoaId: bruno.id, quantidade: 4 })).json;
+  let dr = r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === rosas.id).doacoes;
+  assert.deepEqual(dr.map((d) => [d.nome, d.quantidade, d.chave]), [['Bruno', 4, 'p:' + bruno.id]]);
+  assert.match((await of({ acao: 'doarPor', itemId: rosas.id, pessoaId: bruno.id, quantidade: 11 })).json.erro, /Só faltam 10/);
+  r = (await of({ acao: 'doarPor', itemId: rosas.id, chave: 'p:' + bruno.id, quantidade: 6 })).json;
+  dr = r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === rosas.id).doacoes;
+  assert.equal(dr[0].quantidade, 6);
+  r = (await of({ acao: 'doarPor', itemId: velas.id, chave: 'p:' + (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Ana').id, quantidade: 0 })).json;
+  assert.ok(!r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === velas.id).doacoes.some((d) => d.nome === 'Ana'), 'admin exclui mesmo com o item entregue');
   r = (await of({ acao: 'excluir', id: o.id })).json;
   assert.ok(!r.oferendas.some((x) => x.id === o.id));
 });

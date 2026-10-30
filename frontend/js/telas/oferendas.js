@@ -1,7 +1,7 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
 import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR } from '/shared/oferendas.js';
-import { estado, pode, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
+import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 
@@ -26,6 +26,33 @@ function camposItem(i = {}) {
     <label class="field" style="flex:1 1 150px" ${porData ? '' : 'hidden'}>Data da entrega<input type="date" name="entrega" value="${esc(i.entrega || '')}"></label>`;
 }
 
+// Admin: cada doador com − / + e excluir; e cadastrar a doação de alguém da corrente.
+function doadoresAdmin(i, s) {
+  const eu = estado.oferendas.eu;
+  let h = `<div class="of-doad-adm">`;
+  i.doacoes.forEach((d) => {
+    const conf = estado.confirm === 'od:' + i.id + ':' + d.chave;
+    h += `<div class="of-doador"><span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)}</span>
+      <button class="btn small" data-act="pormenos" data-item="${i.id}" data-chave="${esc(d.chave)}" aria-label="Menos para ${esc(d.nome)}">−</button>
+      <span class="n">${d.quantidade}</span>
+      <button class="btn small" data-act="pormais" data-item="${i.id}" data-chave="${esc(d.chave)}" ${s.falta ? '' : 'disabled'} aria-label="Mais para ${esc(d.nome)}">+</button>
+      ${conf ? `<button class="btn small danger" data-act="pordel" data-item="${i.id}" data-chave="${esc(d.chave)}">Confirmar</button>`
+        : `<button class="btn small" data-act="askdel" data-k="od:${i.id}:${esc(d.chave)}" aria-label="Excluir doação de ${esc(d.nome)}">✕</button>`}</div>`;
+  });
+  if (!i.doacoes.length) h += `<div class="muted of-sub">Ninguém se prontificou ainda.</div>`;
+  if (s.falta) {
+    const ja = new Set(i.doacoes.map((d) => d.chave));
+    const livres = pessoasOrd().filter((p) => !ja.has('p:' + p.id));
+    if (livres.length) {
+      h += `<form class="of-por" data-form="porpessoa" data-item="${i.id}" autocomplete="off">
+        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
+        <input type="number" name="qtd" min="1" max="${s.falta}" value="1" inputmode="numeric" aria-label="Quantidade">
+        <button class="btn small primary" type="submit">Adicionar</button></form>`;
+    }
+  }
+  return h + `</div>`;
+}
+
 function linhaItem(of, i, admin) {
   const s = situacao(i);
   const eu = estado.oferendas.eu;
@@ -42,7 +69,7 @@ function linhaItem(of, i, admin) {
       <span class="of-nome">${esc(i.nome)}</span>
       <span class="of-qtd">${s.doado} de ${i.quantidade}</span></div>
     <div class="muted of-sub">Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}${!s.completo ? ` · faltam <b>${s.falta}</b>` : ''}</div>
-    ${i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>'}`;
+    ${admin ? doadoresAdmin(i, s) : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>'}`;
   if (!i.entregue && (max > 0 || minha > 0)) {
     h += `<div class="of-doar"><span class="muted">Vou doar:</span>
       <button class="btn small" data-act="ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>
@@ -149,6 +176,12 @@ export const cliques = {
     const minha = item.doacoes.find((d) => d.chave === estado.oferendas.eu.chave)?.quantidade || 0;
     if (minha > 0) doarItem(item.id, minha - 1);
   },
+  async pormais(el) { await porAlguem(el, +1); },
+  async pormenos(el) { await porAlguem(el, -1); },
+  async pordel(el) {
+    estado.confirm = null;
+    if (await acaoOferendas('doarPor', { itemId: el.dataset.item, chave: el.dataset.chave, quantidade: 0 })) toast('Doação excluída.');
+  },
   async entregue(el) {
     if (await acaoOferendas('entregue', { id: el.dataset.id, entregue: el.dataset.v === '1' })) toast(el.dataset.v === '1' ? 'Item marcado como entregue.' : 'Entrega desfeita.');
   },
@@ -182,6 +215,15 @@ export const cliques = {
   },
 };
 
+async function porAlguem(el, delta) {
+  const { item } = achar(el.dataset.item);
+  const d = item?.doacoes.find((x) => x.chave === el.dataset.chave);
+  if (!d) return;
+  const q = d.quantidade + delta;
+  if (q < 0 || (delta > 0 && situacao(item).falta <= 0)) return;
+  await acaoOferendas('doarPor', { itemId: item.id, chave: d.chave, quantidade: q });
+}
+
 export const mudancas = {
   // "No dia do evento" esconde a data; "Escolher data" mostra.
   modoentrega(t) {
@@ -202,6 +244,15 @@ export async function enviar(form) {
   }
   if (form.dataset.form === 'ofed') {
     if (await acaoOferendas('salvar', { id: form.dataset.id, titulo: v('titulo'), data: v('data') })) { U().editar = null; toast('Oferenda salva.'); avisar(); }
+    return;
+  }
+  if (form.dataset.form === 'porpessoa') {
+    const pessoa = v('pessoa');
+    const qtd = Number(v('qtd'));
+    if (!pessoa) { toast('Escolha a pessoa.'); return; }
+    if (!Number.isInteger(qtd) || qtd < 1) { toast('Informe a quantidade.'); return; }
+    const nome = estado.pessoas.find((p) => p.id === pessoa)?.nome || '';
+    if (await acaoOferendas('doarPor', { itemId: form.dataset.item, pessoaId: pessoa, quantidade: qtd })) toast(`Doação de ${nome} registrada.`);
     return;
   }
   const entrega = v('modo') === 'data' ? v('entrega') : '';

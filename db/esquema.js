@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 15;  // v15: acesso da corrente ligado à pessoa cadastrada
+export const VERSAO = 16;  // v16: admin registra doação por outra pessoa
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -588,7 +588,7 @@ export const MIGRACOES = [
    begin
      select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
      if not found then raise exception 'Item não encontrado.'; end if;
-     if v_entregue then raise exception 'Este item já foi entregue.'; end if;
+     if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
      select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
      if v_qtd > 0 and v_outros + v_qtd > v_total then
        if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;

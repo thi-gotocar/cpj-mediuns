@@ -2,7 +2,7 @@
 //   GET  /api/ervas   catálogo, frete, lista aberta/fechada e as minhas escolhas
 //                     e todos os pedidos calculados (andamento geral)
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
-//                     admin: { para: { chave?, nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
+//                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin:
 //        salvarErva { id?, nome, preco? } (preço vazio = a definir) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
@@ -60,10 +60,14 @@ export default rota({
       const nome = String(b.para.nome || '').replace(/\s+/g, ' ').trim();
       const atual = await db.rpc('ervas_estado');
       const existente = typeof b.para.chave === 'string' && atual.escolhas.find((s) => s.chave === b.para.chave);
-      if (!existente && (nome.length < 2 || nome.length > 60)) throw new HttpError(400, 'Informe o nome da pessoa (2 a 60 letras).');
+      if (!existente && !b.para.pessoaId && (nome.length < 2 || nome.length > 60)) throw new HttpError(400, 'Informe o nome da pessoa (2 a 60 letras).');
       // Quem está na lista da corrente fica no cadastro da pessoa (o mesmo de quando ela entra pelo cpj).
-      const pessoa = existente ? null : (await db.rpc('pessoas_listar')).find((p) => normalizarNome(p.nome) === normalizarNome(nome));
-      if (pessoa) await db.rpc('corrente_vincular', { chave: 'p:' + pessoa.id, nome: pessoa.nome, antigas: ['n:' + normalizarNome(nome)] });
+      const lista = existente ? [] : await db.rpc('pessoas_listar');
+      const pessoa = existente ? null : b.para.pessoaId
+        ? lista.find((p) => p.id === validarId(b.para.pessoaId, 'Pessoa'))
+        : lista.find((p) => normalizarNome(p.nome) === normalizarNome(nome));
+      if (b.para.pessoaId && !existente && !pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
+      if (pessoa) await db.rpc('corrente_vincular', { chave: 'p:' + pessoa.id, nome: pessoa.nome, antigas: ['n:' + normalizarNome(pessoa.nome), ...(nome ? ['n:' + normalizarNome(nome)] : [])] });
       const chave = existente ? existente.chave : pessoa ? 'p:' + pessoa.id : 'n:' + normalizarNome(nome);
       const estado = await db.rpc('ervas_escolher', { chave, nome: existente ? existente.nome : pessoa ? pessoa.nome : nome, itens, forcar: true });
       return resposta(estado, eu);

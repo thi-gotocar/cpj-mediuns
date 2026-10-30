@@ -1,7 +1,7 @@
 // Tela "Ervas": escolher as ervas da compra coletiva; o admin cadastra, define o frete e exporta.
 
 import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca, normalizarNome, linhaEvento } from '/shared/ervas.js';
-import { estado, pode, carregarErvas, escolherErva, acaoErvas, salvarPedidoDe, avisar } from '../estado.js';
+import { estado, pode, pessoasOrd, carregarErvas, escolherErva, acaoErvas, salvarPedidoDe, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 
 const qtdDe = (ervaId) => (estado.ervas.minhas || []).find((m) => m.ervaId === ervaId)?.quantidade || 0;
@@ -71,10 +71,12 @@ function cardPedidoDe(E) {
   const P = estado.ervasPara;
   let h = `<div class="card" id="card-para"><div class="grp-h"><h2>Pedido para outra pessoa</h2></div>`;
   if (!P) {
+    const comPedido = new Set((E.pedidos?.pessoas || []).map((p) => p.chave));
     return h + `<form id="f-para" class="row" autocomplete="off">
-      <label class="field grow">Nome da pessoa<input type="text" id="pa-nome" maxlength="60" placeholder="Ex.: Dona Maria"></label>
+      <label class="field grow">Pessoa da corrente<select id="pa-pessoa"><option value="">— escolha quem está pedindo —</option>
+        ${pessoasOrd().map((p) => `<option value="${p.id}">${esc(p.nome)}${comPedido.has('p:' + p.id) ? ' · já tem pedido' : ''}</option>`).join('')}</select></label>
       <button class="btn primary" type="submit">Montar pedido</button></form>
-      <p class="muted" style="margin:0;font-size:.85rem">Para quem não usa o app. Se a pessoa já tiver pedido, o pedido dela abre para editar. Também dá para editar pela tabela de pedidos. Funciona com a lista fechada.</p></div>`;
+      <p class="muted" style="margin:0;font-size:.85rem">Escolha a pessoa cadastrada que está fazendo o pedido. Se ela já tiver pedido, o pedido dela abre para editar. Também dá para editar pela tabela de pedidos. Funciona com a lista fechada.</p></div>`;
   }
   const total = Object.values(P.itens).reduce((a, q) => a + q, 0);
   h += `<p style="margin:0"><b>${esc(P.nome)}</b>${P.chave ? ' <span class="badge rep">editando pedido</span>' : ' <span class="badge new">pedido novo</span>'}</p><div class="ervas">`;
@@ -261,7 +263,7 @@ export const cliques = {
     const P = estado.ervasPara;
     const itens = Object.entries(P.itens).filter(([, q]) => q > 0).map(([ervaId, quantidade]) => ({ ervaId, quantidade }));
     if (!itens.length && !P.chave) { toast('Escolha pelo menos uma erva.'); return; }
-    if (await salvarPedidoDe({ chave: P.chave, nome: P.nome }, itens)) {
+    if (await salvarPedidoDe({ chave: P.chave, pessoaId: P.pessoaId, nome: P.nome }, itens)) {
       toast(itens.length ? `Pedido de ${P.nome} salvo.` : `Pedido de ${P.nome} apagado.`);
       estado.ervasPara = null;
       avisar();
@@ -294,13 +296,14 @@ function abrirPara(P) {
 
 // "Montar pedido": se o nome já tem pedido, abre o pedido dele para editar.
 export function enviarPara() {
-  const nome = val('pa-nome').replace(/\s+/g, ' ').trim();
-  if (nome.length < 2) { toast('Digite o nome da pessoa.'); return; }
-  const alvo = normalizarNome(nome);
-  const p = (estado.ervas.pedidos?.pessoas || []).find((x) => normalizarNome(x.nome) === alvo);
+  const id = val('pa-pessoa');
+  const pessoa = estado.pessoas.find((p) => p.id === id);
+  if (!pessoa) { toast('Escolha a pessoa que está pedindo.'); return; }
+  const lista = estado.ervas.pedidos?.pessoas || [];
+  const p = lista.find((x) => x.chave === 'p:' + id) || lista.find((x) => normalizarNome(x.nome) === normalizarNome(pessoa.nome));
   abrirPara(p
     ? { chave: p.chave, nome: p.nome, itens: Object.fromEntries(p.itens.map((i) => [i.ervaId, i.quantidade])) }
-    : { nome, itens: {} });
+    : { pessoaId: id, nome: pessoa.nome, itens: {} });
 }
 
 export async function enviarFormulario() {
