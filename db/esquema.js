@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 11;
+export const VERSAO = 12;  // v12: gira nova já com atendimentos (gira antiga)
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -321,8 +321,9 @@ export const MIGRACOES = [
      v_data date := (p ->> 'data')::date;
      v_user uuid := nullif(p ->> 'usuario', '')::uuid;
    begin
-     insert into giras (data, entidade, encerrada, atualizado_em, atualizado_por)
-     values (v_data, coalesce(p ->> 'entidade', ''), coalesce((p ->> 'encerrada')::boolean, false), now(), v_user)
+     insert into giras (data, entidade, encerrada, atendimentos, atualizado_em, atualizado_por)
+     values (v_data, coalesce(p ->> 'entidade', ''), coalesce((p ->> 'encerrada')::boolean, false),
+             nullif(p -> 'atendimentos', 'null'::jsonb), now(), v_user)
      on conflict (data) do update set
        entidade       = case when p ? 'entidade' then coalesce(p ->> 'entidade', '') else giras.entidade end,
        encerrada      = case when p ? 'encerrada' then (p ->> 'encerrada')::boolean else giras.encerrada end,

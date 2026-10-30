@@ -18,7 +18,8 @@ export const estado = {
   img: null,           // imagem gerada da escala
   manual: null,
   renomear: null,
-  editLic: null,       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
+  editLic: null,
+  giraAntiga: null,    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
 
@@ -159,6 +160,15 @@ export const encerrarGira = (atendimentos) => situacaoDaGira('encerrar', { atend
 export const reabrirGira = () => situacaoDaGira('reabrir');
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = () => acaoDaGira('remanejar');
+
+// Gira antiga (só registro): data, entidade, presença e atendidos, já encerrada e sem escala.
+export async function cadastrarGiraAntiga(data, dados) {
+  try {
+    estado.giras[data] = await api('PUT', '/giras/' + data, { ...dados, encerrada: true });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
 
 export async function excluirGira(data) {
   try {

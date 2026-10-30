@@ -205,6 +205,20 @@ test('licença: fora do sorteio entre início e fim; só admin cadastra', async 
   await api('DELETE', '/api/giras/2027-03-06', ADMIN);
 });
 
+test('gira antiga: cadastro direto já encerrado, com atendidos e sem escala', async () => {
+  const d = '2025-06-14';
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const r = await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo', presenca: { [ps[0].id]: 'a' }, atendimentos: { preferencial: 2, normal: 10, passe: 5 }, encerrada: true });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.encerrada, true);
+  assert.deepEqual(r.json.atendimentos, { preferencial: 2, normal: 10, passe: 5 });
+  assert.deepEqual(r.json.pares, []);
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'X' })).status, 409, 'fica encerrada');
+  assert.equal((await api('PUT', '/api/giras/2025-06-21', ADMIN, { atendimentos: { normal: -1 } })).status, 400);
+  await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'reabrir' });
+  await api('DELETE', `/api/giras/${d}`, ADMIN);
+});
+
 test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('GET', '/api/usuarios', USER)).status, 403);
   const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', nome: 'Novo', senha: '12345678', papel: 'usuario' });

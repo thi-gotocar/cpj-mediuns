@@ -1,17 +1,50 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, montarBackup, importarBackup, avisar } from '../estado.js';
+import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, LINHAS, licencaEm } from '/shared/regras.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
 const somaAt = (a) => ATEND.reduce((s, [k]) => s + (Number(a?.[k]) || 0), 0);
 const linhaAt = (a) => `Atendidos: ${ATEND.map(([k, t]) => `${t} <b>${Number(a[k]) || 0}</b>`).join(' · ')} · Total <b>${somaAt(a)}</b>`;
 
+// ---- Cadastrar gira antiga (só para alimentar o histórico: sem escala de médiuns)
+function cardGiraAntiga(ps) {
+  const F = estado.giraAntiga;
+  if (!F) return `<div class="row"><button class="btn" data-act="gaabrir">+ Cadastrar gira antiga</button></div>`;
+  const g = { data: F.data, presenca: F.presenca };
+  let h = `<div class="card" id="card-ga"><h2>Cadastrar gira antiga</h2>
+    <p class="muted" style="margin:0;font-size:.88rem">Só para o histórico: data, gira, presença e atendidos. Não tem escala de médiuns e não entra no rodízio. A gira fica salva como encerrada.</p>
+    <div class="row">
+      <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="ga-data" data-act="gacampo" data-k="data" value="${esc(F.data)}" max="${hoje()}"></label>
+      <label class="field grow">Gira<select id="ga-ent" data-act="gacampo" data-k="entidade"><option value="">— escolha —</option>
+        ${LINHAS.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, l]) => `<option ${l === F.entidade ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select></label>
+    </div>`;
+  const cont = (s) => ps.filter((p) => status(p, g) === s).length;
+  h += `<div class="grp-h"><h3>Presença</h3><span class="count">${cont('p') + cont('na') + cont('sup')} presentes · ${cont('a')} ausentes · ${cont('f')} faltas
+    <button class="btn link" data-act="gatodos" data-v="p">todos presentes</button> <button class="btn link" data-act="gatodos" data-v="a">todos ausentes</button></span></div>`;
+  FUNCOES.forEach((f) => {
+    const gp = ps.filter((p) => p.funcao === f.k);
+    if (!gp.length) return;
+    h += `<div class="grp"><h3 style="font-size:.95rem">${f.pl}</h3><div class="plist">${gp.map((p) => {
+      const lic = F.data && licencaEm(p, F.data);
+      const s = status(p, g);
+      return `<div class="pres ${s === 'a' || s === 'f' || s === 'lic' ? 'aus' : ''}"><span class="nm">${esc(p.nome)}</span>${lic
+        ? '<span class="badge lic">de licença</span>'
+        : `<select class="st" data-act="gastatus" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${STATUS_KEYS.map((k) => `<option value="${k}" ${k === s ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>`}</div>`;
+    }).join('')}</div></div>`;
+  });
+  h += `<h3 style="margin:0">Atendidos</h3><div class="row">${ATEND.map(([k, t]) => `<label class="field" style="flex:1 1 90px">${t}<input type="number" inputmode="numeric" min="0" step="1" data-act="gaat" data-k="${k}" value="${F.at[k]}"></label>`).join('')}</div>
+    <div class="row"><button class="btn primary" data-act="gasalvar">Salvar gira</button><button class="btn" data-act="gacancelar">Cancelar</button></div></div>`;
+  return h;
+}
+
 export function render() {
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd();
-  let h = `<section class="panel"><div class="card"><h2>Giras salvas</h2>`;
+  let h = `<section class="panel">`;
+  if (pode('giras:editar')) h += cardGiraAntiga(ps);
+  h += `<div class="card"><h2>Giras salvas</h2>`;
   // Soma dos atendidos de todas as giras que têm o registro.
   const comAt = gs.filter((g) => g.atendimentos);
   if (comAt.length) {
@@ -57,11 +90,42 @@ export function render() {
 }
 
 export const cliques = {
+  gaabrir() {
+    estado.giraAntiga = { data: '', entidade: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
+    avisar();
+  },
+  gacancelar() { estado.giraAntiga = null; avisar(); },
+  gatodos(el) {
+    const F = estado.giraAntiga;
+    F.presenca = {};
+    if (el.dataset.v !== 'p') pessoasOrd().forEach((p) => { F.presenca[p.id] = el.dataset.v; });
+    avisar();
+  },
+  async gasalvar() {
+    const F = estado.giraAntiga;
+    if (!F.data) { toast('Informe a data do evento.'); return; }
+    if (F.data > hoje()) { toast('A data é no futuro. Use a aba Gira para giras que ainda vão acontecer.'); return; }
+    if (estado.giras[F.data]) { toast(`Já existe uma gira em ${F.data.split('-').reverse().join('/')}. Abra pelo histórico para alterar.`); return; }
+    if (!F.entidade) { toast('Escolha a gira.'); return; }
+    const presenca = Object.fromEntries(Object.entries(F.presenca).filter(([, s]) => s !== 'p'));
+    const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, presenca, atendimentos: F.at });
+    if (ok) { toast('Gira antiga cadastrada.'); estado.giraAntiga = null; avisar(); }
+  },
   abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'gira'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
   delgira(el) { estado.confirm = null; excluirGira(el.dataset.d); },
   backup() {
     baixar(new Blob([JSON.stringify(montarBackup(), null, 1)], { type: 'application/json' }), 'sort-mediuns-backup-' + hoje() + '.json');
   },
+};
+
+export const mudancas = {
+  gacampo(t) { estado.giraAntiga[t.dataset.k] = t.value; avisar(); },
+  gastatus(t) {
+    const F = estado.giraAntiga;
+    if (t.value === 'p') delete F.presenca[t.dataset.id]; else F.presenca[t.dataset.id] = t.value;
+    avisar();
+  },
+  gaat(t) { const n = parseInt(t.value, 10); estado.giraAntiga.at[t.dataset.k] = Number.isFinite(n) && n >= 0 ? n : 0; },
 };
 
 export async function restaurar(arquivo) {

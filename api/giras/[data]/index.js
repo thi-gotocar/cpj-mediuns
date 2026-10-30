@@ -1,5 +1,6 @@
 // GET    /api/giras/:data
-// PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes? }  (só substitui o que vier)
+// PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes?, atendimentos?, encerrada? }  (só substitui o que vier)
+//                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
 // POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' }  → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
@@ -15,6 +16,16 @@ function validarDuplas(lista, nome) {
     fixo: !!d.fixo,
     remanejado: !!d.remanejado,
   }));
+}
+
+function validarAtendimentos(a) {
+  const at = {};
+  for (const k of ['preferencial', 'normal', 'passe']) {
+    const n = Number(a?.[k] ?? 0);
+    if (!Number.isInteger(n) || n < 0 || n > 100000) throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');
+    at[k] = n;
+  }
+  return at;
 }
 
 export default rota({
@@ -45,6 +56,8 @@ export default rota({
     }
     if ('pares' in b) p.pares = validarDuplas(b.pares, 'cambones');
     if ('passes' in b) p.passes = validarDuplas(b.passes, 'médiuns de passe');
+    if ('atendimentos' in b) p.atendimentos = validarAtendimentos(b.atendimentos);
+    if (b.encerrada === true) p.encerrada = true;
     return db.rpc('gira_salvar', p);
   },
   POST: async (req) => {
@@ -61,13 +74,8 @@ export default rota({
     if (atual?.encerrada) return { gira: atual, mensagem: 'A gira já estava encerrada.' };
     const { patch, mensagem } = encerrar(pessoas, atual || giraVazia(data));
     // Quantas pessoas foram atendidas na gira.
-    const at = {};
-    for (const k of ['preferencial', 'normal', 'passe']) {
-      const n = Number(atendimentos?.[k]);
-      if (!Number.isInteger(n) || n < 0 || n > 100000) throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');
-      at[k] = n;
-    }
-    patch.atendimentos = at;
+    if (!atendimentos || typeof atendimentos !== 'object') throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');
+    patch.atendimentos = validarAtendimentos(atendimentos);
     return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }), mensagem };
   },
   DELETE: async (req) => {
