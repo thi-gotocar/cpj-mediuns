@@ -33,6 +33,13 @@ export const LINHAS = [
     itens: [['exu', 'Exu'], ['pomba-gira', 'Pomba Gira'], ['exu-mirim', 'Exu Mirim']],
   },
 ];
+// Giras que não são de uma linha (ex.: gira interna). Nelas ninguém é convertido:
+// cada um atua na própria função cadastrada.
+export const GIRAS_ESPECIAIS = [['interna', 'Gira interna']];
+export const ehGiraInterna = (entidade) => normalizar(entidade) === 'gira interna' || normalizar(entidade) === 'interna';
+// Opções do seletor "Gira / entidade do dia": as linhas e as giras especiais.
+export const OPCOES_GIRA = [...LINHAS, { grupo: 'Outras', itens: GIRAS_ESPECIAIS }];
+
 export const LINHA_KEYS = LINHAS.flatMap((g) => g.itens.map(([k]) => k));
 export const LINHA_LABEL = Object.fromEntries(LINHAS.flatMap((g) => g.itens));
 

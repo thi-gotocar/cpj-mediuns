@@ -55,3 +55,12 @@ test('no sorteio, quem vira cambone cambona e não recebe cambone', () => {
   const { lista } = paresPorMedium(pessoas, { ...exu, ...r2 });
   assert.deepEqual(lista.map((x) => x.m.id).sort(), ['m1', 'm2']);
 });
+
+test('gira interna: ninguém é convertido e não vira linha', async () => {
+  const { ehGiraInterna, linhaDaEntidade, funcaoNaGira, OPCOES_GIRA } = await import('../shared/regras.js');
+  assert.equal(ehGiraInterna('Gira interna'), true);
+  assert.equal(ehGiraInterna('Exu'), false);
+  assert.equal(linhaDaEntidade('Gira interna'), null);
+  assert.equal(funcaoNaGira({ funcao: 'passe', linhas: ['exu'] }, { entidade: 'Gira interna' }), 'passe');
+  assert.ok(OPCOES_GIRA.some((g) => g.itens.some(([, l]) => l === 'Gira interna')));
+});

@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, ehGiraInterna, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -26,10 +26,11 @@ function podeCompartilhar() {
 // Lista das linhas; mantém um valor antigo (texto livre) se a gira já tinha um.
 function seletorEntidade(atual) {
   const conhecida = linhaDaEntidade(atual);
-  const valor = conhecida ? LINHA_LABEL[conhecida] : atual || '';
-  const antigo = valor && !conhecida ? `<option value="${esc(valor)}" selected>${esc(valor)} (fora da lista)</option>` : '';
+  const interna = ehGiraInterna(atual);
+  const valor = conhecida ? LINHA_LABEL[conhecida] : interna ? 'Gira interna' : atual || '';
+  const antigo = valor && !conhecida && !interna ? `<option value="${esc(valor)}" selected>${esc(valor)} (fora da lista)</option>` : '';
   return `<select id="f-ent"><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
-    ${LINHAS.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, label]) => `<option ${label === valor ? 'selected' : ''}>${label}</option>`).join('')}</optgroup>`).join('')}
+    ${OPCOES_GIRA.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, label]) => `<option ${label === valor ? 'selected' : ''}>${label}</option>`).join('')}</optgroup>`).join('')}
   </select>`;
 }
 
@@ -38,6 +39,9 @@ function seletorEntidade(atual) {
 function avisoEntidade(ps, g, editar, admin) {
   const comLinhas = ps.filter(usaLinhas);
   if (!comLinhas.length) return '';
+  if (ehGiraInterna(g.entidade)) {
+    return admin ? `<p class="muted" style="margin:0;font-size:.88rem">Gira interna: extras e passes atuam na própria função, sem olhar as linhas.</p>` : '';
+  }
   if (!linhaDaEntidade(g.entidade)) {
     return editar ? `<div class="warnbox">Escolha a entidade do dia: é ela que define quem atua como extra ou passe e quem cambona.</div>` : '';
   }
@@ -105,7 +109,7 @@ export function render() {
     <div class="datehead"><span class="eyebrow">Gira de</span><span class="dia">${esc(dLong(g.data))}</span>${g.entidade ? `<span class="ent">${esc(g.entidade)}</span>` : ''}</div>
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
-      ${editar ? `<label class="field grow">Entidade que trabalha no dia${seletorEntidade(g.entidade)}</label>` : ''}
+      ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
     </div>
     ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}${g.atendimentos ? `<br>${textoAtendimentos(g.atendimentos)}` : ''}</span>${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</div>` : ''}
     ${avisoEntidade(ps, g, editar, admin)}

@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, LINHAS, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -64,7 +64,7 @@ function cardGiraAntiga(ps) {
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="ga-data" data-act="gacampo" data-k="data" value="${esc(F.data)}" max="${hoje()}"></label>
       <label class="field grow">Gira (opcional)<select id="ga-ent" data-act="gacampo" data-k="entidade"><option value="">— escolha —</option>
-        ${LINHAS.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, l]) => `<option ${l === F.entidade ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        ${OPCOES_GIRA.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, l]) => `<option ${l === F.entidade ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select></label>
     </div>`;
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;
   h += `<div class="grp-h"><h3>Presença</h3><span class="count">${cont('p') + cont('na') + cont('sup')} presentes · ${cont('a')} ausentes · ${cont('f')} faltas
@@ -158,6 +158,7 @@ export const cliques = {
       return { ...c, duvida, aceito: !duvida, provavelId: c.provavel ? c.pessoa.id : null, escolhido: c.pessoa ? c.pessoa.id : '' };
     });
     if (r.data) F.data = r.data;
+    if (/gira\s+interna/i.test(F.msg)) F.entidade = 'Gira interna';
     F.at = { ...r.atendimentos };
     F.presenca = {};
     casados.forEach((c) => { if (c.escolhido) F.presenca[c.escolhido] = 'a'; });
