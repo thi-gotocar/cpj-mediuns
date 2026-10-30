@@ -223,12 +223,13 @@ export function render() {
   const existe = !!estado.giras[g.data];
 
   let h = `<section class="panel">
-  <div class="card">
+  <div class="card card-gira">
     ${editar && existe ? (estado.confirm === 'rei:' + g.data
       ? `<div class="infobox rei"><span><b>Reiniciar a gira?</b> Volta tudo ao início: todos ficam Pendente e saem a gira, o orixá, a turma da limpeza e o sorteio. Só a data fica.</span>
           <span class="row" style="gap:6px"><button class="btn small danger" data-act="reiniciar">Sim, reiniciar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`
-      : `<button class="btn small rei-bt" data-act="askdel" data-k="rei:${g.data}" title="Volta a gira ao início (só a data fica)">↺ Reiniciar</button>`) : ''}
-    <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
+      : '') : ''}
+    <div class="datehead"><div class="dh-linha"><span class="eyebrow">${esc(dLong(g.data))}</span>${editar && existe && estado.confirm !== 'rei:' + g.data
+      ? `<button class="btn small rei-bt" data-act="askdel" data-k="rei:${g.data}" title="Volta a gira ao início (só a data fica)">↺ Reiniciar</button>` : ''}</div><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
       <div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
       <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span>${botaoTopo(g, editar, existe)}</div></div>

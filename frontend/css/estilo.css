@@ -385,7 +385,9 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .sup-bt{font:700 .75rem var(--f-body);border-radius:6px;padding:5px 8px;border:1px solid var(--line);background:var(--line);color:var(--muted);cursor:pointer}
 .sup-bt.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .prox-gira.enc-bt{border-color:var(--warn);color:var(--warn)}
-.rei-bt{justify-self:end;align-self:flex-end;width:auto;margin:-4px 0 -6px;border-color:var(--off);color:var(--off)}
+/* Reiniciar fica na mesma linha da data (sem abrir espaço no topo do card) */
+.dh-linha{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rei-bt{flex:none;padding:3px 9px;font-size:.8rem;border-color:var(--off);color:var(--off)}
 .infobox.rei{border-color:var(--off);background:var(--off-soft)}
 .add-seg{display:flex;width:100%}
 .add-seg button{flex:1 1 0;padding:8px 10px}
