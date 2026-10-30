@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 9;
+export const VERSAO = 10;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -47,6 +47,16 @@ export const MIGRACOES = [
   `create unique index if not exists pessoas_nome_unico on pessoas (lower(btrim(nome)))`,
   // v2: linhas em que Extra/Passe atuam na própria função (nas outras, cambonam)
   `alter table pessoas add column if not exists linhas text[] not null default '{}'`,
+  // v10: licenças (a pessoa fica fora das giras entre início e fim, inclusive)
+  `create table if not exists licencas (
+     id         uuid primary key default gen_random_uuid(),
+     pessoa_id  uuid not null references pessoas (id) on delete cascade,
+     inicio     date not null,
+     fim        date not null,
+     criado_em  timestamptz not null default now(),
+     check (fim >= inicio)
+   )`,
+  `create index if not exists licencas_pessoa on licencas (pessoa_id)`,
 
   // ------------------------------------------------------------------ giras
   `create table if not exists giras (
@@ -59,6 +69,8 @@ export const MIGRACOES = [
   `alter table giras add column if not exists encerrada boolean not null default false`,
   // v7: quem foi para o Suporte ao encerrar e o status que tinha antes (volta ao reabrir)
   `alter table giras add column if not exists suporte_auto jsonb not null default '{}'::jsonb`,
+  // v10: quantas pessoas foram atendidas (informado ao encerrar): { preferencial, normal, passe }
+  `alter table giras add column if not exists atendimentos jsonb`,
   // Status na gira. Sem linha = Presente. p, na (não atende), sup, f (falta), a (ausente)
   `create table if not exists presencas (
      gira_data  date not null references giras (data) on delete cascade,
@@ -200,8 +212,26 @@ export const MIGRACOES = [
   `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select id, nome, funcao, experiente, linhas from pessoas
+       select p.id, p.nome, p.funcao, p.experiente, p.linhas,
+              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim) order by l.inicio)
+                        from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas
+       from pessoas p
      ) x;
+   $$`,
+  `create or replace function licenca_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into licencas (pessoa_id, inicio, fim)
+     values ((p ->> 'pessoaId')::uuid, (p ->> 'inicio')::date, (p ->> 'fim')::date);
+     return pessoas_listar();
+   end;
+   $$`,
+  `create or replace function licenca_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from licencas where id = (p ->> 'id')::uuid;
+     return pessoas_listar();
+   end;
    $$`,
   // p = { nomes: [...], funcao }. Nomes repetidos são ignorados.
   `create or replace function pessoas_criar(p jsonb)
@@ -254,6 +284,7 @@ export const MIGRACOES = [
        'entidade', g.entidade,
        'encerrada', g.encerrada,
        'suporteAuto', g.suporte_auto,
+       'atendimentos', g.atendimentos,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
@@ -287,6 +318,7 @@ export const MIGRACOES = [
        entidade       = case when p ? 'entidade' then coalesce(p ->> 'entidade', '') else giras.entidade end,
        encerrada      = case when p ? 'encerrada' then (p ->> 'encerrada')::boolean else giras.encerrada end,
        suporte_auto   = case when p ? 'suporteAuto' then coalesce(p -> 'suporteAuto', '{}'::jsonb) else giras.suporte_auto end,
+       atendimentos   = case when p ? 'atendimentos' then nullif(p -> 'atendimentos', 'null'::jsonb) else giras.atendimentos end,
        atualizado_em  = now(),
        atualizado_por = excluded.atualizado_por;
 

@@ -138,12 +138,12 @@ async function acaoDaGira(rota) {
   }
 }
 // Encerrar / reabrir a gira (POST /api/giras/:data { acao }).
-async function situacaoDaGira(acao) {
+async function situacaoDaGira(acao, extra = {}) {
   const data = prefs.data;
   await descarregar(data);
   estado.salvando++;
   try {
-    const r = await api('POST', '/giras/' + data, { acao });
+    const r = await api('POST', '/giras/' + data, { acao, ...extra });
     estado.giras[data] = r.gira;
     estado.manual = null;
     toast(r.mensagem);
@@ -154,7 +154,7 @@ async function situacaoDaGira(acao) {
     avisar();
   }
 }
-export const encerrarGira = () => situacaoDaGira('encerrar');
+export const encerrarGira = (atendimentos) => situacaoDaGira('encerrar', { atendimentos });
 export const reabrirGira = () => situacaoDaGira('reabrir');
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = () => acaoDaGira('remanejar');
@@ -182,11 +182,27 @@ export async function atualizarPessoa(id, patch) {
   avisar();
   try {
     const p = await api('PATCH', '/pessoas/' + id, patch);
-    estado.pessoas = estado.pessoas.map((x) => (x.id === id ? p : x));
+    estado.pessoas = estado.pessoas.map((x) => (x.id === id ? { ...x, ...p } : x));
   } catch (e) {
     estado.pessoas = antes;
     toast(e.message);
   }
+  avisar();
+}
+
+// Licenças (admin): a resposta é a lista da corrente atualizada.
+export async function salvarLicenca(pessoaId, inicio, fim) {
+  try {
+    estado.pessoas = await api('POST', '/pessoas', { acao: 'licenca', pessoaId, inicio, fim });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+export async function removerLicenca(id) {
+  try {
+    estado.pessoas = await api('POST', '/pessoas', { acao: 'removerLicenca', id });
+    toast('Licença removida.');
+  } catch (e) { toast(e.message); }
   avisar();
 }
 
@@ -232,7 +248,7 @@ export function montarBackup() {
     versao: 2,
     exportado: new Date().toISOString(),
     pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [] }])),
-    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, encerrada: !!g.encerrada, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
+    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
   };
 }
 export async function importarBackup(obj) {

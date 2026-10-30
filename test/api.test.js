@@ -163,9 +163,11 @@ test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda 
   const id = (n) => ps.find((p) => p.nome === n).id;
   await api('PUT', `/api/giras/${d}`, ADMIN, { pares: [{ m: id('Ana'), c: id('Elisa') }], passes: [{ m: id('Ana'), c: id('Helena') }] });
   assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'encerrar' })).status, 403);
-  const r = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar' });
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar' })).status, 400, 'precisa informar os atendimentos');
+  const r = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar', atendimentos: { preferencial: 4, normal: 30, passe: 12 } });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.gira.encerrada, true);
+  assert.deepEqual(r.json.gira.atendimentos, { preferencial: 4, normal: 30, passe: 12 });
   const pr = r.json.gira.presenca;
   for (const n of ['Fábio', 'Gabi', 'Kátia']) assert.equal(pr[id(n)], 'sup', n + ' devia ir para o Suporte');
   for (const n of ['Elisa', 'Helena', 'Ana', 'Bruno', 'Igor']) assert.equal(pr[id(n)], undefined, n + ' continua presente');
@@ -180,6 +182,24 @@ test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda 
   assert.match(re.json.mensagem, /Voltaram do Suporte/);
   assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' })).status, 200);
   await api('DELETE', `/api/giras/${d}`, ADMIN);
+});
+
+test('licença: fora do sorteio entre início e fim; só admin cadastra', async () => {
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const bruno = ps.find((p) => p.nome === 'Bruno');
+  assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'licenca', pessoaId: bruno.id, inicio: '2027-02-01', fim: '2027-02-28' })).status, 403);
+  assert.equal((await api('POST', '/api/pessoas', ADMIN, { acao: 'licenca', pessoaId: bruno.id, inicio: '2027-02-28', fim: '2027-02-01' })).status, 400);
+  const lista = (await api('POST', '/api/pessoas', ADMIN, { acao: 'licenca', pessoaId: bruno.id, inicio: '2027-02-01', fim: '2027-02-28' })).json;
+  const lic = lista.find((p) => p.id === bruno.id).licencas;
+  assert.deepEqual(lic.map((l) => [l.inicio, l.fim]), [['2027-02-01', '2027-02-28']]);
+  const dentro = (await api('POST', '/api/giras/2027-02-13/sortear', ADMIN)).json.gira;
+  assert.ok(!dentro.pares.some((p) => p.m === bruno.id || p.c === bruno.id), 'de licença não entra no sorteio');
+  const fora = (await api('POST', '/api/giras/2027-03-06/sortear', ADMIN)).json.gira;
+  assert.ok(fora.pares.some((p) => p.m === bruno.id), 'depois da licença volta ao sorteio');
+  const sem = (await api('POST', '/api/pessoas', ADMIN, { acao: 'removerLicenca', id: lic[0].id })).json;
+  assert.deepEqual(sem.find((p) => p.id === bruno.id).licencas, []);
+  await api('DELETE', '/api/giras/2027-02-13', ADMIN);
+  await api('DELETE', '/api/giras/2027-03-06', ADMIN);
 });
 
 test('gestão de usuários: só admin, com travas', async () => {

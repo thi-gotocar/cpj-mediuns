@@ -1,12 +1,18 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, status, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 
-const classeStatus = (s) => (s === 'a' || s === 'f' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : '');
+const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : '');
+const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
+function textoAtendimentos(a) {
+  if (!a) return '';
+  const total = ATEND.reduce((s, [k]) => s + (Number(a[k]) || 0), 0);
+  return `Atendidos: ${ATEND.map(([k, t]) => `${t} <b>${Number(a[k]) || 0}</b>`).join(' · ')} · Total <b>${total}</b>`;
+}
 
 function chaveImg() {
   return textoWhats(estado.pessoas, giraAtual(), 'lista');
@@ -57,7 +63,7 @@ function blocosFora(ps, g) {
   const naGira = Object.values(conta).reduce((a, n) => a + n, 0);
   const presentes = naGira ? `<div class="grp"><div class="grp-h"><h3>Presentes</h3><span class="count">${naGira}</span></div>
     <div class="presentes">${Object.entries(conta).map(([t, n]) => `<span><span class="muted">${t}</span> <b>${n}</b></span>`).join('')}</div></div>` : '';
-  return presentes + [['f', 'Faltaram'], ['a', 'Ausentes']].map(([st, titulo]) => {
+  return presentes + [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
     return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
   }).join('');
@@ -101,7 +107,7 @@ export function render() {
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
       ${editar ? `<label class="field grow">Entidade que trabalha no dia${seletorEntidade(g.entidade)}</label>` : ''}
     </div>
-    ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</div>` : ''}
+    ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}${g.atendimentos ? `<br>${textoAtendimentos(g.atendimentos)}` : ''}</span>${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</div>` : ''}
     ${avisoEntidade(ps, g, editar, admin)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
   </div>`;
@@ -119,7 +125,7 @@ export function render() {
 
   // presença
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;
-  h += `<div class="card"><div class="grp-h"><h2>Presença</h2><span class="count">${cont('p')} presentes · ${cont('na')} não atendem · ${cont('sup')} no suporte · ${cont('f')} faltas · ${cont('a')} ausentes</span></div>`;
+  h += `<div class="card"><div class="grp-h"><h2>Presença</h2><span class="count">${cont('p')} presentes · ${cont('na')} não atendem · ${cont('sup')} no suporte · ${cont('f')} faltas · ${cont('a')} ausentes${cont('lic') ? ` · ${cont('lic')} de licença` : ''}</span></div>`;
   if (editar) h += `<p class="muted" style="margin:0;font-size:.88rem">Escolha o status de cada pessoa. “Não atende” está na gira mas não atende: entra no sorteio como cambone. “Suporte” fica fora do sorteio.</p>`;
   FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
@@ -131,7 +137,10 @@ export function render() {
         const s = status(p, g);
         const xp = p.experiente && p.funcao === 'medium' ? ' <span class="xp" title="Pode ter médium de passe junto">P</span>' : '';
         const hoje = funcaoNaGira(p, g) !== p.funcao ? ' <span class="badge rep" title="Esta entidade não está nas linhas da pessoa">hoje: cambone</span>' : '';
-        const ctl = editar
+        const lic = licencaEm(p, g.data);
+        const ctl = lic
+          ? `<span class="badge lic" title="De licença de ${dDM(lic.inicio)} a ${dDM(lic.fim)}">de licença até ${dDM(lic.fim)}</span>`
+          : editar
           ? `<select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${STATUS_KEYS.map((k) => `<option value="${k}" ${k === s ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>`
           : `<span class="st-txt">${STATUS[s]}</span>`;
         return `<div class="pres ${classeStatus(s)}"><span class="nm">${esc(p.nome)}${xp}${hoje}</span>${ctl}</div>`;
@@ -186,7 +195,10 @@ export function render() {
       ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}
       ${editar && (temDuplas || existe) && estado.confirm !== 'enc:' + g.data ? `<button class="btn" data-act="askdel" data-k="enc:${g.data}">Encerrar gira</button>` : ''}</div></div>`;
   if (editar && estado.confirm === 'enc:' + g.data) {
-    h += `<div class="infobox"><span>Encerrar a gira? Quem estava para cambonar e não ficou com nenhum médium, e médium de passe sem médium, vão para o <b>Suporte</b>. Depois disso a escala não muda até ser reaberta; ao reabrir, essas pessoas voltam para a lista.</span>
+    const a = g.atendimentos || {};
+    h += `<div class="infobox enc"><span><b>Encerrar a gira.</b> Quantas pessoas foram atendidas?</span>
+      <div class="row">${ATEND.map(([k, t]) => `<label class="field" style="flex:1 1 90px">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" value="${a[k] ?? ''}" placeholder="0"></label>`).join('')}</div>
+      <span class="muted" style="font-size:.85rem">Quem estava para cambonar e não ficou com nenhum médium, e médium de passe sem médium, vão para o <b>Suporte</b>. Depois disso a escala não muda até ser reaberta; ao reabrir, essas pessoas voltam para a lista.</span>
       <span class="row"><button class="btn small primary" data-act="encerrar">Encerrar</button><button class="btn small" data-act="cancelenc">Cancelar</button></span></div>`;
   }
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
@@ -258,7 +270,16 @@ export const cliques = {
     avisar();
   },
   sortear: () => sortear(),
-  encerrar() { estado.confirm = null; encerrarGira(); },
+  encerrar() {
+    const at = {};
+    for (const [k, t] of ATEND) {
+      const v = (document.getElementById('at-' + k)?.value || '').trim();
+      if (!/^\d+$/.test(v)) { toast(`Informe quantas pessoas foram atendidas: ${t}.`); document.getElementById('at-' + k)?.focus(); return; }
+      at[k] = Number(v);
+    }
+    estado.confirm = null;
+    encerrarGira(at);
+  },
   reabrir: () => reabrirGira(),
   cancelenc() { estado.confirm = null; avisar(); },
   manual() {

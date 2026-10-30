@@ -1,6 +1,6 @@
 // GET    /api/giras/:data
 // PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes? }  (só substitui o que vier)
-// POST   /api/giras/:data   { acao: 'encerrar' | 'reabrir' }  → { gira, mensagem }
+// POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' }  → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
@@ -50,7 +50,7 @@ export default rota({
   POST: async (req) => {
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
-    const { acao } = corpo(req);
+    const { acao, atendimentos } = corpo(req);
     if (acao !== 'encerrar' && acao !== 'reabrir') throw new HttpError(400, 'Ação inválida.');
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
     if (acao === 'reabrir') {
@@ -60,6 +60,14 @@ export default rota({
     }
     if (atual?.encerrada) return { gira: atual, mensagem: 'A gira já estava encerrada.' };
     const { patch, mensagem } = encerrar(pessoas, atual || giraVazia(data));
+    // Quantas pessoas foram atendidas na gira.
+    const at = {};
+    for (const k of ['preferencial', 'normal', 'passe']) {
+      const n = Number(atendimentos?.[k]);
+      if (!Number.isInteger(n) || n < 0 || n > 100000) throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');
+      at[k] = n;
+    }
+    patch.atendimentos = at;
     return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }), mensagem };
   },
   DELETE: async (req) => {

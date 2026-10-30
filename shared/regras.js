@@ -79,7 +79,15 @@ export function ordenarPessoas(ps) {
   return [...ps].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
+// Licença: a pessoa fica fora da gira (não entra no sorteio nem na escala) entre início e fim.
+export function licencaEm(p, data) {
+  if (!data) return null;
+  return (p.licencas || []).find((l) => l.inicio <= data && data <= l.fim) || null;
+}
+
+// Status na gira. 'lic' = de licença (vale sobre o que estiver marcado na presença).
 export function status(p, g) {
+  if (licencaEm(p, g.data)) return 'lic';
   const v = (g.presenca || {})[p.id];
   return STATUS_KEYS.includes(v) ? v : 'p';
 }
@@ -216,7 +224,7 @@ export function remanejar(pessoas, giras, g) {
   const all = ordenarPessoas(pessoasDaGira(pessoas, g));
   const nome = (id) => all.find((p) => p.id === id)?.nome || '(removido)';
   const pr = { ...(g.presenca || {}) };
-  const gx = { presenca: pr };
+  const gx = { data: g.data, presenca: pr };
   const R = all.filter((p) => presente(p, gx) && recebe(p)).map((p) => p.id);
   const C = new Set(all.filter((p) => cambonaHoje(p, gx)).map((p) => p.id));
   if (!R.length) return { patch: null, mensagem: 'Nenhum médium presente.' };

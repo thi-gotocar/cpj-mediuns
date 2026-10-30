@@ -192,6 +192,8 @@ main.addEventListener('submit', async (e) => {
     await ervas.enviarFormulario();
   } else if (id === 'f-ren') {
     await pessoas.renomear(e.target);
+  } else if (id === 'f-lic') {
+    await pessoas.enviarLicenca();
   } else if (id === 'f-add') {
     await pessoas.enviarFormulario();
   } else if (id === 'f-user') {

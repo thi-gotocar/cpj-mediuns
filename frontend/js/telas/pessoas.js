@@ -1,8 +1,35 @@
 // Tela "Pessoas": cadastro da corrente.
 
 import { FUNCOES, LINHAS, LINHA_LABEL } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, avisar } from '../estado.js';
-import { esc, toast } from '../util.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, removerLicenca, avisar } from '../estado.js';
+import { esc, toast, hoje } from '../util.js';
+
+const dBR = (s) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
+
+// Licenças em vigor ou futuras (as que já terminaram saem da lista sozinhas).
+function cardLicencas(ps, editar) {
+  const hj = hoje();
+  const lics = ps.flatMap((p) => (p.licencas || []).filter((l) => l.fim >= hj).map((l) => ({ ...l, pessoa: p })))
+    .sort((a, b) => a.inicio.localeCompare(b.inicio) || a.pessoa.nome.localeCompare(b.pessoa.nome, 'pt-BR'));
+  if (!editar && !lics.length) return '';
+  let h = `<div class="card"><div class="grp-h"><h2>Licenças</h2><span class="count">${lics.length}</span></div>`;
+  if (editar) {
+    h += `<form id="f-lic" class="row" autocomplete="off">
+      <label class="field grow">Pessoa<select id="lic-p"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <label class="field" style="flex:1 1 140px">Início<input type="date" id="lic-i" value="${hj}"></label>
+      <label class="field" style="flex:1 1 140px">Fim<input type="date" id="lic-f"></label>
+      <button class="btn primary" type="submit">Adicionar</button></form>`;
+  }
+  if (!lics.length) return h + `<p class="muted" style="margin:0;font-size:.85rem">Ninguém de licença. Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p></div>`;
+  h += `<div class="ppl">${lics.map((l) => {
+    const agora = l.inicio <= hj;
+    const conf = estado.confirm === 'lic:' + l.id;
+    return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(l.pessoa.nome)}</span>
+      <span class="muted" style="font-size:.85rem">${dBR(l.inicio)} a ${dBR(l.fim)}${agora ? ' · <b>de licença agora</b>' : ' · começa depois'}</span></span>
+      ${editar ? (conf ? `<button class="btn small danger" data-act="dellic" data-id="${l.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="lic:${l.id}">Remover</button>`) : ''}</div>`;
+  }).join('')}</div>`;
+  return h + `</div>`;
+}
 
 const nomeFuncao = (p) => (p.funcao === 'extra' ? 'extra' : 'médium de passe');
 
@@ -50,6 +77,7 @@ export function render() {
   if (!ps.length) {
     return h + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div></section>`;
   }
+  h += cardLicencas(ps, editar);
   // Totalizador da corrente, por função.
   h += `<div class="card"><div class="grp-h"><h2>Corrente</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="presentes">${FUNCOES.map((f) => `<span><span class="muted">${f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div></div>`;
@@ -90,6 +118,7 @@ export const cliques = {
     salvarPrefs();
     avisar();
   },
+  dellic(el) { estado.confirm = null; removerLicenca(el.dataset.id); },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
   ren(el) {
     estado.renomear = el.dataset.id;
@@ -126,6 +155,16 @@ export const mudancas = {
     atualizarPessoa(p.id, { linhas: [...atuais].sort() });
   },
 };
+
+export async function enviarLicenca() {
+  const pessoa = document.getElementById('lic-p').value;
+  const inicio = document.getElementById('lic-i').value;
+  const fim = document.getElementById('lic-f').value;
+  if (!pessoa) { toast('Escolha a pessoa.'); return; }
+  if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
+  if (fim < inicio) { toast('A data final é antes do início.'); return; }
+  if (await salvarLicenca(pessoa, inicio, fim)) toast('Licença cadastrada.');
+}
 
 export async function enviarFormulario() {
   const inp = document.getElementById('f-nome');

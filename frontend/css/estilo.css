@@ -38,7 +38,7 @@ section.panel{display:grid;gap:18px}
 .row>*{min-width:0}
 .grow{flex:1 1 180px}
 label.field{display:grid;gap:4px;font-size:.85rem;font-weight:700;color:var(--muted)}
-input[type=text],input[type=date],select,textarea{font:inherit;font-size:1rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;box-sizing:border-box}
+input[type=text],input[type=date],input[type=number],select,textarea{font:inherit;font-size:1rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;box-sizing:border-box}
 textarea{font-family:var(--f-mono);font-size:.82rem;line-height:1.5;min-height:220px;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn{font:700 .95rem var(--f-body);border-radius:8px;padding:10px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap}
@@ -197,3 +197,8 @@ table.pedidos tr.eu th,table.pedidos tr.eu td{background:var(--accent-soft)}
 .presentes{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.92rem}
 .grp-h.dobra{width:100%;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;text-align:left;align-items:center}
 .grp-h.dobra .seta{display:inline-block;margin-left:8px;font-size:1.1rem;color:var(--accent)}
+.badge.lic{background:var(--off-soft);color:var(--off)}
+.infobox.enc{flex-direction:column;align-items:stretch}
+.infobox.enc .row{gap:8px}
+label.field{min-width:0;grid-template-columns:minmax(0,1fr)}
+input[type=date]{min-width:0}
