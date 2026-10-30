@@ -427,3 +427,9 @@ body.deslogado .rodape{display:none}
 .st-resumo > div{display:flex;flex-direction:column;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .st-grande{font:700 1.6rem var(--f-display);line-height:1.1}
 .st-det2{font-size:.85rem;color:var(--muted)}
+
+/* Aba Gira: botão grande (Sortear, Adicionar evento) e Ver mais no fim do card */
+.btn-grande{width:100%;padding:14px 16px;font-size:1.1rem;border-radius:10px}
+.sort-acoes{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.ver-mais{justify-self:center}
+.card-novo .btn-grande{margin-top:4px}

@@ -186,7 +186,13 @@ function blocoEu(g) {
 
 // "Médiuns e cambones" começa minimizado; abre enquanto o app estiver aberto.
 const duplasAbertas = new Set();
-const botaoDobrar = (aberto) => `<button class="btn link small" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : '▸ Ver mais'}</button>`;
+const botaoDobrar = (aberto) => `<button class="btn link small ver-mais" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : '▸ Ver mais'}</button>`;
+// Presença e WhatsApp também começam minimizados (abrem enquanto o app estiver aberto).
+const abertos = new Set();
+const cabDobra = (k, titulo, extra = '') => {
+  const ab = abertos.has(k);
+  return `<button class="grp-h dobra" data-act="dobrarcard" data-k="${k}" aria-expanded="${ab}"><h2>${titulo}</h2><span class="count">${extra} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
+};
 
 // Só o resultado do sorteio (acesso da corrente).
 function resultado(g) {
@@ -194,8 +200,8 @@ function resultado(g) {
   const comDuplas = lista.some((x) => x.cams.length || x.passes.length);
   if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
   const aberto = duplasAbertas.has(g.data);
-  let h = `<div class="card"><div class="grp-h"><h2>Sorteio</h2>${botaoDobrar(aberto)}</div>`;
-  if (!aberto) return h + `${blocosFora(pessoasOrd().filter(contaNaPresenca), g)}</div>`;
+  let h = `<div class="card"><div class="grp-h"><h2>Sorteio</h2></div>`;
+  if (!aberto) return h + `${blocosFora(pessoasOrd().filter(contaNaPresenca), g)}${botaoDobrar(false)}</div>`;
   h += `<div class="pairs">`;
   lista.forEach((x) => {
     h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span><span></span><div class="cams">`;
@@ -209,7 +215,7 @@ function resultado(g) {
     h += `<div class="grp"><h3>${t}</h3><p style="margin:0">${nomes.map(esc).join(', ')}</p></div>`;
   });
   h += blocosFora(pessoasOrd().filter(contaNaPresenca), g);
-  return h + `</div>`;
+  return h + `${botaoDobrar(true)}</div>`;
 }
 
 export function render() {
@@ -222,6 +228,14 @@ export function render() {
   const sortearOk = pode('giras:sortear') && !encerrada;
   const existe = !!estado.giras[g.data];
 
+  // Data sem gira (admin): só o card para adicionar o evento.
+  if (editar && !existe) {
+    return `<section class="panel"><div class="card card-novo">
+      <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
+      <div class="row"><div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
+        <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span>${botaoTopo(g, editar, existe)}</div></div></div>
+      <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button></div></section>`;
+  }
   let h = `<section class="panel">
   <div class="card card-gira">
     ${editar && existe ? (estado.confirm === 'rei:' + g.data
@@ -273,7 +287,8 @@ export function render() {
   const antesDoDia = g.pendentePadrao && g.data > hoje();
   const partes = [[cont('pend'), 'pendente', 'pendentes'], [cont('p'), 'presente', 'presentes'], [cont('f'), 'falta', 'faltas'], [cont('a'), 'ausente', 'ausentes'], [cont('lic'), 'de licença', 'de licença'], [contPapel('sup'), 'no suporte', 'no suporte'], [contPapel('na'), 'não atende', 'não atendem']]
     .filter(([n], i) => n || i === 1).map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`).join(' · ');
-  h += `<div class="card"><div class="grp-h"><h2>Presença</h2><span class="count">${partes}</span></div>`;
+  h += `<div class="card">${cabDobra('pres', 'Presença', partes)}`;
+  if (abertos.has('pres')) {
   if (editar && antesDoDia) h += `<div class="warnbox">Antes do dia da gira todos ficam <b>Pendente</b>; dá para marcar só <b>Ausente</b> (quem avisou antes). Presente e Falta são marcados no dia.</div>`;
   if (editar) h += `<p class="muted" style="margin:0;font-size:.88rem">No dia da gira, confirme cada pessoa: <b>Presente</b> para quem foi, <b>Falta</b> para quem avisou em cima da hora e <b>Ausente</b> para quem avisou antes. <b>Pendente</b> (cinza) ainda entra na escala. No segundo campo fica a função do cadastro; troque para <b>Suporte</b> (fora do sorteio) ou <b>Não atende</b> (está na gira e cambona).</p>`;
   FUNCOES.forEach((f) => {
@@ -304,6 +319,7 @@ export function render() {
         return `<div class="pres ${classeStatus(presencaDe(p, g))}"><span class="nm">${esc(p.nome)}${xp}${hoje}</span>${ctl}</div>`;
       }).join('')}</div></div>`;
   });
+  }
   h += `</div>`;
 
   // duplas
@@ -347,17 +363,16 @@ export function render() {
     </div>`;
   };
   const aberto = manual || duplasAbertas.has(g.data);
-  h += `<div class="card"><div class="grp-h"><h2>Sorteio</h2>
-      <div class="row">${manual ? '' : botaoDobrar(aberto)}${sortearOk ? (temDuplas
-        ? '<button class="btn primary" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button>'
-        : '<button class="btn primary" data-act="sortear">Sortear</button>') : ''}
-      ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}
-      </div></div>`;
+  h += `<div class="card"><div class="grp-h"><h2>Sorteio</h2></div>
+      ${sortearOk ? (temDuplas
+        ? '<div class="sort-acoes"><button class="btn primary btn-grande" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button></div>'
+        : '<button class="btn primary btn-grande" data-act="sortear">🎲 Sortear</button>') : ''}
+      ${editar && !passada ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
   if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
   if (!aberto) {
-    h += `${blocosFora(ps, g)}</div>`;
+    h += `${blocosFora(ps, g)}${botaoDobrar(false)}</div>`;
   } else {
   if (!lista.length) h += `<p class="muted">Nenhum médium presente.</p>`;
   else if (!temDuplas && !manual) h += `<p class="muted">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes.${sortearOk ? ' Toque em sortear para montar as duplas.' : ' As duplas ainda não foram sorteadas.'}</p>`;
@@ -389,13 +404,15 @@ export function render() {
       <li>Duplas antigas pesam menos que recentes; quanto mais vezes juntas, menor a chance.</li>
       <li>Os cambones são divididos por igual. Se faltar cambone, alguns acompanham dois médiuns; se sobrar, alguns médiuns ganham dois.</li>
       <li>Duplas fixadas ficam como estão. Entre opções empatadas, a escolha é aleatória.</li>
-    </ul></details></div>`;
+    </ul></details>${manual ? '' : botaoDobrar(true)}</div>`;
   }
 
   // exportação
   const txt = textoWhats(estado.pessoas, g, prefs.fmt, girasLista());
   const imgOk = estado.img && estado.img.data === g.data && estado.img.key === chaveImg();
-  h += `<div class="card"><div class="grp-h"><h2>WhatsApp</h2>
+  h += `<div class="card">${cabDobra('wa', 'WhatsApp')}`;
+  if (!abertos.has('wa')) { h += `</div>`; setTimeout(atualizarJanela, 0); return h + '</section>'; }
+  h += `<div class="row" style="justify-content:flex-end">
     <div class="seg" role="group" aria-label="Formato"><button data-act="fmt" data-v="lista" aria-pressed="${prefs.fmt === 'lista'}">Lista</button><button data-act="fmt" data-v="tabela" aria-pressed="${prefs.fmt === 'tabela'}">Tabela</button></div></div>
     <textarea id="f-txt" readonly aria-label="Texto para o WhatsApp">${esc(txt)}</textarea>
     <div class="row"><button class="btn primary" data-act="copiar">Copiar texto</button>
@@ -418,6 +435,8 @@ export function render() {
 // ---------- ações ----------
 export const cliques = {
   ...cliquesResumo,
+  dobrarcard(el) { const k = el.dataset.k; if (abertos.has(k)) abertos.delete(k); else abertos.add(k); avisar(); },
+  criargira() { abertos.clear(); duplasAbertas.delete(giraAtual().data); editarGira({ entidade: '' }); avisar(); },
   todos(el) {
     const g = giraAtual();
     const pr = { ...(g.presenca || {}) };
