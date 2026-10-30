@@ -56,7 +56,11 @@ export function render() {
   FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
-    h += `<div class="card"><div class="grp-h"><h2>${f.pl}</h2><span class="count">${gp.length}</span></div><div class="ppl">`;
+    const fechado = (prefs.pessoasFechadas || []).includes(f.k);
+    h += `<div class="card"><button class="grp-h dobra" data-act="dobrar" data-f="${f.k}" aria-expanded="${!fechado}" aria-label="${fechado ? 'Expandir' : 'Minimizar'} ${f.pl}">
+      <h2>${f.pl}</h2><span class="count">${gp.length} <span class="seta" aria-hidden="true">${fechado ? '▸' : '▾'}</span></span></button>`;
+    if (fechado) { h += `</div>`; return; }
+    h += `<div class="ppl">`;
     gp.forEach((p) => {
       if (!editar) {
         h += `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(p.nome)}</span>${resumoLinhas(p)}</span>${p.funcao === 'medium' && p.experiente ? '<span class="muted" style="font-size:.85rem">pode ter passe junto</span>' : ''}</div>`;
@@ -77,6 +81,15 @@ export function render() {
 }
 
 export const cliques = {
+  // Minimiza / expande o bloco de uma função (lembra no aparelho).
+  dobrar(el) {
+    const k = el.dataset.f;
+    const set = new Set(prefs.pessoasFechadas || []);
+    if (set.has(k)) set.delete(k); else set.add(k);
+    prefs.pessoasFechadas = [...set];
+    salvarPrefs();
+    avisar();
+  },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
   ren(el) {
     estado.renomear = el.dataset.id;
