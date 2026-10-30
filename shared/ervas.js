@@ -131,10 +131,20 @@ export function csvPedidos(resumo) {
   return '﻿' + linhas.map((l) => l.map(cel).join(';')).join('\r\n');
 }
 
+// Linha da gira do pedido: "Gira: Caboclo · 31/10/2026" (evento = { gira, data: 'AAAA-MM-DD' }).
+export function linhaEvento(evento) {
+  if (!evento) return '';
+  const partes = [];
+  if (evento.gira) partes.push(/^gira\b/i.test(evento.gira) ? evento.gira : 'Gira: ' + evento.gira);
+  if (evento.data) { const [y, m, d] = evento.data.split('-'); partes.push(`${d}/${m}/${y}`); }
+  return partes.join(' · ');
+}
+
 // ---------- Pedido ao fornecedor: erva + quantidade total (sem valores) ----------
-export function textoFornecedor(resumo, data = new Date()) {
+export function textoFornecedor(resumo, data = new Date(), evento = null) {
   const tot = totaisPorErva(resumo);
-  const L = ['*PEDIDO DE ERVAS · ' + data.toLocaleDateString('pt-BR') + '*', ''];
+  const ev = linhaEvento(evento);
+  const L = ['*PEDIDO DE ERVAS · ' + data.toLocaleDateString('pt-BR') + '*', ...(ev ? [ev] : []), ''];
   tot.forEach((t) => L.push(`• ${t.nome}: ${t.quantidade}`));
   L.push('');
   L.push(`Total: ${tot.reduce((a, t) => a + t.quantidade, 0)} itens, ${tot.length} erva${tot.length === 1 ? '' : 's'}`);
@@ -149,8 +159,10 @@ export function csvFornecedor(resumo) {
 
 // ---------- Cobrança: quanto cada pessoa paga ----------
 // Só faz sentido com todos os preços definidos (resumo.faltamPrecos vazio).
-export function textoCobranca(resumo, data = new Date()) {
+export function textoCobranca(resumo, data = new Date(), evento = null) {
   const L = ['*COBRANÇA DAS ERVAS · ' + data.toLocaleDateString('pt-BR') + '*'];
+  const ev = linhaEvento(evento);
+  if (ev) L.push(ev);
   if (resumo.totalFrete) L.push(`Frete: ${reais(resumo.totalFrete)} ÷ ${resumo.pessoas.length} pessoas`);
   L.push('');
   resumo.pessoas.forEach((p) => {

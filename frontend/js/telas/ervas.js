@@ -1,6 +1,6 @@
 // Tela "Ervas": escolher as ervas da compra coletiva; o admin cadastra, define o frete e exporta.
 
-import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca, normalizarNome } from '/shared/ervas.js';
+import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca, normalizarNome, linhaEvento } from '/shared/ervas.js';
 import { estado, pode, carregarErvas, escolherErva, acaoErvas, salvarPedidoDe, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 
@@ -113,6 +113,11 @@ function cardStatus(E) {
 function cardCompra(E) {
   return `<div class="card"><h2>Compra</h2>
     <div class="row">
+      <label class="field grow">Nome da gira<input type="text" id="ev-gira" maxlength="80" value="${esc(E.gira || '')}" placeholder="Ex.: Gira de Caboclo"></label>
+      <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="ev-data" value="${esc(E.data || '')}"></label>
+      <button class="btn" data-act="evento">Salvar gira</button>
+    </div>
+    <div class="row">
       <label class="field" style="flex:0 1 180px">Frete total (R$)<input type="text" inputmode="decimal" id="ev-frete" value="${(Number(E.frete) || 0).toFixed(2).replace('.', ',')}"></label>
       <button class="btn" data-act="frete">Salvar frete</button>
       <button class="btn ${E.aberta ? '' : 'primary'}" data-act="abrir" data-v="${E.aberta ? '0' : '1'}">${E.aberta ? 'Fechar lista' : 'Reabrir lista'}</button>
@@ -164,7 +169,8 @@ function cardPedidos(E) {
     </div>
     ${faltam ? `<p class="muted" style="margin:0;font-size:.85rem">A cobrança libera quando todas as ervas pedidas tiverem preço. Faltam: ${r.faltamPrecos.map(esc).join(', ')}.</p>` : ''}`;
   if (vista === 'fornecedor' || (vista === 'cobranca' && !faltam)) {
-    const txt = vista === 'fornecedor' ? textoFornecedor(r) : textoCobranca(r);
+    const ev = { gira: E.gira, data: E.data };
+    const txt = vista === 'fornecedor' ? textoFornecedor(r, new Date(), ev) : textoCobranca(r, new Date(), ev);
     const titulo = vista === 'fornecedor' ? 'Pedido ao fornecedor' : 'Cobrança';
     const dica = vista === 'fornecedor'
       ? 'Cada erva com a quantidade total pedida. Envie ao fornecedor.'
@@ -186,10 +192,19 @@ function cardPedidos(E) {
   return h + `</div>`;
 }
 
+// Cabeçalho com a gira e a data do pedido (todos veem; só o admin altera, no quadro Compra).
+function cabecalho(E) {
+  const ev = linhaEvento({ gira: E.gira, data: E.data });
+  if (!ev) return '';
+  const [y, m, d] = (E.data || '').split('-');
+  return `<div class="card"><div class="datehead"><span class="eyebrow">Pedido de ervas</span>
+    ${E.data ? `<span class="dia">${d}/${m}/${y}</span>` : ''}${E.gira ? `<span class="ent">${esc(E.gira)}</span>` : ''}</div></div>`;
+}
+
 export function render() {
   if (estado.ervas === null) { carregarErvas(); return `<div class="loading">Carregando ervas…</div>`; }
   const E = estado.ervas;
-  let h = `<section class="panel">${cardEscolha(E)}`;
+  let h = `<section class="panel">${cabecalho(E)}${cardEscolha(E)}`;
   if (pode('ervas:gerenciar')) h += (E.ervas.length ? cardPedidoDe(E) : '') + cardCompra(E) + cardCatalogo(E) + cardPedidos(E);
   else h += cardStatus(E);
   return h + `</section>`;
@@ -200,6 +215,7 @@ const val = (id) => document.getElementById(id)?.value ?? '';
 export const cliques = {
   mais(el) { escolherErva(el.dataset.id, Math.min(99, qtdDe(el.dataset.id) + 1)); },
   menos(el) { escolherErva(el.dataset.id, Math.max(0, qtdDe(el.dataset.id) - 1)); },
+  async evento() { if (await acaoErvas('config', { gira: val('ev-gira'), data: val('ev-data') })) toast('Gira do pedido salva.'); },
   async frete() { if (await acaoErvas('config', { frete: val('ev-frete') })) toast('Frete salvo.'); },
   async abrir(el) { if (await acaoErvas('config', { aberta: el.dataset.v === '1' })) toast(el.dataset.v === '1' ? 'Lista reaberta.' : 'Lista fechada.'); },
   async salvarerva(el) {

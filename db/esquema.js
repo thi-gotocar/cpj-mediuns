@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 8;
+export const VERSAO = 9;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -351,11 +351,16 @@ export const MIGRACOES = [
    )`,
   `insert into sistema (chave, valor) values ('ervas_frete', '0') on conflict (chave) do nothing`,
   `insert into sistema (chave, valor) values ('ervas_aberta', 'true') on conflict (chave) do nothing`,
+  // v9: nome da gira e data do evento do pedido (só o admin altera)
+  `insert into sistema (chave, valor) values ('ervas_gira', '') on conflict (chave) do nothing`,
+  `insert into sistema (chave, valor) values ('ervas_data', '') on conflict (chave) do nothing`,
   `create or replace function ervas_estado(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select jsonb_build_object(
        'frete', coalesce((select valor::numeric from sistema where chave = 'ervas_frete'), 0),
        'aberta', coalesce((select valor = 'true' from sistema where chave = 'ervas_aberta'), true),
+       'gira', coalesce((select valor from sistema where chave = 'ervas_gira'), ''),
+       'data', coalesce((select valor from sistema where chave = 'ervas_data'), ''),
        'ervas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'preco', e.preco) order by lower(e.nome))
                           from ervas e), '[]'::jsonb),
        -- Quem tem conta aparece sempre com o nome cadastrado atual.
@@ -393,6 +398,12 @@ export const MIGRACOES = [
    begin
      if p ? 'frete' then
        update sistema set valor = ((p ->> 'frete')::numeric(10, 2))::text where chave = 'ervas_frete';
+     end if;
+     if p ? 'gira' then
+       update sistema set valor = p ->> 'gira' where chave = 'ervas_gira';
+     end if;
+     if p ? 'data' then
+       update sistema set valor = p ->> 'data' where chave = 'ervas_data';
      end if;
      if p ? 'aberta' then
        update sistema set valor = case when (p ->> 'aberta')::boolean then 'true' else 'false' end where chave = 'ervas_aberta';

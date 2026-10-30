@@ -268,6 +268,12 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
     .ervas.find((x) => x.id === espada.id).preco, 4.5);
   await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: espada.id });
   assert.equal((await api('POST', '/api/ervas', USER, { acao: 'salvarErva', nome: 'X', preco: 1 })).status, 403);
+  // Nome da gira e data do evento do pedido: só o admin altera; todos veem.
+  assert.equal((await api('POST', '/api/ervas', USER, { acao: 'config', gira: 'X' })).status, 403);
+  assert.equal((await api('POST', '/api/ervas', ADMIN, { acao: 'config', data: '2026-02-30' })).status, 400);
+  const ev = (await api('POST', '/api/ervas', ADMIN, { acao: 'config', gira: ' Gira de  Caboclo ', data: '2026-11-07' })).json;
+  assert.deepEqual([ev.gira, ev.data], ['Gira de Caboclo', '2026-11-07']);
+  assert.equal((await api('GET', '/api/ervas', USER)).json.gira, 'Gira de Caboclo');
   let e = (await api('POST', '/api/ervas', ADMIN, { acao: 'config', frete: '12' })).json;
   assert.equal(e.frete, 12);
   const [arruda, guine] = ['Arruda', 'Guiné'].map((n) => e.ervas.find((x) => x.nome === n));

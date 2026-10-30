@@ -74,6 +74,7 @@ test('pedido ao fornecedor (sem valores) e cobrança por pessoa', () => {
   assert.match(forn, /• Arruda: 3/);
   assert.match(forn, /• Guiné: 1/);
   assert.doesNotMatch(forn, /R\$/, 'o pedido ao fornecedor não leva valores');
+  assert.match(textoFornecedor(r, new Date(), { gira: 'Caboclo', data: '2026-11-07' }), /\nGira: Caboclo · 07\/11\/2026\n/);
   assert.equal(csvFornecedor(r), '\uFEFFErva;Quantidade;Pessoas que pediram\r\nArruda;3;2\r\nGuiné;1;1');
   lista[1].preco = 7.5;
   const r2 = calcularPedidos(lista, escolhas, 10);

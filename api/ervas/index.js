@@ -4,8 +4,8 @@
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //                     admin: { para: { chave?, nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin:
-//        salvarErva { id?, nome, preco? } (preço vazio = a definir) · excluirErva { id } · config { frete?, aberta? } · novaCompra
-import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
+//        salvarErva { id?, nome, preco? } (preço vazio = a definir) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
+import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
@@ -17,6 +17,8 @@ function resposta(estado, eu) {
   const base = {
     frete: Number(estado.frete),
     aberta: estado.aberta,
+    gira: estado.gira || '',
+    data: estado.data || '',
     ervas: estado.ervas.map((e) => ({ ...e, preco: e.preco === null ? null : Number(e.preco) })),
     minhas: estado.escolhas.filter((s) => s.chave === chave).map(({ ervaId, quantidade }) => ({ ervaId, quantidade })),
     eu: { chave, nome: eu.nome },
@@ -82,6 +84,11 @@ export default rota({
         const p = {};
         if ('frete' in b) p.frete = valor(b.frete, 'Frete');
         if ('aberta' in b) p.aberta = !!b.aberta;
+        if ('gira' in b) {
+          p.gira = String(b.gira ?? '').replace(/\s+/g, ' ').trim();
+          if (p.gira.length > 80) throw new HttpError(400, 'Nome da gira muito longo.');
+        }
+        if ('data' in b) p.data = b.data ? validarData(String(b.data)) : '';
         estado = await db.rpc('ervas_config', p);
         break;
       }
