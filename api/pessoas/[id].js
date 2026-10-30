@@ -1,6 +1,7 @@
-// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente?, linhas?, limpeza? (1 a 7 ou null) }
+// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente?, linhas?, limpeza? (1 a 7 ou null), entrada? ('AAAA-MM-DD' ou null; só o admin root) }
 // DELETE /api/pessoas/:id
-import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
+import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
+import { pode } from '../../shared/permissoes.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { FUNCAO_KEYS, LINHA_KEYS, TURMAS_LIMPEZA } from '../../shared/regras.js';
@@ -15,7 +16,7 @@ function validarTurma(v) {
 
 export default rota({
   PATCH: async (req) => {
-    await exigir(req, 'pessoas:editar');
+    const eu = await exigir(req, 'pessoas:editar');
     const id = validarId(req.query.id);
     const b = corpo(req);
     const p = { id };
@@ -34,6 +35,10 @@ export default rota({
       p.linhas = [...new Set(b.linhas)];
     }
     if ('limpeza' in b) p.limpeza = validarTurma(b.limpeza);
+    if ('entrada' in b) {
+      if (!pode(eu.papel, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root altera a entrada na corrente.');
+      p.entrada = b.entrada ? validarData(String(b.entrada)) : null;
+    }
     return db.rpc('pessoas_atualizar', p);
   },
   DELETE: async (req) => {

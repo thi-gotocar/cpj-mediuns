@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, presencaDe, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -91,7 +91,7 @@ function cardGiraAntiga(ps) {
 // Presença da corrente na gira: presentes (presente, não atende, suporte) sobre toda a corrente,
 // licenças incluídas (a mesma conta do resumo compartilhado no WhatsApp).
 function presencaGira(ps, g) {
-  const sts = ps.map((p) => presencaDe(p, g)).filter((st) => st !== 'pend');   // pendente ainda não conta
+  const sts = ps.filter((p) => naCorrenteEm(p, g.data)).map((p) => presencaDe(p, g)).filter((st) => st !== 'pend');   // pendente ainda não conta
   const pres = sts.filter((st) => st === 'p').length;
   return { pres, base: sts.length, pct: sts.length ? Math.round((pres / sts.length) * 100) : null };
 }
@@ -124,6 +124,7 @@ function cardEstatisticas(todas, ps) {
   const porPessoa = ps.map((p) => {
     let pres = 0, aus = 0, f = 0, base = 0;
     gs.forEach((g) => {
+      if (!naCorrenteEm(p, g.data)) return;   // antes de entrar na corrente
       const st = presencaDe(p, g);
       if (st === 'lic' || st === 'pend') return;
       base++;
@@ -203,7 +204,7 @@ export function render() {
     h += `<div class="hist">`;
     gs.forEach((g) => {
       // Presentes = quem esteve na gira (presente, não atende ou suporte).
-      const n = (...sts) => ps.filter((p) => sts.includes(status(p, g))).length;
+      const n = (...sts) => ps.filter((p) => naCorrenteEm(p, g.data) && sts.includes(status(p, g))).length;
       const nLic = n('lic');
       const conf = estado.confirm === 'g:' + g.data;
       const pr = presencaGira(ps, g);

@@ -1,7 +1,7 @@
 // Tela "Usuários" (só admin): quem acessa o app e com qual perfil.
 
 import { PERMISSOES, PAPEIS, SEM_CADASTRO } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, avisar } from '../estado.js';
+import { estado, pessoasOrd, carregarUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, avisar } from '../estado.js';
 import { esc, toast } from '../util.js';
 
 const DESCRICAO = {
@@ -28,6 +28,24 @@ const pessoasLivres = (manter = null) => {
   const ocupadas = new Set(estado.usuarios.map((u) => u.pessoaId).filter((id) => id && id !== manter));
   return pessoasOrd().filter((p) => !ocupadas.has(p.id));
 };
+
+// Entrada de cada pessoa na corrente (só o root): antes dessa data ela não conta nas giras.
+const FUNC = { medium: 'Médium', cambone: 'Cambone', passe: 'Passe', extra: 'At. Extra', senha: 'Senha', curimba: 'Curimba' };
+function cardEntrada() {
+  const aberto = !!estado.entradaAberta;
+  const ps = pessoasOrd();
+  const com = ps.filter((p) => p.entrada).length;
+  let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarentrada" aria-expanded="${aberto}"><h2>Entrada na corrente</h2><span class="count">${com ? `${com} com data` : ''} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  if (!aberto) return h + `</div>`;
+  const busca = (estado.entradaBusca || '').trim().toLowerCase();
+  const lista = ps.filter((p) => !busca || p.nome.toLowerCase().includes(busca));
+  h += `<p class="muted" style="margin:0;font-size:.85rem">A pessoa só conta nas giras a partir da data de entrada (presença, faltas, sorteio, limpeza e estatísticas). Sem data, conta em todas.</p>
+    <input type="text" id="ent-busca" data-act="entradabusca" placeholder="Procurar pelo nome…" value="${esc(estado.entradaBusca || '')}" autocomplete="off">
+    <div class="ppl">${lista.map((p) => `<div class="pp ent-l"><span class="nmcell"><span class="nm">${esc(p.nome)}</span><span class="muted" style="font-size:.82rem">${FUNC[p.funcao] || p.funcao}</span></span>
+      <input type="date" id="ent-${p.id}" data-act="entrada" data-id="${p.id}" value="${p.entrada || ''}" aria-label="Entrada de ${esc(p.nome)} na corrente">
+      ${p.entrada ? `<button class="btn small" data-act="limparentrada" data-id="${p.id}" aria-label="Tirar a data de ${esc(p.nome)}">✕</button>` : '<span></span>'}</div>`).join('') || '<p class="muted" style="margin:0">Ninguém com esse nome.</p>'}</div>`;
+  return h + `</div>`;
+}
 
 export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
@@ -73,7 +91,7 @@ export function render() {
       <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
       ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
   });
-  h += `</div></div>
+  h += `</div></div>${cardEntrada()}
   <div class="card"><h2>O que cada perfil pode fazer</h2><div class="perm">
     ${Object.entries(PAPEIS).map(([k, v]) => `<div><h3>${v}</h3>${k === 'root' ? '<p class="muted" style="margin:0;font-size:.85rem">Igual ao Admin, e é o único que vê a aba Usuários. Não precisa ter cadastro na corrente.</p>' : ''}<ul>${PERMISSOES[k].map((p) => `<li>${DESCRICAO[p] || p}</li>`).join('')}</ul></div>`).join('')}
   </div></div></section>`;
@@ -97,6 +115,8 @@ export const cliques = {
     if (inp) { inp.focus(); if (inp.tagName === 'INPUT') inp.select(); }
   },
   cancelauren() { estado.renomearUsuario = null; avisar(); },
+  dobrarentrada() { estado.entradaAberta = !estado.entradaAberta; avisar(); },
+  limparentrada(el) { atualizarPessoa(el.dataset.id, { entrada: null }); },
 };
 
 // Salva o nome (root sem cadastro) ou a pessoa da corrente ligada ao usuário.
@@ -119,6 +139,7 @@ export async function renomear(form) {
 }
 
 export const mudancas = {
+  entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
   papel(t) { atualizarUsuario(t.dataset.id, { papel: t.value }); },
   // Novo usuário: root pode ter só um nome; os outros escolhem a pessoa da corrente.
     papelnovo(t) {

@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, presencaDe, papelDe, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, presencaDe, papelDe, naCorrenteEm, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -128,6 +128,8 @@ const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone
 function blocoEu(g) {
   const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p) return '';
+  if (!naCorrenteEm(p, g.data)) return `<div class="card eu"><div class="grp-h"><span class="eyebrow">Você nesta gira</span></div>
+    <div class="eu-nome"><b>${esc(p.nome)}</b></div><p class="muted" style="margin:0">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}: esta gira ainda não conta para você.</p></div>`;
   const curimba = ehCurimba(p);
   const st = curimba ? 'p' : status(p, g);
   const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
@@ -145,7 +147,6 @@ function blocoEu(g) {
   } else if (st === 'a') fora('❌ Você está marcado como <b>ausente</b> nesta gira.');
   else if (st === 'f') fora('🚫 Você está marcado com <b>falta</b> nesta gira.');
   else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
-  if (!curimba && presencaDe(p, g) === 'pend') aviso('Sua presença ainda não foi confirmada.');
   else if (curimba) lin('Função', 'Curimba');
   else if (funcao === 'senha') lin('Função', 'Senha');
   else if (!sorteado) aviso('A escala desta gira ainda não foi sorteada.');
@@ -170,6 +171,7 @@ function blocoEu(g) {
       camsDe(m).forEach((c) => lin('Cambone do médium', esc(nome(c))));
     });
   }
+  if (!curimba && presencaDe(p, g) === 'pend') aviso('Sua presença ainda não foi confirmada.');
   // Turma da limpeza
   const Lp = limpezaDaGira(estado.pessoas, g, girasLista());
   if (Lp && st !== 'lic') {
@@ -201,7 +203,7 @@ function resultado(g) {
   if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
   const aberto = duplasAbertas.has(g.data);
   let h = `<div class="card"><div class="grp-h"><h2>Sorteio</h2></div>`;
-  if (!aberto) return h + `${blocosFora(pessoasOrd().filter(contaNaPresenca), g)}${botaoDobrar(false)}</div>`;
+  if (!aberto) return h + `${blocosFora(pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data)), g)}${botaoDobrar(false)}</div>`;
   h += `<div class="pairs">`;
   lista.forEach((x) => {
     h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span><span></span><div class="cams">`;
@@ -214,13 +216,14 @@ function resultado(g) {
   gruposExtras(estado.pessoas, g, girasLista()).forEach(([t, nomes]) => {
     h += `<div class="grp"><h3>${t}</h3><p style="margin:0">${nomes.map(esc).join(', ')}</p></div>`;
   });
-  h += blocosFora(pessoasOrd().filter(contaNaPresenca), g);
+  h += blocosFora(pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data)), g);
   return h + `${botaoDobrar(true)}</div>`;
 }
 
 export function render() {
-  const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
   const g = giraAtual();
+  // Curimba fica fora da presença; quem entrou na corrente depois desta data também.
+  const ps = pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
   const admin = pode('giras:editar');
   const encerrada = !!g.encerrada;
   // Gira encerrada não muda até ser reaberta.

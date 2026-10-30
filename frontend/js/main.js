@@ -188,6 +188,7 @@ main.addEventListener('change', (e) => {
 
 main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoCorrente(e.target.value));
+  if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
 });
 
 main.addEventListener('submit', async (e) => {

@@ -158,3 +158,23 @@ test('função do dia separada da presença (Suporte / Não atende)', async () =
   assert.equal(presencaDe(ana, antiga), 'p');
   assert.equal(papelDe(ana, antiga), 'sup');
 });
+
+test('entrada na corrente: antes da data a pessoa não conta na gira', async () => {
+  const { daGira, pendentesDaGira, sortear, limpezaDaGira, giraVazia } = await import('../shared/regras.js');
+  const { dadosResumo } = await import('../shared/resumoGira.js');
+  const ps = [
+    { id: 'a', nome: 'Ana', funcao: 'medium', limpeza: 1 },
+    { id: 'b', nome: 'Bia', funcao: 'cambone', limpeza: 1 },
+    { id: 'n', nome: 'Nova', funcao: 'cambone', limpeza: 1, entrada: '2026-11-10' },
+  ];
+  const antes = { ...giraVazia('2026-11-04'), limpeza: 1 };
+  const depois = { ...giraVazia('2026-11-11'), limpeza: 1 };
+  assert.deepEqual(daGira(ps, antes).map((p) => p.id), ['a', 'b']);
+  assert.deepEqual(daGira(ps, depois).map((p) => p.id), ['a', 'b', 'n']);
+  assert.equal(pendentesDaGira(ps, antes).length, 2);
+  assert.ok(!sortear(ps, [], antes).patch.pares.some((p) => p.c === 'n'), 'não entra no sorteio antes da entrada');
+  assert.deepEqual(limpezaDaGira(ps, antes, []).membros.map((p) => p.id), ['a', 'b']);
+  const r = dadosResumo(ps, { ...antes, presenca: { a: 'p', b: 'p' } });
+  assert.equal(r.presentes.length, 2);
+  assert.equal(r.pct.presenca, 100);
+});

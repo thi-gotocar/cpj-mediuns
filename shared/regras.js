@@ -107,8 +107,12 @@ export function funcaoNaGira(p, g) {
 }
 
 // Lista de pessoas com a função que cada uma exerce nesta gira.
+// Entrada na corrente: antes dessa data a pessoa não conta na gira (nem presença, nem sorteio, nem limpeza).
+export const naCorrenteEm = (p, data) => !p?.entrada || !data || p.entrada <= data;
+export const daGira = (pessoas, g) => pessoas.filter((p) => naCorrenteEm(p, g.data));
+
 export function pessoasDaGira(pessoas, g) {
-  return pessoas.map((p) => {
+  return daGira(pessoas, g).map((p) => {
     const f = funcaoNaGira(p, g);
     return f === p.funcao ? p : { ...p, funcao: f, funcaoCadastro: p.funcao };
   });
@@ -169,7 +173,8 @@ export function giraAnteriorComLimpeza(giras, data) {
 }
 
 // { turma, membros, deLicenca, ajudantes, anterior } ou null se a gira não tem turma definida.
-export function limpezaDaGira(pessoas, g, giras) {
+export function limpezaDaGira(todas, g, giras) {
+  const pessoas = daGira(todas, g);
   if (!temLimpeza(g) || !TURMAS_LIMPEZA.includes(Number(g.limpeza))) return null;
   const turma = Number(g.limpeza);
   const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
@@ -438,7 +443,7 @@ export function paresPorMedium(pessoas, g) {
 // Encerrar a gira: todo presente precisa aparecer na escala.
 // Quem estava para cambonar (ou médium de passe) e não ficou com nenhum médium vai para o Suporte.
 // Quem ainda está com a presença pendente (não pode encerrar a gira assim).
-export const pendentesDaGira = (pessoas, g) => pessoas.filter((p) => contaNaPresenca(p) && presencaDe(p, g) === 'pend');
+export const pendentesDaGira = (pessoas, g) => daGira(pessoas, g).filter((p) => contaNaPresenca(p) && presencaDe(p, g) === 'pend');
 
 // Duplas que envolvem quem faltou ou mudou de status são descartadas.
 export function encerrar(pessoas, g) {

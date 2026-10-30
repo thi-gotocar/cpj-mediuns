@@ -674,3 +674,12 @@ test('reiniciar gira em aberto: volta tudo ao início, só a data fica', async (
   assert.equal(r.gira.pendentePadrao, true);
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });
+
+test('entrada na corrente: só o admin root altera', async () => {
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const p = ps[0];
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { entrada: '2026-02-30' })).status, 400);
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { entrada: '2026-03-01' })).json.entrada, '2026-03-01');
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, USER, { entrada: '2026-03-01' })).status, 403);
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { entrada: null })).json.entrada, null);
+});

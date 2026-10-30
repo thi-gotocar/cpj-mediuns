@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 29;  // v29: função do dia (Suporte / Não atende) separada da presença
+export const VERSAO = 30;  // v30: data de entrada na corrente
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -52,6 +52,8 @@ export const MIGRACOES = [
   `alter table pessoas add column if not exists linhas text[] not null default '{}'`,
   // v23: turma da limpeza (1 a 7) da pessoa e a turma responsável pela gira
   `alter table pessoas add column if not exists limpeza smallint check (limpeza between 1 and 7)`,
+  // v30: entrada na corrente: antes dessa data a pessoa não conta nas giras (vazio = sempre contou)
+  `alter table pessoas add column if not exists entrada date`,
   // v17: o usuário é uma pessoa da corrente (o nome vem do cadastro); só o root pode não ter
   `alter table usuarios add column if not exists pessoa_id uuid references pessoas (id) on delete set null`,
   `create unique index if not exists usuarios_pessoa_unica on usuarios (pessoa_id) where pessoa_id is not null`,
@@ -242,7 +244,7 @@ export const MIGRACOES = [
   `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza,
+       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza, p.entrada,
               coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
                         from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas
        from pessoas p
@@ -303,10 +305,11 @@ export const MIGRACOES = [
        linhas     = case when p ? 'linhas'
                          then array(select distinct jsonb_array_elements_text(p -> 'linhas') order by 1)
                          else linhas end,
-       limpeza    = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else limpeza end
+       limpeza    = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else limpeza end,
+       entrada    = case when p ? 'entrada' then nullif(p ->> 'entrada', '')::date else entrada end
      where id = v_id;
      if not found then raise exception 'Pessoa não encontrada.'; end if;
-     return (select to_jsonb(x) from (select id, nome, funcao, experiente, linhas, limpeza from pessoas where id = v_id) x);
+     return (select to_jsonb(x) from (select id, nome, funcao, experiente, linhas, limpeza, entrada from pessoas where id = v_id) x);
    end;
    $$`,
   `create or replace function pessoas_excluir(p jsonb)

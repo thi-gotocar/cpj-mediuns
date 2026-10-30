@@ -433,3 +433,5 @@ body.deslogado .rodape{display:none}
 .sort-acoes{display:grid;grid-template-columns:2fr 1fr;gap:8px}
 .ver-mais{justify-self:center}
 .card-novo .btn-grande{margin-top:4px}
+.pp.ent-l{grid-template-columns:minmax(0,1fr) 150px 36px;align-items:center}
+.pp.ent-l input[type=date]{padding:6px 8px;font-size:.9rem}

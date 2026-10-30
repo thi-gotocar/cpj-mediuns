@@ -46,6 +46,10 @@ export default rota({
         await db.rpc('pessoas_atualizar', { id: atual.id, experiente: true });
         atual.experiente = true;
       }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(p.entrada || '')) && !atual.entrada) {
+        await db.rpc('pessoas_atualizar', { id: atual.id, entrada: p.entrada });
+        atual.entrada = p.entrada;
+      }
       if ([1, 2, 3, 4, 5, 6, 7].includes(p.limpeza) && !atual.limpeza) {
         await db.rpc('pessoas_atualizar', { id: atual.id, limpeza: p.limpeza });
         atual.limpeza = p.limpeza;
