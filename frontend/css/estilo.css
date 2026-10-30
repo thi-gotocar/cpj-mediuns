@@ -286,3 +286,10 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .ga-colar textarea{min-height:140px;font-family:var(--f-mono);font-size:.82rem}
 .ga-rel{display:grid;gap:8px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
 .ga-map select{width:100%}
+.dv{display:flex;gap:8px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;border:1px solid #e8b4ae;background:#fbe0de;color:#7d2a23;border-radius:8px;padding:8px 10px;font-size:.88rem}
+.dv .ga-map{flex:1 1 220px;color:inherit}
+.dv .btn{border-color:#a2423a;color:#a2423a;background:#fff}
+.dv.ok{border-color:#b6dfc5;background:#e6f5ec;color:#1d6b3f}
+.dv.ok .btn{border-color:#2f9e5b;color:#1d6b3f}
+.dv-n{color:#a2423a;font-weight:700}
+.ok-n{color:#1d6b3f;font-weight:700}

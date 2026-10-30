@@ -5,24 +5,42 @@ import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, 
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 
-// Resultado da leitura da mensagem: o que foi reconhecido e o que precisa de ajuste.
+// Resultado da leitura da mensagem. Tudo o que ficou em dúvida aparece em vermelho, com opção de
+// corrigir e um botão Aceitar; só dá para gravar depois de aceitar todos.
+const duvidas = (F) => (F.relatorio ? F.relatorio.casados.filter((c) => c.duvida) : []);
+const pendentes = (F) => {
+  if (!F.relatorio) return 0;
+  return duvidas(F).filter((c) => !c.aceito).length + (F.relatorio.semData && !F.relatorio.dataOk ? 1 : 0) + (F.relatorio.diferenca && !F.relatorio.contagemOk ? 1 : 0);
+};
+
 function relatorioResumo(F, ps) {
   const R = F.relatorio;
   if (!R) return '';
   const g = { data: F.data, presenca: F.presenca };
   const n = (...st) => ps.filter((p) => st.includes(status(p, g))).length;
-  let h = `<div class="ga-rel"><b>Mensagem lida.</b>
-    <div class="muted" style="font-size:.88rem">Na mensagem: ${R.contagem.presentes ?? '?'} presentes · ${R.contagem.ausentes ?? '?'} ausentes${R.contagem.licenca ? ` · ${R.contagem.licenca} em licença` : ''}.
-      No app: ${n('p', 'na', 'sup')} presentes · ${n('a', 'f')} ausentes${n('lic') ? ` · ${n('lic')} de licença` : ''} (de ${ps.length} na corrente).</div>`;
-  const prov = R.casados.filter((c) => c.pessoa && c.provavel);
-  if (prov.length) h += `<div style="font-size:.88rem">Confira (reconhecidos por aproximação): ${prov.map((c) => `${esc(c.lido)} → <b>${esc(c.pessoa.nome)}</b>`).join(' · ')}</div>`;
-  const faltam = R.casados.map((c, i) => ({ ...c, i })).filter((c) => !c.pessoa);
-  if (faltam.length) {
-    h += `<div class="warnbox">Não achei na corrente — escolha quem é (ou deixe em branco para ignorar):</div>
-      ${faltam.map((c) => `<label class="field ga-map">${esc(c.lido)}${c.licenca ? ' (em licença)' : ''}<select data-act="gamap" data-i="${c.i}"><option value="">— ignorar —</option>
-        ${c.candidatos.length ? `<optgroup label="Parecidos">${c.candidatos.map((nm) => { const p = ps.find((x) => x.nome === nm); return p ? `<option value="${p.id}" ${c.escolhido === p.id ? 'selected' : ''}>${esc(p.nome)}</option>` : ''; }).join('')}</optgroup>` : ''}
-        <optgroup label="Todos">${ps.map((p) => `<option value="${p.id}" ${c.escolhido === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</optgroup></select></label>`).join('')}`;
+  const pres = n('p', 'na', 'sup'), aus = n('a', 'f');
+  R.diferenca = (R.contagem.presentes != null && R.contagem.presentes !== pres) || (R.contagem.ausentes != null && R.contagem.ausentes !== aus);
+  const falta = pendentes(F);
+  let h = `<div class="ga-rel"><div class="grp-h"><b>Mensagem lida</b><span class="count">${falta ? `<span class="dv-n">${falta} para conferir</span>` : '<span class="ok-n">tudo conferido</span>'}</span></div>`;
+  // data
+  if (R.semData) {
+    h += `<div class="dv ${R.dataOk ? 'ok' : ''}"><span>Não achei a data na mensagem. Escolha a data acima.</span>
+      <button class="btn small" data-act="gaaceitar" data-k="data" ${F.data ? '' : 'disabled'}>${R.dataOk ? 'Aceito ✓' : 'Aceitar'}</button></div>`;
   }
+  // contagem
+  h += `<div class="dv ${!R.diferenca || R.contagemOk ? 'ok' : ''}"><span>Na mensagem: <b>${R.contagem.presentes ?? '?'}</b> presentes · <b>${R.contagem.ausentes ?? '?'}</b> ausentes.
+      No app: <b>${pres}</b> presentes · <b>${aus}</b> ausentes (de ${ps.length} na corrente)${R.diferenca ? '. Os números não batem: confira se falta alguém cadastrado ou algum nome abaixo.' : '.'}</span>
+    ${R.diferenca ? `<button class="btn small" data-act="gaaceitar" data-k="contagem">${R.contagemOk ? 'Aceito ✓' : 'Aceitar'}</button>` : ''}</div>`;
+  // nomes em dúvida
+  R.casados.forEach((c, i) => {
+    if (!c.duvida) return;
+    const motivo = c.provavelId ? 'reconhecido por aproximação' : c.candidatos.length ? 'mais de uma pessoa parecida' : 'não achei na corrente';
+    h += `<div class="dv ${c.aceito ? 'ok' : ''}"><label class="field ga-map"><span>“${esc(c.lido)}”${c.licenca ? ' (em licença)' : ''} · <i>${motivo}</i></span>
+      <select data-act="gamap" data-i="${i}"><option value="" ${c.escolhido ? '' : 'selected'}>— ignorar (não marcar ninguém) —</option>
+        ${c.candidatos.length ? `<optgroup label="Parecidos">${c.candidatos.map((nm) => { const p = ps.find((x) => x.nome === nm); return p ? `<option value="${p.id}" ${c.escolhido === p.id ? 'selected' : ''}>${esc(p.nome)}</option>` : ''; }).join('')}</optgroup>` : ''}
+        <optgroup label="Todos">${ps.map((p) => `<option value="${p.id}" ${c.escolhido === p.id && !c.candidatos.includes(p.nome) ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</optgroup></select></label>
+      <button class="btn small" data-act="gaaceitar" data-k="nome" data-i="${i}">${c.aceito ? 'Aceito ✓' : 'Aceitar'}</button></div>`;
+  });
   return h + `</div>`;
 }
 
@@ -133,14 +151,19 @@ export const cliques = {
     const casados = [
       ...casarNomes(r.ausentes, ps),
       ...casarNomes(r.licenca, ps).map((c) => ({ ...c, licenca: true })),
-    ];
+    ].map((c) => {
+      // Em dúvida: reconhecido por aproximação ou não reconhecido.
+      const duvida = !c.pessoa || !!c.provavel;
+      if (c.provavel && c.pessoa && !c.candidatos.includes(c.pessoa.nome)) c.candidatos = [c.pessoa.nome, ...c.candidatos];
+      return { ...c, duvida, aceito: !duvida, provavelId: c.provavel ? c.pessoa.id : null, escolhido: c.pessoa ? c.pessoa.id : '' };
+    });
     if (r.data) F.data = r.data;
     F.at = { ...r.atendimentos };
     F.presenca = {};
-    casados.forEach((c) => { if (c.pessoa) F.presenca[c.pessoa.id] = 'a'; });
-    F.relatorio = { contagem: r.contagem, casados };
-    const ok = casados.filter((c) => c.pessoa).length;
-    toast(`Lido: ${r.data ? r.data.split('-').reverse().join('/') : 'sem data'} · ${ok} de ${casados.length} ausentes reconhecidos.`);
+    casados.forEach((c) => { if (c.escolhido) F.presenca[c.escolhido] = 'a'; });
+    F.relatorio = { contagem: r.contagem, casados, semData: !r.data, dataOk: false, contagemOk: false };
+    const dv = casados.filter((c) => c.duvida).length;
+    toast(`Lido: ${r.data ? r.data.split('-').reverse().join('/') : 'sem data'} · ${casados.length - dv} nomes certos${dv ? `, ${dv} para conferir (em vermelho)` : ''}.`);
     avisar();
   },
   gatodos(el) {
@@ -149,8 +172,18 @@ export const cliques = {
     if (el.dataset.v !== 'p') pessoasOrd().forEach((p) => { F.presenca[p.id] = el.dataset.v; });
     avisar();
   },
+  // Aceita um ponto em dúvida (nome, data ou diferença na contagem). Tocar de novo desfaz.
+  gaaceitar(el) {
+    const R = estado.giraAntiga.relatorio;
+    if (el.dataset.k === 'nome') { const c = R.casados[+el.dataset.i]; c.aceito = !c.aceito; }
+    else if (el.dataset.k === 'data') R.dataOk = !R.dataOk;
+    else R.contagemOk = !R.contagemOk;
+    avisar();
+  },
   async gasalvar() {
     const F = estado.giraAntiga;
+    const falta = pendentes(F);
+    if (falta) { toast(`Confira e aceite os ${falta} ponto${falta > 1 ? 's' : ''} em vermelho antes de gravar.`); document.querySelector('.dv:not(.ok)')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     if (!F.data) { toast('Informe a data do evento.'); return; }
     if (F.data > hoje()) { toast('A data é no futuro. Use a aba Gira para giras que ainda vão acontecer.'); return; }
     if (estado.giras[F.data]) { toast(`Já existe uma gira em ${F.data.split('-').reverse().join('/')}. Abra pelo histórico para alterar.`); return; }
@@ -177,7 +210,8 @@ export const mudancas = {
     const F = estado.giraAntiga;
     const c = F.relatorio.casados[+t.dataset.i];
     if (c.escolhido) delete F.presenca[c.escolhido];
-    c.escolhido = t.value || null;
+    c.escolhido = t.value || '';
+    c.aceito = false;
     if (t.value) F.presenca[t.value] = 'a';
     avisar();
   },
