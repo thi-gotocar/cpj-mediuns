@@ -87,6 +87,21 @@ test('/api/auth/me mostra papel e permissões', async () => {
   assert.deepEqual(u.json.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher', 'oferendas:doar']);
 });
 
+test('perfil: cada um vê e salva só o seu; root sem cadastro não tem', async () => {
+  assert.equal((await api('GET', '/api/auth/perfil', ADMIN)).status, 400, 'root sem pessoa');
+  const vazio = (await api('GET', '/api/auth/perfil', USER)).json;
+  assert.equal(vazio.nome, 'Zé');
+  assert.deepEqual(vazio.perfil.orixas.frente, { nome: '', oferenda: false });
+  const salvo = await api('POST', '/api/auth/perfil', USER, { perfil: { orixas: { frente: { nome: 'Oxum', oferenda: true } }, guias: { chefe: { linha: 'exu' } }, outros: { caboclo: 'Sete Flechas', x: 'y' } } });
+  assert.equal(salvo.status, 200, JSON.stringify(salvo.json));
+  const lido = (await api('GET', '/api/auth/perfil', USER)).json.perfil;
+  assert.deepEqual(lido.orixas.frente, { nome: 'Oxum', oferenda: true });
+  assert.deepEqual(lido.guias.chefe, { linha: 'exu', oferenda: false });
+  assert.deepEqual(lido.outros, { caboclo: 'Sete Flechas' });
+  // O perfil não aparece na lista de pessoas (é só de quem é).
+  assert.ok(!('perfil' in (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Zé')));
+});
+
 test('admin cadastra a corrente; usuário só lê', async () => {
   const add = (nome, funcao) => api('POST', '/api/pessoas', ADMIN, { nome, funcao });
   assert.equal((await add('Ana, Bruno; Carla, Diego, ana', 'medium')).json.criadas, 4);

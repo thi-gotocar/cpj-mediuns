@@ -209,3 +209,20 @@ test('extra/passe fora das linhas que marcou: aparece como Não atende', async (
   assert.equal(funcaoNaGira(ex, g2), 'extra');
   assert.equal(status(ex, g2), 'p');
 });
+
+test('perfil: só orixás e guias válidos; oferenda só com algo escolhido', async () => {
+  const { normalizarPerfil, GUIAS } = await import('../shared/perfil.js');
+  const p = normalizarPerfil({
+    orixas: { frente: { nome: 'Ogum', oferenda: true }, ancestral: { nome: 'Zeus', oferenda: true }, adjunto: { nome: '', oferenda: true } },
+    guias: { chefe: { linha: 'caboclo', oferenda: 1 }, frente: { linha: 'mista' } },
+    outros: { 'preto-velho': '  Pai   Joaquim ', inventado: 'X', exu: '' },
+  });
+  assert.deepEqual(p.orixas.frente, { nome: 'Ogum', oferenda: true });
+  assert.deepEqual(p.orixas.ancestral, { nome: '', oferenda: false });
+  assert.deepEqual(p.orixas.adjunto, { nome: '', oferenda: false });
+  assert.deepEqual(p.guias.chefe, { linha: 'caboclo', oferenda: true });
+  assert.deepEqual(p.guias.frente, { linha: '', oferenda: false }, 'Encontro das Linhas não é guia');
+  assert.deepEqual(p.outros, { 'preto-velho': 'Pai Joaquim' });
+  assert.ok(!GUIAS.some(([k]) => k === 'mista'));
+  assert.deepEqual(normalizarPerfil(null).outros, {});
+});

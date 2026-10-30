@@ -11,6 +11,7 @@ import * as historico from './telas/historico.js';
 import * as usuarios from './telas/usuarios.js';
 import * as ervas from './telas/ervas.js';
 import * as oferendas from './telas/oferendas.js';
+import * as perfil from './telas/perfil.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
@@ -18,7 +19,7 @@ const tabs = document.getElementById('tabs');
 const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
-const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, usuarios };
+const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, perfil, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -111,6 +112,7 @@ quandoSessaoExpirar(() => {
   estado.pronto = false;
   estado.usuarios = null;
   estado.ervas = null;
+  estado.perfil = null;
   erroLogin = 'Sua sessão terminou. Entre de novo.';
   render();
 });
@@ -125,6 +127,7 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'ervas') estado.ervas = null;
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
+  if (b.dataset.tab === 'perfil') estado.perfil = null;
   salvarPrefs();
   render();
 });
@@ -134,7 +137,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, perfil: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {

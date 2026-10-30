@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 32;  // v32: oferenda com uma linha por pessoa (todos os cadastrados)
+export const VERSAO = 33;  // v33: perfil (orixás e guias) de cada pessoa
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -816,6 +816,27 @@ export const MIGRACOES = [
      where oferenda_id = (p ->> 'oferendaId')::uuid and pessoa_id = (p ->> 'pessoaId')::uuid;
      if not found then raise exception 'Médium não está nesta oferenda.'; end if;
      return oferendas_estado();
+   end;
+   $$`,
+
+  // v33: perfil da pessoa (orixás, guias e outros guias) — só ela vê e edita, na aba Perfil.
+  `alter table pessoas add column if not exists perfil jsonb not null default '{}'::jsonb`,
+  `create or replace function perfil_ler(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare r jsonb;
+   begin
+     select jsonb_build_object('pessoaId', id, 'nome', nome, 'perfil', perfil) into r
+     from pessoas where id = (p ->> 'pessoaId')::uuid;
+     if r is null then raise exception 'Pessoa não encontrada.'; end if;
+     return r;
+   end;
+   $$`,
+  `create or replace function perfil_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update pessoas set perfil = coalesce(p -> 'perfil', '{}'::jsonb) where id = (p ->> 'pessoaId')::uuid;
+     if not found then raise exception 'Pessoa não encontrada.'; end if;
+     return perfil_ler(p);
    end;
    $$`,
 ];

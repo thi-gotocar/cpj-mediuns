@@ -23,6 +23,7 @@ export const estado = {
   renomearUsuario: null, // id do usuário com o nome em edição (aba Usuários)
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
+  perfil: null,        // GET /api/auth/perfil: { pessoaId, nome, perfil } (ou { erro })
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
@@ -339,6 +340,30 @@ export async function acaoErvas(acao, dados = {}) {
     toast(e.message);
     return false;
   }
+}
+
+// ---------- perfil (orixás e guias) ----------
+export async function carregarPerfil() {
+  try { estado.perfil = await api('GET', '/auth/perfil'); } catch (e) { estado.perfil = { erro: e.message }; }
+  avisar();
+}
+
+// Muda o perfil na tela na hora e salva em seguida (só a última versão).
+let timerPerfil = null;
+let filaPerfil = Promise.resolve();
+export function mudarPerfil(fn) {
+  const P = estado.perfil;
+  if (!P || !P.perfil) return;
+  fn(P.perfil);
+  avisar();
+  clearTimeout(timerPerfil);
+  timerPerfil = setTimeout(() => {
+    const enviar = JSON.parse(JSON.stringify(P.perfil));
+    estado.salvando++;
+    filaPerfil = filaPerfil.then(() => api('POST', '/auth/perfil', { perfil: enviar }))
+      .catch((e) => toast(e.message))
+      .finally(() => { estado.salvando--; avisar(); });
+  }, 400);
 }
 
 // ---------- oferendas ----------
