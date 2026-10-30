@@ -8,7 +8,7 @@ import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo } from '/shared/resumoGira.js';
 
-const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : '');
+const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
 function textoAtendimentos(a) {
   if (!a) return '';
@@ -84,7 +84,7 @@ function contagemPresentes(ps, g, pct = null) {
   const naGira = Object.values(conta).reduce((a, n) => a + n, 0);
   if (!naGira) return '';
   const fora = (st) => ps.filter((p) => status(p, g) === st).length;
-  const extra = [['f', 'faltas'], ['a', 'ausentes'], ['lic', 'de licença']].filter(([st]) => fora(st)).map(([st, t]) => `${fora(st)} ${t}`).join(' · ');
+  const extra = [['pend', 'pendente', 'pendentes'], ['f', 'falta', 'faltas'], ['a', 'ausente', 'ausentes'], ['lic', 'de licença', 'de licença']].filter(([st]) => fora(st)).map(([st, um, varios]) => `${fora(st)} ${fora(st) === 1 ? um : varios}`).join(' · ');
   return `<div class="pres-topo"><div class="grp-h"><h3>Presentes</h3><span class="count"><b>${naGira}</b>${pct !== null ? ` · <b>${pct}%</b>` : ''}${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span></div>
     <div class="presentes">${Object.entries(conta).map(([t, n]) => `<span><span class="muted">${t}</span> <b>${n}</b></span>`).join('')}</div></div>`;
 }
@@ -126,6 +126,7 @@ function blocoEu(g) {
   } else if (st === 'a') fora('❌ Você está marcado como <b>ausente</b> nesta gira.');
   else if (st === 'f') fora('🚫 Você está marcado com <b>falta</b> nesta gira.');
   else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
+  if (st === 'pend' && !curimba) aviso('Sua presença ainda não foi confirmada.');
   else if (curimba) lin('Função', 'Curimba');
   else if (funcao === 'senha') lin('Função', 'Senha');
   else if (!sorteado) aviso('A escala desta gira ainda não foi sorteada.');
@@ -243,12 +244,14 @@ export function render() {
 
   // presença
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;
-  h += `<div class="card"><div class="grp-h"><h2>Presença</h2><span class="count">${cont('p')} presentes · ${cont('na')} não atendem · ${cont('sup')} no suporte · ${cont('f')} faltas · ${cont('a')} ausentes${cont('lic') ? ` · ${cont('lic')} de licença` : ''}</span></div>`;
-  if (editar) h += `<p class="muted" style="margin:0;font-size:.88rem">Escolha o status de cada pessoa. “Não atende” está na gira mas não atende: entra no sorteio como cambone. “Suporte” fica fora do sorteio.</p>`;
+  const partes = [[cont('pend'), 'pendente', 'pendentes'], [cont('p'), 'presente', 'presentes'], [cont('na'), 'não atende', 'não atendem'], [cont('sup'), 'no suporte', 'no suporte'], [cont('f'), 'falta', 'faltas'], [cont('a'), 'ausente', 'ausentes'], [cont('lic'), 'de licença', 'de licença']]
+    .filter(([n], i) => n || i === 1).map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`).join(' · ');
+  h += `<div class="card"><div class="grp-h"><h2>Presença</h2><span class="count">${partes}</span></div>`;
+  if (editar) h += `<p class="muted" style="margin:0;font-size:.88rem">No dia da gira, confirme cada pessoa: <b>Presente</b> para quem foi, <b>Falta</b> para quem avisou em cima da hora e <b>Ausente</b> para quem avisou antes. <b>Pendente</b> (cinza) ainda entra na escala. O botão <b>Suporte</b> (verde quando ligado) deixa a pessoa fora do sorteio.</p>`;
   FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
-    const np = gp.filter((p) => presente(p, g)).length;
+    const np = gp.filter((p) => ['p', 'na', 'sup'].includes(status(p, g))).length;   // presença confirmada
     h += `<div class="grp"><div class="grp-h"><h3>${f.pl}</h3><span class="count">${np}/${gp.length}
       ${editar ? `<button class="btn link" data-act="todos" data-f="${f.k}" data-v="${np === gp.length ? 'a' : 'p'}">${np === gp.length ? 'marcar ausentes' : 'todos presentes'}</button>` : ''}</span></div>
       <div class="plist">${gp.map((p) => {
@@ -259,7 +262,13 @@ export function render() {
         const ctl = lic
           ? `<span class="badge lic" title="De licença de ${dDM(lic.inicio)} a ${dDM(lic.fim)}">de licença até ${dDM(lic.fim)}</span>`
           : editar
-          ? `<select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${STATUS_KEYS.map((k) => `<option value="${k}" ${k === s ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>`
+          ? (() => {
+            // Pendente, Presente, Falta, Ausente (+ "Não atende", só se já estiver assim). Suporte é o botão ao lado.
+            const sel = s === 'sup' ? 'p' : s;
+            const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a', ...(s === 'na' ? ['na'] : [])];
+            return `<span class="st-ctl"><select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>
+              <button class="sup-bt ${s === 'sup' ? 'on' : ''}" data-act="suporte" data-id="${p.id}" aria-pressed="${s === 'sup'}" title="Suporte: fica fora do sorteio">Suporte</button></span>`;
+          })()
           : `<span class="st-txt">${STATUS[s]}</span>`;
         return `<div class="pres ${classeStatus(s)}"><span class="nm">${esc(p.nome)}${xp}${hoje}</span>${ctl}</div>`;
       }).join('')}</div></div>`;
@@ -388,8 +397,18 @@ export const cliques = {
     const g = giraAtual();
     const pr = { ...(g.presenca || {}) };
     pessoasOrd().filter((p) => p.funcao === el.dataset.f).forEach((p) => {
-      if (el.dataset.v === 'p') delete pr[p.id]; else pr[p.id] = 'a';
+      pr[p.id] = el.dataset.v === 'p' ? 'p' : 'a';
     });
+    editarGira({ presenca: pr });
+    avisar();
+  },
+  // Suporte liga/desliga (desligado volta para Presente).
+  suporte(el) {
+    const g = giraAtual();
+    const p = estado.pessoas.find((x) => x.id === el.dataset.id);
+    if (!p) return;
+    const pr = { ...(g.presenca || {}) };
+    pr[p.id] = status(p, g) === 'sup' ? 'p' : 'sup';
     editarGira({ presenca: pr });
     avisar();
   },
@@ -464,7 +483,7 @@ function saiDoSuporte(g, id) {
   const p = pessoasDaGira(estado.pessoas, g).find((x) => x.id === id);
   if (!p || status(p, g) !== 'sup') return {};
   const presenca = { ...(g.presenca || {}) };
-  if (p.funcao === 'cambone') delete presenca[id]; else presenca[id] = 'na';
+  presenca[id] = p.funcao === 'cambone' ? 'p' : 'na';
   return { presenca };
 }
 
@@ -476,7 +495,7 @@ export const mudancas = {
   status(t) {
     const g = giraAtual();
     const pr = { ...(g.presenca || {}) };
-    if (t.value === 'p') delete pr[t.dataset.id]; else pr[t.dataset.id] = t.value;
+    pr[t.dataset.id] = t.value;
     editarGira({ presenca: pr });
     avisar();
   },

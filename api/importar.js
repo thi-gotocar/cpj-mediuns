@@ -71,7 +71,7 @@ export default rota({
         if (novoId[velho] && st) presenca[novoId[velho]] = st;
       }
       await db.rpc('gira_salvar', {
-        data, usuario: perfil.id, entidade: String(g.entidade || '').slice(0, 120),
+        data, usuario: perfil.id, entidade: String(g.entidade || '').slice(0, 120), pendentePadrao: g.pendentePadrao === true,
         presenca, pares: mapa(g.pares), passes: mapa(g.passes), encerrada: g.encerrada === true,
         ...(g.atendimentos && typeof g.atendimentos === 'object' ? { atendimentos: g.atendimentos } : {}),
         ...([1, 2, 3, 4, 5, 6, 7].includes(g.limpeza) ? { limpeza: g.limpeza } : {}),

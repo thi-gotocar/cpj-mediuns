@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 26;  // v26: curimba (faz a limpeza, fora da presença)
+export const VERSAO = 27;  // v27: presença pendente nas giras novas
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -76,6 +76,7 @@ export const MIGRACOES = [
      atualizado_por  uuid references usuarios (id) on delete set null
    )`,
   `alter table giras add column if not exists limpeza smallint check (limpeza between 1 and 7)`,
+  `alter table giras add column if not exists pendente_padrao boolean not null default false`,
   // v25: orixá da gira (só nas giras das linhas; vazio = não definido)
   `alter table giras add column if not exists orixa text not null default '' check (length(orixa) <= 40)`,
   // v6: gira encerrada (ninguém altera até reabrir)
@@ -91,6 +92,10 @@ export const MIGRACOES = [
      status     text not null check (status in ('p', 'na', 'sup', 'f', 'a')),
      primary key (gira_data, pessoa_id)
    )`,
+  // v27: "pendente" (presença ainda não confirmada). Nas giras novas é o padrão de quem não foi marcado;
+  // nas antigas o padrão continua "presente".
+  `alter table presencas drop constraint if exists presencas_status_check`,
+  `alter table presencas add constraint presencas_status_check check (status in ('pend', 'p', 'na', 'sup', 'f', 'a'))`,
   // tipo 'cambone': pessoa_id cambona medium_id; tipo 'passe': pessoa_id é passe junto de medium_id
   `create table if not exists duplas (
      id          bigint generated always as identity primary key,
@@ -321,6 +326,7 @@ export const MIGRACOES = [
        'atendimentos', g.atendimentos,
        'limpeza', g.limpeza,
        'orixa', g.orixa,
+       'pendentePadrao', g.pendente_padrao,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
@@ -348,9 +354,11 @@ export const MIGRACOES = [
      v_data date := (p ->> 'data')::date;
      v_user uuid := nullif(p ->> 'usuario', '')::uuid;
    begin
-     insert into giras (data, entidade, encerrada, atendimentos, limpeza, orixa, atualizado_em, atualizado_por)
+     -- Gira nova (não cadastrada já encerrada): quem não foi marcado fica "pendente".
+     insert into giras (data, entidade, encerrada, atendimentos, limpeza, orixa, pendente_padrao, atualizado_em, atualizado_por)
      values (v_data, coalesce(p ->> 'entidade', ''), coalesce((p ->> 'encerrada')::boolean, false),
-             nullif(p -> 'atendimentos', 'null'::jsonb), nullif(p ->> 'limpeza', '')::smallint, coalesce(p ->> 'orixa', ''), now(), v_user)
+             nullif(p -> 'atendimentos', 'null'::jsonb), nullif(p ->> 'limpeza', '')::smallint, coalesce(p ->> 'orixa', ''),
+             coalesce((p ->> 'pendentePadrao')::boolean, not coalesce((p ->> 'encerrada')::boolean, false)), now(), v_user)
      on conflict (data) do update set
        entidade       = case when p ? 'entidade' then coalesce(p ->> 'entidade', '') else giras.entidade end,
        encerrada      = case when p ? 'encerrada' then (p ->> 'encerrada')::boolean else giras.encerrada end,
@@ -366,7 +374,8 @@ export const MIGRACOES = [
        insert into presencas (gira_data, pessoa_id, status)
        select v_data, e.key::uuid, e.value #>> '{}'
        from jsonb_each(coalesce(p -> 'presenca', '{}'::jsonb)) e
-       where e.value #>> '{}' <> 'p'
+       -- o status padrão da gira não precisa ser guardado
+       where e.value #>> '{}' <> (select case when pendente_padrao then 'pend' else 'p' end from giras where data = v_data)
          and exists (select 1 from pessoas ps where ps.id = e.key::uuid);
      end if;
 

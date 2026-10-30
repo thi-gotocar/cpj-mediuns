@@ -80,7 +80,7 @@ function cardGiraAntiga(ps) {
       const s = status(p, g);
       return `<div class="pres ${s === 'a' || s === 'f' || s === 'lic' ? 'aus' : ''}"><span class="nm">${esc(p.nome)}</span>${lic
         ? '<span class="badge lic">de licença</span>'
-        : `<select class="st" data-act="gastatus" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${STATUS_KEYS.map((k) => `<option value="${k}" ${k === s ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>`}</div>`;
+        : `<select class="st" data-act="gastatus" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${STATUS_KEYS.filter((k) => k !== 'pend').map((k) => `<option value="${k}" ${k === s ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>`}</div>`;
     }).join('')}</div></div>`;
   });
   h += `<h3 style="margin:0">Atendidos</h3><div class="row">${ATEND.map(([k, t]) => `<label class="field" style="flex:1 1 90px">${t}<input type="number" inputmode="numeric" min="0" step="1" data-act="gaat" data-k="${k}" value="${F.at[k]}"></label>`).join('')}</div>
@@ -91,7 +91,7 @@ function cardGiraAntiga(ps) {
 // Presença da corrente na gira: presentes (presente, não atende, suporte) sobre toda a corrente,
 // licenças incluídas (a mesma conta do resumo compartilhado no WhatsApp).
 function presencaGira(ps, g) {
-  const sts = ps.map((p) => status(p, g));
+  const sts = ps.map((p) => status(p, g)).filter((st) => st !== 'pend');   // pendente ainda não conta
   const pres = sts.filter((st) => st === 'p' || st === 'na' || st === 'sup').length;
   return { pres, base: sts.length, pct: sts.length ? Math.round((pres / sts.length) * 100) : null };
 }
@@ -118,7 +118,7 @@ function cardEstatisticas(todas, ps) {
     let pres = 0, aus = 0, f = 0, base = 0;
     gs.forEach((g) => {
       const st = status(p, g);
-      if (st === 'lic') return;
+      if (st === 'lic' || st === 'pend') return;
       base++;
       if (PRES.includes(st)) pres++;
       if (AUS.includes(st)) { aus++; if (st === 'f') f++; }

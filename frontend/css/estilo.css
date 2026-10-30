@@ -375,3 +375,9 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .meu-ped li,.meu-tot{display:flex;justify-content:space-between;gap:10px}
 .meu-tot{border-top:1px solid var(--line);padding-top:6px;margin-top:2px;font-size:1.05rem}
 .meu-ped li>:last-child,.meu-tot b{white-space:nowrap;text-align:right}
+
+/* Presença: pendente (cinza) e botão Suporte */
+.pres.pend .st,.pres.pend .st-txt{background:var(--line);color:var(--muted)}
+.st-ctl{display:flex;align-items:center;gap:6px;flex:none}
+.sup-bt{font:700 .75rem var(--f-body);border-radius:6px;padding:5px 8px;border:1px solid var(--line);background:var(--line);color:var(--muted);cursor:pointer}
+.sup-bt.on{background:var(--ok);border-color:var(--ok);color:#fff}

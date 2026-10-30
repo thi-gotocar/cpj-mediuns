@@ -20,7 +20,7 @@ export const CURIMBA = 'curimba';
 export const ehCurimba = (p) => p?.funcao === CURIMBA;
 export const contaNaPresenca = (p) => !ehCurimba(p);
 export const FUNCAO_KEYS = [...FUNCOES.map((f) => f.k), CURIMBA];
-export const STATUS = { p: 'Presente', na: 'Não atende', sup: 'Suporte', f: 'Falta', a: 'Ausente' };
+export const STATUS = { pend: 'Pendente', p: 'Presente', na: 'Não atende', sup: 'Suporte', f: 'Falta', a: 'Ausente' };
 export const STATUS_KEYS = Object.keys(STATUS);
 
 // Linhas (entidades) de trabalho. A entidade da gira é uma delas.
@@ -115,7 +115,7 @@ export function pessoasDaGira(pessoas, g) {
 }
 
 export function giraVazia(data) {
-  return { data, entidade: '', presenca: {}, pares: [], passes: [] };
+  return { data, entidade: '', presenca: {}, pares: [], passes: [], pendentePadrao: true };
 }
 
 export function ordenarPessoas(ps) {
@@ -132,9 +132,10 @@ export function licencaEm(p, data) {
 export function status(p, g) {
   if (licencaEm(p, g.data)) return 'lic';
   const v = (g.presenca || {})[p.id];
-  return STATUS_KEYS.includes(v) ? v : 'p';
+  return STATUS_KEYS.includes(v) ? v : g.pendentePadrao ? 'pend' : 'p';
 }
-export const presente = (p, g) => status(p, g) === 'p';
+// Pendente (presença ainda não confirmada) conta como presente na escala e no sorteio.
+export const presente = (p, g) => { const s = status(p, g); return s === 'p' || s === 'pend'; };
 
 // ---- Turma da limpeza (1 a 7)
 // Cada pessoa pode ser de uma turma; o admin escolhe a turma responsável pela gira.
@@ -167,7 +168,7 @@ export function limpezaDaGira(pessoas, g, giras) {
 }
 export const cambonaHoje = (p, g) => {
   const s = status(p, g);
-  return (s === 'p' && p.funcao === 'cambone') || s === 'na';
+  return ((s === 'p' || s === 'pend') && p.funcao === 'cambone') || s === 'na';
 };
 export const recebe = (p) => p.funcao === 'medium' || p.funcao === 'extra';
 export const ehCambone = (p) => p.funcao === 'cambone';
@@ -426,10 +427,12 @@ export function encerrar(pessoas, g) {
   const presenca = { ...(g.presenca || {}) };
   const movidos = [];
   const suporteAuto = {};   // id -> status de antes (para voltar ao reabrir)
+  // Quem ainda estava pendente ao encerrar fica como presente.
+  ps.forEach((p) => { if (status(p, g) === 'pend' && contaNaPresenca(p)) presenca[p.id] = 'p'; });
   ps.forEach((p) => {
     const semCambonar = cambonaHoje(p, g) && !cambonando.has(p.id);
     const passeSolto = presente(p, g) && p.funcao === 'passe' && !comMedium.has(p.id);
-    if (semCambonar || passeSolto) { suporteAuto[p.id] = status(p, g); presenca[p.id] = 'sup'; movidos.push(p.nome); }
+    if (semCambonar || passeSolto) { suporteAuto[p.id] = presenca[p.id] === 'p' ? 'p' : status(p, g); presenca[p.id] = 'sup'; movidos.push(p.nome); }
   });
   const mensagem = 'Gira encerrada.' + (movidos.length
     ? ` ${movidos.length === 1 ? 'Foi' : 'Foram'} para o Suporte (sem médium): ${movidos.join(', ')}.`
@@ -443,7 +446,7 @@ export function reabrir(pessoas, g) {
   const nomes = [];
   for (const [id, antes] of Object.entries(g.suporteAuto || {})) {
     if (presenca[id] !== 'sup') continue;
-    if (antes === 'p') delete presenca[id]; else presenca[id] = antes;
+    presenca[id] = antes;
     const p = pessoas.find((x) => x.id === id);
     if (p) nomes.push(p.nome);
   }

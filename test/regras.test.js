@@ -128,3 +128,17 @@ test('orixá: lista em ordem alfabética e só nas giras das linhas', async () =
   assert.equal(orixaDaGira({ entidade: 'Exu', orixa: 'Ogum' }), '', 'gira de esquerda não mostra orixá');
   assert.equal(orixaDaGira({ entidade: 'Caboclo', orixa: 'Oxóssi' }), 'Oxóssi');
 });
+
+test('presença pendente: gira nova começa pendente, entra na escala e vira presente ao encerrar', async () => {
+  const { status, presente, cambonaHoje, giraVazia, encerrar } = await import('../shared/regras.js');
+  const ana = { id: 'a', nome: 'Ana', funcao: 'medium' }, bia = { id: 'b', nome: 'Bia', funcao: 'cambone' }, cai = { id: 'c', nome: 'Caio', funcao: 'cambone' };
+  const g = { ...giraVazia('2026-11-04'), presenca: { c: 'f' }, pares: [{ m: 'a', c: 'b' }] };
+  assert.equal(status(ana, g), 'pend');
+  assert.equal(presente(ana, g), true, 'pendente entra na escala');
+  assert.equal(cambonaHoje(bia, g), true);
+  assert.equal(status(ana, { data: '2026-01-01', presenca: {} }), 'p', 'gira antiga: padrão continua presente');
+  const { patch } = encerrar([ana, bia, cai], g);
+  assert.equal(patch.presenca.a, 'p');
+  assert.equal(patch.presenca.b, 'p');
+  assert.equal(patch.presenca.c, 'f');
+});
