@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
@@ -224,6 +224,10 @@ export function render() {
 
   let h = `<section class="panel">
   <div class="card">
+    ${editar && existe ? (estado.confirm === 'rei:' + g.data
+      ? `<div class="infobox rei"><span><b>Reiniciar a gira?</b> Volta tudo ao início: todos ficam Pendente e saem a gira, o orixá, a turma da limpeza e o sorteio. Só a data fica.</span>
+          <span class="row" style="gap:6px"><button class="btn small danger" data-act="reiniciar">Sim, reiniciar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`
+      : `<button class="btn small rei-bt" data-act="askdel" data-k="rei:${g.data}" title="Volta a gira ao início (só a data fica)">↺ Reiniciar</button>`) : ''}
     <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
       <div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
@@ -264,16 +268,18 @@ export function render() {
 
   // presença
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;
+  const antesDoDia = g.pendentePadrao && g.data > hoje();
   const partes = [[cont('pend'), 'pendente', 'pendentes'], [cont('p'), 'presente', 'presentes'], [cont('na'), 'não atende', 'não atendem'], [cont('sup'), 'no suporte', 'no suporte'], [cont('f'), 'falta', 'faltas'], [cont('a'), 'ausente', 'ausentes'], [cont('lic'), 'de licença', 'de licença']]
     .filter(([n], i) => n || i === 1).map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`).join(' · ');
   h += `<div class="card"><div class="grp-h"><h2>Presença</h2><span class="count">${partes}</span></div>`;
+  if (editar && antesDoDia) h += `<div class="warnbox">Antes do dia da gira todos ficam <b>Pendente</b>; dá para marcar só <b>Ausente</b> (quem avisou antes). Presente e Falta são marcados no dia.</div>`;
   if (editar) h += `<p class="muted" style="margin:0;font-size:.88rem">No dia da gira, confirme cada pessoa: <b>Presente</b> para quem foi, <b>Falta</b> para quem avisou em cima da hora e <b>Ausente</b> para quem avisou antes. <b>Pendente</b> (cinza) ainda entra na escala. O botão <b>Suporte</b> (verde quando ligado) deixa a pessoa fora do sorteio.</p>`;
   FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
     const np = gp.filter((p) => ['p', 'na', 'sup'].includes(status(p, g))).length;   // presença confirmada
     h += `<div class="grp"><div class="grp-h"><h3>${f.pl}</h3><span class="count">${np}/${gp.length}
-      ${editar ? `<button class="btn link" data-act="todos" data-f="${f.k}" data-v="${np === gp.length ? 'a' : 'p'}">${np === gp.length ? 'marcar ausentes' : 'todos presentes'}</button>` : ''}</span></div>
+      ${editar && !antesDoDia ? `<button class="btn link" data-act="todos" data-f="${f.k}" data-v="${np === gp.length ? 'a' : 'p'}">${np === gp.length ? 'marcar ausentes' : 'todos presentes'}</button>` : ''}</span></div>
       <div class="plist">${gp.map((p) => {
         const s = status(p, g);
         const xp = p.experiente && p.funcao === 'medium' ? ' <span class="xp" title="Pode ter médium de passe junto" aria-label="Pode ter médium de passe junto">★</span>' : '';
@@ -286,7 +292,9 @@ export function render() {
             // Pendente, Presente, Falta, Ausente (+ "Não atende", só se já estiver assim). Suporte é o botão ao lado.
             const sel = s === 'sup' ? 'p' : s;
             const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a', ...(s === 'na' ? ['na'] : [])];
-            return `<span class="st-ctl"><select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${STATUS[k]}</option>`).join('')}</select>
+            // Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
+            const bloqueada = (k) => antesDoDia && (k === 'p' || k === 'f') && k !== sel;
+            return `<span class="st-ctl"><select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''} ${bloqueada(k) ? 'disabled' : ''}>${STATUS[k]}${bloqueada(k) ? ' (no dia)' : ''}</option>`).join('')}</select>
               <button class="sup-bt ${s === 'sup' ? 'on' : ''}" data-act="suporte" data-id="${p.id}" aria-pressed="${s === 'sup'}" title="Suporte: fica fora do sorteio">Suporte</button></span>`;
           })()
           : `<span class="st-txt">${STATUS[s]}</span>`;
@@ -421,7 +429,7 @@ export const cliques = {
     const p = estado.pessoas.find((x) => x.id === el.dataset.id);
     if (!p) return;
     const pr = { ...(g.presenca || {}) };
-    pr[p.id] = status(p, g) === 'sup' ? 'p' : 'sup';
+    pr[p.id] = status(p, g) === 'sup' ? (g.pendentePadrao && g.data > hoje() ? 'pend' : 'p') : 'sup';
     editarGira({ presenca: pr });
     avisar();
   },
@@ -453,6 +461,8 @@ export const cliques = {
   },
   reabrir: () => reabrirGira(),
   cancelenc() { estado.confirm = null; avisar(); },
+  cancelrei() { estado.confirm = null; avisar(); },
+  async reiniciar() { estado.confirm = null; duplasAbertas.delete(giraAtual().data); await reiniciarGira(); },
   manual() {
     const d = giraAtual().data;
     estado.manual = estado.manual === d ? null : d;
@@ -501,7 +511,7 @@ function saiDoSuporte(g, id) {
   const p = pessoasDaGira(estado.pessoas, g).find((x) => x.id === id);
   if (!p || status(p, g) !== 'sup') return {};
   const presenca = { ...(g.presenca || {}) };
-  presenca[id] = p.funcao === 'cambone' ? 'p' : 'na';
+  presenca[id] = p.funcao === 'cambone' ? (g.pendentePadrao && g.data > hoje() ? 'pend' : 'p') : 'na';
   return { presenca };
 }
 

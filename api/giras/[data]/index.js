@@ -1,7 +1,8 @@
 // GET    /api/giras/:data
 // PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
-// POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' }  → { gira, mensagem }
+// POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
+//                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
@@ -76,8 +77,13 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const { acao, atendimentos } = corpo(req);
-    if (acao !== 'encerrar' && acao !== 'reabrir') throw new HttpError(400, 'Ação inválida.');
+    if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
+    if (acao === 'reiniciar') {
+      if (atual?.encerrada) throw new HttpError(409, 'A gira está encerrada. Reabra antes de reiniciar.');
+      await db.rpc('gira_excluir', { data });
+      return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id }), mensagem: 'Gira reiniciada: todos voltaram para Pendente.' };
+    }
     if (acao === 'reabrir') {
       if (!atual?.encerrada) return { gira: atual || giraVazia(data), mensagem: 'A gira já estava aberta.' };
       const { patch, mensagem } = reabrir(pessoas, atual);

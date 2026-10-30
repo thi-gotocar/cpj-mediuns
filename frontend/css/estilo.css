@@ -382,3 +382,5 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .sup-bt{font:700 .75rem var(--f-body);border-radius:6px;padding:5px 8px;border:1px solid var(--line);background:var(--line);color:var(--muted);cursor:pointer}
 .sup-bt.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .prox-gira.enc-bt{border-color:var(--warn);color:var(--warn)}
+.rei-bt{float:right;margin:-4px 0 0 8px;border-color:var(--off);color:var(--off)}
+.infobox.rei{border-color:var(--off);background:var(--off-soft)}

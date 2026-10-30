@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 27;  // v27: presença pendente nas giras novas
+export const VERSAO = 28;  // v28: giras em aberto de hoje em diante começam pendentes; reiniciar gira
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -796,4 +796,8 @@ export const MIGRACOES = [
      return oferendas_estado();
    end;
    $$`,
+
+  // v28: giras ainda em aberto, de hoje em diante, passam a usar "pendente" como padrão
+  // (quem não foi marcado deixa de contar como presente até o admin confirmar).
+  `update giras set pendente_padrao = true where not encerrada and not pendente_padrao and data >= current_date`,
 ];

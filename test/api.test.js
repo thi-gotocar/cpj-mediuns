@@ -654,3 +654,19 @@ test('curimba: cadastro e turma da limpeza', async () => {
   assert.equal((await api('PATCH', '/api/pessoas/' + cs[0].id, ADMIN, { limpeza: 4 })).json.limpeza, 4);
   assert.equal((await api('POST', '/api/pessoas', ADMIN, { nome: 'X', funcao: 'tambor' })).status, 400);
 });
+
+test('reiniciar gira em aberto: volta tudo ao início, só a data fica', async () => {
+  const d = '2029-06-06';
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo', orixa: 'Oxóssi', limpeza: 2, presenca: { [ps[0].id]: 'a' } });
+  await api('POST', `/api/giras/${d}/sortear`, ADMIN);
+  assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'reiniciar' })).status, 403);
+  const r = (await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'reiniciar' })).json;
+  assert.equal(r.gira.entidade, '');
+  assert.equal(r.gira.orixa, '');
+  assert.equal(r.gira.limpeza, null);
+  assert.deepEqual(r.gira.presenca, {});
+  assert.deepEqual(r.gira.pares, []);
+  assert.equal(r.gira.pendentePadrao, true);
+  await api('DELETE', `/api/giras/${d}`, ADMIN);
+});

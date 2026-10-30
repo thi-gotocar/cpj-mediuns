@@ -170,6 +170,7 @@ async function situacaoDaGira(acao, extra = {}) {
 }
 export const encerrarGira = (atendimentos) => situacaoDaGira('encerrar', { atendimentos });
 export const reabrirGira = () => situacaoDaGira('reabrir');
+export const reiniciarGira = () => situacaoDaGira('reiniciar');
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = () => acaoDaGira('remanejar');
 
