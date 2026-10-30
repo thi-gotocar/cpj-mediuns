@@ -554,3 +554,20 @@ test('acesso da corrente: tudo o que a pessoa preencheu aparece quando ela entra
   assert.deepEqual((await api('GET', '/api/ervas', tok2)).json.minhas, [{ ervaId: erva.id, quantidade: 2 }]);
   assert.equal((await api('GET', '/api/ervas', ADMIN)).json.pedidos.pessoas.find((p) => p.chave === 'p:' + lucia.id).nome, 'Lúcia Helena');
 });
+
+test('oferendas: duas pessoas doando o último ao mesmo tempo, só uma consegue', async () => {
+  const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
+  let r = (await of({ acao: 'salvar', titulo: 'Corrida', data: '2027-03-01' })).json;
+  const o = r.oferendas.find((x) => x.titulo === 'Corrida');
+  await of({ acao: 'status', id: o.id, status: 'publicado' });
+  r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Vela', quantidade: 1, entrega: '' })).json;
+  const item = r.oferendas.find((x) => x.id === o.id).itens[0];
+  const toks = [];
+  for (const n of ['Ana', 'Bruno', 'Carla', 'Diego']) toks.push((await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: n })).json.token);
+  const res = await Promise.all(toks.map((t) => of({ acao: 'doar', itemId: item.id, quantidade: 1 }, t)));
+  assert.equal(res.filter((x) => x.status === 200).length, 1, 'só uma doação passa');
+  for (const x of res.filter((y) => y.status !== 200)) assert.match(x.json.erro, /completo|Só faltam/);
+  const fim = (await api('GET', '/api/oferendas', ADMIN)).json.oferendas.find((x) => x.id === o.id).itens[0];
+  assert.equal(fim.doacoes.reduce((a, d) => a + d.quantidade, 0), 1, 'nunca passa da quantidade pedida');
+  await of({ acao: 'excluir', id: o.id });
+});
