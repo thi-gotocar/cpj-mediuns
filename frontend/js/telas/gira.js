@@ -203,7 +203,7 @@ export function render() {
 
   let h = `<section class="panel">
   <div class="card">
-    <div class="datehead"><span class="eyebrow">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span><span class="dia">${esc(dLong(g.data))}</span></div>
+    <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span></div>
     <div class="row">
       <div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
       <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span><button class="btn prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Próxima gira</button></div></div>
