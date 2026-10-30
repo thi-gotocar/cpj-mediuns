@@ -99,11 +99,17 @@ export function nomeGira(entidade) {
 // Sem nenhuma linha marcada, a pessoa atua sempre na própria função.
 export const usaLinhas = (p) => (p.funcao === 'extra' || p.funcao === 'passe') && Array.isArray(p.linhas) && p.linhas.length > 0;
 
-export function funcaoNaGira(p, g) {
-  if (!usaLinhas(p)) return p.funcao;
+// Extra/Passe numa gira de linha que não marcou no cadastro.
+export function foraDaLinha(p, g) {
+  if (!usaLinhas(p)) return false;
   const linha = linhaDaEntidade(g.entidade);
-  if (!linha) return p.funcao; // gira sem entidade definida: ninguém é convertido
-  return (JUNTAS[linha] || [linha]).some((l) => p.linhas.includes(l)) ? p.funcao : 'cambone';
+  if (!linha) return false; // gira sem entidade definida: ninguém é convertido
+  return !(JUNTAS[linha] || [linha]).some((l) => p.linhas.includes(l));
+}
+export function funcaoNaGira(p, g) {
+  // O admin pode manter a função do cadastro mesmo fora da linha (papeis[id] = 'cad').
+  if ((g.papeis || {})[p.id] === 'cad') return p.funcao;
+  return foraDaLinha(p, g) ? 'cambone' : p.funcao;
 }
 
 // Lista de pessoas com a função que cada uma exerce nesta gira.
@@ -144,9 +150,11 @@ export function presencaDe(p, g) {
 }
 export function papelDe(p, g) {
   const r = (g.papeis || {})[p.id];
-  if (r === 'sup' || r === 'na') return r;
+  if (r === 'sup' || r === 'na' || r === 'cad') return r;
   const v = (g.presenca || {})[p.id];
-  return v === 'sup' || v === 'na' ? v : 'cad';
+  if (v === 'sup' || v === 'na') return v;
+  // Extra/Passe fora das linhas que marcou: entra como "Não atende" (está na gira e cambona).
+  return foraDaLinha(p, g) ? 'na' : 'cad';
 }
 // Status para a escala: falta, ausência e licença valem primeiro; depois Suporte / Não atende; senão a presença.
 export function status(p, g) {

@@ -191,3 +191,18 @@ test('turma da limpeza: rodízio a partir da última gira encerrada, pulando tur
   assert.equal(proximaTurma(ps, [g('2026-10-28', 1), g('2026-11-11', 4)], '2026-11-04'), 2, 'só giras antes da data');
   assert.equal(proximaTurma([{ id: 'x', nome: 'X' }], [], '2026-11-04'), null, 'ninguém com turma');
 });
+
+test('extra/passe fora das linhas que marcou: aparece como Não atende', async () => {
+  const { papelDe, status, funcaoNaGira, cambonaHoje, giraVazia } = await import('../shared/regras.js');
+  const ex = { id: 'e', nome: 'Edu', funcao: 'extra', linhas: ['exu'] };
+  const g = { ...giraVazia('2026-11-04'), entidade: 'Caboclo', presenca: { e: 'p' } };
+  assert.equal(papelDe(ex, g), 'na');
+  assert.equal(status(ex, g), 'na');
+  assert.equal(cambonaHoje(ex, g), true);
+  assert.equal(papelDe(ex, { ...g, entidade: 'Exu' }), 'cad', 'na linha dele: função do cadastro');
+  // o admin pode manter como extra mesmo fora da linha
+  const g2 = { ...g, papeis: { e: 'cad' } };
+  assert.equal(papelDe(ex, g2), 'cad');
+  assert.equal(funcaoNaGira(ex, g2), 'extra');
+  assert.equal(status(ex, g2), 'p');
+});
