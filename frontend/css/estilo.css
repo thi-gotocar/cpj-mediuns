@@ -294,3 +294,20 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .dv.ok .btn{border-color:#2f9e5b;color:#1d6b3f}
 .dv-n{color:#a2423a;font-weight:700}
 .ok-n{color:#1d6b3f;font-weight:700}
+
+/* Histórico: estatísticas */
+.st .grp-h{align-items:center}.st .grp-h h2{flex:1 1 auto;margin:0}
+.st .grp-h select{width:auto;flex:none;font:inherit;font-size:.9rem;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.st-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 18px;margin-top:8px}
+.st-bloco h3{margin:0 0 6px;font-size:.95rem}
+.st-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.st-lista li{display:grid;grid-template-columns:28px minmax(0,1fr) 70px auto;align-items:center;gap:4px 8px;font-size:.9rem}
+.st-pos{font-weight:700;color:var(--muted)}
+.st-lista li:nth-child(1) .st-pos{color:var(--gold)}
+.st-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-nome .hi-gira{display:inline-block;color:var(--orange);font-weight:700;border:1.5px solid var(--orange);border-radius:6px;padding:0 6px;margin-right:6px;font-size:.85rem}
+.st-bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.st-bar i{display:block;height:100%;border-radius:4px}
+.st-bar i.ok{background:var(--ok)} .st-bar i.off{background:var(--off)} .st-bar i.acc{background:var(--accent)} .st-bar i.or{background:var(--orange)}
+.st-num{white-space:nowrap;text-align:right}
+.st-det{grid-column:2 / -1;font-size:.8rem;color:var(--muted);margin-top:-3px}

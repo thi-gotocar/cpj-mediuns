@@ -95,10 +95,75 @@ function presencaGira(ps, g) {
 const corPct = (pct) => (pct >= 80 ? 'new' : pct >= 60 ? 'hot' : 're');
 const seloPct = (pct, title) => `<span class="badge ${corPct(pct)}" style="text-transform:none" title="${title}">${pct}% de presença</span>`;
 
+// ---- Estatísticas (topo do Histórico): rankings de presença e faltas, atendimentos e giras.
+const PRES = ['p', 'na', 'sup'];
+const AUS = ['a', 'f'];
+const pos = (i) => `<span class="st-pos">${i + 1}º</span>`;
+const barra = (v, max, cor) => `<span class="st-bar"><i class="${cor}" style="width:${max ? Math.max(4, Math.round((v / max) * 100)) : 0}%"></i></span>`;
+
+function cardEstatisticas(todas, ps) {
+  if (!todas.length) return '';
+  const anos = [...new Set(todas.map((g) => g.data.slice(0, 4)))].sort().reverse();
+  const anoAtual = hoje().slice(0, 4);
+  let ano = estado.stAno || (anos.includes(anoAtual) ? anoAtual : anos[0]);
+  if (ano !== 'todos' && !anos.includes(ano)) ano = anos[0];
+  const gs = ano === 'todos' ? todas : todas.filter((g) => g.data.startsWith(ano));
+  const mais = estado.stMais || {};
+
+  // Por pessoa: giras em que esteve, faltas/ausências e giras que contam (sem licença).
+  const porPessoa = ps.map((p) => {
+    let pres = 0, aus = 0, f = 0, base = 0;
+    gs.forEach((g) => {
+      const st = status(p, g);
+      if (st === 'lic') return;
+      base++;
+      if (PRES.includes(st)) pres++;
+      if (AUS.includes(st)) { aus++; if (st === 'f') f++; }
+    });
+    return { p, pres, aus, f, base };
+  });
+  const ranking = (k, titulo, cor, lista, linha) => {
+    const max = lista.length ? lista[0][k] : 0;
+    const ver = mais[k] ? lista : lista.slice(0, 5);
+    return `<div class="st-bloco"><h3>${titulo}</h3>
+      ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.p.nome)}</span>${barra(x[k], max, cor)}<span class="st-num">${linha(x)}</span></li>`).join('')}</ol>
+      ${lista.length > 5 ? `<button class="btn link small" data-act="stmais" data-k="${k}">${mais[k] ? 'Ver menos' : `Ver mais (${lista.length})`}</button>` : ''}`
+      : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém por aqui.</p>'}</div>`;
+  };
+  const presentes = porPessoa.filter((x) => x.pres).sort((a, b) => b.pres - a.pres || a.p.nome.localeCompare(b.p.nome));
+  const faltantes = porPessoa.filter((x) => x.aus).sort((a, b) => b.aus - a.aus || b.f - a.f || a.p.nome.localeCompare(b.p.nome));
+
+  // Top 3 giras com mais atendidos.
+  const comAt = gs.filter((g) => g.atendimentos && somaAt(g.atendimentos) > 0)
+    .sort((a, b) => somaAt(b.atendimentos) - somaAt(a.atendimentos) || b.data.localeCompare(a.data)).slice(0, 3);
+  const maxAt = comAt.length ? somaAt(comAt[0].atendimentos) : 0;
+  // Top 3 giras (linha/tipo) que mais tivemos.
+  const cont = {};
+  gs.forEach((g) => { const n = nomeGira(g.entidade); if (n) cont[n] = (cont[n] || 0) + 1; });
+  const tipos = Object.entries(cont).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
+  const maxTipo = tipos.length ? tipos[0][1] : 0;
+
+  return `<div class="card st"><div class="grp-h"><h2>Estatísticas</h2>
+      <select data-act="stano" aria-label="Período das estatísticas">${anos.map((a) => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}<option value="todos" ${ano === 'todos' ? 'selected' : ''}>Todos os anos</option></select></div>
+    <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}. Licenças não contam.</p>
+    <div class="st-grid">
+      ${ranking('pres', 'Mais presentes', 'ok', presentes, (x) => `<b>${x.pres}</b> de ${x.base}`)}
+      ${ranking('aus', 'Mais faltas e ausências', 'off', faltantes, (x) => `<b>${x.aus}</b>${x.f ? ` <span class="muted">(${x.f} falta${x.f > 1 ? 's' : ''})</span>` : ''}`)}
+      <div class="st-bloco"><h3>Giras com mais atendimentos</h3>
+        ${comAt.length ? `<ol class="st-lista">${comAt.map((g, i) => `<li>${pos(i)}<span class="st-nome"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span>${dShort(g.data)}</span>${barra(somaAt(g.atendimentos), maxAt, 'acc')}<span class="st-num"><b>${somaAt(g.atendimentos)}</b></span>
+          <span class="st-det">${ATEND.map(([k, t]) => `${t} ${Number(g.atendimentos[k]) || 0}`).join(' · ')}</span></li>`).join('')}</ol>`
+          : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma gira com atendidos registrados.</p>'}</div>
+      <div class="st-bloco"><h3>Giras que mais tivemos</h3>
+        ${tipos.length ? `<ol class="st-lista">${tipos.map(([n, q], i) => `<li>${pos(i)}<span class="st-nome">${esc(n)}</span>${barra(q, maxTipo, 'or')}<span class="st-num"><b>${q}</b> gira${q > 1 ? 's' : ''}</span></li>`).join('')}</ol>`
+          : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma gira com nome definido.</p>'}</div>
+    </div></div>`;
+}
+
 export function render() {
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd();
   let h = `<section class="panel">`;
+  h += cardEstatisticas(gs, ps);
   if (pode('giras:editar')) h += cardGiraAntiga(ps);
   h += `<div class="card"><h2>Giras salvas</h2>`;
   // Soma dos atendidos de todas as giras que têm o registro.
@@ -217,6 +282,7 @@ export const cliques = {
     const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, presenca, atendimentos: F.at });
     if (ok) { toast('Gira antiga cadastrada.'); estado.giraAntiga = null; avisar(); }
   },
+  stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
   abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'gira'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
   delgira(el) { estado.confirm = null; excluirGira(el.dataset.d); },
   backup() {
@@ -225,6 +291,7 @@ export const cliques = {
 };
 
 export const mudancas = {
+  stano(t) { estado.stAno = t.value; estado.stMais = {}; avisar(); },
   gacampo(t) { estado.giraAntiga[t.dataset.k] = t.value; avisar(); },
   gastatus(t) {
     const F = estado.giraAntiga;
