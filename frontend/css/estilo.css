@@ -2,7 +2,7 @@
 :root{
   --bg:#f5f7fb; --surface:#ffffff; --ink:#18212f; --muted:#5b6678; --line:#dde3ec;
   --accent:#2c4ea3; --accent-ink:#ffffff; --accent-soft:#e6ecfa;
-  --gold:#a8771c; --ok:#24785a; --ok-soft:#e1f2ea; --off:#a2423a; --off-soft:#f8e6e4; --warn:#9a6a10; --warn-soft:#f8efd9;
+  --gold:#a8771c; --ok:#24785a; --ok-soft:#e1f2ea; --off:#a2423a; --off-soft:#f8e6e4; --warn:#9a6a10; --warn-soft:#f8efd9; --orange:#c2570c;
   --f-display:"Alegreya",Georgia,"Times New Roman",serif;
   --f-body:"Alegreya Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -11,12 +11,12 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
   --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#1f2a44;
-  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15;
+  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
   --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#1f2a44;
-  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15;
+  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c;
   color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
@@ -106,6 +106,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .hi:last-child{border-bottom:0}
 .hi .d{font-weight:700;text-transform:capitalize}
 .hi .acts{display:flex;gap:6px}
+.hi .hi-gira{color:var(--orange);font-weight:700;text-transform:none;margin-right:2px}
 .matrix{overflow-x:auto}
 .matrix table{border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}
 .matrix th,.matrix td{border:1px solid var(--line);padding:5px 8px;text-align:center;white-space:nowrap}
