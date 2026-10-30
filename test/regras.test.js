@@ -77,3 +77,15 @@ test('gira Exus & Pombagira: quem tem Exu ou Pomba Gira atua; os outros cambonam
   assert.ok(OPCOES_GIRA.find((x) => x.grupo === 'Esquerda').itens.some(([, l]) => l === 'Exus & Pombagira'));
   assert.ok(!LINHA_KEYS.includes('exus-pombagira'), 'não é linha da pessoa');
 });
+
+test('Reunião obrigatória é gira especial; Mista virou Encontro das Linhas', async () => {
+  const { giraEspecial, nomeGira, linhaDaEntidade, funcaoNaGira, OPCOES_GIRA } = await import('../shared/regras.js');
+  assert.equal(giraEspecial('Reunião obrigatória'), 'reuniao');
+  assert.equal(funcaoNaGira({ funcao: 'extra', linhas: ['exu'] }, { entidade: 'Reunião obrigatória' }), 'extra');
+  assert.equal(linhaDaEntidade('Mista'), 'mista');
+  assert.equal(linhaDaEntidade('Encontro das Linhas'), 'mista');
+  assert.equal(nomeGira('Mista'), 'Encontro das Linhas');
+  assert.equal(nomeGira('Gira interna'), 'Gira interna');
+  const rot = OPCOES_GIRA.flatMap((g) => g.itens.map(([, l]) => l));
+  assert.ok(rot.includes('Reunião obrigatória') && rot.includes('Encontro das Linhas') && !rot.includes('Mista'));
+});

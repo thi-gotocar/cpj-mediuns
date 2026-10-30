@@ -1,6 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
-import { ehGiraInterna, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira } from '/shared/regras.js';
+import { giraEspecial, nomeGira, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira } from '/shared/regras.js';
 import { wd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -31,8 +31,8 @@ export function textoWhats(pessoas, g, fmt) {
   const { lista, semPasse } = paresPorMedium(pessoas, g);
   const L = [];
   L.push('*GIRA · ' + wd(g.data).toUpperCase() + ', ' + dShort(g.data) + '*');
-  if (ehGiraInterna(g.entidade)) L.push('*Gira interna*');
-  else if (g.entidade) L.push('*Entidade:* ' + g.entidade);
+  if (giraEspecial(g.entidade)) L.push('*' + nomeGira(g.entidade) + '*');
+  else if (g.entidade) L.push('*Entidade:* ' + nomeGira(g.entidade));
   L.push('');
   L.push('*Médiuns e cambones*');
   const tab = fmt === 'tabela';

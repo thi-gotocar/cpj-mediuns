@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -124,7 +124,7 @@ export function render() {
       const pr = presencaGira(ps, g);
       h += `<div class="hi"><div><div class="d">${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
         ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ' (sem contar quem estava de licença)' : ''}`) : ''}</div>
-        <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
+        <div class="muted" style="font-size:.9rem">${esc(nomeGira(g.entidade) || 'Entidade não definida')} · ${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
         ${g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
         <div class="acts"><button class="btn small" data-act="abrir" data-d="${g.data}">Abrir</button>
         ${pode('giras:excluir') ? (conf ? `<button class="btn small danger" data-act="delgira" data-d="${g.data}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="g:${g.data}">Excluir</button>`) : ''}</div></div>`;
@@ -176,7 +176,13 @@ export const cliques = {
       return { ...c, duvida, aceito: !duvida, provavelId: c.provavel ? c.pessoa.id : null, escolhido: c.pessoa ? c.pessoa.id : '' };
     });
     if (r.data) F.data = r.data;
-    if (/gira\s+interna/i.test(F.msg)) F.entidade = 'Gira interna';
+    // Gira escrita na mensagem (ex.: "Gira: Exu", "Gira interna", "Reunião obrigatória").
+    // Só no cabeçalho, antes da lista de nomes.
+    for (const l of F.msg.split(/\r?\n/)) {
+      if (/^[^\p{L}]*(ausentes|em licen)/iu.test(l) && !l.includes(':')) break;
+      const t = l.replace(/^[^\p{L}]+/u, '').replace(/^(gira|entidade)\s*:?\s*/i, '').trim();
+      if (t && (linhaDaEntidade(t) || giraEspecial(t))) { F.entidade = nomeGira(t); break; }
+    }
     F.at = { ...r.atendimentos };
     F.presenca = {};
     casados.forEach((c) => { if (c.escolhido) F.presenca[c.escolhido] = 'a'; });

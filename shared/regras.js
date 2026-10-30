@@ -25,7 +25,7 @@ export const LINHAS = [
     grupo: 'Linhas',
     itens: [
       ['preto-velho', 'Preto Velho'], ['malandro', 'Malandro'], ['baiano', 'Baiano'], ['cigano', 'Cigano'],
-      ['marinheiro', 'Marinheiro'], ['boiadeiro', 'Boiadeiro'], ['eres', 'Erês'], ['caboclo', 'Caboclo'], ['mista', 'Mista'],
+      ['marinheiro', 'Marinheiro'], ['boiadeiro', 'Boiadeiro'], ['eres', 'Erês'], ['caboclo', 'Caboclo'], ['mista', 'Encontro das Linhas'],
     ],
   },
   {
@@ -33,10 +33,14 @@ export const LINHAS = [
     itens: [['exu', 'Exu'], ['pomba-gira', 'Pomba Gira'], ['exu-mirim', 'Exu Mirim']],
   },
 ];
-// Giras que não são de uma linha (ex.: gira interna). Nelas ninguém é convertido:
+// Giras que não são de uma linha (gira interna, reunião). Nelas ninguém é convertido:
 // cada um atua na própria função cadastrada.
-export const GIRAS_ESPECIAIS = [['interna', 'Gira interna']];
-export const ehGiraInterna = (entidade) => normalizar(entidade) === 'gira interna' || normalizar(entidade) === 'interna';
+export const GIRAS_ESPECIAIS = [['interna', 'Gira interna'], ['reuniao', 'Reunião obrigatória']];
+const ESPECIAL_LABEL = Object.fromEntries(GIRAS_ESPECIAIS);
+const ESPECIAIS_APELIDOS = { 'gira interna': 'interna', interna: 'interna', 'reuniao obrigatoria': 'reuniao', reuniao: 'reuniao' };
+// Chave da gira especial ('interna', 'reuniao') ou null.
+export const giraEspecial = (entidade) => ESPECIAIS_APELIDOS[normalizar(entidade)] || null;
+export const ehGiraInterna = (entidade) => giraEspecial(entidade) === 'interna';
 // Giras que juntam mais de uma linha. Só existem como gira (não se marcam na pessoa):
 // quem tem qualquer uma das linhas juntas atua na própria função.
 export const GIRAS_JUNTAS = [['exus-pombagira', 'Exus & Pombagira', ['exu', 'pomba-gira']]];
@@ -59,6 +63,8 @@ LINHAS.flatMap((g) => g.itens).forEach(([k, label]) => {
   APELIDOS[n.replace(/ /g, '')] = k;                           // junto: "Pombagira"
 });
 APELIDOS[normalizar('Ere')] = 'eres';
+APELIDOS[normalizar('Mista')] = 'mista';            // nome antigo de "Encontro das Linhas"
+APELIDOS[normalizar('Gira mista')] = 'mista';
 ['Exus & Pombagira', 'Exus e Pombagiras', 'Exu e Pomba Gira', 'Exus e Pombas Giras', 'Exu & Pombagira', 'Exus e Pombagira']
   .forEach((t) => { APELIDOS[normalizar(t)] = 'exus-pombagira'; });
 APELIDOS[normalizar('Erê')] = 'eres';
@@ -66,6 +72,14 @@ APELIDOS[normalizar('Erê')] = 'eres';
 // Linha correspondente ao texto da entidade da gira (ou null se não for uma das linhas).
 export function linhaDaEntidade(entidade) {
   return APELIDOS[normalizar(entidade)] || null;
+}
+
+// Nome para mostrar da gira (atualiza nomes antigos, ex.: "Mista" → "Encontro das Linhas").
+export function nomeGira(entidade) {
+  const l = linhaDaEntidade(entidade);
+  if (l) return LINHA_LABEL[l];
+  const e = giraEspecial(entidade);
+  return e ? ESPECIAL_LABEL[e] : String(entidade || '');
 }
 
 // Extra e Passe podem ter as linhas em que atuam nessa função. Nas outras giras, cambonam.
