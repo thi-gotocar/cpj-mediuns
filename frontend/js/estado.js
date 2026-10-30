@@ -277,8 +277,8 @@ export function montarBackup() {
     app: 'sort-mediuns',
     versao: 2,
     exportado: new Date().toISOString(),
-    pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [] }])),
-    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
+    pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [], limpeza: p.limpeza || null }])),
+    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, limpeza: g.limpeza || null, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
   };
 }
 export async function importarBackup(obj) {

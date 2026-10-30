@@ -34,7 +34,7 @@ function retangulo(ctx, x, y, w, h, r) {
 }
 
 // Desenha (ou só mede, com desenhar = false) e devolve a altura.
-function desenhar(ctx, pessoas, g, desenhar) {
+function desenhar(ctx, pessoas, g, desenhar, giras = []) {
   const nome = (id) => pessoas.find((p) => p.id === id)?.nome || '(removido)';
   const { lista, semPasse } = paresPorMedium(pessoas, g);
   const fonte = (w, s, f) => { ctx.font = `${w} ${s}px ${f || FB}`; };
@@ -105,7 +105,7 @@ function desenhar(ctx, pessoas, g, desenhar) {
     .concat(semPasse.length ? [{ l: 'Sem médium', mut: true, r: semPasse.map(nome) }] : []));
 
   // demais grupos
-  const info = gruposExtras(pessoas, g);
+  const info = gruposExtras(pessoas, g, giras);
   if (info.length) {
     const ix = P + 20, iw = CW - 40;
     fonte(400, 19);
@@ -125,7 +125,7 @@ function desenhar(ctx, pessoas, g, desenhar) {
   return y + 2 + 16 + P - 8;
 }
 
-export async function gerarImagem(pessoas, g) {
+export async function gerarImagem(pessoas, g, giras = []) {
   try {
     await Promise.all(['700 36px Alegreya', '700 24px Alegreya', '400 19px "Alegreya Sans"', '700 19px "Alegreya Sans"', '500 13px "Alegreya Sans"']
       .map((f) => document.fonts.load(f)));
@@ -134,7 +134,7 @@ export async function gerarImagem(pessoas, g) {
   const c = document.createElement('canvas');
   let ctx = c.getContext('2d');
   ctx.textBaseline = 'top';
-  const H = Math.ceil(desenhar(ctx, pessoas, g, false));
+  const H = Math.ceil(desenhar(ctx, pessoas, g, false, giras));
   c.width = W * S;
   c.height = Math.ceil(H * S);
   ctx = c.getContext('2d');
@@ -142,7 +142,7 @@ export async function gerarImagem(pessoas, g) {
   ctx.textBaseline = 'top';
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
-  desenhar(ctx, pessoas, g, true);
+  desenhar(ctx, pessoas, g, true, giras);
   const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
   if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
   return blob;

@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 22;  // v22: motivo da licença
+export const VERSAO = 23;  // v23: turma da limpeza (pessoa e gira)
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -47,6 +47,8 @@ export const MIGRACOES = [
   `create unique index if not exists pessoas_nome_unico on pessoas (lower(btrim(nome)))`,
   // v2: linhas em que Extra/Passe atuam na própria função (nas outras, cambonam)
   `alter table pessoas add column if not exists linhas text[] not null default '{}'`,
+  // v23: turma da limpeza (1 a 7) da pessoa e a turma responsável pela gira
+  `alter table pessoas add column if not exists limpeza smallint check (limpeza between 1 and 7)`,
   // v17: o usuário é uma pessoa da corrente (o nome vem do cadastro); só o root pode não ter
   `alter table usuarios add column if not exists pessoa_id uuid references pessoas (id) on delete set null`,
   `create unique index if not exists usuarios_pessoa_unica on usuarios (pessoa_id) where pessoa_id is not null`,
@@ -70,6 +72,7 @@ export const MIGRACOES = [
      atualizado_em   timestamptz not null default now(),
      atualizado_por  uuid references usuarios (id) on delete set null
    )`,
+  `alter table giras add column if not exists limpeza smallint check (limpeza between 1 and 7)`,
   // v6: gira encerrada (ninguém altera até reabrir)
   `alter table giras add column if not exists encerrada boolean not null default false`,
   // v7: quem foi para o Suporte ao encerrar e o status que tinha antes (volta ao reabrir)
@@ -227,7 +230,7 @@ export const MIGRACOES = [
   `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select p.id, p.nome, p.funcao, p.experiente, p.linhas,
+       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza,
               coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
                         from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas
        from pessoas p
@@ -287,10 +290,11 @@ export const MIGRACOES = [
        experiente = case when p ? 'experiente' then (p ->> 'experiente')::boolean else experiente end,
        linhas     = case when p ? 'linhas'
                          then array(select distinct jsonb_array_elements_text(p -> 'linhas') order by 1)
-                         else linhas end
+                         else linhas end,
+       limpeza    = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else limpeza end
      where id = v_id;
      if not found then raise exception 'Pessoa não encontrada.'; end if;
-     return (select to_jsonb(x) from (select id, nome, funcao, experiente, linhas from pessoas where id = v_id) x);
+     return (select to_jsonb(x) from (select id, nome, funcao, experiente, linhas, limpeza from pessoas where id = v_id) x);
    end;
    $$`,
   `create or replace function pessoas_excluir(p jsonb)
@@ -310,6 +314,7 @@ export const MIGRACOES = [
        'encerrada', g.encerrada,
        'suporteAuto', g.suporte_auto,
        'atendimentos', g.atendimentos,
+       'limpeza', g.limpeza,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
@@ -337,14 +342,15 @@ export const MIGRACOES = [
      v_data date := (p ->> 'data')::date;
      v_user uuid := nullif(p ->> 'usuario', '')::uuid;
    begin
-     insert into giras (data, entidade, encerrada, atendimentos, atualizado_em, atualizado_por)
+     insert into giras (data, entidade, encerrada, atendimentos, limpeza, atualizado_em, atualizado_por)
      values (v_data, coalesce(p ->> 'entidade', ''), coalesce((p ->> 'encerrada')::boolean, false),
-             nullif(p -> 'atendimentos', 'null'::jsonb), now(), v_user)
+             nullif(p -> 'atendimentos', 'null'::jsonb), nullif(p ->> 'limpeza', '')::smallint, now(), v_user)
      on conflict (data) do update set
        entidade       = case when p ? 'entidade' then coalesce(p ->> 'entidade', '') else giras.entidade end,
        encerrada      = case when p ? 'encerrada' then (p ->> 'encerrada')::boolean else giras.encerrada end,
        suporte_auto   = case when p ? 'suporteAuto' then coalesce(p -> 'suporteAuto', '{}'::jsonb) else giras.suporte_auto end,
        atendimentos   = case when p ? 'atendimentos' then nullif(p -> 'atendimentos', 'null'::jsonb) else giras.atendimentos end,
+       limpeza        = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else giras.limpeza end,
        atualizado_em  = now(),
        atualizado_por = excluded.atualizado_por;
 

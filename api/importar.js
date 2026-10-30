@@ -46,6 +46,10 @@ export default rota({
         await db.rpc('pessoas_atualizar', { id: atual.id, experiente: true });
         atual.experiente = true;
       }
+      if ([1, 2, 3, 4, 5, 6, 7].includes(p.limpeza) && !atual.limpeza) {
+        await db.rpc('pessoas_atualizar', { id: atual.id, limpeza: p.limpeza });
+        atual.limpeza = p.limpeza;
+      }
       const linhas = Array.isArray(p.linhas) ? p.linhas.filter((l) => LINHA_KEYS.includes(l)) : [];
       if (linhas.length && !(atual.linhas || []).length) {
         await db.rpc('pessoas_atualizar', { id: atual.id, linhas });
@@ -70,6 +74,7 @@ export default rota({
         data, usuario: perfil.id, entidade: String(g.entidade || '').slice(0, 120),
         presenca, pares: mapa(g.pares), passes: mapa(g.passes), encerrada: g.encerrada === true,
         ...(g.atendimentos && typeof g.atendimentos === 'object' ? { atendimentos: g.atendimentos } : {}),
+        ...([1, 2, 3, 4, 5, 6, 7].includes(g.limpeza) ? { limpeza: g.limpeza } : {}),
       });
       giras++;
     }

@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -16,7 +16,7 @@ function textoAtendimentos(a) {
 }
 
 function chaveImg() {
-  return textoWhats(estado.pessoas, giraAtual(), 'lista');
+  return textoWhats(estado.pessoas, giraAtual(), 'lista', girasLista());
 }
 function podeCompartilhar() {
   try {
@@ -33,6 +33,20 @@ function seletorEntidade(atual) {
   return `<select id="f-ent"><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
     ${OPCOES_GIRA.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, label]) => `<option ${label === valor ? 'selected' : ''}>${label}</option>`).join('')}</optgroup>`).join('')}
   </select>`;
+}
+
+// Turma da limpeza do dia e quem ajuda (faltou na gira anterior). Vale para todos verem.
+function blocoLimpeza(g, admin) {
+  if (!temLimpeza(g)) return '';
+  const L = limpezaDaGira(estado.pessoas, g, girasLista());
+  if (!L) return '';
+  const nomes = (l) => l.map((p) => esc(p.nome)).join(', ');
+  return `<div class="limpeza"><b>🧹 Limpeza · Turma ${L.turma}</b>
+    <span>${L.membros.length ? nomes(L.membros) : '<span class="muted">Ninguém cadastrado nesta turma (cadastre na aba Pessoas).</span>'}</span>
+    ${L.deLicenca.length ? `<span class="muted" style="font-size:.85rem">De licença: ${nomes(L.deLicenca)}</span>` : ''}
+    ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na gira de ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeGira(L.anterior.entidade))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
+      : L.anterior ? `<span class="muted" style="font-size:.85rem">Ninguém faltou na gira de ${dDM(L.anterior.data)}.</span>` : ''}
+  </div>`;
 }
 
 // Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
@@ -88,7 +102,7 @@ function resultado(g) {
   });
   h += `</div>`;
   if (semPasse.length) h += `<p class="muted" style="margin:0">Passe sem médium: ${semPasse.map(nome).map(esc).join(', ')}</p>`;
-  gruposExtras(estado.pessoas, g).forEach(([t, nomes]) => {
+  gruposExtras(estado.pessoas, g, girasLista()).forEach(([t, nomes]) => {
     h += `<div class="grp"><h3>${t}</h3><p style="margin:0">${nomes.map(esc).join(', ')}</p></div>`;
   });
   h += blocosFora(pessoasOrd(), g);
@@ -111,7 +125,9 @@ export function render() {
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
+      ${editar && temLimpeza(g) ? `<label class="field" style="flex:0 1 160px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
     </div>
+    ${blocoLimpeza(g, admin)}
     ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}${g.atendimentos ? `<br>${textoAtendimentos(g.atendimentos)}` : ''}</span><span class="row" style="gap:6px">${pode('escala:completa') ? botaoResumo(g) : ''}${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</span></div>
     ${pode('escala:completa') ? painelResumo(g) : ''}` : ''}
     ${avisoEntidade(ps, g, editar, admin)}
@@ -243,7 +259,7 @@ export function render() {
     </ul></details></div>`;
 
   // exportação
-  const txt = textoWhats(estado.pessoas, g, prefs.fmt);
+  const txt = textoWhats(estado.pessoas, g, prefs.fmt, girasLista());
   const imgOk = estado.img && estado.img.data === g.data && estado.img.key === chaveImg();
   h += `<div class="card"><div class="grp-h"><h2>WhatsApp</h2>
     <div class="seg" role="group" aria-label="Formato"><button data-act="fmt" data-v="lista" aria-pressed="${prefs.fmt === 'lista'}">Lista</button><button data-act="fmt" data-v="tabela" aria-pressed="${prefs.fmt === 'tabela'}">Tabela</button></div></div>
@@ -309,14 +325,14 @@ export const cliques = {
   },
   fmt(el) { prefs.fmt = el.dataset.v; salvarPrefs(); avisar(); },
   copiar() {
-    const txt = textoWhats(estado.pessoas, giraAtual(), prefs.fmt);
+    const txt = textoWhats(estado.pessoas, giraAtual(), prefs.fmt, girasLista());
     const fb = () => { const t = document.getElementById('f-txt'); t.focus(); t.select(); toast('Texto selecionado. Copie com o menu do aparelho.'); };
     try { navigator.clipboard.writeText(txt).then(() => toast('Copiado. Cole no grupo do WhatsApp.'), fb); } catch { fb(); }
   },
   async gerarimg() {
     try {
       const g = giraAtual();
-      const blob = await gerarImagem(estado.pessoas, g);
+      const blob = await gerarImagem(estado.pessoas, g, girasLista());
       if (estado.img) URL.revokeObjectURL(estado.img.url);
       estado.img = { url: URL.createObjectURL(blob), blob, key: chaveImg(), data: g.data, nome: 'gira-' + g.data + '.png' };
       avisar();
@@ -342,6 +358,7 @@ function saiDoSuporte(g, id) {
 }
 
 export const mudancas = {
+  limpezagira(t) { editarGira({ limpeza: t.value ? Number(t.value) : null }); avisar(); },
   entidade(t) { editarGira({ entidade: t.value }); avisar(); },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
   status(t) {

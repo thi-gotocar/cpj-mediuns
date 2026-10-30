@@ -122,6 +122,33 @@ export function status(p, g) {
   return STATUS_KEYS.includes(v) ? v : 'p';
 }
 export const presente = (p, g) => status(p, g) === 'p';
+
+// ---- Turma da limpeza (1 a 7)
+// Cada pessoa pode ser de uma turma; o admin escolhe a turma responsável pela gira.
+// Quem faltou (status "Falta") na gira anterior ajuda a turma da gira atual.
+// Gira interna e reunião não têm limpeza e não contam como "gira anterior".
+export const TURMAS_LIMPEZA = [1, 2, 3, 4, 5, 6, 7];
+export const temLimpeza = (g) => !giraEspecial(g?.entidade);
+
+// Última gira antes desta que tem limpeza (ignora gira interna e reunião).
+export function giraAnteriorComLimpeza(giras, data) {
+  return (giras || []).filter((x) => x.data < data && temLimpeza(x)).sort((a, b) => b.data.localeCompare(a.data))[0] || null;
+}
+
+// { turma, membros, deLicenca, ajudantes, anterior } ou null se a gira não tem turma definida.
+export function limpezaDaGira(pessoas, g, giras) {
+  if (!temLimpeza(g) || !TURMAS_LIMPEZA.includes(Number(g.limpeza))) return null;
+  const turma = Number(g.limpeza);
+  const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+  const daTurma = pessoas.filter((p) => Number(p.limpeza) === turma).sort(porNome);
+  const membros = daTurma.filter((p) => !licencaEm(p, g.data));
+  const deLicenca = daTurma.filter((p) => licencaEm(p, g.data));
+  const anterior = giraAnteriorComLimpeza(giras, g.data);
+  const ajudantes = anterior
+    ? pessoas.filter((p) => status(p, anterior) === 'f' && Number(p.limpeza) !== turma && !licencaEm(p, g.data)).sort(porNome)
+    : [];
+  return { turma, membros, deLicenca, ajudantes, anterior };
+}
 export const cambonaHoje = (p, g) => {
   const s = status(p, g);
   return (s === 'p' && p.funcao === 'cambone') || s === 'na';

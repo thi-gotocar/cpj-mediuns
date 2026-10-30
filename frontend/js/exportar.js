@@ -1,6 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
-import { giraEspecial, nomeGira, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira } from '/shared/regras.js';
+import { giraEspecial, nomeGira, limpezaDaGira, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira } from '/shared/regras.js';
 import { wd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -16,17 +16,28 @@ function tabela(L, h1, h2, rows) {
 
 // Grupos que aparecem depois das duplas (também usados pela imagem).
 // Quem faltou ou está ausente não entra na lista do evento.
-export function gruposExtras(pessoas, g) {
+const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
+// Turma da limpeza do dia e quem ajuda (faltou na gira anterior). giras = todas as giras salvas.
+export function gruposLimpeza(pessoas, g, giras) {
+  const L = limpezaDaGira(pessoas, g, giras);
+  if (!L) return [];
+  const out = [[`Limpeza · Turma ${L.turma}`, L.membros.length ? L.membros.map((p) => p.nome) : ['ninguém cadastrado nesta turma']]];
+  if (L.ajudantes.length) out.push([`Ajudam na limpeza (faltaram em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome)]);
+  return out;
+}
+
+export function gruposExtras(pessoas, g, giras = []) {
   const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
   const usados = new Set((g.pares || []).map((p) => p.c));
   return [
     ['Senha', ps.filter((p) => presente(p, g) && p.funcao === 'senha').map((p) => p.nome)],
     ['Suporte', ps.filter((p) => status(p, g) === 'sup').map((p) => p.nome)],
     ['Cambones de apoio', ps.filter((p) => cambonaHoje(p, g) && !usados.has(p.id)).map((p) => p.nome)],
-  ].filter((x) => x[1].length);
+  ].filter((x) => x[1].length).concat(gruposLimpeza(pessoas, g, giras));
 }
 
-export function textoWhats(pessoas, g, fmt) {
+export function textoWhats(pessoas, g, fmt, giras = []) {
   const nome = (id) => pessoas.find((p) => p.id === id)?.nome || '(removido)';
   const { lista, semPasse } = paresPorMedium(pessoas, g);
   const L = [];
@@ -53,6 +64,6 @@ export function textoWhats(pessoas, g, fmt) {
       semPasse.forEach((id) => L.push('• ' + nome(id) + ' → sem médium'));
     }
   }
-  gruposExtras(pessoas, g).forEach(([t, nomes]) => { L.push(''); L.push('*' + t + ':* ' + nomes.join(', ')); });
+  gruposExtras(pessoas, g, giras).forEach(([t, nomes]) => { L.push(''); L.push('*' + t + ':* ' + nomes.join(', ')); });
   return L.join('\n');
 }

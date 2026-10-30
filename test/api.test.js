@@ -584,3 +584,19 @@ test('oferendas: duas pessoas doando o último ao mesmo tempo, só uma consegue'
   assert.equal(fim.doacoes.reduce((a, d) => a + d.quantidade, 0), 1, 'nunca passa da quantidade pedida');
   await of({ acao: 'excluir', id: o.id });
 });
+
+test('turma da limpeza: na pessoa e na gira (1 a 7)', async () => {
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const lista = Array.isArray(ps) ? ps : ps.pessoas;
+  const p = lista[0];
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: 8 })).status, 400);
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, USER, { limpeza: 3 })).status, 403);
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: 3 })).json.limpeza, 3);
+  const depois = (await api('GET', '/api/pessoas', ADMIN)).json;
+  assert.equal((Array.isArray(depois) ? depois : depois.pessoas).find((x) => x.id === p.id).limpeza, 3);
+  assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: null })).json.limpeza, null);
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 0 })).status, 400);
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 5 })).json.limpeza, 5);
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { entidade: 'Exu' })).json.limpeza, 5, 'outros campos não apagam a turma');
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: null })).json.limpeza, null);
+});

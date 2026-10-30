@@ -89,3 +89,25 @@ test('Reunião obrigatória é gira especial; Mista virou Encontro das Linhas', 
   const rot = OPCOES_GIRA.flatMap((g) => g.itens.map(([, l]) => l));
   assert.ok(rot.includes('Reunião obrigatória') && rot.includes('Encontro das Linhas') && !rot.includes('Mista'));
 });
+
+test('limpeza: turma do dia e quem faltou na gira anterior (sem reunião e gira interna)', async () => {
+  const { limpezaDaGira, temLimpeza } = await import('../shared/regras.js');
+  const P = (id, nome, limpeza, licencas) => ({ id, nome, funcao: 'medium', limpeza, licencas });
+  const pessoas = [P('a', 'Ana', 3), P('b', 'Bia', 3, [{ inicio: '2026-05-01', fim: '2026-05-30' }]), P('c', 'Caio', 1), P('d', 'Duda', 2), P('e', 'Edu', null), P('f', 'Fábio', 3)];
+  const giras = [
+    { data: '2026-04-28', entidade: 'Exu', presenca: { e: 'f' } },
+    { data: '2026-05-05', entidade: 'Caboclo', presenca: { c: 'f', d: 'a', f: 'f' } },
+    { data: '2026-05-08', entidade: 'Reunião obrigatória', presenca: { e: 'f' } },
+    { data: '2026-05-10', entidade: 'Gira interna', presenca: { e: 'f' } },
+  ];
+  const g = { data: '2026-05-12', entidade: 'Preto Velho', limpeza: 3, presenca: {} };
+  const L = limpezaDaGira(pessoas, g, giras);
+  assert.equal(L.turma, 3);
+  assert.deepEqual(L.membros.map((p) => p.nome), ['Ana', 'Fábio']);
+  assert.deepEqual(L.deLicenca.map((p) => p.nome), ['Bia']);
+  assert.equal(L.anterior.data, '2026-05-05', 'pula reunião e gira interna');
+  assert.deepEqual(L.ajudantes.map((p) => p.nome), ['Caio'], 'só falta; ausente não; quem já é da turma não repete');
+  assert.equal(limpezaDaGira(pessoas, { ...g, limpeza: null }, giras), null);
+  assert.equal(temLimpeza({ entidade: 'Reunião obrigatória' }), false);
+  assert.equal(limpezaDaGira(pessoas, { ...g, entidade: 'Gira interna' }, giras), null);
+});

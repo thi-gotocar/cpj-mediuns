@@ -319,3 +319,8 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .rs-img{width:100%;max-width:420px;border-radius:8px;border:1px solid var(--line)}
 .rs-painel textarea{width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--surface);color:var(--ink);margin-top:6px}
 .infobox .row{flex-wrap:wrap;justify-content:flex-end}
+
+/* Turma da limpeza */
+.limpeza{display:flex;flex-direction:column;gap:4px;border-left:3px solid var(--orange);background:var(--bg);border-radius:8px;padding:8px 12px;font-size:.92rem}
+.limp-sel{font-size:.85rem;padding:3px 6px;width:auto}
+.turmas{display:flex;flex-direction:column;gap:4px;font-size:.9rem}

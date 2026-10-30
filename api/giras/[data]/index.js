@@ -1,12 +1,12 @@
 // GET    /api/giras/:data
-// PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes?, atendimentos?, encerrada? }  (só substitui o que vier)
+// PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes?, atendimentos?, encerrada?, limpeza? }  (só substitui o que vier)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
 // POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' }  → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS, encerrar, reabrir } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, encerrar, reabrir } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -57,6 +57,11 @@ export default rota({
     if ('pares' in b) p.pares = validarDuplas(b.pares, 'cambones');
     if ('passes' in b) p.passes = validarDuplas(b.passes, 'médiuns de passe');
     if ('atendimentos' in b) p.atendimentos = validarAtendimentos(b.atendimentos);
+    if ('limpeza' in b) {
+      if (b.limpeza === null || b.limpeza === '') p.limpeza = null;
+      else if (TURMAS_LIMPEZA.includes(Number(b.limpeza))) p.limpeza = Number(b.limpeza);
+      else throw new HttpError(400, 'Turma da limpeza inválida (1 a 7).');
+    }
     if (b.encerrada === true) p.encerrada = true;
     return db.rpc('gira_salvar', p);
   },

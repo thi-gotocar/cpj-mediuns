@@ -1,6 +1,6 @@
 // Tela "Pessoas": cadastro da corrente.
 
-import { FUNCOES, LINHAS, LINHA_LABEL } from '/shared/regras.js';
+import { FUNCOES, LINHAS, LINHA_LABEL, TURMAS_LIMPEZA } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
@@ -39,6 +39,19 @@ function cardLicencas(ps, editar) {
   return h + `</div>`;
 }
 
+// Quem é de cada turma da limpeza (para conferir de uma vez).
+function cardTurmas(ps) {
+  const com = ps.filter((p) => p.limpeza);
+  if (!com.length) return '';
+  const aberto = estado.turmasAbertas ? ' open' : '';
+  return `<div class="card"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${ps.length}</span></summary>
+    <div class="turmas" style="margin-top:8px">${TURMAS_LIMPEZA.map((t) => {
+      const nomes = ps.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome));
+      return `<div><b>Turma ${t}</b> <span class="muted">(${nomes.length})</span>: ${nomes.length ? nomes.join(', ') : '<span class="muted">ninguém</span>'}</div>`;
+    }).join('')}
+    ${ps.length > com.length ? `<div class="muted">Sem turma: ${ps.length - com.length}</div>` : ''}</div></details></div>`;
+}
+
 const nomeFuncao = (p) => (p.funcao === 'extra' ? 'extra' : 'médium de passe');
 
 function resumoLinhas(p) {
@@ -63,6 +76,7 @@ function editorLinhas(p) {
 const estadoAberto = new Set();
 document.addEventListener('toggle', (e) => {
   const d = e.target;
+  if (d instanceof HTMLDetailsElement && d.classList.contains('turmas-d')) estado.turmasAbertas = d.open;
   if (d instanceof HTMLDetailsElement && d.classList.contains('linhas')) {
     if (d.open) estadoAberto.add(d.dataset.id); else estadoAberto.delete(d.dataset.id);
   }
@@ -89,6 +103,7 @@ export function render() {
   // Totalizador da corrente, por função.
   h += `<div class="card"><div class="grp-h"><h2>Corrente</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="presentes">${FUNCOES.map((f) => `<span><span class="muted">${f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div></div>`;
+  h += cardTurmas(ps);
   FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
@@ -99,14 +114,15 @@ export function render() {
     h += `<div class="ppl">`;
     gp.forEach((p) => {
       if (!editar) {
-        h += `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(p.nome)}</span>${resumoLinhas(p)}</span>${p.funcao === 'medium' && p.experiente ? '<span class="muted" style="font-size:.85rem">pode ter passe junto</span>' : ''}</div>`;
+        h += `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(p.nome)}</span>${resumoLinhas(p)}${p.limpeza ? `<span class="muted" style="font-size:.85rem">🧹 Turma ${p.limpeza} da limpeza</span>` : ''}</span>${p.funcao === 'medium' && p.experiente ? '<span class="muted" style="font-size:.85rem">pode ter passe junto</span>' : ''}</div>`;
         return;
       }
       const conf = estado.confirm === 'p:' + p.id;
       const nomeHtml = estado.renomear === p.id
         ? `<form id="f-ren" class="ren" data-id="${p.id}"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Novo nome de ${esc(p.nome)}"><button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelren">Cancelar</button></form>`
         : `<span class="nmline"><span class="nm">${esc(p.nome)}</span><button class="btn link small" data-act="ren" data-id="${p.id}" title="Editar nome" aria-label="Editar nome de ${esc(p.nome)}">✎ editar</button></span>`;
-      h += `<div class="pp"><span class="nmcell">${nomeHtml}${p.funcao === 'medium' ? `<label class="check small"><input type="checkbox" id="exp-${p.id}" data-act="exp" data-id="${p.id}" ${p.experiente ? 'checked' : ''}> Pode ter médium de passe junto</label>` : ''}</span>
+      h += `<div class="pp"><span class="nmcell">${nomeHtml}${p.funcao === 'medium' ? `<label class="check small"><input type="checkbox" id="exp-${p.id}" data-act="exp" data-id="${p.id}" ${p.experiente ? 'checked' : ''}> Pode ter médium de passe junto</label>` : ''}
+          <label class="check small" style="white-space:nowrap">🧹 Limpeza: turma <select class="limp-sel" id="lp-${p.id}" data-act="limpeza" data-id="${p.id}" aria-label="Turma da limpeza de ${esc(p.nome)}"><option value="">—</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label></span>
         <select id="fn-${p.id}" data-act="func" data-id="${p.id}" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>
         ${conf ? `<button class="btn small danger" data-act="delpessoa" data-id="${p.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="p:${p.id}">Excluir</button>`}
         ${p.funcao === 'extra' || p.funcao === 'passe' ? editorLinhas(p) : ''}</div>`;
@@ -164,6 +180,7 @@ export async function renomear(form) {
 export const mudancas = {
   exp(t) { atualizarPessoa(t.dataset.id, { experiente: t.checked }); },
   func(t) { atualizarPessoa(t.dataset.id, { funcao: t.value }); },
+  limpeza(t) { atualizarPessoa(t.dataset.id, { limpeza: t.value ? Number(t.value) : null }); },
   linha(t) {
     const p = estado.pessoas.find((x) => x.id === t.dataset.id);
     if (!p) return;
