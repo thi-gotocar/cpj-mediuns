@@ -3,7 +3,7 @@
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
 //        admin:  salvar { id?, titulo, data, responsavelId, porMedium? (só ao criar) } · excluir { id }
-//                medium { oferendaId, pessoaId, status } · atualizarMediuns { id }  (oferenda com uma linha por médium)
+//                medium { oferendaId, pessoaId, status } · excluirMedium { oferendaId, pessoaId } · atualizarMediuns { id }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
@@ -108,6 +108,9 @@ export default rota({
       case 'medium':
         if (!STATUS_MEDIUM_KEYS.includes(b.status)) throw new HttpError(400, 'Situação inválida.');
         estado = await db.rpc('oferenda_medium_status', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium'), status: b.status });
+        break;
+      case 'excluirMedium':
+        estado = await db.rpc('oferenda_medium_excluir', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') });
         break;
       case 'atualizarMediuns':
         estado = await db.rpc('oferenda_mediuns_atualizar', { id: validarId(b.id, 'Oferenda') });

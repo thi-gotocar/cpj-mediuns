@@ -108,7 +108,10 @@ function blocoMediuns(of, admin) {
     <div class="of-med-cont">${STATUS_MEDIUM.filter(([k]) => c[k]).map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>`;
   if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Nenhum médium na lista.</p></div>`;
   h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${m.status}"><span class="nm">${esc(m.nome)}</span>
-    ${admin ? `<select class="sel-med ${m.status}" data-act="ofmedium" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="Situação de ${esc(m.nome)}">${STATUS_MEDIUM.map(([k, l]) => `<option value="${k}" ${k === m.status ? 'selected' : ''}>${l}</option>`).join('')}</select>` : etqMed(m.status)}</div>`).join('')}</div>`;
+    ${admin ? `<span class="of-med-acts"><select class="sel-med ${m.status}" data-act="ofmedium" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="Situação de ${esc(m.nome)}">${STATUS_MEDIUM.map(([k, l]) => `<option value="${k}" ${k === m.status ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      ${estado.confirm === 'om:' + of.id + ':' + m.pessoaId
+        ? `<button class="btn small danger" data-act="delmedium" data-of="${of.id}" data-p="${m.pessoaId}">Tirar</button>`
+        : `<button class="btn small" data-act="askdel" data-k="om:${of.id}:${m.pessoaId}" title="Tirar ${esc(m.nome)} desta lista" aria-label="Tirar ${esc(m.nome)} desta lista">✕</button>`}</span>` : etqMed(m.status)}</div>`).join('')}</div>`;
   return h + `</div>`;
 }
 
@@ -279,6 +282,11 @@ export const cliques = {
   async statusof(el) {
     const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda bloqueada: a corrente vê, mas sem a lista de itens.', encerrado: 'Oferenda encerrada: saiu da lista da corrente.', aguardando: 'Voltou para Aguardando publicação: a corrente não vê.' };
     if (await acaoOferendas('status', { id: el.dataset.id, status: el.dataset.v })) toast(t[el.dataset.v]);
+  },
+  async delmedium(el) {
+    estado.confirm = null;
+    const m = (achar(el.dataset.of).of?.mediuns || []).find((x) => x.pessoaId === el.dataset.p);
+    if (await acaoOferendas('excluirMedium', { oferendaId: el.dataset.of, pessoaId: el.dataset.p })) toast(`${m?.nome || 'Médium'} saiu da lista desta oferenda.`);
   },
   async atualizarmed(el) {
     const antes = (achar(el.dataset.id).of?.mediuns || []).length;

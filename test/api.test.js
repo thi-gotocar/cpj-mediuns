@@ -638,11 +638,17 @@ test('oferendas: uma linha para cada médium, admin marca a situação', async (
   assert.equal((await api('POST', '/api/oferendas', USER, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'pago' })).status, 403);
   const r2 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'nao_pago' })).json;
   assert.equal(r2.oferendas.find((o) => o.id === of.id).mediuns.find((m) => m.pessoaId === m0.pessoaId).status, 'nao_pago');
+  // tirar um médium da lista: some, e não volta com "Incluir novos médiuns"
+  const m1 = of.mediuns[1];
+  assert.equal((await api('POST', '/api/oferendas', USER, { acao: 'excluirMedium', oferendaId: of.id, pessoaId: m1.pessoaId })).status, 403);
+  const rx = (await api('POST', '/api/oferendas', ADMIN, { acao: 'excluirMedium', oferendaId: of.id, pessoaId: m1.pessoaId })).json;
+  assert.ok(!rx.oferendas.find((o) => o.id === of.id).mediuns.some((m) => m.pessoaId === m1.pessoaId));
   // médium cadastrado depois entra com "Incluir novos médiuns"; quem já estava continua igual
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Médium Novo Oferenda', funcao: 'extra' });
   const r3 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'atualizarMediuns', id: of.id })).json;
   const of3 = r3.oferendas.find((o) => o.id === of.id);
-  assert.equal(of3.mediuns.length, mediuns.length + 1);
+  assert.equal(of3.mediuns.length, mediuns.length, '+1 novo, -1 tirado');
+  assert.ok(!of3.mediuns.some((m) => m.pessoaId === m1.pessoaId), 'quem foi tirado não volta');
   assert.equal(of3.mediuns.find((m) => m.pessoaId === m0.pessoaId).status, 'nao_pago');
   // sem a opção, a oferenda não tem linhas de médium
   const r4 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'salvar', responsavelId: RESP(), titulo: 'Sem médium', data: '2029-03-04' })).json;

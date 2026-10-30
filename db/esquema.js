@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 30;  // v30: data de entrada na corrente
+export const VERSAO = 31;  // v31: tirar médium da oferenda
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -740,6 +740,8 @@ export const MIGRACOES = [
      atualizado_em  timestamptz not null default now(),
      primary key (oferenda_id, pessoa_id)
    )`,
+  // v31: médium tirado da lista da oferenda (continua marcado para não voltar com "Incluir novos médiuns")
+  `alter table oferenda_mediuns add column if not exists excluido boolean not null default false`,
   `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(jsonb_build_object(
@@ -749,7 +751,7 @@ export const MIGRACOES = [
        'mediuns', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pe.id, 'nome', pe.nome, 'status', om.status)
                                              order by lower(pe.nome))
                             from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
-                            where om.oferenda_id = o.id), '[]'::jsonb),
+                            where om.oferenda_id = o.id and not om.excluido), '[]'::jsonb),
        'itens', coalesce((select jsonb_agg(jsonb_build_object(
            'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
            'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
@@ -807,4 +809,13 @@ export const MIGRACOES = [
   // v28: giras ainda em aberto, de hoje em diante, passam a usar "pendente" como padrão
   // (quem não foi marcado deixa de contar como presente até o admin confirmar).
   `update giras set pendente_padrao = true where not encerrada and not pendente_padrao and data >= current_date`,
+  `create or replace function oferenda_medium_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferenda_mediuns set excluido = true, atualizado_em = now()
+     where oferenda_id = (p ->> 'oferendaId')::uuid and pessoa_id = (p ->> 'pessoaId')::uuid;
+     if not found then raise exception 'Médium não está nesta oferenda.'; end if;
+     return oferendas_estado();
+   end;
+   $$`,
 ];
