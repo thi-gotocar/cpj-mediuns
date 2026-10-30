@@ -599,6 +599,11 @@ test('turma da limpeza: na pessoa e na gira (1 a 7)', async () => {
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 5 })).json.limpeza, 5);
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { entidade: 'Exu' })).json.limpeza, 5, 'outros campos não apagam a turma');
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: null })).json.limpeza, null);
+  // gira encerrada: a turma ainda pode mudar, o resto não
+  assert.equal((await api('POST', '/api/giras/2028-01-05', ADMIN, { acao: 'encerrar', atendimentos: { preferencial: 0, normal: 0, passe: 0 } })).status, 200);
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 6 })).json.limpeza, 6);
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 6, entidade: 'Caboclo' })).status, 409);
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', USER, { limpeza: 2 })).status, 403);
 });
 
 test('oferendas: uma linha para cada médium, admin marca a situação', async () => {

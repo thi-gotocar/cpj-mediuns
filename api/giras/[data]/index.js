@@ -38,7 +38,9 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const b = corpo(req);
-    if ((await db.rpc('gira_obter', { data }))?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+    // Gira encerrada: só a turma da limpeza ainda pode mudar (o resto, só reabrindo).
+    const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza');
+    if (!soLimpeza && (await db.rpc('gira_obter', { data }))?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
     const p = { data, usuario: perfil.id };
     if ('entidade' in b) {
       const e = String(b.entidade ?? '').trim();

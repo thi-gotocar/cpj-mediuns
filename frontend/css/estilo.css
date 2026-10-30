@@ -364,3 +364,5 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .eu-limp{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:7px 10px;font-weight:700;font-size:.92rem}
 .eu-fora{background:var(--off-soft);color:var(--off);border-radius:8px;padding:8px 10px;font-size:.95rem}
 .datehead .dia.gira-nome{text-transform:none}
+.enc-limp{display:flex;align-items:center;gap:8px;font-weight:700;font-size:.9rem}
+.enc-limp select{width:auto;padding:5px 8px;font-size:.9rem}
