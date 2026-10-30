@@ -410,7 +410,8 @@ export function render() {
       <p class="muted" style="margin:0;font-size:.88rem">No celular, também dá para tocar e segurar a imagem para salvar.</p>`;
   }
   h += `</div></div>`;
-  return h + janelaPresenca() + '</section>';
+  setTimeout(atualizarJanela, 0);
+  return h + '</section>';
 }
 
 // ---------- ações ----------
@@ -426,8 +427,8 @@ export const cliques = {
     avisar();
   },
   // Suporte liga/desliga (desligado volta para Presente).
-  presok() { const c = estado.confPres; estado.confPres = null; if (c) gravarPresenca(c.id, c.valor); },
-  prescancel() { estado.confPres = null; avisar(); },
+  presok() { const c = estado.confPres; estado.confPres = null; atualizarJanela(); if (c) gravarPresenca(c.id, c.valor); },
+  prescancel() { estado.confPres = null; atualizarJanela(); avisar(); },
   sortear: () => { duplasAbertas.add(giraAtual().data); sortear(); },
   dobrarduplas() {
     const d = giraAtual().data;
@@ -523,6 +524,25 @@ function gravarPresenca(id, valor) {
   avisar();
 }
 
+// A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
+let raizJanela = null;
+function atualizarJanela() {
+  const html = prefs.tab === 'gira' ? janelaPresenca() : '';
+  if (!raizJanela) {
+    if (!html) return;
+    raizJanela = document.createElement('div');
+    raizJanela.id = 'janela';
+    document.body.appendChild(raizJanela);
+    raizJanela.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-act]');
+      if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
+      else if (e.target.classList.contains('modal-fundo')) cliques.prescancel();
+    });
+  }
+  if (raizJanela.innerHTML !== html) raizJanela.innerHTML = html;
+  if (html) raizJanela.querySelector('[data-act=presok]')?.focus();
+}
+
 // Janela para confirmar a troca de quem estava Pendente.
 function janelaPresenca() {
   const c = estado.confPres;
@@ -558,6 +578,7 @@ export const mudancas = {
     const p = estado.pessoas.find((x) => x.id === t.dataset.id);
     if (p && presencaDe(p, g) === 'pend' && t.value !== 'pend') {
       estado.confPres = { id: t.dataset.id, valor: t.value };
+      t.blur();   // fecha a lista do combo (no celular ela ficava por cima da janela)
       avisar();   // o combo volta para Pendente até confirmar
       return;
     }
