@@ -280,14 +280,17 @@ test('admin só entra como admin com o e-mail dele; pelo cpj entra como corrente
   // Com o e-mail e a senha dele, é admin.
   const pelaConta = (await api('POST', '/api/auth/entrar', null, { email: 'adm2@corrente.org', senha: 'senha-forte-9' })).json;
   assert.equal(pelaConta.usuario.papel, 'admin');
-  assert.equal((await api('GET', '/api/usuarios', pelaConta.token)).status, 200);
+  assert.equal((await api('POST', '/api/giras/2027-05-01/sortear', pelaConta.token)).status, 200, 'admin sorteia');
+  await api('DELETE', '/api/giras/2027-05-01', ADMIN);
+  // A aba Usuários é só do admin root.
+  assert.equal((await api('GET', '/api/usuarios', pelaConta.token)).status, 403);
   // O nome no lugar do e-mail não serve para entrar como admin.
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'Admin Pessoa', senha: 'senha-forte-9' })).status, 401);
   const u = (await api('GET', '/api/usuarios', ADMIN)).json.find((x) => x.email === 'adm2@corrente.org');
   await api('DELETE', '/api/usuarios/' + u.id, ADMIN);
 });
 
-test('gestão de usuários: só admin, com travas', async () => {
+test('gestão de usuários: só admin root, com travas', async () => {
   assert.equal((await api('GET', '/api/usuarios', USER)).status, 403);
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Novo', funcao: 'senha' });
   const pNovo = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Novo');

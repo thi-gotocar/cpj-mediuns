@@ -75,7 +75,7 @@ export function render() {
   });
   h += `</div></div>
   <div class="card"><h2>O que cada perfil pode fazer</h2><div class="perm">
-    ${Object.entries(PAPEIS).map(([k, v]) => `<div><h3>${v}</h3>${k === 'root' ? '<p class="muted" style="margin:0;font-size:.85rem">Igual ao Admin, mas não precisa ter cadastro na corrente.</p>' : ''}<ul>${PERMISSOES[k].map((p) => `<li>${DESCRICAO[p] || p}</li>`).join('')}</ul></div>`).join('')}
+    ${Object.entries(PAPEIS).map(([k, v]) => `<div><h3>${v}</h3>${k === 'root' ? '<p class="muted" style="margin:0;font-size:.85rem">Igual ao Admin, e é o único que vê a aba Usuários. Não precisa ter cadastro na corrente.</p>' : ''}<ul>${PERMISSOES[k].map((p) => `<li>${DESCRICAO[p] || p}</li>`).join('')}</ul></div>`).join('')}
   </div></div></section>`;
   return h;
 }

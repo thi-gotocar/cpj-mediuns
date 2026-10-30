@@ -4,7 +4,7 @@
 // Para mudar as permissões, altere este arquivo: vale para os dois lados.
 
 export const PERMISSOES = {
-  // Admin root: o mesmo que o admin, mas não precisa estar no cadastro de pessoas.
+  // Admin root: o mesmo que o admin, e só ele gerencia os usuários. Não precisa estar no cadastro de pessoas.
   root: [],
   admin: [
     'escala:completa',  // presença, abas Pessoas e Histórico
@@ -14,7 +14,6 @@ export const PERMISSOES = {
     'giras:editar',     // entidade, presença, troca manual de duplas, fixar
     'giras:sortear',    // sortear e remanejar faltas
     'giras:excluir',
-    'usuarios:gerenciar',
     'dados:importar',
     'ervas:escolher',
     'ervas:gerenciar',  // cadastrar ervas e preços, frete, fechar a lista, ver e exportar pedidos
@@ -57,7 +56,7 @@ export const PERMISSOES = {
 };
 
 // Perfis que podem ser dados a usuários cadastrados.
-PERMISSOES.root = [...PERMISSOES.admin];
+PERMISSOES.root = [...PERMISSOES.admin, 'usuarios:gerenciar'];   // aba Usuários: só o root
 
 export const PAPEIS = { root: 'Admin root', admin: 'Admin', usuario: 'Usuário', admin_oferendas: 'Admin oferendas', admin_ervas: 'Admin ervas' };
 // Perfis que podem existir sem cadastro na corrente.
