@@ -498,6 +498,7 @@ test('oferendas: admin cria itens, todos doam até o limite, admin marca entregu
   assert.match((await of({ acao: 'doar', itemId: velas.id, quantidade: 1 }, ana)).json.erro, /não está aberta/);
   await of({ acao: 'status', id: o.id, status: 'publicado' });
   assert.ok((await api('GET', '/api/oferendas', ana)).json.oferendas.some((x) => x.id === o.id), 'publicada aparece');
+  assert.equal((await api('GET', '/api/oferendas', ADMIN)).json.oferendas.find((x) => x.id === o.id).publicada, true, 'fica marcada como publicada');
   assert.equal((await of({ acao: 'doar', itemId: velas.id, quantidade: 2 }, ana)).status, 200);
   const passou = await of({ acao: 'doar', itemId: velas.id, quantidade: 2 }, USER);
   assert.equal(passou.status, 400);

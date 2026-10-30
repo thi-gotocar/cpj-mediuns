@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 20;  // v20: responsável pela oferenda
+export const VERSAO = 21;  // v21: oferenda lembra se já foi publicada
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -513,6 +513,9 @@ export const MIGRACOES = [
   `alter table oferendas add constraint oferendas_status_check check (status in ('rascunho', 'aguardando', 'publicado', 'encerrado'))`,
   // v20: responsável pela oferenda (uma pessoa da corrente)
   `alter table oferendas add column if not exists responsavel_id uuid references pessoas (id) on delete set null`,
+  // v21: depois de publicada, fica publicada (bloquear e desbloquear não tiram isso)
+  `alter table oferendas add column if not exists publicada boolean not null default false`,
+  `update oferendas set publicada = true where status = 'publicado' and not publicada`,
   // entrega vazia = no dia do evento
   `create table if not exists oferenda_itens (
      id           uuid primary key default gen_random_uuid(),
@@ -535,7 +538,7 @@ export const MIGRACOES = [
   `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status,
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
        'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
        'itens', coalesce((select jsonb_agg(jsonb_build_object(
            'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
@@ -688,7 +691,8 @@ export const MIGRACOES = [
   `create or replace function oferenda_status(p jsonb)
    returns jsonb language plpgsql as $$
    begin
-     update oferendas set status = p ->> 'status' where id = (p ->> 'id')::uuid;
+     update oferendas set status = p ->> 'status', publicada = publicada or (p ->> 'status') = 'publicado'
+      where id = (p ->> 'id')::uuid;
      if not found then raise exception 'Oferenda não encontrada.'; end if;
      return oferendas_estado();
    end;

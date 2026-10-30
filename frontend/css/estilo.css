@@ -275,3 +275,8 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-bt.ligado.rascunho{background:#fbe0de;color:#a2423a;border-color:#a2423a}
 .st-bt.ligado.encerrado{background:#e4e7ec;color:#5b6678;border-color:#8a94a6}
 .st-of-bts .btn.bloquear{color:inherit;border-color:var(--line)}
+.st-bt.desbloquear{background:#d5f0df;color:#1d6b3f;border-color:#2f9e5b}
+.st-bt.encerrar{background:#fbefc4;color:#7a5600;border-color:#e3b021}
+.st-bt.encerrar.ligado{background:#e3b021;color:#3d2b00;border-color:#b98b0d}
+.st-bt.publicado.ligado:disabled{opacity:1}
+.st-of.encerrado{background:#fbefc4;color:#7a5600}

@@ -120,14 +120,20 @@ function cardOferenda(of, admin) {
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelarof">Cancelar</button></form>`;
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
-    // Botões de situação funcionam como liga/desliga: ligado mostra "Publicado", "Bloqueado" ou "Encerrado"
-    // na cor da situação; tocar de novo volta para "Aguardando publicação".
-    const BOTOES = [['publicado', 'Publicar', 'Publicado'], ['rascunho', 'Bloquear', 'Bloqueado'], ['encerrado', 'Encerrar', 'Encerrado']];
-    h += `${admin ? `<div class="row st-of-linha">${of.status === 'aguardando' ? etiqueta('aguardando') : ''}${of.status === 'publicado' ? '' : `<span class="muted" style="font-size:.82rem;flex-basis:100%">${of.status === 'encerrado' ? 'Oferenda encerrada: saiu da lista da corrente.' : 'A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.'}</span>`}
-        <span class="st-of-bts">${BOTOES.map(([st, t, ligado]) => {
-          const on = of.status === st;
-          return `<button class="btn small st-bt ${st} ${on ? 'ligado' : ''}" data-act="statusof" data-id="${of.id}" data-v="${on ? 'aguardando' : st}" aria-pressed="${on}" title="${on ? 'Tocar de novo desfaz' : ''}">${on ? ligado : t}</button>`;
-        }).join('')}</span></div>` : ''}
+    // Publicar: depois de publicada, o botão fica "Publicado" (verde) e não muda mais.
+    // Bloquear ↔ Desbloquear (verde): ao desbloquear, volta a publicada (ou aguardando, se nunca foi).
+    // Encerrar (amarelo) ↔ Encerrado: tocar de novo volta como ao desbloquear.
+    const volta = of.publicada ? 'publicado' : 'aguardando';
+    const bloq = of.status === 'rascunho', enc = of.status === 'encerrado';
+    const bts = [
+      of.publicada
+        ? `<button class="btn small st-bt publicado ligado" disabled>Publicado</button>`
+        : `<button class="btn small st-bt" data-act="statusof" data-id="${of.id}" data-v="publicado">Publicar</button>`,
+      `<button class="btn small st-bt ${bloq ? 'desbloquear' : ''}" data-act="statusof" data-id="${of.id}" data-v="${bloq ? volta : 'rascunho'}">${bloq ? 'Desbloquear' : 'Bloquear'}</button>`,
+      `<button class="btn small st-bt encerrar ${enc ? 'ligado' : ''}" data-act="statusof" data-id="${of.id}" data-v="${enc ? volta : 'encerrado'}" aria-pressed="${enc}">${enc ? 'Encerrado' : 'Encerrar'}</button>`,
+    ].join('');
+    h += `${admin ? `<div class="row st-of-linha">${of.status === 'publicado' ? '' : etiqueta(of.status)}${of.status === 'publicado' ? '' : `<span class="muted" style="font-size:.82rem;flex-basis:100%">${enc ? 'Oferenda encerrada: saiu da lista da corrente.' : bloq ? 'Bloqueada: a corrente vê a oferenda, mas não a lista de itens.' : 'A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.'}</span>`}
+        <span class="st-of-bts">${bts}</span></div>` : ''}
       ${!admin && of.status === 'rascunho' ? `<div>${etiqueta('rascunho')}</div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       <p class="muted" style="margin:0;font-size:.88rem">${of.bloqueada ? 'Lista bloqueada no momento.' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
@@ -148,7 +154,7 @@ function cardOferenda(of, admin) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
-  h += `<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>
+  h += `${of.itens.length ? '<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>' : ''}
     <div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
   return h + rodapeOferenda(of, admin) + `</div>`;
 }
@@ -246,7 +252,7 @@ export const cliques = {
     avisar();
   },
   async statusof(el) {
-    const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda bloqueada: a corrente não vê e os itens ficam ocultos.', encerrado: 'Oferenda encerrada: saiu da lista da corrente.', aguardando: 'Voltou para Aguardando publicação: a corrente não vê.' };
+    const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda bloqueada: a corrente vê, mas sem a lista de itens.', encerrado: 'Oferenda encerrada: saiu da lista da corrente.', aguardando: 'Voltou para Aguardando publicação: a corrente não vê.' };
     if (await acaoOferendas('status', { id: el.dataset.id, status: el.dataset.v })) toast(t[el.dataset.v]);
   },
   async delof(el) { estado.confirm = null; if (await acaoOferendas('excluir', { id: el.dataset.id })) toast('Oferenda excluída.'); },
