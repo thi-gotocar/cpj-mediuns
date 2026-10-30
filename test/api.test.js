@@ -219,11 +219,33 @@ test('gira antiga: cadastro direto já encerrado, com atendidos e sem escala', a
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });
 
+test('perfis admin oferendas e admin ervas: cada um administra só a sua aba', async () => {
+  const novo = async (email, papel) => {
+    assert.equal((await api('POST', '/api/usuarios', ADMIN, { nome: papel, email, senha: 'senha-forte-9', papel })).status, 200);
+    return (await api('POST', '/api/auth/entrar', null, { email, senha: 'senha-forte-9' })).json.token;
+  };
+  const of = await novo('of@corrente.org', 'admin_oferendas');
+  const ev = await novo('ev@corrente.org', 'admin_ervas');
+  assert.equal((await api('POST', '/api/oferendas', of, { acao: 'salvar', titulo: 'Teste', data: '2027-01-01' })).status, 200);
+  assert.equal((await api('POST', '/api/oferendas', ev, { acao: 'salvar', titulo: 'Teste', data: '2027-01-01' })).status, 403);
+  assert.equal((await api('POST', '/api/ervas', ev, { acao: 'config', frete: '0' })).status, 200);
+  assert.equal((await api('POST', '/api/ervas', of, { acao: 'config', frete: '0' })).status, 403);
+  // Fora disso, são como usuário: não editam a escala nem os usuários.
+  for (const t of [of, ev]) {
+    assert.equal((await api('POST', '/api/giras/2027-01-02/sortear', t)).status, 403);
+    assert.equal((await api('GET', '/api/usuarios', t)).status, 403);
+    assert.equal((await api('GET', '/api/giras', t)).status, 200);
+  }
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { nome: 'X', email: 'x@corrente.org', senha: 'senha-forte-9', papel: 'chefe' })).status, 400);
+  const lista = (await api('GET', '/api/oferendas', ADMIN)).json.oferendas;
+  for (const o of lista.filter((x) => x.titulo === 'Teste')) await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: o.id });
+});
+
 test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('GET', '/api/usuarios', USER)).status, 403);
   const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', nome: 'Novo', senha: '12345678', papel: 'usuario' });
   assert.equal(novo.status, 200, JSON.stringify(novo.json));
-  assert.equal(novo.json.length, 3);
+  assert.equal(novo.json.length, 5, "admin, Zé, admin oferendas, admin ervas e o novo");
   assert.ok(!('sessaoVersao' in novo.json[0]) && !('senhaHash' in novo.json[0]));
   assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'novo@corrente.org', nome: 'N', senha: '12345678', papel: 'usuario' })).status, 400);
   assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'z@z.org', nome: 'Z', senha: '1', papel: 'usuario' })).status, 400);

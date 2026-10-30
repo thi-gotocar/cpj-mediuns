@@ -15,7 +15,9 @@ const DESCRICAO = {
   'dados:importar': 'Backup e restauração',
   'escala:completa': 'Ver presença, pessoas e histórico',
   'ervas:escolher': 'Escolher ervas',
-  'ervas:gerenciar': 'Cadastrar ervas, frete e exportar pedidos',
+  'ervas:gerenciar': 'Administrar a aba Ervas: ervas, preços, frete, pedidos e cobrança',
+  'oferendas:doar': 'Escolher o que doar nas oferendas',
+  'oferendas:gerenciar': 'Administrar a aba Oferendas: oferendas, itens e entregas',
 };
 
 export function render() {
@@ -26,7 +28,7 @@ export function render() {
       <label class="field grow">Nome<input type="text" id="u-nome" required maxlength="80"></label>
       <label class="field grow">E-mail<input type="email" id="u-email" required></label>
       <label class="field" style="flex:1 1 140px">Senha inicial<input type="password" id="u-senha" required minlength="8" autocomplete="new-password"></label>
-      <label class="field" style="flex:0 1 140px">Perfil<select id="u-papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${k === 'usuario' ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+      <label class="field" style="flex:0 1 170px">Perfil<select id="u-papel">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${k === 'usuario' ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       <button class="btn primary" type="submit">Criar</button>
     </form>
     <p class="muted" style="margin:0;font-size:.85rem">Passe o e-mail e a senha inicial para a pessoa. Ela pode trocar a senha depois, no botão “Trocar senha”.</p>

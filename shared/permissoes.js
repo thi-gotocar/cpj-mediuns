@@ -26,6 +26,24 @@ export const PERMISSOES = {
     'ervas:escolher',   // escolher as ervas que quer comprar
     'oferendas:doar',   // escolher o que vai doar nas oferendas
   ],
+  // Usuário que também administra só a aba Oferendas.
+  admin_oferendas: [
+    'escala:completa',
+    'pessoas:ler',
+    'giras:ler',
+    'ervas:escolher',
+    'oferendas:doar',
+    'oferendas:gerenciar',
+  ],
+  // Usuário que também administra só a aba Ervas.
+  admin_ervas: [
+    'escala:completa',
+    'pessoas:ler',
+    'giras:ler',
+    'ervas:escolher',
+    'ervas:gerenciar',
+    'oferendas:doar',
+  ],
   // Quem entra com o acesso da corrente (sem senha, só com o nome):
   // só a aba Gira com o resultado do sorteio e a aba Ervas.
   corrente: [
@@ -37,7 +55,7 @@ export const PERMISSOES = {
 };
 
 // Perfis que podem ser dados a usuários cadastrados.
-export const PAPEIS = { admin: 'Admin', usuario: 'Usuário' };
+export const PAPEIS = { admin: 'Admin', usuario: 'Usuário', admin_oferendas: 'Admin oferendas', admin_ervas: 'Admin ervas' };
 // Rótulo de cada perfil (inclui o acesso da corrente).
 export const ROTULOS = { ...PAPEIS, corrente: 'Corrente' };
 

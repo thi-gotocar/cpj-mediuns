@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 13;  // v13: oferendas
+export const VERSAO = 14;  // v14: perfis admin_oferendas e admin_ervas
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -600,4 +600,8 @@ export const MIGRACOES = [
      return oferendas_estado();
    end;
    $$`,
+
+  // ================================================== v14: perfis admin_oferendas e admin_ervas
+  `alter table usuarios drop constraint if exists usuarios_papel_check`,
+  `alter table usuarios add constraint usuarios_papel_check check (papel in ('admin', 'usuario', 'admin_oferendas', 'admin_ervas'))`,
 ];

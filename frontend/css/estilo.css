@@ -236,3 +236,4 @@ nav.tabs button{flex:1 0 auto}
 .logo-terreiro img{width:min(200px,55vw);height:auto}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logo-terreiro img{filter:invert(1)}}
 :root[data-theme="dark"] .logo-terreiro img{filter:invert(1)}
+.papel.admin_oferendas,.papel.admin_ervas{background:var(--ok-soft);color:var(--ok)}
