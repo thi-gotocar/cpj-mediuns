@@ -37,7 +37,10 @@ export function render() {
   estado.usuarios.forEach((u) => {
     const eu = u.id === estado.me.id;
     const conf = estado.confirm === 'u:' + u.id;
-    h += `<div class="us"><div style="min-width:0"><div class="nm">${esc(u.nome)}${eu ? ' <span class="muted" style="font-weight:400">(você)</span>' : ''}</div><div class="em">${esc(u.email)}</div></div>
+    const nomeHtml = estado.renomearUsuario === u.id
+      ? `<form id="f-uren" class="ren" data-id="${u.id}"><input type="text" id="uren-in" value="${esc(u.nome)}" maxlength="80" autocomplete="off" aria-label="Novo nome de ${esc(u.nome)}"><button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelauren">Cancelar</button></form>`
+      : `<div class="nm">${esc(u.nome)}${eu ? ' <span class="muted" style="font-weight:400">(você)</span>' : ''} <button class="btn link small" data-act="uren" data-id="${u.id}" aria-label="Editar nome de ${esc(u.nome)}">✎ editar</button></div>`;
+    h += `<div class="us"><div style="min-width:0">${nomeHtml}<div class="em">${esc(u.email)}</div></div>
       <select data-act="papel" data-id="${u.id}" aria-label="Perfil de ${esc(u.nome)}" ${eu ? 'disabled title="Você não pode mudar o seu próprio perfil"' : ''}>${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${k === u.papel ? 'selected' : ''}>${v}</option>`).join('')}</select>
       <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
       ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
@@ -58,7 +61,26 @@ export const cliques = {
     atualizarUsuario(el.dataset.id, { senha: s });
   },
   deluser(el) { estado.confirm = null; excluirUsuario(el.dataset.id); },
+  uren(el) {
+    estado.renomearUsuario = el.dataset.id;
+    avisar();
+    const inp = document.getElementById('uren-in');
+    if (inp) { inp.focus(); inp.select(); }
+  },
+  cancelauren() { estado.renomearUsuario = null; avisar(); },
 };
+
+// Salva o nome editado do usuário.
+export async function renomear(form) {
+  const id = form.dataset.id;
+  const nome = document.getElementById('uren-in').value.replace(/\s+/g, ' ').trim();
+  if (!nome) { toast('Digite o nome.'); return; }
+  estado.renomearUsuario = null;
+  const u = estado.usuarios.find((x) => x.id === id);
+  if (!u || u.nome === nome) { avisar(); return; }
+  await atualizarUsuario(id, { nome });
+  if (id === estado.me.id) { estado.me = { ...estado.me, nome }; avisar(); }
+}
 
 export const mudancas = {
   papel(t) { atualizarUsuario(t.dataset.id, { papel: t.value }); },

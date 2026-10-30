@@ -222,6 +222,8 @@ main.addEventListener('submit', async (e) => {
     await pessoas.enviarLicenca();
   } else if (id === 'f-add') {
     await pessoas.enviarFormulario();
+  } else if (id === 'f-uren') {
+    await usuarios.renomear(e.target);
   } else if (id === 'f-user') {
     await usuarios.enviarFormulario();
   } else if (id === 'f-of' || e.target.dataset.form) {

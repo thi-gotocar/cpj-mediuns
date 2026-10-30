@@ -19,6 +19,7 @@ export const estado = {
   manual: null,
   renomear: null,
   editLic: null,
+  renomearUsuario: null, // id do usuário com o nome em edição (aba Usuários)
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
