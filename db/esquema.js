@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 17;  // v17: usuário ligado ao cadastro de pessoas; perfil root
+export const VERSAO = 18;  // v18: root pode ligar e desligar a pessoa da corrente
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -174,7 +174,7 @@ export const MIGRACOES = [
         and (select count(*) from usuarios where papel in ('admin', 'root')) <= 1 then
        raise exception 'Precisa existir pelo menos um admin.';
      end if;
-     if p ? 'pessoaId' and exists (select 1 from usuarios where pessoa_id = (p ->> 'pessoaId')::uuid and id <> v_id) then
+     if p ? 'pessoaId' and exists (select 1 from usuarios where pessoa_id = nullif(p ->> 'pessoaId', '')::uuid and id <> v_id) then
        raise exception 'Essa pessoa já tem um usuário.';
      end if;
      update usuarios set

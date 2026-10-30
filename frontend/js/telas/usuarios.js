@@ -36,13 +36,13 @@ export function render() {
   <div class="card"><h2>Novo usuário</h2>
     <form id="f-user" class="row" autocomplete="off">
       <label class="field" style="flex:0 1 170px">Perfil<select id="u-papel" data-act="papelnovo">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${k === 'usuario' ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-      <label class="field grow" id="u-pessoa-campo">Pessoa da corrente<select id="u-pessoa"><option value="">— escolha a pessoa —</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <label class="field grow" id="u-pessoa-campo"><span id="u-pessoa-rotulo">Pessoa da corrente</span><select id="u-pessoa"><option value="">— escolha a pessoa —</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
       <label class="field grow" id="u-nome-campo" hidden>Nome<input type="text" id="u-nome" maxlength="80"></label>
       <label class="field grow">E-mail<input type="email" id="u-email" required></label>
       <label class="field" style="flex:1 1 140px">Senha inicial<input type="password" id="u-senha" required minlength="8" autocomplete="new-password"></label>
       <button class="btn primary" type="submit">Criar</button>
     </form>
-    <p class="muted" style="margin:0;font-size:.85rem">O usuário é uma pessoa da corrente: o nome vem do cadastro em Pessoas (quem não está lá, cadastre antes). Só o <b>Admin root</b> pode não ter cadastro. Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>
+    <p class="muted" style="margin:0;font-size:.85rem">O usuário é uma pessoa da corrente: o nome vem do cadastro em Pessoas (quem não está lá, cadastre antes). No <b>Admin root</b> a pessoa é opcional: sem ela, vale o nome digitado. Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>
   </div>
   <div class="card"><div class="grp-h"><h2>Quem tem acesso</h2><span class="count">${estado.usuarios.length}</span></div><div>`;
   estado.usuarios.forEach((u) => {
@@ -51,16 +51,21 @@ export function render() {
     const nome = nomeDe(u);
     const faltaCadastro = !u.pessoaId && !semCadastro(u.papel);
     let nomeHtml;
+    const modo = estado.renomearModo;
     if (estado.renomearUsuario === u.id) {
-      nomeHtml = !u.pessoaId && semCadastro(u.papel)
+      nomeHtml = modo === 'nome'
         ? `<form id="f-uren" class="ren" data-id="${u.id}" data-modo="nome"><input type="text" id="uren-in" value="${esc(u.nome)}" maxlength="80" autocomplete="off" aria-label="Nome de ${esc(nome)}">
             <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelauren">Cancelar</button></form>`
-        : `<form id="f-uren" class="ren" data-id="${u.id}" data-modo="pessoa"><select id="uren-in" aria-label="Pessoa da corrente de ${esc(nome)}"><option value="">— escolha a pessoa —</option>
+        : `<form id="f-uren" class="ren" data-id="${u.id}" data-modo="pessoa"><select id="uren-in" aria-label="Pessoa da corrente de ${esc(nome)}">${semCadastro(u.papel) ? '' : '<option value="">— escolha a pessoa —</option>'}
+            ${semCadastro(u.papel) ? `<option value="" ${u.pessoaId ? '' : 'selected'}>(sem cadastro: usar só o nome)</option>` : ''}
             ${pessoasLivres(u.pessoaId).map((p) => `<option value="${p.id}" ${p.id === u.pessoaId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>
             <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelauren">Cancelar</button></form>`;
     } else {
-      const acao = !u.pessoaId && semCadastro(u.papel) ? '✎ editar nome' : u.pessoaId ? '✎ trocar pessoa' : '✎ ligar à pessoa';
-      nomeHtml = `<div class="nm">${esc(nome)}${eu ? ' <span class="muted" style="font-weight:400">(você)</span>' : ''} <button class="btn link small" data-act="uren" data-id="${u.id}">${acao}</button></div>
+      const botoes = [
+        ...(!u.pessoaId && semCadastro(u.papel) ? [['nome', '✎ editar nome']] : []),
+        ['pessoa', u.pessoaId ? '✎ trocar pessoa' : semCadastro(u.papel) ? '✎ ligar à pessoa (opcional)' : '✎ ligar à pessoa'],
+      ].map(([m, t]) => `<button class="btn link small" data-act="uren" data-id="${u.id}" data-modo="${m}">${t}</button>`).join(' ');
+      nomeHtml = `<div class="nm">${esc(nome)}${eu ? ' <span class="muted" style="font-weight:400">(você)</span>' : ''} ${botoes}</div>
         ${faltaCadastro ? '<span class="badge lic">sem cadastro na corrente: ligue a uma pessoa</span>' : ''}`;
     }
     h += `<div class="us"><div style="min-width:0">${nomeHtml}<div class="em">${esc(u.email)}</div></div>
@@ -86,6 +91,7 @@ export const cliques = {
   deluser(el) { estado.confirm = null; excluirUsuario(el.dataset.id); },
   uren(el) {
     estado.renomearUsuario = el.dataset.id;
+    estado.renomearModo = el.dataset.modo || 'pessoa';
     avisar();
     const inp = document.getElementById('uren-in');
     if (inp) { inp.focus(); if (inp.tagName === 'INPUT') inp.select(); }
@@ -99,7 +105,9 @@ export async function renomear(form) {
   const v = document.getElementById('uren-in').value;
   estado.renomearUsuario = null;
   if (form.dataset.modo === 'pessoa') {
-    if (!v) { toast('Escolha a pessoa.'); estado.renomearUsuario = id; return; }
+    const u0 = estado.usuarios.find((x) => x.id === id);
+    if (!v && !semCadastro(u0?.papel)) { toast('Escolha a pessoa.'); estado.renomearUsuario = id; return; }
+    if ((v || null) === (u0?.pessoaId || null)) { avisar(); return; }
     await atualizarUsuario(id, { pessoaId: v });
   } else {
     const nome = v.replace(/\s+/g, ' ').trim();
@@ -113,10 +121,10 @@ export async function renomear(form) {
 export const mudancas = {
   papel(t) { atualizarUsuario(t.dataset.id, { papel: t.value }); },
   // Novo usuário: root pode ter só um nome; os outros escolhem a pessoa da corrente.
-  papelnovo(t) {
+    papelnovo(t) {
     const root = semCadastro(t.value);
     document.getElementById('u-nome-campo').hidden = !root;
-    document.getElementById('u-pessoa-campo').hidden = root;
+    document.getElementById('u-pessoa-rotulo').textContent = root ? 'Pessoa da corrente (opcional)' : 'Pessoa da corrente';
   },
 };
 
@@ -124,11 +132,11 @@ export async function enviarFormulario() {
   const val = (id) => document.getElementById(id).value;
   const papel = val('u-papel');
   const root = semCadastro(papel);
-  const pessoaId = root ? '' : val('u-pessoa');
+  const pessoaId = val('u-pessoa');
   if (!root && !pessoaId) { toast('Escolha a pessoa da corrente.'); return; }
-  const nome = root ? val('u-nome').trim() : estado.pessoas.find((p) => p.id === pessoaId)?.nome;
-  if (root && !nome) { toast('Digite o nome.'); return; }
-  const dados = { email: val('u-email').trim(), senha: val('u-senha'), papel, ...(root ? { nome } : { pessoaId }) };
+  const nome = pessoaId ? estado.pessoas.find((p) => p.id === pessoaId)?.nome : val('u-nome').trim();
+  if (!nome) { toast('Digite o nome ou escolha a pessoa da corrente.'); return; }
+  const dados = { email: val('u-email').trim(), senha: val('u-senha'), papel, ...(pessoaId ? { pessoaId } : { nome }) };
   try {
     await criarUsuario(dados);
     toast(`Usuário ${nome} criado.`);

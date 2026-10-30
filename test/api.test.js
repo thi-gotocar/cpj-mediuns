@@ -293,6 +293,19 @@ test('gestão de usuários: só admin, com travas', async () => {
   const r2 = root2.json.find((u) => u.email === 'root2@corrente.org');
   assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { papel: 'usuario' })).status, 400, 'sem cadastro só pode ser root');
   assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { nome: 'Suporte' })).json.nome, 'Suporte');
+  // No root a pessoa é opcional: pode ligar e desligar.
+  const ligado = await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: nu.pessoaId });
+  assert.equal(ligado.status, 400, 'a pessoa do Novo já tem usuário');
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Root Pessoa', funcao: 'senha' });
+  const pr = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Root Pessoa');
+  const lig = (await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: pr.id })).json;
+  assert.deepEqual([lig.nome, lig.pessoaId, lig.papel], ['Root Pessoa', pr.id, 'root']);
+  const des = (await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: '' })).json;
+  assert.equal(des.pessoaId, null, JSON.stringify(des));
+  assert.equal((await api('PATCH', '/api/usuarios/' + nu.id, ADMIN, { pessoaId: '' })).status, 400, 'quem não é root não fica sem cadastro');
+  const rootCom = await api('POST', '/api/usuarios', ADMIN, { email: 'root3@corrente.org', pessoaId: pr.id, senha: '12345678', papel: 'root' });
+  assert.equal(rootCom.json.find((u) => u.email === 'root3@corrente.org').nome, 'Root Pessoa');
+  await api('DELETE', '/api/usuarios/' + rootCom.json.find((u) => u.email === 'root3@corrente.org').id, ADMIN);
   await api('DELETE', '/api/usuarios/' + r2.id, ADMIN);
 
   const eu = (await api('GET', '/api/auth/me', ADMIN)).json;
