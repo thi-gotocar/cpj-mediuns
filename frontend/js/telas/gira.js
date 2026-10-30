@@ -205,8 +205,8 @@ export function render() {
   <div class="card">
     <div class="datehead"><span class="eyebrow">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span><span class="dia">${esc(dLong(g.data))}</span></div>
     <div class="row">
-      <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
-      <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span><button class="btn prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Próxima gira</button></div>
+      <div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
+      <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span><button class="btn prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Próxima gira</button></div></div>
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
       ${editar && temLimpeza(g) ? `<label class="field" style="flex:0 1 160px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
     </div>
