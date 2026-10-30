@@ -96,6 +96,17 @@ function linhaItem(of, i, admin) {
   return h + `</div>`;
 }
 
+// Primeiro bloco da oferenda: quem está logado e o que se comprometeu a doar.
+function meusCompromissos(of) {
+  const eu = estado.oferendas.eu;
+  const meus = of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q);
+  return `<div class="of-meus"><div class="of-meus-h"><span class="eyebrow">Seus compromissos</span><b>${esc(eu.nome || '')}</b></div>
+    ${meus.length
+      ? `<ul>${meus.map(({ i, q }) => `<li><span class="of-meus-nome">${esc(i.nome)}</span> <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}${i.entregue ? ' · ✓ entregue' : ''}</span></li>`).join('')}</ul>`
+      : `<p class="muted" style="margin:0;font-size:.88rem">${of.status === 'publicado' ? 'Você ainda não escolheu nada para doar. Toque em + no item que quiser doar.' : 'Você ainda não tem compromissos nesta oferenda.'}</p>`}
+  </div>`;
+}
+
 function cardOferenda(of, admin) {
   const u = U();
   let h = `<div class="card" id="of-${of.id}">`;
@@ -112,6 +123,7 @@ function cardOferenda(of, admin) {
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       <p class="muted" style="margin:0;font-size:.88rem">${of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
+  if (u.editar !== of.id) h += meusCompromissos(of);
   const fechada = (prefs.ofFechadas || []).includes(of.id);
   if (u.editar !== of.id && of.itens.length) {
     h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? '▸ Ver os itens' : '▾ Minimizar'}</button>`;
