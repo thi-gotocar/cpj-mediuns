@@ -37,7 +37,7 @@ function desenhar(ctx, of, pintar) {
     fonte(700, 34, FD); ctx.fillStyle = '#ffffff';
     tl.forEach((l, k) => ctx.fillText(l, P, P + 20 + k * 40));
     fonte(500, 20); ctx.fillStyle = C.soft;
-    ctx.fillText(`${dataBR(of.data)} · ${semana}`, P, P + 20 + tl.length * 40 + 4);
+    ctx.fillText(`${dataBR(of.data)} · ${semana}${of.responsavel ? ` · Responsável: ${of.responsavel}` : ''}`, P, P + 20 + tl.length * 40 + 4);
   }
   let y = hh + 20;
   // itens

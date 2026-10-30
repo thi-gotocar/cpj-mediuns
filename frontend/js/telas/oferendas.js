@@ -6,6 +6,7 @@ import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 
 const U = () => estado.ofUi;
+const opcoesPessoas = (atual) => `<option value="">— escolha —</option>${pessoasOrd().map((p) => `<option value="${p.id}" ${p.id === atual ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}`;
 const SITUACAO = { rascunho: 'Rascunho', aguardando: 'Aguardando publicação', publicado: 'Publicado', encerrado: 'Encerrado' };
 const etiqueta = (st) => `<span class="st-of ${st}">${SITUACAO[st] || st}</span>`;
 
@@ -114,13 +115,14 @@ function cardOferenda(of, admin) {
     h += `<form class="row" data-form="ofed" data-id="${of.id}" autocomplete="off">
       <label class="field grow">Título<input type="text" name="titulo" maxlength="120" required value="${esc(of.titulo)}"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" name="data" required value="${of.data}"></label>
+      <label class="field grow">Responsável<select name="resp" required>${opcoesPessoas(of.responsavelId)}</select></label>
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelarof">Cancelar</button></form>`;
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
     h += `${admin ? `<div class="row st-of-linha">${etiqueta(of.status)}${of.status !== 'publicado' ? '<span class="muted" style="font-size:.82rem;flex-basis:100%">A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.</span>' : ''}
         <span class="st-of-bts">${[['publicado', 'Publicar'], ['rascunho', 'Rascunho'], ['encerrado', 'Encerrar']].map(([st, t]) =>
           `<button class="btn small ${of.status === st ? 'atual' : ''}" data-act="statusof" data-id="${of.id}" data-v="${st}" ${of.status === st ? 'disabled' : ''}>${t}</button>`).join('')}</span></div>` : ''}
-      <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span><span class="ent">${esc(Dia(of.data))}</span></div>
+      <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       <p class="muted" style="margin:0;font-size:.88rem">${of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
@@ -177,6 +179,7 @@ export function render() {
     h += `<div class="card"><h2>Nova oferenda</h2><form id="f-of" class="row" autocomplete="off">
       <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
+      <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
       <button class="btn primary" type="submit">Criar</button></form></div>`;
   }
   if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda ainda. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação no momento. Quando o admin publicar, ela aparece aqui.'}</p></div></section>`;
@@ -284,12 +287,15 @@ export async function enviar(form) {
   const v = (n) => form.elements[n]?.value ?? '';
   if (form.id === 'f-of') {
     const titulo = document.getElementById('of-titulo').value, data = document.getElementById('of-data').value;
+    const responsavelId = document.getElementById('of-resp').value;
     if (!data) { toast('Escolha a data.'); return; }
-    if (await acaoOferendas('salvar', { titulo, data })) toast('Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
+    if (!responsavelId) { toast('Escolha o responsável.'); return; }
+    if (await acaoOferendas('salvar', { titulo, data, responsavelId })) toast('Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
     return;
   }
   if (form.dataset.form === 'ofed') {
-    if (await acaoOferendas('salvar', { id: form.dataset.id, titulo: v('titulo'), data: v('data') })) { U().editar = null; toast('Oferenda salva.'); avisar(); }
+    if (!v('resp')) { toast('Escolha o responsável.'); return; }
+    if (await acaoOferendas('salvar', { id: form.dataset.id, titulo: v('titulo'), data: v('data'), responsavelId: v('resp') })) { U().editar = null; toast('Oferenda salva.'); avisar(); }
     return;
   }
   if (form.dataset.form === 'porpessoa') {

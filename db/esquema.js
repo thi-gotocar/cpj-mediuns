@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 19;  // v19: situação da oferenda (rascunho, aguardando, publicado, encerrado)
+export const VERSAO = 20;  // v20: responsável pela oferenda
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -511,6 +511,8 @@ export const MIGRACOES = [
   `alter table oferendas alter column status set not null`,
   `alter table oferendas drop constraint if exists oferendas_status_check`,
   `alter table oferendas add constraint oferendas_status_check check (status in ('rascunho', 'aguardando', 'publicado', 'encerrado'))`,
+  // v20: responsável pela oferenda (uma pessoa da corrente)
+  `alter table oferendas add column if not exists responsavel_id uuid references pessoas (id) on delete set null`,
   // entrega vazia = no dia do evento
   `create table if not exists oferenda_itens (
      id           uuid primary key default gen_random_uuid(),
@@ -534,6 +536,7 @@ export const MIGRACOES = [
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(jsonb_build_object(
        'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status,
+       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
        'itens', coalesce((select jsonb_agg(jsonb_build_object(
            'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
            'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
@@ -548,9 +551,12 @@ export const MIGRACOES = [
    returns jsonb language plpgsql as $$
    begin
      if nullif(p ->> 'id', '') is null then
-       insert into oferendas (titulo, data) values (btrim(p ->> 'titulo'), (p ->> 'data')::date);
+       insert into oferendas (titulo, data, responsavel_id)
+       values (btrim(p ->> 'titulo'), (p ->> 'data')::date, nullif(p ->> 'responsavelId', '')::uuid);
      else
-       update oferendas set titulo = btrim(p ->> 'titulo'), data = (p ->> 'data')::date where id = (p ->> 'id')::uuid;
+       update oferendas set titulo = btrim(p ->> 'titulo'), data = (p ->> 'data')::date,
+              responsavel_id = case when p ? 'responsavelId' then nullif(p ->> 'responsavelId', '')::uuid else responsavel_id end
+       where id = (p ->> 'id')::uuid;
        if not found then raise exception 'Oferenda não encontrada.'; end if;
      end if;
      return oferendas_estado();

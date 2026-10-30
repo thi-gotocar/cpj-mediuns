@@ -2,7 +2,7 @@
 //   GET  /api/oferendas   { oferendas: [...], eu: { chave, nome } }
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
-//        admin:  salvar { id?, titulo, data } · excluir { id }
+//        admin:  salvar { id?, titulo, data, responsavelId } · excluir { id }
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
@@ -49,9 +49,13 @@ export default rota({
     if (!pode(eu.papel, 'oferendas:gerenciar')) throw new HttpError(403, 'Só um admin pode alterar as oferendas.');
     let estado;
     switch (b.acao) {
-      case 'salvar':
-        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')) });
+      case 'salvar': {
+        // Responsável: uma pessoa da corrente (obrigatório).
+        const resp = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável'));
+        if (!resp) throw new HttpError(400, 'Escolha o responsável (uma pessoa da corrente).');
+        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id });
         break;
+      }
       case 'excluir':
         estado = await db.rpc('oferenda_excluir', { id: validarId(b.id, 'Oferenda') });
         break;

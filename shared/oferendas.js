@@ -26,7 +26,7 @@ export const textoEntrega = (item) => (item.entrega ? dataBR(item.entrega) : 'no
 
 // Texto para o WhatsApp: itens, quantidade, responsáveis e data de entrega.
 export function textoOferenda(of) {
-  const L = [`*OFERENDA · ${of.titulo}*`, `${dataBR(of.data)} (${semana(of.data)})`, ''];
+  const L = [`*OFERENDA · ${of.titulo}*`, `${dataBR(of.data)} (${semana(of.data)})`, ...(of.responsavel ? [`Responsável: ${of.responsavel}`] : []), ''];
   of.itens.forEach((i) => {
     const s = situacao(i);
     L.push(`${s.completo ? '🟢' : '🟡'} *${i.nome}* · ${s.doado} de ${i.quantidade}${i.entregue ? ' · ✅ entregue' : ''}`);

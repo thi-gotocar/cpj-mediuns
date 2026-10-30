@@ -10,6 +10,9 @@ let srv, base;
 let ADMIN, USER;  // tokens de sessão
 process.env.CODIGO_INSTALACAO = 'codigo-de-teste';
 
+// Responsável padrão das oferendas nos testes (a primeira pessoa da corrente).
+let RESP_ID = null;
+const RESP = () => RESP_ID;
 async function api(metodo, rota, token, corpo) {
   const r = await fetch(base + rota, {
     method: metodo,
@@ -98,6 +101,7 @@ test('admin cadastra a corrente; usuário só lê', async () => {
   assert.equal(lista.length, 12, '11 + o Zé (cadastrado para ter usuário)');
   const ana = lista.find((p) => p.nome === 'Ana');
   const bruno = lista.find((p) => p.nome === 'Bruno');
+  RESP_ID = ana.id;
   for (const p of [ana, bruno]) {
     assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { experiente: true })).json.experiente, true);
   }
@@ -234,8 +238,8 @@ test('perfis admin oferendas e admin ervas: cada um administra só a sua aba', a
   };
   const of = await novo('of@corrente.org', 'admin_oferendas');
   const ev = await novo('ev@corrente.org', 'admin_ervas');
-  assert.equal((await api('POST', '/api/oferendas', of, { acao: 'salvar', titulo: 'Teste', data: '2027-01-01' })).status, 200);
-  assert.equal((await api('POST', '/api/oferendas', ev, { acao: 'salvar', titulo: 'Teste', data: '2027-01-01' })).status, 403);
+  assert.equal((await api('POST', '/api/oferendas', of, { acao: 'salvar', responsavelId: RESP(), titulo: 'Teste', data: '2027-01-01' })).status, 200);
+  assert.equal((await api('POST', '/api/oferendas', ev, { acao: 'salvar', responsavelId: RESP(), titulo: 'Teste', data: '2027-01-01' })).status, 403);
   assert.equal((await api('POST', '/api/ervas', ev, { acao: 'config', frete: '0' })).status, 200);
   assert.equal((await api('POST', '/api/ervas', of, { acao: 'config', frete: '0' })).status, 403);
   // Fora disso, são como usuário: não editam a escala nem os usuários.
@@ -261,7 +265,7 @@ test('admin só entra como admin com o e-mail dele; pelo cpj entra como corrente
   assert.equal((await api('POST', '/api/giras/2027-05-01/sortear', tc)).status, 403);
   assert.equal((await api('GET', '/api/usuarios', tc)).status, 403);
   assert.equal((await api('POST', '/api/ervas', tc, { acao: 'config', frete: '1' })).status, 403);
-  assert.equal((await api('POST', '/api/oferendas', tc, { acao: 'salvar', titulo: 'X', data: '2027-05-01' })).status, 403);
+  assert.equal((await api('POST', '/api/oferendas', tc, { acao: 'salvar', responsavelId: RESP(), titulo: 'X', data: '2027-05-01' })).status, 403);
   // Com o e-mail e a senha dele, é admin.
   const pelaConta = (await api('POST', '/api/auth/entrar', null, { email: 'adm2@corrente.org', senha: 'senha-forte-9' })).json;
   assert.equal(pelaConta.usuario.papel, 'admin');
@@ -468,9 +472,11 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
 
 test('oferendas: admin cria itens, todos doam até o limite, admin marca entregue', async () => {
   const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
-  assert.equal((await of({ acao: 'salvar', titulo: 'X', data: '2026-11-07' }, USER)).status, 403);
-  let r = (await of({ acao: 'salvar', titulo: 'Oferenda de Iemanjá', data: '2026-12-08' })).json;
+  assert.equal((await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'X', data: '2026-11-07' }, USER)).status, 403);
+  let r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Oferenda de Iemanjá', data: '2026-12-08' })).json;
   const o = r.oferendas.find((x) => x.titulo === 'Oferenda de Iemanjá');
+  assert.equal(o.responsavel, 'Ana', 'responsável é uma pessoa da corrente');
+  assert.equal((await of({ acao: 'salvar', titulo: 'Sem responsável', data: '2026-12-08' })).status, 400);
   r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Rosas brancas', quantidade: 10, entrega: '' })).json;
   r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Velas', quantidade: 3, entrega: '2026-12-06' })).json;
   const [rosas, velas] = r.oferendas.find((x) => x.id === o.id).itens;
@@ -557,7 +563,7 @@ test('acesso da corrente: tudo o que a pessoa preencheu aparece quando ela entra
 
 test('oferendas: duas pessoas doando o último ao mesmo tempo, só uma consegue', async () => {
   const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
-  let r = (await of({ acao: 'salvar', titulo: 'Corrida', data: '2027-03-01' })).json;
+  let r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Corrida', data: '2027-03-01' })).json;
   const o = r.oferendas.find((x) => x.titulo === 'Corrida');
   await of({ acao: 'status', id: o.id, status: 'publicado' });
   r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Vela', quantidade: 1, entrega: '' })).json;
