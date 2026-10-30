@@ -6,6 +6,8 @@ import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 
 const U = () => estado.ofUi;
+const SITUACAO = { rascunho: 'Rascunho', aguardando: 'Aguardando publicação', publicado: 'Publicado', encerrado: 'Encerrado' };
+const etiqueta = (st) => `<span class="st-of ${st}">${SITUACAO[st] || st}</span>`;
 
 // Lembra se "+ Adicionar item" e "Oferendas anteriores" estão abertos entre redesenhos.
 document.addEventListener('toggle', (e) => {
@@ -70,7 +72,7 @@ function linhaItem(of, i, admin) {
       <span class="of-qtd">${s.doado} de ${i.quantidade}</span></div>
     <div class="muted of-sub">Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}${!s.completo ? ` · faltam <b>${s.falta}</b>` : ''}</div>
     ${admin ? doadoresAdmin(i, s) : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>'}`;
-  if (!i.entregue && (max > 0 || minha > 0)) {
+  if (!i.entregue && of.status === 'publicado' && (max > 0 || minha > 0)) {
     h += `<div class="of-doar"><span class="muted">Vou doar:</span>
       <button class="btn small" data-act="ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>
       <span class="n">${minha}</span>
@@ -100,7 +102,10 @@ function cardOferenda(of, admin) {
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelarof">Cancelar</button></form>`;
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
-    h += `<div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span><span class="ent">${esc(Dia(of.data))}</span></div>
+    h += `${admin ? `<div class="row st-of-linha">${etiqueta(of.status)}
+        <span class="st-of-bts">${[['publicado', 'Publicar'], ['rascunho', 'Rascunho'], ['encerrado', 'Encerrar']].map(([st, t]) =>
+          `<button class="btn small ${of.status === st ? 'atual' : ''}" data-act="statusof" data-id="${of.id}" data-v="${st}" ${of.status === st ? 'disabled' : ''}>${t}</button>`).join('')}</span></div>` : ''}
+      <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       <p class="muted" style="margin:0;font-size:.88rem">${of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   h += `<div class="of-itens">${of.itens.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
@@ -190,6 +195,10 @@ export const cliques = {
   async delitem(el) { estado.confirm = null; if (await acaoOferendas('excluirItem', { id: el.dataset.id })) toast('Item excluído.'); },
   editarof(el) { U().editar = el.dataset.id; avisar(); },
   cancelarof() { U().editar = null; avisar(); },
+  async statusof(el) {
+    const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda em rascunho: a corrente não vê.', encerrado: 'Oferenda encerrada: a corrente não vê mais.' };
+    if (await acaoOferendas('status', { id: el.dataset.id, status: el.dataset.v })) toast(t[el.dataset.v]);
+  },
   async delof(el) { estado.confirm = null; if (await acaoOferendas('excluir', { id: el.dataset.id })) toast('Oferenda excluída.'); },
   compartilhar(el) { U().compartilhar = U().compartilhar === el.dataset.id ? null : el.dataset.id; avisar(); },
   copiarof(el) {
@@ -239,7 +248,7 @@ export async function enviar(form) {
   if (form.id === 'f-of') {
     const titulo = document.getElementById('of-titulo').value, data = document.getElementById('of-data').value;
     if (!data) { toast('Escolha a data.'); return; }
-    if (await acaoOferendas('salvar', { titulo, data })) toast('Oferenda criada. Agora adicione os itens.');
+    if (await acaoOferendas('salvar', { titulo, data })) toast('Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
     return;
   }
   if (form.dataset.form === 'ofed') {

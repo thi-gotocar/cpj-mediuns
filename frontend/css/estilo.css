@@ -248,3 +248,12 @@ nav.tabs button{flex:1 0 auto}
 .papel.root{background:var(--warn-soft);color:var(--gold)}
 body.deslogado header.top > div:first-child{display:none}
 body.deslogado header.top{min-height:0;padding-bottom:0}
+/* situação da oferenda */
+.st-of{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:20px;padding:3px 10px}
+.st-of.aguardando{background:#fbefc4;color:#7a5600}
+.st-of.publicado{background:#d5f0df;color:#1d6b3f}
+.st-of.encerrado{background:#e4e7ec;color:#5b6678}
+.st-of.rascunho{background:#dbe6fb;color:#2c4ea3}
+.st-of-linha{justify-content:space-between;align-items:center;gap:8px}
+.st-of-bts{display:flex;gap:6px;flex-wrap:wrap}
+.st-of-bts .btn.atual{opacity:1;border-color:var(--accent);color:var(--accent)}

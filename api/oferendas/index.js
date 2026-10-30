@@ -5,6 +5,8 @@
 //        admin:  salvar { id?, titulo, data } · excluir { id }
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
+//                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
+// Quem não administra as oferendas só vê (e só doa em) oferendas publicadas.
 //                doarPor { itemId, pessoaId | chave, quantidade }  — doação de outra pessoa (0 = exclui)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
@@ -12,7 +14,11 @@ import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 
-const resposta = (oferendas, eu) => ({ oferendas, eu: { chave: chavePessoa(eu), nome: eu.nome } });
+const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
+const resposta = (oferendas, eu) => ({
+  oferendas: pode(eu.papel, 'oferendas:gerenciar') ? oferendas : oferendas.filter((o) => o.status === 'publicado'),
+  eu: { chave: chavePessoa(eu), nome: eu.nome },
+});
 
 function inteiro(v, oque, min, max) {
   const n = Number(v);
@@ -48,6 +54,10 @@ export default rota({
         break;
       case 'excluir':
         estado = await db.rpc('oferenda_excluir', { id: validarId(b.id, 'Oferenda') });
+        break;
+      case 'status':
+        if (!STATUS.includes(b.status)) throw new HttpError(400, 'Situação inválida.');
+        estado = await db.rpc('oferenda_status', { id: validarId(b.id, 'Oferenda'), status: b.status });
         break;
       case 'item':
         estado = await db.rpc('oferenda_item_salvar', {

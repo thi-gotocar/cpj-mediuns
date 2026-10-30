@@ -477,6 +477,18 @@ test('oferendas: admin cria itens, todos doam até o limite, admin marca entregu
   assert.equal(rosas.entrega, null, 'sem data = no dia do evento');
   assert.equal(velas.entrega, '2026-12-06');
   const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  // Nova oferenda começa "aguardando publicação": a corrente não vê nem doa.
+  assert.equal(r.oferendas.find((x) => x.id === o.id).status, 'aguardando');
+  assert.ok(!(await api('GET', '/api/oferendas', ana)).json.oferendas.some((x) => x.id === o.id));
+  assert.match((await of({ acao: 'doar', itemId: velas.id, quantidade: 1 }, ana)).json.erro, /não está aberta/);
+  assert.equal((await of({ acao: 'status', id: o.id, status: 'publicado' }, USER)).status, 403);
+  assert.equal((await of({ acao: 'status', id: o.id, status: 'xyz' })).status, 400);
+  for (const st of ['rascunho', 'encerrado']) {
+    await of({ acao: 'status', id: o.id, status: st });
+    assert.ok(!(await api('GET', '/api/oferendas', ana)).json.oferendas.some((x) => x.id === o.id), st + ' não aparece para a corrente');
+  }
+  await of({ acao: 'status', id: o.id, status: 'publicado' });
+  assert.ok((await api('GET', '/api/oferendas', ana)).json.oferendas.some((x) => x.id === o.id), 'publicada aparece');
   assert.equal((await of({ acao: 'doar', itemId: velas.id, quantidade: 2 }, ana)).status, 200);
   const passou = await of({ acao: 'doar', itemId: velas.id, quantidade: 2 }, USER);
   assert.equal(passou.status, 400);

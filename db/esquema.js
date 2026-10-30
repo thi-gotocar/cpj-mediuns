@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 18;  // v18: root pode ligar e desligar a pessoa da corrente
+export const VERSAO = 19;  // v19: situação da oferenda (rascunho, aguardando, publicado, encerrado)
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -503,6 +503,14 @@ export const MIGRACOES = [
      data       date not null,
      criado_em  timestamptz not null default now()
    )`,
+  // v19: situação da oferenda. Só "publicado" aparece para a corrente.
+  // As que já existiam ficam publicadas (já estavam visíveis); as novas começam "aguardando publicação".
+  `alter table oferendas add column if not exists status text`,
+  `update oferendas set status = 'publicado' where status is null`,
+  `alter table oferendas alter column status set default 'aguardando'`,
+  `alter table oferendas alter column status set not null`,
+  `alter table oferendas drop constraint if exists oferendas_status_check`,
+  `alter table oferendas add constraint oferendas_status_check check (status in ('rascunho', 'aguardando', 'publicado', 'encerrado'))`,
   // entrega vazia = no dia do evento
   `create table if not exists oferenda_itens (
      id           uuid primary key default gen_random_uuid(),
@@ -525,7 +533,7 @@ export const MIGRACOES = [
   `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data,
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status,
        'itens', coalesce((select jsonb_agg(jsonb_build_object(
            'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
            'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
@@ -601,6 +609,10 @@ export const MIGRACOES = [
    begin
      select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
      if not found then raise exception 'Item não encontrado.'; end if;
+     if not coalesce((p ->> 'forcar')::boolean, false)
+        and (select o.status from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item) <> 'publicado' then
+       raise exception 'Esta oferenda não está aberta para doações.';
+     end if;
      if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
      select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
      if v_qtd > 0 and v_outros + v_qtd > v_total then
@@ -665,4 +677,14 @@ export const MIGRACOES = [
     where u.pessoa_id is not null
    on conflict (item_id, pessoa_chave) do nothing`,
   `delete from oferenda_doacoes x using usuarios u where x.pessoa_chave = 'u:' || u.id::text and u.pessoa_id is not null`,
+
+  // ================================================== v19
+  `create or replace function oferenda_status(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferendas set status = p ->> 'status' where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Oferenda não encontrada.'; end if;
+     return oferendas_estado();
+   end;
+   $$`,
 ];
