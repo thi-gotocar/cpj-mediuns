@@ -180,7 +180,7 @@ function cardPedidos(E) {
     const txt = vista === 'fornecedor' ? textoFornecedor(r, new Date(), ev) : textoCobranca(r, new Date(), ev);
     const titulo = vista === 'fornecedor' ? 'Pedido ao fornecedor' : 'Cobrança';
     const dica = vista === 'fornecedor'
-      ? 'Cada erva com a quantidade total pedida. Envie ao fornecedor.'
+      ? 'As ervas que serão pedidas. Envie ao fornecedor.'
       : 'Quanto cada pessoa paga: ervas + parte do frete.';
     h += `<div class="grp exp"><h3>${titulo}</h3><p class="muted" style="margin:0;font-size:.85rem">${dica}</p>
       <textarea id="ev-txt" readonly aria-label="${titulo}">${esc(txt)}</textarea>

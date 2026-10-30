@@ -140,20 +140,20 @@ export function linhaEvento(evento) {
   return partes.join(' · ');
 }
 
-// ---------- Pedido ao fornecedor: erva + quantidade total (sem valores) ----------
+// ---------- Pedido ao fornecedor: só as ervas que serão pedidas (sem quantidade nem valores) ----------
 export function textoFornecedor(resumo, data = new Date(), evento = null) {
   const tot = totaisPorErva(resumo);
   const ev = linhaEvento(evento);
   const L = ['*PEDIDO DE ERVAS · ' + data.toLocaleDateString('pt-BR') + '*', ...(ev ? [ev] : []), ''];
-  tot.forEach((t) => L.push(`• ${t.nome}: ${t.quantidade}`));
+  tot.forEach((t) => L.push(`• ${t.nome}`));
   L.push('');
-  L.push(`Total: ${tot.reduce((a, t) => a + t.quantidade, 0)} itens, ${tot.length} erva${tot.length === 1 ? '' : 's'}`);
+  L.push(`Total: ${tot.length} erva${tot.length === 1 ? '' : 's'}`);
   return L.join('\n');
 }
 
 export function csvFornecedor(resumo) {
-  const linhas = [['Erva', 'Quantidade', 'Pessoas que pediram']];
-  totaisPorErva(resumo).forEach((t) => linhas.push([t.nome, t.quantidade, t.pessoas]));
+  const linhas = [['Erva']];
+  totaisPorErva(resumo).forEach((t) => linhas.push([t.nome]));
   return '\uFEFF' + linhas.map((l) => l.map(celCsv).join(';')).join('\r\n');
 }
 

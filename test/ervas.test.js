@@ -71,11 +71,12 @@ test('pedido ao fornecedor (sem valores) e cobrança por pessoa', () => {
   ];
   const r = calcularPedidos(lista, escolhas, 10);
   const forn = textoFornecedor(r, new Date(2026, 10, 1));
-  assert.match(forn, /• Arruda: 3/);
-  assert.match(forn, /• Guiné: 1/);
+  assert.match(forn, /• Arruda\n/);
+  assert.match(forn, /• Guiné\n/);
+  assert.doesNotMatch(forn, /Arruda: 3|x3/, 'o pedido ao fornecedor não leva a quantidade');
   assert.doesNotMatch(forn, /R\$/, 'o pedido ao fornecedor não leva valores');
   assert.match(textoFornecedor(r, new Date(), { gira: 'Caboclo', data: '2026-11-07' }), /\nGira: Caboclo · 07\/11\/2026\n/);
-  assert.equal(csvFornecedor(r), '\uFEFFErva;Quantidade;Pessoas que pediram\r\nArruda;3;2\r\nGuiné;1;1');
+  assert.equal(csvFornecedor(r), '\uFEFFErva\r\nArruda\r\nGuiné');
   lista[1].preco = 7.5;
   const r2 = calcularPedidos(lista, escolhas, 10);
   const cob = textoCobranca(r2);
