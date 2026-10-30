@@ -4,10 +4,20 @@ import { recebe, ehCambone, ordRecebe, presente } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 
+const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
+const somaAt = (a) => ATEND.reduce((s, [k]) => s + (Number(a?.[k]) || 0), 0);
+const linhaAt = (a) => `Atendidos: ${ATEND.map(([k, t]) => `${t} <b>${Number(a[k]) || 0}</b>`).join(' · ')} · Total <b>${somaAt(a)}</b>`;
+
 export function render() {
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd();
   let h = `<section class="panel"><div class="card"><h2>Giras salvas</h2>`;
+  // Soma dos atendidos de todas as giras que têm o registro.
+  const comAt = gs.filter((g) => g.atendimentos);
+  if (comAt.length) {
+    const tot = Object.fromEntries(ATEND.map(([k]) => [k, comAt.reduce((s, g) => s + (Number(g.atendimentos[k]) || 0), 0)]));
+    h += `<p class="muted" style="margin:0;font-size:.9rem">Em ${comAt.length} gira${comAt.length === 1 ? '' : 's'} · ${linhaAt(tot)}</p>`;
+  }
   if (!gs.length) h += `<p class="muted">Nenhuma gira ainda.</p>`;
   else {
     h += `<div class="hist">`;
@@ -15,7 +25,8 @@ export function render() {
       const np = ps.filter((p) => presente(p, g)).length;
       const conf = estado.confirm === 'g:' + g.data;
       h += `<div class="hi"><div><div class="d">${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span></div>
-        <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${(g.pares || []).length} duplas · ${np} presentes${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div></div>
+        <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${(g.pares || []).length} duplas · ${np} presentes${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
+        ${g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
         <div class="acts"><button class="btn small" data-act="abrir" data-d="${g.data}">Abrir</button>
         ${pode('giras:excluir') ? (conf ? `<button class="btn small danger" data-act="delgira" data-d="${g.data}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="g:${g.data}">Excluir</button>`) : ''}</div></div>`;
     });
