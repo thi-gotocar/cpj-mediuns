@@ -409,3 +409,10 @@ body.deslogado .rodape{display:none}
 .saud-nome{font:700 1.75rem/1.1 var(--f-display);background:linear-gradient(95deg,var(--gold) 0%,#d0603a 45%,var(--accent) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:4px;position:relative;width:fit-content;max-width:100%}
 .saud-nome::after{content:"";position:absolute;left:0;bottom:0;width:42px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--gold),#d0603a)}
 .saud-nome:empty{display:none}
+
+/* Topo: emblema pequeno ao lado da saudação */
+.topo-id{display:flex;align-items:center;gap:12px;min-width:0}
+.topo-id > div{min-width:0}
+.topo-logo{width:52px;height:52px;flex:none;border-radius:14px;background:#fff;padding:3px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.topo-id .eyebrow{display:block;margin-bottom:8px;color:var(--gold)}
+.sync:empty{display:none}

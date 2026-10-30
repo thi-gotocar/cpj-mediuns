@@ -30,7 +30,7 @@ let instalado = true;
 function renderConta() {
   if (!estado.me) { conta.innerHTML = ''; rodape.innerHTML = ''; rodape.hidden = true; saudNome.textContent = ''; return; }
   saudNome.textContent = estado.me.nome;
-  conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : 'Salvo'}</span>` : ''}
+  conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : ''}</span>` : ''}
     <button class="btn small" data-conta="sair">Sair</button>`;
   rodape.hidden = false;
   rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${estado.me.papel}">${ROTULOS[estado.me.papel] || estado.me.papel}</span>

@@ -118,7 +118,7 @@ function enviar(data) {
 
 function avisarSalvando() {
   const el = document.getElementById('sync');
-  if (el) el.textContent = estado.salvando || Object.keys(pendente).length ? 'Salvando…' : 'Salvo';
+  if (el) el.textContent = estado.salvando || Object.keys(pendente).length ? 'Salvando…' : '';   // só aparece enquanto salva
 }
 
 export function editarGira(patch, { atraso = 0 } = {}) {
