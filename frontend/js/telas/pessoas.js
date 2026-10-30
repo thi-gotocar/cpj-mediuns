@@ -18,6 +18,7 @@ function cardLicencas(ps, editar) {
       <label class="field grow">Pessoa<select id="lic-p"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
       <label class="field" style="flex:1 1 140px">Início<input type="date" id="lic-i" value="${hj}"></label>
       <label class="field" style="flex:1 1 140px">Fim<input type="date" id="lic-f"></label>
+      <label class="field" style="flex:2 1 220px">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…"></label>
       <button class="btn primary" type="submit">Adicionar</button></form>`;
   }
   if (!lics.length) return h + `<p class="muted" style="margin:0;font-size:.85rem">Ninguém de licença. Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p></div>`;
@@ -27,11 +28,12 @@ function cardLicencas(ps, editar) {
     if (editar && estado.editLic === l.id) {
       return `<div class="pp lic-ed"><span class="nm">${esc(l.pessoa.nome)}</span>
         <div class="row"><label class="field" style="flex:1 1 130px">Início<input type="date" id="el-i" value="${l.inicio}"></label>
-        <label class="field" style="flex:1 1 130px">Fim<input type="date" id="el-f" value="${l.fim}"></label></div>
+        <label class="field" style="flex:1 1 130px">Fim<input type="date" id="el-f" value="${l.fim}"></label>
+        <label class="field" style="flex:2 1 200px">Motivo<input type="text" id="el-m" maxlength="200" value="${esc(l.motivo || '')}"></label></div>
         <div class="row"><button class="btn small primary" data-act="salvarlic" data-id="${l.id}">Salvar</button><button class="btn small" data-act="cancelarlic">Cancelar</button></div></div>`;
     }
     return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(l.pessoa.nome)}</span>
-      <span class="muted" style="font-size:.85rem">${dBR(l.inicio)} a ${dBR(l.fim)}${agora ? ' · <b>de licença agora</b>' : ' · começa depois'}</span></span>
+      <span class="muted" style="font-size:.85rem">${dBR(l.inicio)} a ${dBR(l.fim)}${l.motivo ? ` · ${esc(l.motivo)}` : ''}${agora ? ' · <b>de licença agora</b>' : ' · começa depois'}</span></span>
       ${editar ? `<span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn small" data-act="editlic" data-id="${l.id}">Editar</button>${conf ? `<button class="btn small danger" data-act="dellic" data-id="${l.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="lic:${l.id}">Remover</button>`}</span>` : ''}</div>`;
   }).join('')}</div>`;
   return h + `</div>`;
@@ -131,7 +133,7 @@ export const cliques = {
     const fim = document.getElementById('el-f').value;
     if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
     if (fim < inicio) { toast('A data final é antes do início.'); return; }
-    if (await editarLicenca(el.dataset.id, inicio, fim)) { estado.editLic = null; toast('Licença alterada.'); avisar(); }
+    if (await editarLicenca(el.dataset.id, inicio, fim, document.getElementById('el-m').value.trim())) { estado.editLic = null; toast('Licença alterada.'); avisar(); }
   },
   dellic(el) { estado.confirm = null; removerLicenca(el.dataset.id); },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
@@ -178,7 +180,7 @@ export async function enviarLicenca() {
   if (!pessoa) { toast('Escolha a pessoa.'); return; }
   if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
   if (fim < inicio) { toast('A data final é antes do início.'); return; }
-  if (await salvarLicenca(pessoa, inicio, fim)) toast('Licença cadastrada.');
+  if (await salvarLicenca(pessoa, inicio, fim, document.getElementById('lic-m').value.trim())) toast('Licença cadastrada.');
 }
 
 export async function enviarFormulario() {

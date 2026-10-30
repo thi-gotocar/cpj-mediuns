@@ -5,6 +5,7 @@ import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtu
 import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
+import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : '');
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
@@ -111,7 +112,8 @@ export function render() {
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
     </div>
-    ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}${g.atendimentos ? `<br>${textoAtendimentos(g.atendimentos)}` : ''}</span>${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</div>` : ''}
+    ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}${g.atendimentos ? `<br>${textoAtendimentos(g.atendimentos)}` : ''}</span><span class="row" style="gap:6px">${pode('escala:completa') ? botaoResumo(g) : ''}${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</span></div>
+    ${pode('escala:completa') ? painelResumo(g) : ''}` : ''}
     ${avisoEntidade(ps, g, editar, admin)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
   </div>`;
@@ -264,6 +266,7 @@ export function render() {
 
 // ---------- ações ----------
 export const cliques = {
+  ...cliquesResumo,
   todos(el) {
     const g = giraAtual();
     const pr = { ...(g.presenca || {}) };

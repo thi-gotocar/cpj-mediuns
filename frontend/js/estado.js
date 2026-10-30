@@ -214,16 +214,16 @@ export async function atualizarPessoa(id, patch) {
 }
 
 // Licenças (admin): a resposta é a lista da corrente atualizada.
-export async function salvarLicenca(pessoaId, inicio, fim) {
+export async function salvarLicenca(pessoaId, inicio, fim, motivo = '') {
   try {
-    estado.pessoas = await api('POST', '/pessoas', { acao: 'licenca', pessoaId, inicio, fim });
+    estado.pessoas = await api('POST', '/pessoas', { acao: 'licenca', pessoaId, inicio, fim, motivo });
     avisar();
     return true;
   } catch (e) { toast(e.message); return false; }
 }
-export async function editarLicenca(id, inicio, fim) {
+export async function editarLicenca(id, inicio, fim, motivo = '') {
   try {
-    estado.pessoas = await api('POST', '/pessoas', { acao: 'editarLicenca', id, inicio, fim });
+    estado.pessoas = await api('POST', '/pessoas', { acao: 'editarLicenca', id, inicio, fim, motivo });
     avisar();
     return true;
   } catch (e) { toast(e.message); return false; }

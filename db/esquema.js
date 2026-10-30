@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 21;  // v21: oferenda lembra se já foi publicada
+export const VERSAO = 22;  // v22: motivo da licença
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -60,6 +60,8 @@ export const MIGRACOES = [
      check (fim >= inicio)
    )`,
   `create index if not exists licencas_pessoa on licencas (pessoa_id)`,
+  // v22: motivo da licença (aparece no resumo da gira)
+  `alter table licencas add column if not exists motivo text not null default '' check (length(motivo) <= 200)`,
 
   // ------------------------------------------------------------------ giras
   `create table if not exists giras (
@@ -226,7 +228,7 @@ export const MIGRACOES = [
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
        select p.id, p.nome, p.funcao, p.experiente, p.linhas,
-              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim) order by l.inicio)
+              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
                         from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas
        from pessoas p
      ) x;
@@ -234,8 +236,8 @@ export const MIGRACOES = [
   `create or replace function licenca_salvar(p jsonb)
    returns jsonb language plpgsql as $$
    begin
-     insert into licencas (pessoa_id, inicio, fim)
-     values ((p ->> 'pessoaId')::uuid, (p ->> 'inicio')::date, (p ->> 'fim')::date);
+     insert into licencas (pessoa_id, inicio, fim, motivo)
+     values ((p ->> 'pessoaId')::uuid, (p ->> 'inicio')::date, (p ->> 'fim')::date, coalesce(p ->> 'motivo', ''));
      return pessoas_listar();
    end;
    $$`,
@@ -243,7 +245,8 @@ export const MIGRACOES = [
   `create or replace function licenca_atualizar(p jsonb)
    returns jsonb language plpgsql as $$
    begin
-     update licencas set inicio = (p ->> 'inicio')::date, fim = (p ->> 'fim')::date where id = (p ->> 'id')::uuid;
+     update licencas set inicio = (p ->> 'inicio')::date, fim = (p ->> 'fim')::date,
+       motivo = case when p ? 'motivo' then coalesce(p ->> 'motivo', '') else motivo end where id = (p ->> 'id')::uuid;
      if not found then raise exception 'Licença não encontrada.'; end if;
      return pessoas_listar();
    end;

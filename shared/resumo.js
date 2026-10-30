@@ -2,7 +2,7 @@
 //
 //   lerResumo(texto) → { data: 'AAAA-MM-DD' | '', horario, local, coordenador,
 //                        contagem: { presentes, ausentes, licenca, convidados },
-//                        atendimentos: { preferencial, normal, passe }, ausentes: [nomes], licenca: [nomes] }
+//                        atendimentos: { preferencial, normal, passe }, ausentes: [nomes], faltas: [nomes], licenca: [nomes] }
 //   casarNomes(nomes, pessoas) → [{ lido, pessoa?, provavel?, candidatos }]
 
 import { normalizarNome, nomesParecidos } from './ervas.js';
@@ -12,7 +12,7 @@ const num = (s) => { const n = parseInt(String(s).replace(/\D/g, ''), 10); retur
 const limpar = (l) => l.replace(/^[^\p{L}\p{N}]+/u, '').trim();
 
 export function lerResumo(texto) {
-  const r = { data: '', horario: '', local: '', coordenador: '', contagem: {}, atendimentos: { preferencial: 0, normal: 0, passe: 0 }, ausentes: [], licenca: [] };
+  const r = { data: '', horario: '', local: '', coordenador: '', contagem: {}, atendimentos: { preferencial: 0, normal: 0, passe: 0 }, ausentes: [], faltas: [], licenca: [] };
   let secao = '';
   for (const bruta of String(texto || '').split(/\r?\n/)) {
     const linha = limpar(bruta);
@@ -20,7 +20,7 @@ export function lerResumo(texto) {
     const t = normalizarNome(linha);
     // títulos das seções (em maiúsculas, sem ":")
     if (!linha.includes(':') && linha === linha.toUpperCase() && /[A-ZÀ-Ú]/.test(linha)) {
-      secao = t.startsWith('ausentes') ? 'ausentes' : t.startsWith('em licenca') ? 'licenca' : t;
+      secao = t.startsWith('ausentes') ? 'ausentes' : t.startsWith('faltas') ? 'faltas' : t.startsWith('em licenca') ? 'licenca' : t;
       continue;
     }
     const m = linha.match(/^([^:]+):\s*(.*)$/);
@@ -32,6 +32,7 @@ export function lerResumo(texto) {
       else if (k === 'coordenador') r.coordenador = v;
       else if (k === 'presentes') r.contagem.presentes = num(v);
       else if (k === 'ausentes') r.contagem.ausentes = num(v);
+      else if (k === 'faltas') r.contagem.faltas = num(v);
       else if (k === 'em licenca') r.contagem.licenca = num(v);
       else if (k === 'convidados') r.contagem.convidados = num(v);
       else if (k === 'preferencial') r.atendimentos.preferencial = num(v);
@@ -39,9 +40,10 @@ export function lerResumo(texto) {
       else if (k === 'passe') r.atendimentos.passe = num(v);
       continue;
     }
-    if ((secao === 'ausentes' || secao === 'licenca') && !/^nenhum/.test(t)) {
-      // Nome inteiro, com o código da turma ("Bruna Tiba T6").
-      const nome = linha.replace(/\s+/g, ' ').trim();
+    if ((secao === 'ausentes' || secao === 'faltas' || secao === 'licenca') && !/^nenhum/.test(t)) {
+      // Nome inteiro, com o código da turma ("Bruna Tiba T6"). Na licença, o que vem depois
+      // de " - " é o motivo e o retorno ("Rose T3 - Gravidez - Retorno em 15/09/2026").
+      const nome = linha.split(/\s+-\s+/)[0].replace(/\s+/g, ' ').trim();
       if (nome) r[secao].push(nome);
     }
   }

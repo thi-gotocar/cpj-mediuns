@@ -1,6 +1,6 @@
 // GET  /api/pessoas            lista a corrente
 // POST /api/pessoas            { nomes: [..] | nome: "A, B; C", funcao }
-//                              { acao: 'licenca', pessoaId, inicio, fim } · { acao: 'editarLicenca', id, inicio, fim }
+//                              { acao: 'licenca', pessoaId, inicio, fim, motivo? } · { acao: 'editarLicenca', id, inicio, fim, motivo? }
 //                              { acao: 'removerLicenca', id }  → lista da corrente
 import { rota, corpo, HttpError, validarData, validarId } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
@@ -19,8 +19,9 @@ export default rota({
       const inicio = validarData(String(b.inicio || ''));
       const fim = validarData(String(b.fim || ''));
       if (fim < inicio) throw new HttpError(400, 'A data final da licença é antes do início.');
-      if (b.acao === 'editarLicenca') return db.rpc('licenca_atualizar', { id: validarId(b.id, 'Licença'), inicio, fim });
-      return db.rpc('licenca_salvar', { pessoaId: validarId(b.pessoaId, 'Pessoa'), inicio, fim });
+      const motivo = String(b.motivo ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      if (b.acao === 'editarLicenca') return db.rpc('licenca_atualizar', { id: validarId(b.id, 'Licença'), inicio, fim, ...('motivo' in b ? { motivo } : {}) });
+      return db.rpc('licenca_salvar', { pessoaId: validarId(b.pessoaId, 'Pessoa'), inicio, fim, motivo });
     }
     if (b.acao === 'removerLicenca') return db.rpc('licenca_excluir', { id: validarId(b.id, 'Licença') });
     if (!FUNCAO_KEYS.includes(b.funcao)) throw new HttpError(400, 'Função inválida.');

@@ -4,6 +4,7 @@ import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPC
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
+import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 
 // Resultado da leitura da mensagem. Tudo o que ficou em dúvida aparece em vermelho, com opção de
 // corrigir e um botão Aceitar; só dá para gravar depois de aceitar todos.
@@ -19,7 +20,8 @@ function relatorioResumo(F, ps) {
   const g = { data: F.data, presenca: F.presenca };
   const n = (...st) => ps.filter((p) => st.includes(status(p, g))).length;
   const pres = n('p', 'na', 'sup'), aus = n('a', 'f');
-  R.diferenca = (R.contagem.presentes != null && R.contagem.presentes !== pres) || (R.contagem.ausentes != null && R.contagem.ausentes !== aus);
+  const ausMsg = R.contagem.ausentes != null ? R.contagem.ausentes + (R.contagem.faltas || 0) : null;
+  R.diferenca = (R.contagem.presentes != null && R.contagem.presentes !== pres) || (ausMsg != null && ausMsg !== aus);
   const falta = pendentes(F);
   let h = `<div class="ga-rel"><div class="grp-h"><b>Mensagem lida</b><span class="count">${falta ? `<span class="dv-n">${falta} para conferir</span>` : '<span class="ok-n">tudo conferido</span>'}</span></div>`;
   // data
@@ -28,14 +30,14 @@ function relatorioResumo(F, ps) {
       <button class="btn small" data-act="gaaceitar" data-k="data" ${F.data ? '' : 'disabled'}>${R.dataOk ? 'Aceito ✓' : 'Aceitar'}</button></div>`;
   }
   // contagem
-  h += `<div class="dv ${!R.diferenca || R.contagemOk ? 'ok' : ''}"><span>Na mensagem: <b>${R.contagem.presentes ?? '?'}</b> presentes · <b>${R.contagem.ausentes ?? '?'}</b> ausentes.
+  h += `<div class="dv ${!R.diferenca || R.contagemOk ? 'ok' : ''}"><span>Na mensagem: <b>${R.contagem.presentes ?? '?'}</b> presentes · <b>${ausMsg ?? '?'}</b> ausentes${R.contagem.faltas ? ` (com ${R.contagem.faltas} faltas)` : ''}.
       No app: <b>${pres}</b> presentes · <b>${aus}</b> ausentes (de ${ps.length} na corrente)${R.diferenca ? '. Os números não batem: confira se falta alguém cadastrado ou algum nome abaixo.' : '.'}</span>
     ${R.diferenca ? `<button class="btn small" data-act="gaaceitar" data-k="contagem">${R.contagemOk ? 'Aceito ✓' : 'Aceitar'}</button>` : ''}</div>`;
   // nomes em dúvida
   R.casados.forEach((c, i) => {
     if (!c.duvida) return;
     const motivo = c.provavelId ? 'reconhecido por aproximação' : c.candidatos.length ? 'mais de uma pessoa parecida' : 'não achei na corrente';
-    h += `<div class="dv ${c.aceito ? 'ok' : ''}"><label class="field ga-map"><span>“${esc(c.lido)}”${c.licenca ? ' (em licença)' : ''} · <i>${motivo}</i></span>
+    h += `<div class="dv ${c.aceito ? 'ok' : ''}"><label class="field ga-map"><span>“${esc(c.lido)}”${c.licenca ? ' (em licença)' : c.falta ? ' (falta)' : ''} · <i>${motivo}</i></span>
       <select data-act="gamap" data-i="${i}"><option value="" ${c.escolhido ? '' : 'selected'}>— ignorar (não marcar ninguém) —</option>
         ${c.candidatos.length ? `<optgroup label="Parecidos">${c.candidatos.map((nm) => { const p = ps.find((x) => x.nome === nm); return p ? `<option value="${p.id}" ${c.escolhido === p.id ? 'selected' : ''}>${esc(p.nome)}</option>` : ''; }).join('')}</optgroup>` : ''}
         <optgroup label="Todos">${ps.map((p) => `<option value="${p.id}" ${c.escolhido === p.id && !c.candidatos.includes(p.nome) ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</optgroup></select></label>
@@ -85,10 +87,10 @@ function cardGiraAntiga(ps) {
   return h;
 }
 
-// Presença da corrente na gira: presentes (presente, não atende, suporte) sobre a corrente,
-// sem contar quem estava de licença.
+// Presença da corrente na gira: presentes (presente, não atende, suporte) sobre toda a corrente,
+// licenças incluídas (a mesma conta do resumo compartilhado no WhatsApp).
 function presencaGira(ps, g) {
-  const sts = ps.map((p) => status(p, g)).filter((st) => st !== 'lic');
+  const sts = ps.map((p) => status(p, g));
   const pres = sts.filter((st) => st === 'p' || st === 'na' || st === 'sup').length;
   return { pres, base: sts.length, pct: sts.length ? Math.round((pres / sts.length) * 100) : null };
 }
@@ -189,11 +191,12 @@ export function render() {
       const pr = presencaGira(ps, g);
       h += `<div class="hi"><div><div class="d"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira não definida')}</span>
         ${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
-        ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ' (sem contar quem estava de licença)' : ''}`) : ''}</div>
+        ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ` (${nLic} de licença)` : ''}`) : ''}</div>
         <div class="muted" style="font-size:.9rem">${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
         ${g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
         <div class="acts"><button class="btn small" data-act="abrir" data-d="${g.data}">Abrir</button>
-        ${pode('giras:excluir') ? (conf ? `<button class="btn small danger" data-act="delgira" data-d="${g.data}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="g:${g.data}">Excluir</button>`) : ''}</div></div>`;
+        ${pode('giras:excluir') ? (conf ? `<button class="btn small danger" data-act="delgira" data-d="${g.data}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="g:${g.data}">Excluir</button>`) : ''}</div>
+        ${g.encerrada && pode('escala:completa') ? `<div class="hi-rs">${botaoResumo(g)}${painelResumo(g)}</div>` : ''}</div>`;
     });
     h += `</div>`;
   }
@@ -220,6 +223,7 @@ export function render() {
 }
 
 export const cliques = {
+  ...cliquesResumo,
   gaabrir() {
     estado.giraAntiga = { data: '', entidade: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
     avisar();
@@ -230,10 +234,11 @@ export const cliques = {
     const F = estado.giraAntiga;
     F.msg = document.getElementById('ga-msg').value;
     const r = lerResumo(F.msg);
-    if (!r.data && !r.ausentes.length) { toast('Não reconheci a mensagem. Cole o “RESUMO DO EVENTO” completo.'); return; }
+    if (!r.data && !r.ausentes.length && !r.faltas.length) { toast('Não reconheci a mensagem. Cole o “RESUMO DO EVENTO” completo.'); return; }
     const ps = pessoasOrd();
     const casados = [
       ...casarNomes(r.ausentes, ps),
+      ...casarNomes(r.faltas, ps).map((c) => ({ ...c, falta: true })),
       ...casarNomes(r.licenca, ps).map((c) => ({ ...c, licenca: true })),
     ].map((c) => {
       // Em dúvida: reconhecido por aproximação ou não reconhecido.
@@ -245,13 +250,13 @@ export const cliques = {
     // Gira escrita na mensagem (ex.: "Gira: Exu", "Gira interna", "Reunião obrigatória").
     // Só no cabeçalho, antes da lista de nomes.
     for (const l of F.msg.split(/\r?\n/)) {
-      if (/^[^\p{L}]*(ausentes|em licen)/iu.test(l) && !l.includes(':')) break;
+      if (/^[^\p{L}]*(ausentes|faltas|em licen)/iu.test(l) && !l.includes(':')) break;
       const t = l.replace(/^[^\p{L}]+/u, '').replace(/^(gira|entidade)\s*:?\s*/i, '').trim();
       if (t && (linhaDaEntidade(t) || giraEspecial(t))) { F.entidade = nomeGira(t); break; }
     }
     F.at = { ...r.atendimentos };
     F.presenca = {};
-    casados.forEach((c) => { if (c.escolhido) F.presenca[c.escolhido] = 'a'; });
+    casados.forEach((c) => { if (c.escolhido) F.presenca[c.escolhido] = c.falta ? 'f' : 'a'; });
     F.relatorio = { contagem: r.contagem, casados, semData: !r.data, dataOk: false, contagemOk: false };
     const dv = casados.filter((c) => c.duvida).length;
     toast(`Lido: ${r.data ? r.data.split('-').reverse().join('/') : 'sem data'} · ${casados.length - dv} nomes certos${dv ? `, ${dv} para conferir (em vermelho)` : ''}.`);
@@ -305,7 +310,7 @@ export const mudancas = {
     if (c.escolhido) delete F.presenca[c.escolhido];
     c.escolhido = t.value || '';
     c.aceito = false;
-    if (t.value) F.presenca[t.value] = 'a';
+    if (t.value) F.presenca[t.value] = c.falta ? 'f' : 'a';
     avisar();
   },
   gaat(t) { const n = parseInt(t.value, 10); estado.giraAntiga.at[t.dataset.k] = Number.isFinite(n) && n >= 0 ? n : 0; },

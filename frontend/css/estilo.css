@@ -311,3 +311,11 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-bar i.ok{background:var(--ok)} .st-bar i.off{background:var(--off)} .st-bar i.acc{background:var(--accent)} .st-bar i.or{background:var(--orange)}
 .st-num{white-space:nowrap;text-align:right}
 .st-det{grid-column:2 / -1;font-size:.8rem;color:var(--muted);margin-top:-3px}
+
+/* Compartilhar resumo da gira encerrada */
+.hi-rs{grid-column:1 / -1;display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.rs-painel{width:100%;display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--bg)}
+.rs-painel a.btn{text-decoration:none}
+.rs-img{width:100%;max-width:420px;border-radius:8px;border:1px solid var(--line)}
+.rs-painel textarea{width:100%;font:inherit;font-size:.85rem;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--surface);color:var(--ink);margin-top:6px}
+.infobox .row{flex-wrap:wrap;justify-content:flex-end}

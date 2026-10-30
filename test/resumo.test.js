@@ -68,3 +68,30 @@ test('nome inteiro com a turma: casa com e sem a turma no cadastro', () => {
   assert.equal(c[4].pessoa.nome, 'Caio T4'); assert.equal(c[4].provavel, true, 'turma diferente: conferir');
   assert.equal(c[5].pessoa, null); assert.deepEqual(c[5].candidatos.sort(), ['Ana Lúcia T6', 'Ana Paula T8']);
 });
+
+test('resumo da gira encerrada: texto no formato do WhatsApp e lido de volta', async () => {
+  const { textoResumo, dadosResumo } = await import('../shared/resumoGira.js');
+  const pessoas = [
+    { id: 'a', nome: 'Ana T8' }, { id: 'b', nome: 'Bia' }, { id: 'c', nome: 'Caio T7' }, { id: 'd', nome: 'Duda' },
+    { id: 'e', nome: 'Rose T3', licencas: [{ id: 'l1', inicio: '2026-04-01', fim: '2026-09-14', motivo: 'Gravidez' }] },
+    { id: 'f', nome: 'Edu' }, { id: 'g', nome: 'Gabi' },
+  ];
+  const g = { data: '2026-04-15', entidade: 'Mista', presenca: { a: 'a', c: 'f', d: 'sup' }, atendimentos: { preferencial: 2, normal: 30, passe: 5 } };
+  const d = dadosResumo(pessoas, g);
+  assert.deepEqual([d.presentes.length, d.ausentes.length, d.faltas.length, d.licenca.length], [4, 1, 1, 1]);
+  assert.deepEqual(d.pct, { presenca: 57, ausencia: 29, licenca: 14 });
+  const t = textoResumo(pessoas, g);
+  assert.match(t, /^RESUMO DO EVENTO\nGira: Encontro das Linhas\nData: 15\/04\/2026\nLocal: Terreiro/);
+  assert.match(t, /✅ Presentes: 4\n❌ Ausentes: 1\n🚫 Faltas: 1\n📋 Em Licença: 1/);
+  assert.match(t, /Presença: 57%\nAusência: 29%\nLicença: 14%/);
+  assert.match(t, /💫 Total: 37/);
+  assert.match(t, /AUSENTES\n❌ Ana T8\n\nFALTAS\n🚫 Caio T7/);
+  assert.match(t, /📋 Rose T3 - Gravidez - Retorno em 15\/09\/2026/);
+  const r = lerResumo(t);
+  assert.equal(r.data, '2026-04-15');
+  assert.deepEqual(r.ausentes, ['Ana T8']);
+  assert.deepEqual(r.faltas, ['Caio T7']);
+  assert.deepEqual(r.licenca, ['Rose T3']);
+  assert.equal(r.contagem.faltas, 1);
+  assert.deepEqual(r.atendimentos, { preferencial: 2, normal: 30, passe: 5 });
+});
