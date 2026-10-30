@@ -7,7 +7,8 @@ import { gerarImagemOferenda } from '../imagemOferenda.js';
 
 const U = () => estado.ofUi;
 const opcoesPessoas = (atual) => `<option value="">— escolha —</option>${pessoasOrd().map((p) => `<option value="${p.id}" ${p.id === atual ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}`;
-const SITUACAO = { rascunho: 'Rascunho', aguardando: 'Aguardando publicação', publicado: 'Publicado', encerrado: 'Encerrado' };
+// "rascunho" aparece como Bloqueado (vermelho): a corrente não vê e os itens ficam ocultos.
+const SITUACAO = { rascunho: 'Bloqueado', aguardando: 'Aguardando publicação', publicado: 'Publicado', encerrado: 'Encerrado' };
 const etiqueta = (st) => `<span class="st-of ${st}">${SITUACAO[st] || st}</span>`;
 
 // Lembra se "+ Adicionar item" e "Oferendas anteriores" estão abertos entre redesenhos.
@@ -120,15 +121,17 @@ function cardOferenda(of, admin) {
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
     h += `${admin ? `<div class="row st-of-linha">${etiqueta(of.status)}${of.status !== 'publicado' ? '<span class="muted" style="font-size:.82rem;flex-basis:100%">A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.</span>' : ''}
-        <span class="st-of-bts">${[['publicado', 'Publicar'], ['rascunho', 'Rascunho'], ['encerrado', 'Encerrar']].map(([st, t]) =>
-          `<button class="btn small ${of.status === st ? 'atual' : ''}" data-act="statusof" data-id="${of.id}" data-v="${st}" ${of.status === st ? 'disabled' : ''}>${t}</button>`).join('')}</span></div>` : ''}
+        <span class="st-of-bts">${[['publicado', 'Publicar'], ['rascunho', 'Bloquear'], ['encerrado', 'Encerrar']].map(([st, t]) =>
+          `<button class="btn small ${st === 'rascunho' ? 'bloquear' : ''} ${of.status === st ? 'atual' : ''}" data-act="statusof" data-id="${of.id}" data-v="${st}" ${of.status === st ? 'disabled' : ''}>${t}</button>`).join('')}</span></div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       <p class="muted" style="margin:0;font-size:.88rem">${of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
   // Sempre começa minimizada; abre só enquanto o app estiver aberto.
-  const fechada = of.itens.length > 0 && !(u.abertas || []).includes(of.id);
-  if (u.editar !== of.id && of.itens.length) {
+  // Bloqueada: itens ocultos, sem o botão de ver.
+  const bloqueada = of.status === 'rascunho';
+  const fechada = bloqueada || (of.itens.length > 0 && !(u.abertas || []).includes(of.id));
+  if (u.editar !== of.id && of.itens.length && !bloqueada) {
     h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? '▸ Ver os itens' : '▾ Minimizar'}</button>`;
   }
   if (fechada) return h + rodapeOferenda(of, admin) + `</div>`;
@@ -147,6 +150,7 @@ function cardOferenda(of, admin) {
 function rodapeOferenda(of, admin) {
   const u = U();
   let h = '';
+  if (!admin) return h;   // compartilhar, editar e excluir: só admin
   const aberto = u.compartilhar === of.id;
   h += `<div class="row"><button class="btn ${aberto ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${aberto}">Compartilhar lista</button>
     ${admin && u.editar !== of.id ? `<button class="btn" data-act="editarof" data-id="${of.id}">Editar</button>
@@ -236,7 +240,7 @@ export const cliques = {
     avisar();
   },
   async statusof(el) {
-    const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda em rascunho: a corrente não vê.', encerrado: 'Oferenda encerrada: a corrente não vê mais.' };
+    const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda bloqueada: a corrente não vê e os itens ficam ocultos.', encerrado: 'Oferenda encerrada: a corrente não vê mais.' };
     if (await acaoOferendas('status', { id: el.dataset.id, status: el.dataset.v })) toast(t[el.dataset.v]);
   },
   async delof(el) { estado.confirm = null; if (await acaoOferendas('excluir', { id: el.dataset.id })) toast('Oferenda excluída.'); },
