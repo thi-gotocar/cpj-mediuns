@@ -102,7 +102,7 @@ function cardOferenda(of, admin) {
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelarof">Cancelar</button></form>`;
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
-    h += `${admin ? `<div class="row st-of-linha">${etiqueta(of.status)}
+    h += `${admin ? `<div class="row st-of-linha">${etiqueta(of.status)}${of.status !== 'publicado' ? '<span class="muted" style="font-size:.82rem;flex-basis:100%">A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.</span>' : ''}
         <span class="st-of-bts">${[['publicado', 'Publicar'], ['rascunho', 'Rascunho'], ['encerrado', 'Encerrar']].map(([st, t]) =>
           `<button class="btn small ${of.status === st ? 'atual' : ''}" data-act="statusof" data-id="${of.id}" data-v="${st}" ${of.status === st ? 'disabled' : ''}>${t}</button>`).join('')}</span></div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span><span class="ent">${esc(Dia(of.data))}</span></div>
@@ -149,7 +149,7 @@ export function render() {
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
       <button class="btn primary" type="submit">Criar</button></form></div>`;
   }
-  if (!lista.length) return h + `<div class="card empty"><p class="muted">Nenhuma oferenda ainda.${admin ? ' Crie a primeira acima.' : ''}</p></div></section>`;
+  if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda ainda. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação no momento. Quando o admin publicar, ela aparece aqui.'}</p></div></section>`;
   h += `<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>`;
   h += proximas.map((o) => cardOferenda(o, admin)).join('');
   if (!proximas.length) h += `<div class="card empty"><p class="muted">Nenhuma oferenda marcada para os próximos dias.</p></div>`;

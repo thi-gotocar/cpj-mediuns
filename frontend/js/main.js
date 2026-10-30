@@ -117,6 +117,8 @@ tabs.addEventListener('click', (e) => {
   estado.confirm = null;
   if (b.dataset.tab === 'usuarios') estado.usuarios = null;
   if (b.dataset.tab === 'ervas') estado.ervas = null;
+  // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
+  if (b.dataset.tab === 'oferendas') estado.oferendas = null;
   salvarPrefs();
   render();
 });

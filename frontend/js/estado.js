@@ -78,6 +78,10 @@ export async function atualizarDoServidor() {
     const [pessoas, giras] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras')]);
     estado.pessoas = pessoas;
     definirGiras(giras);
+    // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
+    if (estado.oferendas !== null && prefs.tab === 'oferendas' && !Object.values(timersDoacao).some(Boolean)) {
+      estado.oferendas = await api('GET', '/oferendas');
+    }
     avisar();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
 }
@@ -368,6 +372,7 @@ export function doarItem(itemId, quantidade) {
   avisar();
   clearTimeout(timersDoacao[itemId]);
   timersDoacao[itemId] = setTimeout(() => {
+    timersDoacao[itemId] = null;
     filaDoacao = filaDoacao.then(async () => {
       try {
         estado.oferendas = await api('POST', '/oferendas', { acao: 'doar', itemId, quantidade });
