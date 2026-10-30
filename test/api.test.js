@@ -36,7 +36,7 @@ test('instalação: código obrigatório e só uma vez', async () => {
   assert.equal((await api('POST', '/api/auth/instalar', null, { ...dados, codigo: 'codigo-de-teste', senha: '123' })).status, 400);
   const r = await api('POST', '/api/auth/instalar', null, { ...dados, codigo: 'codigo-de-teste' });
   assert.equal(r.status, 200, JSON.stringify(r.json));
-  assert.equal(r.json.usuario.papel, 'admin');
+  assert.equal(r.json.usuario.papel, 'root', 'quem instala é o admin root (não precisa de cadastro na corrente)');
   assert.equal(r.json.usuario.email, 'admin@corrente.org');
   ADMIN = r.json.token;
   const de2 = await api('POST', '/api/auth/instalar', null, { ...dados, email: 'outro@x.org', codigo: 'codigo-de-teste' });
@@ -48,7 +48,13 @@ test('instalação: código obrigatório e só uma vez', async () => {
 });
 
 test('login: senha certa, errada e bloqueio', async () => {
-  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'user@corrente.org', nome: 'Zé', senha: 'senha-do-ze', papel: 'usuario' })).status, 200);
+  // Usuário é uma pessoa da corrente: sem escolher a pessoa, não cria.
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'user@corrente.org', nome: 'Zé', senha: 'senha-do-ze', papel: 'usuario' })).status, 400);
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Zé', funcao: 'senha' });
+  const zePessoa = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Zé');
+  const criado = await api('POST', '/api/usuarios', ADMIN, { email: 'user@corrente.org', pessoaId: zePessoa.id, senha: 'senha-do-ze', papel: 'usuario' });
+  assert.equal(criado.status, 200, JSON.stringify(criado.json));
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'outro@corrente.org', pessoaId: zePessoa.id, senha: 'senha-do-ze', papel: 'usuario' })).json.erro, 'Essa pessoa já tem um usuário.');
   const errado = await api('POST', '/api/auth/entrar', null, { email: 'user@corrente.org', senha: 'nao' });
   assert.equal(errado.status, 401);
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ninguem@x.org', senha: 'nao' })).status, 401);
@@ -71,7 +77,7 @@ test('sem login: 401; token inválido ou adulterado: 401', async () => {
 test('/api/auth/me mostra papel e permissões', async () => {
   const a = await api('GET', '/api/auth/me', ADMIN);
   assert.equal(a.status, 200);
-  assert.equal(a.json.papel, 'admin');
+  assert.equal(a.json.papel, 'root');
   assert.ok(a.json.permissoes.includes('giras:sortear'));
   const u = await api('GET', '/api/auth/me', USER);
   assert.equal(u.json.papel, 'usuario');
@@ -89,7 +95,7 @@ test('admin cadastra a corrente; usuário só lê', async () => {
   assert.equal((await api('POST', '/api/pessoas', ADMIN, { nome: 'X', funcao: 'pai' })).status, 400);
 
   const lista = (await api('GET', '/api/pessoas', USER)).json;
-  assert.equal(lista.length, 11);
+  assert.equal(lista.length, 12, '11 + o Zé (cadastrado para ter usuário)');
   const ana = lista.find((p) => p.nome === 'Ana');
   const bruno = lista.find((p) => p.nome === 'Bruno');
   for (const p of [ana, bruno]) {
@@ -221,7 +227,9 @@ test('gira antiga: cadastro direto já encerrado, com atendidos e sem escala', a
 
 test('perfis admin oferendas e admin ervas: cada um administra só a sua aba', async () => {
   const novo = async (email, papel) => {
-    assert.equal((await api('POST', '/api/usuarios', ADMIN, { nome: papel, email, senha: 'senha-forte-9', papel })).status, 200);
+    await api('POST', '/api/pessoas', ADMIN, { nome: 'Pessoa ' + papel, funcao: 'senha' });
+    const pe = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Pessoa ' + papel);
+    assert.equal((await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, email, senha: 'senha-forte-9', papel })).status, 200);
     return (await api('POST', '/api/auth/entrar', null, { email, senha: 'senha-forte-9' })).json.token;
   };
   const of = await novo('of@corrente.org', 'admin_oferendas');
@@ -243,12 +251,26 @@ test('perfis admin oferendas e admin ervas: cada um administra só a sua aba', a
 
 test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('GET', '/api/usuarios', USER)).status, 403);
-  const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', nome: 'Novo', senha: '12345678', papel: 'usuario' });
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Novo', funcao: 'senha' });
+  const pNovo = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Novo');
+  const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', pessoaId: pNovo.id, senha: '12345678', papel: 'usuario' });
   assert.equal(novo.status, 200, JSON.stringify(novo.json));
-  assert.equal(novo.json.length, 5, "admin, Zé, admin oferendas, admin ervas e o novo");
+  assert.equal(novo.json.length, 5, "root, Zé, admin oferendas, admin ervas e o novo");
   assert.ok(!('sessaoVersao' in novo.json[0]) && !('senhaHash' in novo.json[0]));
-  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'novo@corrente.org', nome: 'N', senha: '12345678', papel: 'usuario' })).status, 400);
-  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'z@z.org', nome: 'Z', senha: '1', papel: 'usuario' })).status, 400);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'novo@corrente.org', pessoaId: pNovo.id, senha: '12345678', papel: 'usuario' })).status, 400);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'z@z.org', pessoaId: pNovo.id, senha: '1', papel: 'usuario' })).status, 400);
+  // O nome do usuário é sempre o do cadastro de pessoas.
+  const nu = novo.json.find((u) => u.email === 'novo@corrente.org');
+  assert.equal((await api('PATCH', '/api/usuarios/' + nu.id, ADMIN, { nome: 'Outro nome' })).status, 400);
+  await api('PATCH', '/api/pessoas/' + pNovo.id, ADMIN, { nome: 'Novo Silva' });
+  assert.equal((await api('GET', '/api/usuarios', ADMIN)).json.find((u) => u.id === nu.id).nome, 'Novo Silva');
+  // Admin root: não precisa de cadastro; os outros perfis precisam.
+  const root2 = await api('POST', '/api/usuarios', ADMIN, { email: 'root2@corrente.org', nome: 'Suporte TI', senha: '12345678', papel: 'root' });
+  assert.equal(root2.status, 200);
+  const r2 = root2.json.find((u) => u.email === 'root2@corrente.org');
+  assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { papel: 'usuario' })).status, 400, 'sem cadastro só pode ser root');
+  assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { nome: 'Suporte' })).json.nome, 'Suporte');
+  await api('DELETE', '/api/usuarios/' + r2.id, ADMIN);
 
   const eu = (await api('GET', '/api/auth/me', ADMIN)).json;
   assert.equal((await api('PATCH', '/api/usuarios/' + eu.id, ADMIN, { papel: 'usuario' })).status, 400);
@@ -369,7 +391,7 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
 
   // Quem tem conta aparece com o nome cadastrado atual, mesmo se mudar depois.
   const ze = (await api('GET', '/api/usuarios', ADMIN)).json.find((u) => u.email === 'user@corrente.org');
-  await api('PATCH', '/api/usuarios/' + ze.id, ADMIN, { nome: 'José Carlos' });
+  await api('PATCH', '/api/pessoas/' + ze.pessoaId, ADMIN, { nome: 'José Carlos' });
   e = (await api('GET', '/api/ervas', ADMIN)).json;
   assert.deepEqual(e.pedidos.pessoas.map((p) => p.nome), ['José Carlos', 'Maria']);
   assert.equal(e.pedidos.pessoas.length, 2);

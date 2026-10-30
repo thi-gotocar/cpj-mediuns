@@ -245,3 +245,4 @@ nav.tabs button{flex:1 0 auto}
 .of-por{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .of-por select{flex:1 1 160px;width:auto;padding:6px 9px}
 .of-por input{width:70px;padding:6px 9px}
+.papel.root{background:var(--warn-soft);color:var(--gold)}

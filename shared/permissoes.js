@@ -4,6 +4,8 @@
 // Para mudar as permissões, altere este arquivo: vale para os dois lados.
 
 export const PERMISSOES = {
+  // Admin root: o mesmo que o admin, mas não precisa estar no cadastro de pessoas.
+  root: [],
   admin: [
     'escala:completa',  // presença, abas Pessoas e Histórico
     'pessoas:ler',
@@ -55,7 +57,11 @@ export const PERMISSOES = {
 };
 
 // Perfis que podem ser dados a usuários cadastrados.
-export const PAPEIS = { admin: 'Admin', usuario: 'Usuário', admin_oferendas: 'Admin oferendas', admin_ervas: 'Admin ervas' };
+PERMISSOES.root = [...PERMISSOES.admin];
+
+export const PAPEIS = { root: 'Admin root', admin: 'Admin', usuario: 'Usuário', admin_oferendas: 'Admin oferendas', admin_ervas: 'Admin ervas' };
+// Perfis que podem existir sem cadastro na corrente.
+export const SEM_CADASTRO = ['root'];
 // Rótulo de cada perfil (inclui o acesso da corrente).
 export const ROTULOS = { ...PAPEIS, corrente: 'Corrente' };
 

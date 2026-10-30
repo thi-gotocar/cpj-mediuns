@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 16;  // v16: admin registra doação por outra pessoa
+export const VERSAO = 17;  // v17: usuário ligado ao cadastro de pessoas; perfil root
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -47,6 +47,9 @@ export const MIGRACOES = [
   `create unique index if not exists pessoas_nome_unico on pessoas (lower(btrim(nome)))`,
   // v2: linhas em que Extra/Passe atuam na própria função (nas outras, cambonam)
   `alter table pessoas add column if not exists linhas text[] not null default '{}'`,
+  // v17: o usuário é uma pessoa da corrente (o nome vem do cadastro); só o root pode não ter
+  `alter table usuarios add column if not exists pessoa_id uuid references pessoas (id) on delete set null`,
+  `create unique index if not exists usuarios_pessoa_unica on usuarios (pessoa_id) where pessoa_id is not null`,
   // v10: licenças (a pessoa fica fora das giras entre início e fim, inclusive)
   `create table if not exists licencas (
      id         uuid primary key default gen_random_uuid(),
@@ -102,9 +105,11 @@ export const MIGRACOES = [
    $$`,
 
   // --------------------------------------------------------------- usuários
+  // O nome do usuário é o do cadastro de pessoas (o root, sem cadastro, usa o próprio nome).
   `create or replace function usuario_json(u usuarios)
-   returns jsonb language sql immutable as $$
-     select jsonb_build_object('id', u.id, 'nome', u.nome, 'email', u.email, 'papel', u.papel,
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', u.id, 'nome', coalesce((select nome from pessoas where id = u.pessoa_id), u.nome),
+                               'pessoaId', u.pessoa_id, 'email', u.email, 'papel', u.papel,
                                'sessaoVersao', u.sessao_versao, 'criadoEm', u.criado_em);
    $$`,
   `create or replace function usuario_obter(p jsonb)
@@ -123,17 +128,21 @@ export const MIGRACOES = [
    $$`,
   `create or replace function usuarios_listar(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(usuario_json(u) order by lower(u.nome)), '[]'::jsonb) from usuarios u;
+     select coalesce(jsonb_agg(usuario_json(u) order by lower(coalesce(pe.nome, u.nome))), '[]'::jsonb)
+     from usuarios u left join pessoas pe on pe.id = u.pessoa_id;
    $$`,
   `create or replace function usuario_criar(p jsonb)
    returns jsonb language plpgsql as $$
    declare v usuarios;
    begin
-     insert into usuarios (nome, email, papel, senha_hash)
-     values (btrim(p ->> 'nome'), lower(btrim(p ->> 'email')), p ->> 'papel', p ->> 'senhaHash')
+     insert into usuarios (nome, email, papel, senha_hash, pessoa_id)
+     values (btrim(p ->> 'nome'), lower(btrim(p ->> 'email')), p ->> 'papel', p ->> 'senhaHash', nullif(p ->> 'pessoaId', '')::uuid)
      returning * into v;
      return usuario_json(v);
    exception when unique_violation then
+     if exists (select 1 from usuarios where pessoa_id = nullif(p ->> 'pessoaId', '')::uuid) then
+       raise exception 'Essa pessoa já tem um usuário.';
+     end if;
      raise exception 'Já existe um usuário com esse e-mail.';
    end;
    $$`,
@@ -147,7 +156,7 @@ export const MIGRACOES = [
        raise exception 'O app já foi instalado. Entre com o seu e-mail e senha.';
      end if;
      insert into usuarios (nome, email, papel, senha_hash)
-     values (btrim(p ->> 'nome'), lower(btrim(p ->> 'email')), 'admin', p ->> 'senhaHash')
+     values (btrim(p ->> 'nome'), lower(btrim(p ->> 'email')), 'root', p ->> 'senhaHash')
      returning * into v;
      return usuario_json(v);
    end;
@@ -161,12 +170,16 @@ export const MIGRACOES = [
    begin
      select papel into v_atual from usuarios where id = v_id for update;
      if not found then raise exception 'Usuário não encontrado.'; end if;
-     if p ? 'papel' and v_atual = 'admin' and (p ->> 'papel') <> 'admin'
-        and (select count(*) from usuarios where papel = 'admin') <= 1 then
+     if p ? 'papel' and v_atual in ('admin', 'root') and (p ->> 'papel') not in ('admin', 'root')
+        and (select count(*) from usuarios where papel in ('admin', 'root')) <= 1 then
        raise exception 'Precisa existir pelo menos um admin.';
+     end if;
+     if p ? 'pessoaId' and exists (select 1 from usuarios where pessoa_id = (p ->> 'pessoaId')::uuid and id <> v_id) then
+       raise exception 'Essa pessoa já tem um usuário.';
      end if;
      update usuarios set
        nome          = case when p ? 'nome' then btrim(p ->> 'nome') else nome end,
+       pessoa_id     = case when p ? 'pessoaId' then nullif(p ->> 'pessoaId', '')::uuid else pessoa_id end,
        papel         = case when p ? 'papel' then p ->> 'papel' else papel end,
        senha_hash    = case when p ? 'senhaHash' then p ->> 'senhaHash' else senha_hash end,
        -- trocar a senha ou o perfil encerra as sessões abertas
@@ -183,7 +196,7 @@ export const MIGRACOES = [
    begin
      select papel into v_papel from usuarios where id = (p ->> 'id')::uuid for update;
      if not found then raise exception 'Usuário não encontrado.'; end if;
-     if v_papel = 'admin' and (select count(*) from usuarios where papel = 'admin') <= 1 then
+     if v_papel in ('admin', 'root') and (select count(*) from usuarios where papel in ('admin', 'root')) <= 1 then
        raise exception 'Precisa existir pelo menos um admin.';
      end if;
      delete from usuarios where id = (p ->> 'id')::uuid;
@@ -605,7 +618,7 @@ export const MIGRACOES = [
 
   // ================================================== v14: perfis admin_oferendas e admin_ervas
   `alter table usuarios drop constraint if exists usuarios_papel_check`,
-  `alter table usuarios add constraint usuarios_papel_check check (papel in ('admin', 'usuario', 'admin_oferendas', 'admin_ervas'))`,
+  `alter table usuarios add constraint usuarios_papel_check check (papel in ('root', 'admin', 'usuario', 'admin_oferendas', 'admin_ervas'))`,
 
   // ================================================== v15: acesso da corrente ligado à pessoa cadastrada
   // Passa para a chave da pessoa ("p:<id>") o que foi preenchido com chaves antigas ("n:<nome>").
@@ -627,4 +640,29 @@ export const MIGRACOES = [
      return jsonb_build_object('ok', true);
    end;
    $$`,
+
+  // ================================================== v17: usuário ligado ao cadastro de pessoas
+  // Liga quem tem o mesmo nome de uma pessoa da corrente (os outros o admin liga na aba Usuários).
+  `update usuarios u set pessoa_id = pe.id
+     from pessoas pe
+    where u.pessoa_id is null and u.papel <> 'root'
+      and lower(btrim(pe.nome)) = lower(btrim(u.nome))
+      and not exists (select 1 from usuarios x where x.pessoa_id = pe.id)`,
+  // Quem instalou o app (o primeiro admin, sem cadastro na corrente) vira o admin root.
+  `update usuarios set papel = 'root'
+    where id = (select id from usuarios where papel = 'admin' and pessoa_id is null order by criado_em limit 1)
+      and not exists (select 1 from usuarios where papel = 'root')`,
+  // O que o usuário preencheu com a conta passa para o cadastro da pessoa (o mesmo do acesso da corrente).
+  `insert into ervas_escolhas (pessoa_chave, pessoa_nome, erva_id, quantidade)
+   select 'p:' || u.pessoa_id, x.pessoa_nome, x.erva_id, x.quantidade
+     from ervas_escolhas x join usuarios u on x.pessoa_chave = 'u:' || u.id::text
+    where u.pessoa_id is not null
+   on conflict (pessoa_chave, erva_id) do nothing`,
+  `delete from ervas_escolhas x using usuarios u where x.pessoa_chave = 'u:' || u.id::text and u.pessoa_id is not null`,
+  `insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
+   select x.item_id, 'p:' || u.pessoa_id, x.pessoa_nome, x.quantidade
+     from oferenda_doacoes x join usuarios u on x.pessoa_chave = 'u:' || u.id::text
+    where u.pessoa_id is not null
+   on conflict (item_id, pessoa_chave) do nothing`,
+  `delete from oferenda_doacoes x using usuarios u where x.pessoa_chave = 'u:' || u.id::text and u.pessoa_id is not null`,
 ];
