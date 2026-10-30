@@ -133,11 +133,22 @@ function cardEstatisticas(todas, ps) {
     });
     return { p, pres, aus, f, base };
   });
+  // Tocar no nome mostra gira a gira o que contou para a pessoa (para conferir uma falta, por exemplo).
+  const ROT = { p: '✅ presente', f: '🚫 falta', a: '❌ ausente' };
+  const detalhe = (p) => {
+    const linhas = gs.filter((g) => naCorrenteEm(p, g.data)).map((g) => [g, presencaDe(p, g)])
+      .filter(([, st]) => st !== 'lic' && st !== 'pend')
+      .sort(([a], [b]) => b.data.localeCompare(a.data));
+    const fora = gs.filter((g) => !naCorrenteEm(p, g.data)).length;
+    return `<div class="st-det-p">${linhas.map(([g, st]) => `<span class="${st === 'p' ? '' : 'ruim'}">${dShort(g.data).slice(0, 5)} ${esc(nomeGira(g.entidade) || 'Gira')}: <b>${ROT[st] || st}</b></span>`).join('')}
+      ${fora ? `<span class="muted">${fora} gira${fora > 1 ? 's' : ''} antes da entrada (${dShort(p.entrada)}) não conta${fora > 1 ? 'm' : ''}.</span>` : ''}</div>`;
+  };
   const ranking = (k, titulo, cor, lista, linha) => {
     const max = lista.length ? lista[0][k] : 0;
     const ver = mais[k] ? lista : lista.slice(0, 5);
+    const aberto = estado.stPessoa;
     return `<div class="st-bloco"><h3>${titulo}</h3>
-      ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.p.nome)}</span>${barra(x[k], x.base, cor)}<span class="st-num">${linha(x)}</span></li>`).join('')}</ol>
+      ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<button class="st-nome st-nome-bt" data-act="stpessoa" data-k="${k}:${x.p.id}" title="Ver gira a gira">${esc(x.p.nome)}</button>${barra(x[k], x.base, cor)}<span class="st-num">${linha(x)}</span>${aberto === k + ':' + x.p.id ? detalhe(x.p) : ''}</li>`).join('')}</ol>
       ${lista.length > 5 ? `<button class="btn link small" data-act="stmais" data-k="${k}">${mais[k] ? 'Ver menos' : `Ver mais (${lista.length})`}</button>` : ''}`
       : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém por aqui.</p>'}</div>`;
   };
@@ -307,6 +318,7 @@ export const cliques = {
     const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, ...(temOrixa(F) && F.orixa ? { orixa: F.orixa } : {}), presenca, atendimentos: F.at });
     if (ok) { toast('Gira antiga cadastrada.'); estado.giraAntiga = null; avisar(); }
   },
+  stpessoa(el) { estado.stPessoa = estado.stPessoa === el.dataset.k ? null : el.dataset.k; avisar(); },
   stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
   abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'gira'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
   delgira(el) { estado.confirm = null; excluirGira(el.dataset.d); },
