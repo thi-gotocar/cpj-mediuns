@@ -95,7 +95,7 @@ export function textoResumo(pessoas, g, local = LOCAL_PADRAO, giras = []) {
     if (lp.membros.length) lp.membros.forEach((x) => L.push(`${x.emoji} ${x.pessoa.nome} - ${x.situacao}`)); else L.push('Ninguém cadastrado nesta turma');
     if (lp.ajudantes.length) {
       L.push('');
-      L.push(`AJUDARAM NA LIMPEZA (FALTARAM EM ${br(lp.anterior.data).slice(0, 5)})`);
+      L.push(`AJUDARAM NA LIMPEZA (FALTARAM NA TURMA ${lp.anterior.limpeza} EM ${br(lp.anterior.data).slice(0, 5)})`);
       lp.ajudantes.forEach((x) => L.push(`${x.emoji} ${x.pessoa.nome} - ${x.situacao}`));
     }
   }

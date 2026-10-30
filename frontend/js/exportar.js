@@ -23,7 +23,7 @@ export function gruposLimpeza(pessoas, g, giras) {
   const L = limpezaDaGira(pessoas, g, giras);
   if (!L) return [];
   const out = [[`Limpeza · Turma ${L.turma}`, L.membros.length ? L.membros.map((p) => p.nome) : ['ninguém cadastrado nesta turma']]];
-  if (L.ajudantes.length) out.push([`Ajudam na limpeza (faltaram em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome)]);
+  if (L.ajudantes.length) out.push([`Ajudam na limpeza (faltaram na Turma ${L.anterior.limpeza} em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome)]);
   return out;
 }
 

@@ -94,20 +94,22 @@ test('limpeza: turma do dia e quem faltou na gira anterior (sem reunião e gira 
   const { limpezaDaGira, temLimpeza } = await import('../shared/regras.js');
   const P = (id, nome, limpeza, licencas) => ({ id, nome, funcao: 'medium', limpeza, licencas });
   const pessoas = [P('a', 'Ana', 3), P('b', 'Bia', 3, [{ inicio: '2026-05-01', fim: '2026-05-30' }]), P('c', 'Caio', 1), P('d', 'Duda', 2), P('e', 'Edu', null), P('f', 'Fábio', 3)];
+  const pessoas2 = [...pessoas, P('g', 'Gabi', 1), P('h', 'Hugo', 1, [{ inicio: '2026-05-12', fim: '2026-05-20' }]), P('i', 'Ivo', 1)];
   const giras = [
-    { data: '2026-04-28', entidade: 'Exu', presenca: { e: 'f' } },
-    { data: '2026-05-05', entidade: 'Caboclo', presenca: { c: 'f', d: 'a', f: 'f' } },
-    { data: '2026-05-08', entidade: 'Reunião obrigatória', presenca: { e: 'f' } },
+    { data: '2026-04-28', entidade: 'Exu', limpeza: 5, presenca: { e: 'f' } },
+    { data: '2026-05-05', entidade: 'Caboclo', limpeza: 1, presenca: { c: 'f', g: 'a', h: 'f', d: 'f', f: 'a' } },
+    { data: '2026-05-07', entidade: 'Baiano', presenca: { i: 'f' } },
+    { data: '2026-05-08', entidade: 'Reunião obrigatória', limpeza: 4, presenca: { e: 'f' } },
     { data: '2026-05-10', entidade: 'Gira interna', presenca: { e: 'f' } },
   ];
   const g = { data: '2026-05-12', entidade: 'Preto Velho', limpeza: 3, presenca: {} };
-  const L = limpezaDaGira(pessoas, g, giras);
+  const L = limpezaDaGira(pessoas2, g, giras);
   assert.equal(L.turma, 3);
   assert.deepEqual(L.membros.map((p) => p.nome), ['Ana', 'Fábio']);
   assert.deepEqual(L.deLicenca.map((p) => p.nome), ['Bia']);
-  assert.equal(L.anterior.data, '2026-05-05', 'pula reunião e gira interna');
-  assert.deepEqual(L.ajudantes.map((p) => p.nome), ['Caio'], 'só falta; ausente não; quem já é da turma não repete');
-  assert.equal(limpezaDaGira(pessoas, { ...g, limpeza: null }, giras), null);
+  assert.equal(L.anterior.data, '2026-05-05', 'pula reunião, gira interna e gira sem turma');
+  assert.deepEqual(L.ajudantes.map((p) => p.nome), ['Caio', 'Gabi'], 'só quem era da Turma 1 e teve falta ou ausência; de licença hoje não; de outra turma não');
+  assert.equal(limpezaDaGira(pessoas2, { ...g, limpeza: null }, giras), null);
   assert.equal(temLimpeza({ entidade: 'Reunião obrigatória' }), false);
   assert.equal(limpezaDaGira(pessoas, { ...g, entidade: 'Gira interna' }, giras), null);
 });

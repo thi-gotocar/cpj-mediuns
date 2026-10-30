@@ -103,11 +103,11 @@ test('resumo da gira: turma da limpeza com presente/ausente na frente de cada no
     { id: 'd', nome: 'Duda', limpeza: 2, licencas: [{ id: 'l', inicio: '2026-05-01', fim: '2026-05-30', motivo: '' }] },
     { id: 'e', nome: 'Edu', limpeza: 1 }, { id: 'f', nome: 'Fábio' },
   ];
-  const giras = [{ data: '2026-05-06', entidade: 'Exu', presenca: { e: 'f' } }];
+  const giras = [{ data: '2026-05-06', entidade: 'Exu', limpeza: 1, presenca: { e: 'f' } }];
   const g = { data: '2026-05-13', entidade: 'Caboclo', limpeza: 2, presenca: { b: 'a', c: 'f' } };
   const t = textoResumo(pessoas, g, 'Terreiro', giras);
   assert.match(t, /🧹 LIMPEZA · TURMA 2\n✅ Ana - Presente\n❌ Bia - Ausente\n🚫 Caio - Falta\n📋 Duda - Licença/);
-  assert.match(t, /AJUDARAM NA LIMPEZA \(FALTARAM EM 06\/05\)\n✅ Edu - Presente/);
+  assert.match(t, /AJUDARAM NA LIMPEZA \(FALTARAM NA TURMA 1 EM 06\/05\)\n✅ Edu - Presente/);
   // a leitura de volta no Histórico não confunde a lista da limpeza com ausentes ou licença
   const r = lerResumo(t);
   assert.deepEqual(r.ausentes, ['Bia']);

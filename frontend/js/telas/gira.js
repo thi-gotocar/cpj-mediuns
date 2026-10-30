@@ -45,8 +45,8 @@ function blocoLimpeza(g, admin) {
   return `<div class="limpeza"><b>🧹 Limpeza · Turma ${L.turma}</b>
     <span>${L.membros.length ? nomes(L.membros) : '<span class="muted">Ninguém cadastrado nesta turma (cadastre na aba Pessoas).</span>'}</span>
     ${L.deLicenca.length ? `<span class="muted" style="font-size:.85rem">De licença: ${nomes(L.deLicenca)}</span>` : ''}
-    ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na gira de ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeGira(L.anterior.entidade))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
-      : L.anterior ? `<span class="muted" style="font-size:.85rem">Ninguém faltou na gira de ${dDM(L.anterior.data)}.</span>` : ''}
+    ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeGira(L.anterior.entidade))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
+      : L.anterior ? `<span class="muted" style="font-size:.85rem">Ninguém da Turma ${L.anterior.limpeza} faltou na gira de ${dDM(L.anterior.data)}.</span>` : ''}
   </div>`;
 }
 
@@ -153,8 +153,7 @@ function blocoEu(g) {
   if (Lp && st !== 'lic') {
     if (Number(p.limpeza) === Lp.turma) L.push(`<div class="eu-limp">🧹 Hoje é sua turma de limpeza.</div>`);
     else if (Lp.ajudantes.some((x) => x.id === p.id)) {
-      const suaTurma = Lp.anterior && Number(p.limpeza) && Number(Lp.anterior.limpeza) === Number(p.limpeza);
-      L.push(`<div class="eu-limp">🧹 ${suaTurma ? 'Hoje você ajuda essa turma, pois faltou na sua turma na gira passada.' : 'Hoje você ajuda a turma da limpeza, pois faltou na gira passada.'}</div>`);
+      L.push(`<div class="eu-limp">🧹 Hoje você ajuda essa turma, pois faltou na sua turma na gira passada.</div>`);
     }
   }
   const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
