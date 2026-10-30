@@ -16,6 +16,8 @@ import * as login from './telas/login.js';
 const main = document.getElementById('main');
 const tabs = document.getElementById('tabs');
 const conta = document.getElementById('conta');
+const rodape = document.getElementById('rodape');
+const saudNome = document.getElementById('saud-nome');
 const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, usuarios };
 let erroLogin = '';
 let emailLogin = '';
@@ -24,12 +26,15 @@ let digitadoLogin = '';       // o nome como a pessoa digitou (para juntar o que
 let instalado = true;
 
 // ---------- render ----------
+// Topo: "Seja bem-vindo, Nome!" e o Sair à direita. No fim da página: o perfil e o Trocar senha.
 function renderConta() {
-  if (!estado.me) { conta.innerHTML = ''; return; }
+  if (!estado.me) { conta.innerHTML = ''; rodape.innerHTML = ''; rodape.hidden = true; saudNome.textContent = ''; return; }
+  saudNome.textContent = `, ${estado.me.nome}!`;
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : 'Salvo'}</span>` : ''}
-    <span class="quem">${esc(estado.me.nome)}</span><span class="papel ${estado.me.papel}">${ROTULOS[estado.me.papel] || estado.me.papel}</span>
-    ${estado.me.corrente ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}
     <button class="btn small" data-conta="sair">Sair</button>`;
+  rodape.hidden = false;
+  rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${estado.me.papel}">${ROTULOS[estado.me.papel] || estado.me.papel}</span>
+    ${estado.me.corrente ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
 }
 
 function render() {
@@ -123,7 +128,7 @@ tabs.addEventListener('click', (e) => {
   render();
 });
 
-conta.addEventListener('click', async (e) => {
+async function cliqueConta(e) {
   const b = e.target.closest('[data-conta]');
   if (!b) return;
   if (b.dataset.conta === 'sair') {
@@ -139,7 +144,9 @@ conta.addEventListener('click', async (e) => {
     if (nova.length < 8) { toast('A senha precisa ter pelo menos 8 caracteres.'); return; }
     try { await trocarSenha(atual, nova); toast('Senha alterada. Outras sessões abertas foram encerradas.'); } catch (err) { toast(err.message); }
   }
-});
+}
+conta.addEventListener('click', cliqueConta);
+rodape.addEventListener('click', cliqueConta);
 
 main.addEventListener('click', async (e) => {
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }

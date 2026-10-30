@@ -297,7 +297,7 @@ export function render() {
             // Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
             const bloqueada = (k) => antesDoDia && (k === 'p' || k === 'f') && k !== sel;
             return `<span class="st-ctl"><select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''} ${bloqueada(k) ? 'disabled' : ''}>${STATUS[k]}${bloqueada(k) ? ' (no dia)' : ''}</option>`).join('')}</select>
-              <select class="st papel ${papel}" id="pp-${p.id}" data-act="papel" data-id="${p.id}" aria-label="Como ${esc(p.nome)} trabalha nesta gira">${[['cad', ({ medium: 'Médium', cambone: 'Cambone', passe: 'Passe', extra: 'At. Extra', senha: 'Senha' })[p.funcao] || p.funcao], ['sup', 'Suporte'], ['na', 'Não atende']].map(([k, t]) => `<option value="${k}" ${k === papel ? 'selected' : ''}>${t}</option>`).join('')}</select></span>`;
+              <select class="st papel-dia ${papel}" id="pp-${p.id}" data-act="papel" data-id="${p.id}" aria-label="Como ${esc(p.nome)} trabalha nesta gira">${[['cad', ({ medium: 'Médium', cambone: 'Cambone', passe: 'Passe', extra: 'At. Extra', senha: 'Senha' })[p.funcao] || p.funcao], ['sup', 'Suporte'], ['na', 'Não atende']].map(([k, t]) => `<option value="${k}" ${k === papel ? 'selected' : ''}>${t}</option>`).join('')}</select></span>`;
           })()
           : `<span class="st-txt">${STATUS[s]}</span>`;
         return `<div class="pres ${classeStatus(presencaDe(p, g))}"><span class="nm">${esc(p.nome)}${xp}${hoje}</span>${ctl}</div>`;

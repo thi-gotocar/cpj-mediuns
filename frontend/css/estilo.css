@@ -27,7 +27,7 @@ h2{font-size:1.3rem;font-weight:700}
 h3{font-size:1.05rem;font-weight:600}
 .eyebrow{font-size:.74rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
 .muted{color:var(--muted)}
-header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+header.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:nowrap}
 .sync{font-size:.8rem;color:var(--muted)}
 nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:6px;display:flex;gap:4px;border-bottom:1px solid var(--line)}
 nav.tabs button{flex:1;background:none;border:0;border-bottom:3px solid transparent;padding:10px 6px;font:700 .95rem var(--f-body);color:var(--muted);cursor:pointer}
@@ -386,12 +386,19 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .infobox.rei{border-color:var(--off);background:var(--off-soft)}
 .add-seg{display:flex;width:100%}
 .add-seg button{flex:1 1 0;padding:8px 10px}
-.pres select.st.papel{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
-.pres select.st.papel.sup{background:var(--ok);color:#fff;border-color:var(--ok)}
-.pres select.st.papel.na{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
-.pres.nc select.st:not(.papel),.pres.na select.st:not(.papel){background:var(--ok-soft);color:var(--ok)}
+.pres select.st.papel-dia{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.pres select.st.papel-dia.sup{background:var(--ok);color:#fff;border-color:var(--ok)}
+.pres select.st.papel-dia.na{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.pres.nc select.st:not(.papel-dia),.pres.na select.st:not(.papel-dia){background:var(--ok-soft);color:var(--ok)}
 
 /* Janela de confirmação */
 .modal-fundo{position:fixed;inset:0;background:rgba(15,20,30,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .modal{background:var(--surface);color:var(--ink);border-radius:12px;padding:16px;max-width:360px;width:100%;display:flex;flex-direction:column;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .modal h3{margin:0;font-family:var(--f-display);font-size:1.2rem}
+
+/* Topo e rodapé da conta */
+header.top > div:first-child{min-width:0}
+header.top .conta{flex:none;flex-wrap:nowrap}
+.rodape{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:18px 0 8px;margin-top:8px;border-top:1px solid var(--line)}
+.rodape .quem{font-size:.9rem;font-weight:700}
+body.deslogado .rodape{display:none}
