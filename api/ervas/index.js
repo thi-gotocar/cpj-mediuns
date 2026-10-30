@@ -25,8 +25,12 @@ function resposta(estado, eu) {
     participantes: participantes.size,
     euParticipo: participantes.has(chave),
   };
-  // Todos veem o andamento geral dos pedidos (quem pediu o quê e quanto dá cada um).
+  // Todos veem o andamento geral (consolidado por erva). Quem não é admin recebe os
+  // pedidos dos outros sem nome, só para calcular a própria parte.
   base.pedidos = calcularPedidos(base.ervas, estado.escolhas, base.frete);
+  if (!pode(eu.papel, 'ervas:gerenciar')) {
+    base.pedidos.pessoas = base.pedidos.pessoas.map((p, i) => (p.chave === chave ? p : { ...p, chave: 'outro:' + i, nome: '' }));
+  }
   return base;
 }
 

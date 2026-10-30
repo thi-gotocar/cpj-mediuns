@@ -287,6 +287,9 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   const maria2 = (await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: 'maria' })).json.token;
   assert.deepEqual((await api('GET', '/api/ervas', maria2)).json.minhas, [{ ervaId: arruda.id, quantidade: 2 }]);
   assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 1 }] })).status, 200);
+  const visto = (await api('GET', '/api/ervas', maria)).json.pedidos.pessoas;
+  assert.equal(visto.length, 2);
+  assert.deepEqual(visto.map((p) => p.nome).sort(), ['', 'Maria'], 'quem não é admin não vê o nome dos outros');
   assert.equal((await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: guine.id, quantidade: 0 }] })).status, 400);
 
   // Quem tem conta aparece com o nome cadastrado atual, mesmo se mudar depois.

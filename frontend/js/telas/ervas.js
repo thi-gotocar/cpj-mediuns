@@ -95,18 +95,19 @@ function cardPedidoDe(E) {
   return h;
 }
 
-// Andamento geral dos pedidos (para quem não é admin): só leitura.
+// Andamento geral dos pedidos (para quem não é admin): consolidado por erva, só leitura.
 function cardStatus(E) {
   const r = E.pedidos;
   if (!r) return '';
   let h = `<div class="card"><div class="grp-h"><h2>Pedidos da corrente</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'} · lista ${E.aberta ? 'aberta' : 'fechada'}</span></div>`;
   if (!r.pessoas.length) return h + `<p class="muted" style="margin:0">Ninguém escolheu ervas ainda.</p></div>`;
-  if (r.faltamPrecos.length) h += `<p class="muted" style="margin:0;font-size:.85rem">Preço a definir: ${r.faltamPrecos.map(esc).join(', ')}. Os valores ainda vão mudar.</p>`;
-  h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Nome</th><th class="rh">Ervas</th><th>Total</th></tr></thead><tbody>
-    ${r.pessoas.map((p) => `<tr${p.chave === E.eu.chave ? ' class="eu"' : ''}><th class="rh">${esc(p.nome)}</th><td class="rh">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</td><td><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></td></tr>`).join('')}
-    </tbody><tfoot><tr><th class="rh">Total</th><td></td><td><b>${reais(r.totalGeral)}</b></td></tr></tfoot></table></div>`;
+  const precos = Object.fromEntries(E.ervas.map((e) => [e.nome, e.preco]));
+  const minhas = new Set((E.minhas || []).map((m) => E.ervas.find((e) => e.id === m.ervaId)?.nome));
   const tot = totaisPorErva(r);
-  h += `<div class="grp"><h3>Por erva</h3><p style="margin:0">${tot.map((t) => `${esc(t.nome)}: ${t.quantidade} (${t.pessoas} pessoa${t.pessoas > 1 ? 's' : ''})`).join(' · ')}</p></div>`;
+  h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Erva</th><th>Quantidade</th><th>Pessoas</th><th>Preço total</th></tr></thead><tbody>
+    ${tot.map((t) => `<tr${minhas.has(t.nome) ? ' class="eu"' : ''}><th class="rh">${esc(t.nome)}</th><td>${t.quantidade}</td><td>${t.pessoas}</td><td>${precos[t.nome] === null || precos[t.nome] === undefined ? '<span class="muted">a definir</span>' : reais(t.valor)}</td></tr>`).join('')}
+    </tbody><tfoot><tr><th class="rh">Total</th><td>${tot.reduce((a, t) => a + t.quantidade, 0)}</td><td></td><td><b>${reais(r.totalItens)}${r.faltamPrecos.length ? ' +?' : ''}</b></td></tr></tfoot></table></div>
+    <p class="muted" style="margin:0;font-size:.85rem">${minhas.size ? 'Em destaque, as ervas que você escolheu. ' : ''}${r.totalFrete ? `Frete: ${reais(r.totalFrete)}, dividido entre ${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'}.` : ''}</p>`;
   return h + `</div>`;
 }
 
