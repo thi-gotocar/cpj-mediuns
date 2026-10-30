@@ -402,3 +402,10 @@ header.top .conta{flex:none;flex-wrap:nowrap}
 .rodape{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:18px 0 8px;margin-top:8px;border-top:1px solid var(--line)}
 .rodape .quem{font-size:.9rem;font-weight:700}
 body.deslogado .rodape{display:none}
+
+/* Saudação do topo: "Seja bem-vindo," suave e o nome em destaque, com degradê quente */
+.saud{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.saud-oi{font:500 1.05rem var(--f-body);color:var(--muted);letter-spacing:.01em}
+.saud-nome{font:700 1.75rem/1.1 var(--f-display);background:linear-gradient(95deg,var(--gold) 0%,#d0603a 45%,var(--accent) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:4px;position:relative;width:fit-content;max-width:100%}
+.saud-nome::after{content:"";position:absolute;left:0;bottom:0;width:42px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--gold),#d0603a)}
+.saud-nome:empty{display:none}

@@ -29,7 +29,7 @@ let instalado = true;
 // Topo: "Seja bem-vindo, Nome!" e o Sair à direita. No fim da página: o perfil e o Trocar senha.
 function renderConta() {
   if (!estado.me) { conta.innerHTML = ''; rodape.innerHTML = ''; rodape.hidden = true; saudNome.textContent = ''; return; }
-  saudNome.textContent = `, ${estado.me.nome}!`;
+  saudNome.textContent = estado.me.nome;
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : 'Salvo'}</span>` : ''}
     <button class="btn small" data-conta="sair">Sair</button>`;
   rodape.hidden = false;
@@ -64,7 +64,8 @@ function render() {
 
   // Preserva o foco e o cursor ao redesenhar.
   const a = document.activeElement;
-  const fid = a && a.id;
+  // Combos (select) não recebem o foco de volta: no celular isso reabre a lista de opções.
+  const fid = a && a.tagName !== 'SELECT' && a.id;
   let ss = null, se = null;
   try { if (fid && a.selectionStart != null) { ss = a.selectionStart; se = a.selectionEnd; } } catch { /* input sem seleção */ }
   main.innerHTML = TELAS[prefs.tab].render();

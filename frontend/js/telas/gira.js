@@ -560,6 +560,7 @@ export const mudancas = {
   // Função na gira: a do cadastro (volta para Presente, ou Pendente antes do dia), Suporte ou Não atende.
   // Não mexe na presença.
   papel(t) {
+    t.blur();
     const g = giraAtual();
     const pa = { ...(g.papeis || {}) };
     if (t.value === 'cad') delete pa[t.dataset.id]; else pa[t.dataset.id] = t.value;
