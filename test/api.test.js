@@ -520,6 +520,21 @@ test('oferendas: admin cria itens, todos doam até o limite, admin marca entregu
   assert.ok(!r.oferendas.some((x) => x.id === o.id));
 });
 
+test('ervas: admin passa um pedido com nome errado para uma pessoa da corrente', async () => {
+  const lista = (await api('GET', '/api/ervas', ADMIN)).json;
+  const erva = lista.ervas[0];
+  sql(`insert into ervas_escolhas (pessoa_chave, pessoa_nome, erva_id, quantidade) values ('n:carlinha', 'Carlinha', '${erva.id}', 3)`);
+  const carla = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Carla');
+  assert.equal((await api('POST', '/api/ervas', USER, { acao: 'reatribuir', chave: 'n:carlinha', pessoaId: carla.id })).status, 403);
+  const e = (await api('POST', '/api/ervas', ADMIN, { acao: 'reatribuir', chave: 'n:carlinha', pessoaId: carla.id })).json;
+  assert.ok(!e.pedidos.pessoas.some((p) => p.chave === 'n:carlinha'));
+  const ped = e.pedidos.pessoas.find((p) => p.chave === 'p:' + carla.id);
+  assert.deepEqual([ped.nome, ped.itens[0].quantidade], ['Carla', 3]);
+  const tok = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Carla' })).json.token;
+  assert.deepEqual((await api('GET', '/api/ervas', tok)).json.minhas, [{ ervaId: erva.id, quantidade: 3 }], 'a Carla vê o pedido ao entrar');
+  await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'p:' + carla.id }, itens: [] });
+});
+
 test('acesso da corrente: tudo o que a pessoa preencheu aparece quando ela entra', async () => {
   const lista = (await api('GET', '/api/ervas', ADMIN)).json;
   const erva = lista.ervas[0];

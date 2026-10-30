@@ -257,3 +257,5 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-of-linha{justify-content:space-between;align-items:center;gap:8px}
 .st-of-bts{display:flex;gap:6px;flex-wrap:wrap}
 .st-of-bts .btn.atual{opacity:1;border-color:var(--accent);color:var(--accent)}
+.trocar-ped{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.trocar-ped select{width:auto;min-width:150px;padding:6px 8px}

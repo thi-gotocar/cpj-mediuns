@@ -5,6 +5,7 @@
 //                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin:
 //        salvarErva { id?, nome, preco? } (preço vazio = a definir) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
+//        reatribuir { chave, pessoaId }  — passa o pedido para uma pessoa da corrente
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -106,6 +107,18 @@ export default rota({
       case 'novaCompra':
         estado = await db.rpc('ervas_nova_compra');
         break;
+      // Passa um pedido (de um nome digitado errado, por exemplo) para uma pessoa da corrente.
+      // Se ela já tiver pedido a mesma erva, fica a quantidade que ela já tinha.
+      case 'reatribuir': {
+        const chave = String(b.chave || '');
+        const pessoa = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.pessoaId, 'Pessoa'));
+        if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
+        const atual = await db.rpc('ervas_estado');
+        if (!atual.escolhas.some((s) => s.chave === chave)) throw new HttpError(400, 'Pedido não encontrado.');
+        if (chave !== 'p:' + pessoa.id) await db.rpc('corrente_vincular', { chave: 'p:' + pessoa.id, nome: pessoa.nome, antigas: [chave] });
+        estado = await db.rpc('ervas_estado');
+        break;
+      }
       default:
         throw new HttpError(400, 'Ação inválida.');
     }

@@ -173,7 +173,12 @@ function cardPedidos(E) {
   if (!r.pessoas.length) return h + `<p class="muted" style="margin:0">Ninguém escolheu ervas ainda.</p></div>`;
   if (r.faltamPrecos.length) h += `<div class="warnbox">Preço a definir: <b>${r.faltamPrecos.map(esc).join(', ')}</b>. Preencha em “Ervas e preços” para fechar o valor de cada um.</div>`;
   h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Nome</th><th class="rh">Ervas</th><th>Ervas R$</th><th>Frete</th><th>Total</th><th></th></tr></thead><tbody>
-    ${r.pessoas.map((p) => `<tr><th class="rh">${esc(p.nome)} <button class="btn link small" data-act="editarpedido" data-chave="${esc(p.chave)}" aria-label="Editar pedido de ${esc(p.nome)}">✎</button></th><td class="rh">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</td><td>${reais(p.subtotal)}${p.semPreco ? ' +?' : ''}</td><td>${reais(p.frete)}</td><td><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></td><td>${estado.confirm === 'ped:' + p.chave
+    ${r.pessoas.map((p) => `<tr><th class="rh">${estado.ervasTrocar === p.chave
+      ? `<span class="trocar-ped"><select id="tr-pessoa" aria-label="Pessoa da corrente para o pedido de ${esc(p.nome)}"><option value="">— pessoa da corrente —</option>${pessoasOrd().map((x) => `<option value="${x.id}" ${'p:' + x.id === p.chave ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select>
+          <button class="btn small primary" data-act="trocarsalvar" data-chave="${esc(p.chave)}">Salvar</button><button class="btn small" data-act="trocarcancelar">Cancelar</button></span>`
+      : `${esc(p.nome)}${p.chave.startsWith('p:') ? '' : ' <span class="badge lic" title="Este nome não está ligado a ninguém da corrente">fora da corrente</span>'}
+        <button class="btn link small" data-act="editarpedido" data-chave="${esc(p.chave)}" aria-label="Editar pedido de ${esc(p.nome)}">✎</button>
+        <button class="btn link small" data-act="trocarpessoa" data-chave="${esc(p.chave)}" title="Trocar o nome (passar para uma pessoa da corrente)" aria-label="Trocar o nome do pedido de ${esc(p.nome)}">👤</button>`}</th><td class="rh">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</td><td>${reais(p.subtotal)}${p.semPreco ? ' +?' : ''}</td><td>${reais(p.frete)}</td><td><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></td><td>${estado.confirm === 'ped:' + p.chave
       ? `<button class="btn small danger" data-act="delpedido" data-chave="${esc(p.chave)}">Confirmar</button>`
       : `<button class="btn small" data-act="askdel" data-k="ped:${esc(p.chave)}" aria-label="Excluir pedido de ${esc(p.nome)}">Excluir</button>`}</td></tr>`).join('')}
     </tbody><tfoot><tr><th class="rh">Total</th><td></td><td>${reais(r.totalItens)}</td><td>${reais(r.totalFrete)}</td><td><b>${reais(r.totalGeral)}</b></td><td></td></tr></tfoot></table></div>`;
@@ -244,6 +249,14 @@ export const cliques = {
   async delerva(el) { estado.confirm = null; if (await acaoErvas('excluirErva', { id: el.dataset.id })) toast('Erva excluída.'); },
   async novacompra() { estado.confirm = null; if (await acaoErvas('novaCompra')) toast('Nova compra iniciada.'); },
   // ---- pedido de outra pessoa (admin)
+  trocarpessoa(el) { estado.ervasTrocar = el.dataset.chave; avisar(); document.getElementById('tr-pessoa')?.focus(); },
+  trocarcancelar() { estado.ervasTrocar = null; avisar(); },
+  async trocarsalvar(el) {
+    const pessoaId = document.getElementById('tr-pessoa').value;
+    if (!pessoaId) { toast('Escolha a pessoa da corrente.'); return; }
+    const nome = estado.pessoas.find((x) => x.id === pessoaId)?.nome;
+    if (await acaoErvas('reatribuir', { chave: el.dataset.chave, pessoaId })) { estado.ervasTrocar = null; toast(`Pedido passado para ${nome}.`); avisar(); }
+  },
   editarpedido(el) {
     const p = (estado.ervas.pedidos?.pessoas || []).find((x) => x.chave === el.dataset.chave);
     if (!p) return;
