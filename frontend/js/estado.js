@@ -17,7 +17,8 @@ export const estado = {
   confirm: null,       // item aguardando "Confirmar"
   img: null,           // imagem gerada da escala
   manual: null,
-  renomear: null,      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
+  renomear: null,
+  editLic: null,       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
 
@@ -194,6 +195,13 @@ export async function atualizarPessoa(id, patch) {
 export async function salvarLicenca(pessoaId, inicio, fim) {
   try {
     estado.pessoas = await api('POST', '/pessoas', { acao: 'licenca', pessoaId, inicio, fim });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+export async function editarLicenca(id, inicio, fim) {
+  try {
+    estado.pessoas = await api('POST', '/pessoas', { acao: 'editarLicenca', id, inicio, fim });
     avisar();
     return true;
   } catch (e) { toast(e.message); return false; }

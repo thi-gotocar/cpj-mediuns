@@ -196,6 +196,9 @@ test('licença: fora do sorteio entre início e fim; só admin cadastra', async 
   assert.ok(!dentro.pares.some((p) => p.m === bruno.id || p.c === bruno.id), 'de licença não entra no sorteio');
   const fora = (await api('POST', '/api/giras/2027-03-06/sortear', ADMIN)).json.gira;
   assert.ok(fora.pares.some((p) => p.m === bruno.id), 'depois da licença volta ao sorteio');
+  const ed = (await api('POST', '/api/pessoas', ADMIN, { acao: 'editarLicenca', id: lic[0].id, inicio: '2027-02-01', fim: '2027-03-10' })).json;
+  assert.equal(ed.find((p) => p.id === bruno.id).licencas[0].fim, '2027-03-10');
+  assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'editarLicenca', id: lic[0].id, inicio: '2027-02-01', fim: '2027-03-10' })).status, 403);
   const sem = (await api('POST', '/api/pessoas', ADMIN, { acao: 'removerLicenca', id: lic[0].id })).json;
   assert.deepEqual(sem.find((p) => p.id === bruno.id).licencas, []);
   await api('DELETE', '/api/giras/2027-02-13', ADMIN);

@@ -202,3 +202,4 @@ table.pedidos tr.eu th,table.pedidos tr.eu td{background:var(--accent-soft)}
 .infobox.enc .row{gap:8px}
 label.field{min-width:0;grid-template-columns:minmax(0,1fr)}
 input[type=date]{min-width:0}
+.pp.lic-ed{display:grid;grid-template-columns:1fr;gap:8px}

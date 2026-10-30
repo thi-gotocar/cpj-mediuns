@@ -1,7 +1,7 @@
 // Tela "Pessoas": cadastro da corrente.
 
 import { FUNCOES, LINHAS, LINHA_LABEL } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, removerLicenca, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
 const dBR = (s) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
@@ -24,9 +24,15 @@ function cardLicencas(ps, editar) {
   h += `<div class="ppl">${lics.map((l) => {
     const agora = l.inicio <= hj;
     const conf = estado.confirm === 'lic:' + l.id;
+    if (editar && estado.editLic === l.id) {
+      return `<div class="pp lic-ed"><span class="nm">${esc(l.pessoa.nome)}</span>
+        <div class="row"><label class="field" style="flex:1 1 130px">Início<input type="date" id="el-i" value="${l.inicio}"></label>
+        <label class="field" style="flex:1 1 130px">Fim<input type="date" id="el-f" value="${l.fim}"></label></div>
+        <div class="row"><button class="btn small primary" data-act="salvarlic" data-id="${l.id}">Salvar</button><button class="btn small" data-act="cancelarlic">Cancelar</button></div></div>`;
+    }
     return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(l.pessoa.nome)}</span>
       <span class="muted" style="font-size:.85rem">${dBR(l.inicio)} a ${dBR(l.fim)}${agora ? ' · <b>de licença agora</b>' : ' · começa depois'}</span></span>
-      ${editar ? (conf ? `<button class="btn small danger" data-act="dellic" data-id="${l.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="lic:${l.id}">Remover</button>`) : ''}</div>`;
+      ${editar ? `<span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn small" data-act="editlic" data-id="${l.id}">Editar</button>${conf ? `<button class="btn small danger" data-act="dellic" data-id="${l.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="lic:${l.id}">Remover</button>`}</span>` : ''}</div>`;
   }).join('')}</div>`;
   return h + `</div>`;
 }
@@ -117,6 +123,15 @@ export const cliques = {
     prefs.pessoasFechadas = [...set];
     salvarPrefs();
     avisar();
+  },
+  editlic(el) { estado.editLic = el.dataset.id; avisar(); },
+  cancelarlic() { estado.editLic = null; avisar(); },
+  async salvarlic(el) {
+    const inicio = document.getElementById('el-i').value;
+    const fim = document.getElementById('el-f').value;
+    if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
+    if (fim < inicio) { toast('A data final é antes do início.'); return; }
+    if (await editarLicenca(el.dataset.id, inicio, fim)) { estado.editLic = null; toast('Licença alterada.'); avisar(); }
   },
   dellic(el) { estado.confirm = null; removerLicenca(el.dataset.id); },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },

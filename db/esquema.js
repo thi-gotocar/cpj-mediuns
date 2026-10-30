@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 10;
+export const VERSAO = 11;
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -223,6 +223,15 @@ export const MIGRACOES = [
    begin
      insert into licencas (pessoa_id, inicio, fim)
      values ((p ->> 'pessoaId')::uuid, (p ->> 'inicio')::date, (p ->> 'fim')::date);
+     return pessoas_listar();
+   end;
+   $$`,
+  // v11: editar o período de uma licença
+  `create or replace function licenca_atualizar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update licencas set inicio = (p ->> 'inicio')::date, fim = (p ->> 'fim')::date where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Licença não encontrada.'; end if;
      return pessoas_listar();
    end;
    $$`,

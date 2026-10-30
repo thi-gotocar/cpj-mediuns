@@ -1,6 +1,7 @@
 // GET  /api/pessoas            lista a corrente
 // POST /api/pessoas            { nomes: [..] | nome: "A, B; C", funcao }
-//                              { acao: 'licenca', pessoaId, inicio, fim } · { acao: 'removerLicenca', id }  → lista da corrente
+//                              { acao: 'licenca', pessoaId, inicio, fim } · { acao: 'editarLicenca', id, inicio, fim }
+//                              { acao: 'removerLicenca', id }  → lista da corrente
 import { rota, corpo, HttpError, validarData, validarId } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -14,10 +15,11 @@ export default rota({
   POST: async (req) => {
     await exigir(req, 'pessoas:editar');
     const b = corpo(req);
-    if (b.acao === 'licenca') {
+    if (b.acao === 'licenca' || b.acao === 'editarLicenca') {
       const inicio = validarData(String(b.inicio || ''));
       const fim = validarData(String(b.fim || ''));
       if (fim < inicio) throw new HttpError(400, 'A data final da licença é antes do início.');
+      if (b.acao === 'editarLicenca') return db.rpc('licenca_atualizar', { id: validarId(b.id, 'Licença'), inicio, fim });
       return db.rpc('licenca_salvar', { pessoaId: validarId(b.pessoaId, 'Pessoa'), inicio, fim });
     }
     if (b.acao === 'removerLicenca') return db.rpc('licenca_excluir', { id: validarId(b.id, 'Licença') });
