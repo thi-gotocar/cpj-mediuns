@@ -6,13 +6,14 @@ import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
+import { dadosResumo } from '/shared/resumoGira.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : '');
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
 function textoAtendimentos(a) {
   if (!a) return '';
   const total = ATEND.reduce((s, [k]) => s + (Number(a[k]) || 0), 0);
-  return `Atendidos: ${ATEND.map(([k, t]) => `${t} <b>${Number(a[k]) || 0}</b>`).join(' · ')} · Total <b>${total}</b>`;
+  return `${ATEND.map(([k, t]) => `${t} <b>${Number(a[k]) || 0}</b>`).join(' · ')} · Total <b>${total}</b>`;
 }
 
 function chaveImg() {
@@ -70,7 +71,7 @@ function avisoEntidade(ps, g, editar, admin) {
 // Antes, o total de presentes (quem está na gira), separado pelo que cada um faz no dia:
 // médium, cambone (inclui quem "não atende" e extra/passe fora da linha), passe, extra, senha e suporte.
 // Total de presentes (quem está na gira), separado pelo que cada um faz no dia. Fica no primeiro bloco.
-function contagemPresentes(ps, g) {
+function contagemPresentes(ps, g, pct = null) {
   const dia = pessoasDaGira(ps, g);
   const conta = {
     'Médium': dia.filter((p) => presente(p, g) && p.funcao === 'medium').length,
@@ -84,7 +85,7 @@ function contagemPresentes(ps, g) {
   if (!naGira) return '';
   const fora = (st) => ps.filter((p) => status(p, g) === st).length;
   const extra = [['f', 'faltas'], ['a', 'ausentes'], ['lic', 'de licença']].filter(([st]) => fora(st)).map(([st, t]) => `${fora(st)} ${t}`).join(' · ');
-  return `<div class="pres-topo"><div class="grp-h"><h3>Presentes</h3><span class="count">${naGira}${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span></div>
+  return `<div class="pres-topo"><div class="grp-h"><h3>Presentes</h3><span class="count"><b>${naGira}</b>${pct !== null ? ` · <b>${pct}%</b>` : ''}${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span></div>
     <div class="presentes">${Object.entries(conta).map(([t, n]) => `<span><span class="muted">${t}</span> <b>${n}</b></span>`).join('')}</div></div>`;
 }
 
@@ -115,7 +116,7 @@ function blocoEu(g) {
   const camsDe = (m) => pares.filter((x) => x.m === m).map((x) => x.c);
   const passesDe = (m) => passes.filter((x) => x.m === m).map((x) => x.c);
   const L = [];
-  const lin = (rot, val) => L.push(`<div class="eu-l"><span class="muted">${rot}</span><b>${val}</b></div>`);
+  const lin = (rot, val) => L.push(`<div class="eu-l"><span class="muted">${rot}:</span> <b>${val}</b></div>`);
   const aviso = (t) => L.push(`<p class="muted" style="margin:0">${t}</p>`);
   if (st === 'lic') aviso('Você está de licença nesta data.');
   else if (st === 'a') aviso('Você está marcado como <b>ausente</b> nesta gira.');
@@ -161,7 +162,7 @@ function blocoEu(g) {
 
 // "Médiuns e cambones" começa minimizado; abre enquanto o app estiver aberto.
 const duplasAbertas = new Set();
-const botaoDobrar = (aberto) => `<button class="btn link small" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : '▸ Ver as duplas'}</button>`;
+const botaoDobrar = (aberto) => `<button class="btn link small" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : '▸ Ver mais'}</button>`;
 
 // Só o resultado do sorteio (acesso da corrente).
 function resultado(g) {
@@ -170,7 +171,7 @@ function resultado(g) {
   if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
   const aberto = duplasAbertas.has(g.data);
   let h = `<div class="card"><div class="grp-h"><h2>Médiuns e cambones</h2>${botaoDobrar(aberto)}</div>`;
-  if (!aberto) return h + `<p class="muted" style="margin:0;font-size:.9rem">${lista.length} médiuns e extras na escala. Toque em <b>Ver as duplas</b> para abrir.</p>${blocosFora(pessoasOrd(), g)}</div>`;
+  if (!aberto) return h + `${blocosFora(pessoasOrd(), g)}</div>`;
   h += `<div class="pairs">`;
   lista.forEach((x) => {
     h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span><span></span><div class="cams">`;
@@ -199,19 +200,22 @@ export function render() {
 
   let h = `<section class="panel">
   <div class="card">
-    <div class="datehead"><span class="eyebrow">Gira de</span><span class="dia">${esc(dLong(g.data))}</span>${g.entidade ? `<span class="ent">${esc(nomeGira(g.entidade))}</span>` : ''}</div>
+    <div class="datehead"><span class="eyebrow">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span><span class="dia">${esc(dLong(g.data))}</span></div>
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
-      <button class="btn small prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Ir para a próxima gira</button>
+      <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span><button class="btn prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Próxima gira</button></div>
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
       ${editar && temLimpeza(g) ? `<label class="field" style="flex:0 1 160px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
     </div>
-    ${blocoLimpeza(g, admin)}
-    ${encerrada ? `<div class="infobox"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}${g.atendimentos ? `<br>${textoAtendimentos(g.atendimentos)}` : ''}</span><span class="row" style="gap:6px">${pode('escala:completa') ? botaoResumo(g) : ''}${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</span></div>
+    ${encerrada ? '' : blocoLimpeza(g, admin)}
+    ${encerrada ? `<div class="infobox"><div class="enc-info"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>
+      ${g.atendimentos ? `<span>${textoAtendimentos(g.atendimentos)}</span>` : ''}
+      ${(() => { const L = limpezaDaGira(estado.pessoas, g, girasLista()); return L ? `<span>🧹 Limpeza: <b>Turma ${L.turma}</b>${L.membros.length ? ` (${L.membros.map((p) => esc(p.nome)).join(', ')})` : ''}${L.ajudantes.length ? ` · ajudam: ${L.ajudantes.map((p) => esc(p.nome)).join(', ')}` : ''}</span>` : ''; })()}
+      ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}</div><span class="row" style="gap:6px">${pode('escala:completa') ? botaoResumo(g) : ''}${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</span></div>
     ${pode('escala:completa') ? painelResumo(g) : ''}` : ''}
     ${avisoEntidade(ps, g, editar, admin)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
-    ${existe || editar ? contagemPresentes(ps, g) : ''}
+    ${!encerrada && (existe || editar) ? contagemPresentes(ps, g) : ''}
   </div>`;
   if (existe) h += blocoEu(g);
 
@@ -309,7 +313,7 @@ export function render() {
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
   if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
   if (!aberto) {
-    h += `<p class="muted" style="margin:0;font-size:.9rem">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes · ${temDuplas ? 'duplas sorteadas' : 'ainda sem sorteio'}.</p>${blocosFora(ps, g)}</div>`;
+    h += `${blocosFora(ps, g)}</div>`;
   } else {
   if (!lista.length) h += `<p class="muted">Nenhum médium presente.</p>`;
   else if (!temDuplas && !manual) h += `<p class="muted">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes.${sortearOk ? ' Toque em sortear para montar as duplas.' : ' As duplas ainda não foram sorteadas.'}</p>`;
