@@ -140,8 +140,8 @@ function cardOferenda(of, admin) {
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
   // Sempre começa minimizada; abre só enquanto o app estiver aberto.
-  // Bloqueada: itens ocultos, sem o botão de ver.
-  const bloqueada = of.status === 'rascunho';
+  // Bloqueada: para a corrente, itens ocultos e sem o botão de ver. O admin continua vendo e alterando.
+  const bloqueada = of.status === 'rascunho' && !admin;
   const fechada = bloqueada || (of.itens.length > 0 && !(u.abertas || []).includes(of.id));
   if (u.editar !== of.id && of.itens.length && !bloqueada) {
     h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? '▸ Ver os itens' : '▾ Minimizar'}</button>`;
