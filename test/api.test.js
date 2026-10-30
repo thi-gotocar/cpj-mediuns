@@ -185,7 +185,8 @@ test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda 
   assert.equal(r.json.gira.encerrada, true);
   assert.deepEqual(r.json.gira.atendimentos, { preferencial: 4, normal: 30, passe: 12 });
   const pr = r.json.gira.presenca;
-  for (const n of ['Fábio', 'Gabi', 'Kátia']) assert.equal(pr[id(n)], 'sup', n + ' devia ir para o Suporte');
+  // Suporte agora é a função do dia (papeis); a presença continua Presente.
+  for (const n of ['Fábio', 'Gabi', 'Kátia']) { assert.equal(r.json.gira.papeis[id(n)], 'sup', n + ' devia ir para o Suporte'); assert.equal(pr[id(n)], 'p'); }
   // gira nova: quem estava pendente fica como presente ao encerrar
   assert.equal(r.json.gira.pendentePadrao, true);
   for (const n of ['Elisa', 'Helena', 'Ana', 'Bruno', 'Igor']) assert.equal(pr[id(n)], 'p', n + ' continua presente');
@@ -196,7 +197,7 @@ test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda 
   // Ao reabrir, quem foi para o Suporte ao encerrar volta a Presente.
   const re = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'reabrir' });
   assert.equal(re.json.gira.encerrada, false);
-  for (const n of ['Fábio', 'Gabi', 'Kátia']) assert.equal(re.json.gira.presenca[id(n)], 'p', n + ' devia voltar a Presente');
+  for (const n of ['Fábio', 'Gabi', 'Kátia']) { assert.equal(re.json.gira.presenca[id(n)], 'p', n + ' devia voltar a Presente'); assert.equal(re.json.gira.papeis[id(n)], undefined); }
   assert.match(re.json.mensagem, /Voltaram do Suporte/);
   assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' })).status, 200);
   await api('DELETE', `/api/giras/${d}`, ADMIN);

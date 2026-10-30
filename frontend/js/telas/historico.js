@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, presencaDe, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -91,8 +91,8 @@ function cardGiraAntiga(ps) {
 // Presença da corrente na gira: presentes (presente, não atende, suporte) sobre toda a corrente,
 // licenças incluídas (a mesma conta do resumo compartilhado no WhatsApp).
 function presencaGira(ps, g) {
-  const sts = ps.map((p) => status(p, g)).filter((st) => st !== 'pend');   // pendente ainda não conta
-  const pres = sts.filter((st) => st === 'p' || st === 'na' || st === 'sup').length;
+  const sts = ps.map((p) => presencaDe(p, g)).filter((st) => st !== 'pend');   // pendente ainda não conta
+  const pres = sts.filter((st) => st === 'p').length;
   return { pres, base: sts.length, pct: sts.length ? Math.round((pres / sts.length) * 100) : null };
 }
 const corPct = (pct) => (pct >= 80 ? 'new' : pct >= 60 ? 'hot' : 're');
@@ -117,7 +117,7 @@ function cardEstatisticas(todas, ps) {
   const porPessoa = ps.map((p) => {
     let pres = 0, aus = 0, f = 0, base = 0;
     gs.forEach((g) => {
-      const st = status(p, g);
+      const st = presencaDe(p, g);
       if (st === 'lic' || st === 'pend') return;
       base++;
       if (PRES.includes(st)) pres++;

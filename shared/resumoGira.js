@@ -5,7 +5,7 @@
 //   textoResumo(pessoas, g, local?, giras?) → texto pronto para colar no WhatsApp
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
 
-import { status, licencaEm, nomeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { status, presencaDe, licencaEm, nomeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -19,8 +19,8 @@ function diaSeguinte(iso) {
 
 export function dadosResumo(pessoas, g) {
   const ps = pessoas.filter(contaNaPresenca).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  const com = (sts) => ps.filter((p) => sts.includes(status(p, g)));
-  const presentes = com(PRES);
+  const com = (sts) => ps.filter((p) => sts.includes(presencaDe(p, g)));
+  const presentes = com(['p']);
   const ausentes = com(['a']);
   const faltas = com(['f']);
   const licenca = com(['lic']).map((p) => {

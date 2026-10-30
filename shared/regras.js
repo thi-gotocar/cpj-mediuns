@@ -115,7 +115,7 @@ export function pessoasDaGira(pessoas, g) {
 }
 
 export function giraVazia(data) {
-  return { data, entidade: '', presenca: {}, pares: [], passes: [], pendentePadrao: true };
+  return { data, entidade: '', presenca: {}, papeis: {}, pares: [], passes: [], pendentePadrao: true };
 }
 
 export function ordenarPessoas(ps) {
@@ -128,11 +128,28 @@ export function licencaEm(p, data) {
   return (p.licencas || []).find((l) => l.inicio <= data && data <= l.fim) || null;
 }
 
-// Status na gira. 'lic' = de licença (vale sobre o que estiver marcado na presença).
-export function status(p, g) {
+// Na gira, cada pessoa tem duas coisas separadas:
+//  - presença (g.presenca): pendente, presente, falta ou ausente ('lic' = de licença, vale sobre tudo);
+//  - função do dia (g.papeis): a do cadastro, 'sup' (Suporte, fora do sorteio) ou 'na' (Não atende: cambona).
+// Giras antigas guardavam 'sup'/'na' na própria presença: continuam valendo (como presente).
+export function presencaDe(p, g) {
   if (licencaEm(p, g.data)) return 'lic';
   const v = (g.presenca || {})[p.id];
-  return STATUS_KEYS.includes(v) ? v : g.pendentePadrao ? 'pend' : 'p';
+  if (v === 'sup' || v === 'na') return 'p';
+  return ['pend', 'p', 'f', 'a'].includes(v) ? v : g.pendentePadrao ? 'pend' : 'p';
+}
+export function papelDe(p, g) {
+  const r = (g.papeis || {})[p.id];
+  if (r === 'sup' || r === 'na') return r;
+  const v = (g.presenca || {})[p.id];
+  return v === 'sup' || v === 'na' ? v : 'cad';
+}
+// Status para a escala: falta, ausência e licença valem primeiro; depois Suporte / Não atende; senão a presença.
+export function status(p, g) {
+  const pr = presencaDe(p, g);
+  if (pr === 'lic' || pr === 'f' || pr === 'a') return pr;
+  const papel = papelDe(p, g);
+  return papel === 'cad' ? pr : papel;
 }
 // Pendente (presença ainda não confirmada) conta como presente na escala e no sorteio.
 export const presente = (p, g) => { const s = status(p, g); return s === 'p' || s === 'pend'; };
@@ -298,7 +315,8 @@ export function remanejar(pessoas, giras, g) {
   const all = ordenarPessoas(pessoasDaGira(pessoas, g));
   const nome = (id) => all.find((p) => p.id === id)?.nome || '(removido)';
   const pr = { ...(g.presenca || {}) };
-  const gx = { data: g.data, presenca: pr };
+  const pa = { ...(g.papeis || {}) };
+  const gx = { ...g, presenca: pr, papeis: pa };
   const R = all.filter((p) => presente(p, gx) && recebe(p)).map((p) => p.id);
   const C = new Set(all.filter((p) => cambonaHoje(p, gx)).map((p) => p.id));
   if (!R.length) return { patch: null, mensagem: 'Nenhum médium presente.' };
@@ -340,7 +358,8 @@ export function remanejar(pessoas, giras, g) {
     const sup = all.filter((p) => status(p, gx) === 'sup');
     if (sup.length) {
       const s = best(sup, (p) => (p.funcao === 'cambone' ? 0 : 5) + custo(map, m, p.id));
-      pr[s.id] = s.funcao === 'cambone' ? 'p' : 'na';
+      if (pr[s.id] === 'sup') pr[s.id] = 'p';   // formato antigo
+      if (s.funcao === 'cambone') delete pa[s.id]; else pa[s.id] = 'na';
       C.add(s.id);
       add(m, s.id);
       notas.push(s.nome + ' saiu do suporte');
@@ -375,7 +394,7 @@ export function remanejar(pessoas, giras, g) {
   }
   // 4) excedente vai para o suporte
   livres.forEach((c) => {
-    pr[c] = 'sup';
+    pa[c] = 'sup';
     notas.push(nome(c) + ' foi para o suporte');
   });
 
@@ -396,7 +415,7 @@ export function remanejar(pessoas, giras, g) {
   const mensagem = n || notas.length
     ? 'Remanejado: ' + n + ' ajuste(s)' + (notas.length ? '. ' + notas.join('; ') : '') + '.'
     : 'Nada a remanejar.';
-  return { patch: { pares, passes, presenca: pr }, mensagem };
+  return { patch: { pares, passes, presenca: pr, papeis: pa }, mensagem };
 }
 
 // Agrupa as duplas válidas por médium, para exibir e exportar.
@@ -419,7 +438,7 @@ export function paresPorMedium(pessoas, g) {
 // Encerrar a gira: todo presente precisa aparecer na escala.
 // Quem estava para cambonar (ou médium de passe) e não ficou com nenhum médium vai para o Suporte.
 // Quem ainda está com a presença pendente (não pode encerrar a gira assim).
-export const pendentesDaGira = (pessoas, g) => pessoas.filter((p) => contaNaPresenca(p) && status(p, g) === 'pend');
+export const pendentesDaGira = (pessoas, g) => pessoas.filter((p) => contaNaPresenca(p) && presencaDe(p, g) === 'pend');
 
 // Duplas que envolvem quem faltou ou mudou de status são descartadas.
 export function encerrar(pessoas, g) {
@@ -428,32 +447,42 @@ export function encerrar(pessoas, g) {
   const cambonando = new Set(validos.map((p) => p.c));
   const comMedium = new Set(passesV.map((p) => p.c));
   const presenca = { ...(g.presenca || {}) };
+  const papeis = { ...(g.papeis || {}) };
   const movidos = [];
-  const suporteAuto = {};   // id -> status de antes (para voltar ao reabrir)
+  const suporteAuto = {};   // id -> função do dia de antes ('cad' ou 'na'), para voltar ao reabrir
   // Quem ainda estava pendente ao encerrar fica como presente.
-  ps.forEach((p) => { if (status(p, g) === 'pend' && contaNaPresenca(p)) presenca[p.id] = 'p'; });
+  ps.forEach((p) => { if (presencaDe(p, g) === 'pend' && contaNaPresenca(p)) presenca[p.id] = 'p'; });
   ps.forEach((p) => {
     const semCambonar = cambonaHoje(p, g) && !cambonando.has(p.id);
     const passeSolto = presente(p, g) && p.funcao === 'passe' && !comMedium.has(p.id);
-    if (semCambonar || passeSolto) { suporteAuto[p.id] = presenca[p.id] === 'p' ? 'p' : status(p, g); presenca[p.id] = 'sup'; movidos.push(p.nome); }
+    if (semCambonar || passeSolto) {
+      suporteAuto[p.id] = papelDe(p, g);
+      if (presenca[p.id] === 'na') presenca[p.id] = 'p';   // formato antigo
+      papeis[p.id] = 'sup';
+      movidos.push(p.nome);
+    }
   });
   const mensagem = 'Gira encerrada.' + (movidos.length
     ? ` ${movidos.length === 1 ? 'Foi' : 'Foram'} para o Suporte (sem médium): ${movidos.join(', ')}.`
     : ' Todos os presentes estão na escala.');
-  return { patch: { presenca, pares: validos, passes: passesV, encerrada: true, suporteAuto }, movidos, mensagem };
+  return { patch: { presenca, papeis, pares: validos, passes: passesV, encerrada: true, suporteAuto }, movidos, mensagem };
 }
 
 // Reabrir: quem foi para o Suporte ao encerrar (e ainda está lá) volta ao status de antes.
 export function reabrir(pessoas, g) {
   const presenca = { ...(g.presenca || {}) };
+  const papeis = { ...(g.papeis || {}) };
   const nomes = [];
   for (const [id, antes] of Object.entries(g.suporteAuto || {})) {
-    if (presenca[id] !== 'sup') continue;
-    presenca[id] = antes;
+    if (papeis[id] === 'sup') {
+      if (antes === 'na') papeis[id] = 'na'; else delete papeis[id];
+    } else if (presenca[id] === 'sup') {
+      presenca[id] = antes === 'cad' ? 'p' : antes;   // formato antigo
+    } else continue;
     const p = pessoas.find((x) => x.id === id);
     if (p) nomes.push(p.nome);
   }
   nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const mensagem = 'Gira reaberta.' + (nomes.length ? ` ${nomes.length === 1 ? 'Voltou' : 'Voltaram'} do Suporte: ${nomes.join(', ')}.` : '');
-  return { patch: { presenca, encerrada: false, suporteAuto: {} }, mensagem };
+  return { patch: { presenca, papeis, encerrada: false, suporteAuto: {} }, mensagem };
 }

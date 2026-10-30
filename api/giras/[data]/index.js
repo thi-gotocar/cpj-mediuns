@@ -1,5 +1,5 @@
 // GET    /api/giras/:data
-// PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
+// PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
 // POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
@@ -55,6 +55,15 @@ export default rota({
         validarId(id, 'Pessoa');
         if (!STATUS_KEYS.includes(st)) throw new HttpError(400, 'Status de presença inválido.');
         p.presenca[id] = st;
+      }
+    }
+    if ('papeis' in b) {
+      if (!b.papeis || typeof b.papeis !== 'object' || Array.isArray(b.papeis)) throw new HttpError(400, 'Função do dia inválida.');
+      p.papeis = {};
+      for (const [id, v] of Object.entries(b.papeis)) {
+        validarId(id, 'Pessoa');
+        if (v !== 'sup' && v !== 'na') throw new HttpError(400, 'Função do dia inválida.');
+        p.papeis[id] = v;
       }
     }
     if ('pares' in b) p.pares = validarDuplas(b.pares, 'cambones');

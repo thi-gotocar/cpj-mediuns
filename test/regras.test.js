@@ -142,3 +142,19 @@ test('presença pendente: gira nova começa pendente, entra na escala e vira pre
   assert.equal(patch.presenca.b, 'p');
   assert.equal(patch.presenca.c, 'f');
 });
+
+test('função do dia separada da presença (Suporte / Não atende)', async () => {
+  const { status, presencaDe, papelDe, pendentesDaGira, giraVazia } = await import('../shared/regras.js');
+  const ana = { id: 'a', nome: 'Ana', funcao: 'cambone' }, bia = { id: 'b', nome: 'Bia', funcao: 'medium' };
+  const g = { ...giraVazia('2026-11-04'), papeis: { a: 'sup', b: 'na' } };
+  assert.equal(presencaDe(ana, g), 'pend', 'escolher Suporte não dá presença');
+  assert.equal(papelDe(ana, g), 'sup');
+  assert.equal(status(ana, g), 'sup');
+  assert.equal(status(bia, g), 'na');
+  assert.equal(pendentesDaGira([ana, bia], g).length, 2, 'continuam pendentes para encerrar');
+  assert.equal(status(ana, { ...g, presenca: { a: 'f' } }), 'f', 'falta vale sobre a função do dia');
+  // formato antigo: 'sup' guardado na presença
+  const antiga = { data: '2026-01-01', presenca: { a: 'sup' } };
+  assert.equal(presencaDe(ana, antiga), 'p');
+  assert.equal(papelDe(ana, antiga), 'sup');
+});

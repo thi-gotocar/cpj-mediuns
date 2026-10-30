@@ -76,6 +76,8 @@ export default rota({
         ...(g.atendimentos && typeof g.atendimentos === 'object' ? { atendimentos: g.atendimentos } : {}),
         ...([1, 2, 3, 4, 5, 6, 7].includes(g.limpeza) ? { limpeza: g.limpeza } : {}),
         ...(ORIXAS.includes(g.orixa) ? { orixa: g.orixa } : {}),
+        papeis: Object.fromEntries(Object.entries(g.papeis && typeof g.papeis === 'object' ? g.papeis : {})
+          .filter(([velho, v]) => novoId[velho] && (v === 'sup' || v === 'na')).map(([velho, v]) => [novoId[velho], v])),
       });
       giras++;
     }

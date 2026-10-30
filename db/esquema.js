@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 28;  // v28: giras em aberto de hoje em diante começam pendentes; reiniciar gira
+export const VERSAO = 29;  // v29: função do dia (Suporte / Não atende) separada da presença
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -77,6 +77,8 @@ export const MIGRACOES = [
    )`,
   `alter table giras add column if not exists limpeza smallint check (limpeza between 1 and 7)`,
   `alter table giras add column if not exists pendente_padrao boolean not null default false`,
+  // v29: função do dia separada da presença: { pessoaId: 'sup' | 'na' }
+  `alter table giras add column if not exists papeis jsonb not null default '{}'::jsonb`,
   // v25: orixá da gira (só nas giras das linhas; vazio = não definido)
   `alter table giras add column if not exists orixa text not null default '' check (length(orixa) <= 40)`,
   // v6: gira encerrada (ninguém altera até reabrir)
@@ -327,6 +329,7 @@ export const MIGRACOES = [
        'limpeza', g.limpeza,
        'orixa', g.orixa,
        'pendentePadrao', g.pendente_padrao,
+       'papeis', g.papeis,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
@@ -366,6 +369,7 @@ export const MIGRACOES = [
        atendimentos   = case when p ? 'atendimentos' then nullif(p -> 'atendimentos', 'null'::jsonb) else giras.atendimentos end,
        limpeza        = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else giras.limpeza end,
        orixa          = case when p ? 'orixa' then coalesce(p ->> 'orixa', '') else giras.orixa end,
+       papeis         = case when p ? 'papeis' then coalesce(p -> 'papeis', '{}'::jsonb) else giras.papeis end,
        atualizado_em  = now(),
        atualizado_por = excluded.atualizado_por;
 
