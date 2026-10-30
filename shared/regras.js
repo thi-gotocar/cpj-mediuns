@@ -64,7 +64,9 @@ export const temOrixa = (g) => {
 // Orixá da gira para mostrar (vazio se a gira não leva orixá).
 export const orixaDaGira = (g) => (temOrixa(g) && ORIXAS.includes(g.orixa) ? g.orixa : '');
 
-export const LINHA_KEYS = LINHAS.flatMap((g) => g.itens.map(([k]) => k));
+// Linhas que dá para marcar no cadastro de Extra/Passe: todas as giras, menos Gira interna e Reunião.
+export const LINHAS_CADASTRO = OPCOES_GIRA.filter((g) => g.grupo !== 'Outras');
+export const LINHA_KEYS = LINHAS_CADASTRO.flatMap((g) => g.itens.map(([k]) => k));
 export const LINHA_LABEL = Object.fromEntries([...LINHAS.flatMap((g) => g.itens), ...GIRAS_JUNTAS.map(([k, l]) => [k, l])]);
 
 const normalizar = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
@@ -104,7 +106,8 @@ export function foraDaLinha(p, g) {
   if (!usaLinhas(p)) return false;
   const linha = linhaDaEntidade(g.entidade);
   if (!linha) return false; // gira sem entidade definida: ninguém é convertido
-  return !(JUNTAS[linha] || [linha]).some((l) => p.linhas.includes(l));
+  // Gira junta (ex.: Exus & Pombagira): vale quem marcou a própria gira junta ou qualquer uma das linhas dela.
+  return ![linha, ...(JUNTAS[linha] || [])].some((l) => p.linhas.includes(l));
 }
 export function funcaoNaGira(p, g) {
   // O admin pode manter a função do cadastro mesmo fora da linha (papeis[id] = 'cad').

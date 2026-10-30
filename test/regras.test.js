@@ -75,7 +75,10 @@ test('gira Exus & Pombagira: quem tem Exu ou Pomba Gira atua; os outros cambonam
   assert.equal(funcaoNaGira({ funcao: 'passe', linhas: ['pomba-gira'] }, g), 'passe');
   assert.equal(funcaoNaGira({ funcao: 'extra', linhas: ['caboclo'] }, g), 'cambone');
   assert.ok(OPCOES_GIRA.find((x) => x.grupo === 'Esquerda').itens.some(([, l]) => l === 'Exus & Pombagira'));
-  assert.ok(!LINHA_KEYS.includes('exus-pombagira'), 'não é linha da pessoa');
+  assert.ok(LINHA_KEYS.includes('exus-pombagira') && LINHA_KEYS.includes('mista'), 'dá para marcar no cadastro');
+  assert.ok(!LINHA_KEYS.includes('interna') && !LINHA_KEYS.includes('reuniao'));
+  assert.equal(funcaoNaGira({ funcao: 'extra', linhas: ['exus-pombagira'] }, g), 'extra');
+  assert.equal(funcaoNaGira({ funcao: 'extra', linhas: ['exus-pombagira'] }, { entidade: 'Exu' }), 'cambone');
 });
 
 test('Reunião obrigatória é gira especial; Mista virou Encontro das Linhas', async () => {

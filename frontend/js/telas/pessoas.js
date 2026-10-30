@@ -1,6 +1,6 @@
 // Tela "Pessoas": cadastro da corrente.
 
-import { FUNCOES, LINHAS, LINHA_LABEL, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
+import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
@@ -63,8 +63,8 @@ function editorLinhas(p) {
   return `<details class="linhas"${estadoAberto.has(p.id) ? ' open' : ''} data-id="${p.id}">
     <summary>${ls.length ? `Como ${nomeFuncao(p)} em ${ls.length} linha${ls.length > 1 ? 's' : ''}: ${ls.map((l) => LINHA_LABEL[l] || l).join(', ')}` : `Como ${nomeFuncao(p)} em todas as giras · escolher linhas`}</summary>
     <p class="muted" style="margin:6px 0;font-size:.82rem">Marque as linhas em que atua como ${nomeFuncao(p)}. Nas giras das outras linhas, entra no sorteio como cambone. Sem nenhuma marcada, atua como ${nomeFuncao(p)} em todas.</p>
-    ${LINHAS.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
-      `<label class="chip"><input type="checkbox" id="ln-${p.id}-${k}" data-act="linha" data-id="${p.id}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${label}</label>`).join('')}</div></div>`).join('')}
+    ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
+      `<label class="chip"><input type="checkbox" id="ln-${p.id}-${k}" data-act="linha" data-id="${p.id}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}
   </details>`;
 }
 

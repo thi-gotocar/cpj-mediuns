@@ -303,7 +303,7 @@ export function render() {
       <div class="plist">${gp.map((p) => {
         const s = status(p, g);
         const xp = p.experiente && p.funcao === 'medium' ? ' <span class="xp" title="Pode ter médium de passe junto" aria-label="Pode ter médium de passe junto">★</span>' : '';
-        const hoje = foraDaLinha(p, g) ? ' <span class="badge rep" title="Esta entidade não está nas linhas da pessoa">fora da linha</span>' : '';
+        const hoje = '';
         const lic = licencaEm(p, g.data);
         const ctl = lic
           ? `<span class="badge lic" title="De licença de ${dDM(lic.inicio)} a ${dDM(lic.fim)}">de licença até ${dDM(lic.fim)}</span>`
