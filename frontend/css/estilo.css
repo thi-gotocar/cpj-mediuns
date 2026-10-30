@@ -232,3 +232,7 @@ nav.tabs button{flex:1 0 auto}
 @media (max-width:420px){nav.tabs button{padding:10px 4px;font-size:.88rem}}
 .candidatos{display:grid;gap:8px}
 .candidatos .btn{justify-content:flex-start;text-align:left;font-size:1.05rem}
+.logo-terreiro{display:flex;justify-content:center;margin:16px 0 -8px}
+.logo-terreiro img{width:min(200px,55vw);height:auto}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logo-terreiro img{filter:invert(1)}}
+:root[data-theme="dark"] .logo-terreiro img{filter:invert(1)}

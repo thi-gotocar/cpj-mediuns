@@ -2,16 +2,18 @@
 
 import { esc } from '../util.js';
 
+const LOGO = `<div class="logo-terreiro"><img src="/img/terreiro.png" width="200" height="200" alt="Casa do Pai João · Terreiro de Umbanda"></div>`;
+
 export function render(erro, email = '', candidatos = null) {
   if (candidatos) {
-    return `<div class="card login">
+    return `${LOGO}<div class="card login">
       <h2>Quem é você?</h2>
       <p class="muted" style="margin:0;font-size:.92rem">Não encontrei exatamente esse nome. Toque no seu nome como está cadastrado na corrente:</p>
       <div class="candidatos">${candidatos.map((n) => `<button class="btn" data-soueu="${esc(n)}">${esc(n)}</button>`).join('')}</div>
       <button class="btn link" data-soueu="">Não sou nenhum destes · digitar de novo</button>
     </div>`;
   }
-  return `<div class="card login">
+  return `${LOGO}<div class="card login">
     <h2>Entrar</h2>
     <p class="muted" style="margin:0;font-size:.92rem">Use o e-mail e a senha que o admin da corrente cadastrou para você.</p>
     ${erro ? `<div class="erro" role="alert">${esc(erro)}</div>` : ''}
@@ -24,7 +26,7 @@ export function render(erro, email = '', candidatos = null) {
 }
 
 export function renderInstalacao(erro) {
-  return `<div class="card login">
+  return `${LOGO}<div class="card login">
     <h2>Instalar o app</h2>
     <p class="muted" style="margin:0;font-size:.92rem">Primeiro acesso: crie o usuário admin da corrente. O código de instalação é o valor de <b>CODIGO_INSTALACAO</b> cadastrado na Vercel.</p>
     ${erro ? `<div class="erro" role="alert">${esc(erro)}</div>` : ''}
