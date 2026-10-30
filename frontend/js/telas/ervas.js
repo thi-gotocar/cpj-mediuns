@@ -104,9 +104,9 @@ function cardStatus(E) {
   const precos = Object.fromEntries(E.ervas.map((e) => [e.nome, e.preco]));
   const minhas = new Set((E.minhas || []).map((m) => E.ervas.find((e) => e.id === m.ervaId)?.nome));
   const tot = totaisPorErva(r);
-  h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Erva</th><th>Quantidade</th><th>Pessoas</th><th>Preço total</th></tr></thead><tbody>
-    ${tot.map((t) => `<tr${minhas.has(t.nome) ? ' class="eu"' : ''}><th class="rh">${esc(t.nome)}</th><td>${t.quantidade}</td><td>${t.pessoas}</td><td>${precos[t.nome] === null || precos[t.nome] === undefined ? '<span class="muted">a definir</span>' : reais(t.valor)}</td></tr>`).join('')}
-    </tbody><tfoot><tr><th class="rh">Total</th><td>${tot.reduce((a, t) => a + t.quantidade, 0)}</td><td></td><td><b>${reais(r.totalItens)}${r.faltamPrecos.length ? ' +?' : ''}</b></td></tr></tfoot></table></div>
+  h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Erva</th><th>Quantidade</th><th>Preço total</th><th>Pessoas que pediram</th></tr></thead><tbody>
+    ${tot.map((t) => `<tr${minhas.has(t.nome) ? ' class="eu"' : ''}><th class="rh">${esc(t.nome)}</th><td>${t.quantidade}</td><td>${precos[t.nome] === null || precos[t.nome] === undefined ? '<span class="muted">a definir</span>' : reais(t.valor)}</td><td>${t.pessoas}</td></tr>`).join('')}
+    </tbody><tfoot><tr><th class="rh">Total</th><td>${tot.reduce((a, t) => a + t.quantidade, 0)}</td><td><b>${reais(r.totalItens)}${r.faltamPrecos.length ? ' +?' : ''}</b></td><td>${r.pessoas.length}</td></tr></tfoot></table></div>
     <p class="muted" style="margin:0;font-size:.85rem">${minhas.size ? 'Em destaque, as ervas que você escolheu. ' : ''}${r.totalFrete ? `Frete: ${reais(r.totalFrete)}, dividido entre ${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'}.` : ''}</p>`;
   return h + `</div>`;
 }
