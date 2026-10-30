@@ -346,10 +346,14 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 /* Aba Gira: presentes no primeiro bloco, "Você nesta gira", próxima gira */
 .pres-topo{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:8px}
 .pres-topo h3{margin:0;font-size:.95rem}
-.data-linha{display:flex;flex-wrap:nowrap;gap:8px;flex:0 1 360px;min-width:0;max-width:100%}
-.data-linha>.field{flex:1 1 0;min-width:0}
-.prox-campo{display:grid;gap:4px;font-size:.85rem}
-.prox-gira{width:100%;font-size:1rem;padding:0 11px;line-height:normal;height:44px;box-sizing:border-box}
+.data-linha{display:flex;flex-wrap:nowrap;gap:8px;flex:0 1 380px;min-width:0;max-width:100%}
+/* A data ocupa o que sobra; o botão fica com o tamanho do texto. No iPhone/Android o campo de
+   data tem largura mínima própria: sem "appearance" ele encolhe e não passa por cima do botão. */
+.data-linha>label.field{flex:1 1 auto;min-width:0;overflow:hidden}
+.data-linha #f-data{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;width:100%;text-align:left}
+.data-linha #f-data::-webkit-date-and-time-value{text-align:left}
+.prox-campo{display:grid;gap:4px;font-size:.85rem;flex:0 0 auto}
+.prox-gira{width:100%;font-size:1rem;padding:0 14px;line-height:normal;height:44px;box-sizing:border-box}
 #f-data{height:44px}
 .enc-info{display:flex;flex-direction:column;gap:4px;flex:1 1 260px;min-width:0}
 .enc-info .pres-topo{border-top-color:var(--accent);margin-top:2px}
