@@ -6,7 +6,7 @@
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -84,6 +84,9 @@ export default rota({
       return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }), mensagem };
     }
     if (atual?.encerrada) return { gira: atual, mensagem: 'A gira já estava encerrada.' };
+    // Só encerra depois de confirmar a presença de todos (ninguém pendente).
+    const pend = pendentesDaGira(pessoas, atual || giraVazia(data));
+    if (pend.length) throw new HttpError(409, `Confirme a presença antes de encerrar: ${pend.length} pendente${pend.length > 1 ? 's' : ''} (${pend.slice(0, 5).map((p) => p.nome).join(', ')}${pend.length > 5 ? '…' : ''}).`);
     const { patch, mensagem } = encerrar(pessoas, atual || giraVazia(data));
     // Quantas pessoas foram atendidas na gira.
     if (!atendimentos || typeof atendimentos !== 'object') throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');

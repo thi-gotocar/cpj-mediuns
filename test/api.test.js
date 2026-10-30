@@ -173,6 +173,12 @@ test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda 
   const id = (n) => ps.find((p) => p.nome === n).id;
   await api('PUT', `/api/giras/${d}`, ADMIN, { pares: [{ m: id('Ana'), c: id('Elisa') }], passes: [{ m: id('Ana'), c: id('Helena') }] });
   assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'encerrar' })).status, 403);
+  // gira nova: não encerra com presença pendente
+  const pend = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar', atendimentos: { preferencial: 0, normal: 0, passe: 0 } });
+  assert.equal(pend.status, 409);
+  assert.match(pend.json.erro || pend.json.message || JSON.stringify(pend.json), /pendente/);
+  const todos = Object.fromEntries(ps.map((p) => [p.id, 'p']));
+  await api('PUT', `/api/giras/${d}`, ADMIN, { presenca: todos });
   assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar' })).status, 400, 'precisa informar os atendimentos');
   const r = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar', atendimentos: { preferencial: 4, normal: 30, passe: 12 } });
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -602,6 +608,7 @@ test('turma da limpeza: na pessoa e na gira (1 a 7)', async () => {
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { entidade: 'Exu' })).json.limpeza, 5, 'outros campos não apagam a turma');
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: null })).json.limpeza, null);
   // gira encerrada: a turma ainda pode mudar, o resto não
+  await api('PUT', '/api/giras/2028-01-05', ADMIN, { presenca: Object.fromEntries(lista.map((x) => [x.id, 'p'])) });
   assert.equal((await api('POST', '/api/giras/2028-01-05', ADMIN, { acao: 'encerrar', atendimentos: { preferencial: 0, normal: 0, passe: 0 } })).status, 200);
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 6 })).json.limpeza, 6);
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 6, entidade: 'Caboclo' })).status, 409);

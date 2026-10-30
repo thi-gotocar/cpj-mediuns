@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -321,7 +321,11 @@ export function render() {
         ? '<button class="btn primary" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button>'
         : '<button class="btn primary" data-act="sortear">Sortear</button>') : ''}
       ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}
-      ${editar && (temDuplas || existe) && estado.confirm !== 'enc:' + g.data ? `<button class="btn" data-act="askdel" data-k="enc:${g.data}">Encerrar gira</button>` : ''}</div></div>`;
+      ${editar && (temDuplas || existe) && estado.confirm !== 'enc:' + g.data ? (() => {
+        const pend = pendentesDaGira(estado.pessoas, g).length;
+        return pend ? `<button class="btn" data-act="encpend" data-n="${pend}" title="Confirme a presença de todos antes de encerrar">Encerrar gira (${pend} pendente${pend > 1 ? 's' : ''})</button>`
+          : `<button class="btn" data-act="askdel" data-k="enc:${g.data}">Encerrar gira</button>`;
+      })() : ''}</div></div>`;
   if (editar && estado.confirm === 'enc:' + g.data) {
     const a = g.atendimentos || {};
     h += `<div class="infobox enc"><span><b>Encerrar a gira.</b> Quantas pessoas foram atendidas? (pode ser 0)</span>
@@ -422,6 +426,11 @@ export const cliques = {
     const d = proximaQuarta();
     if (prefs.data === d) { toast('Você já está na próxima gira.'); return; }
     prefs.data = d; salvarPrefs(); avisar();
+  },
+  encpend(el) {
+    const n = Number(el.dataset.n);
+    toast(`Não dá para encerrar: ${n} pessoa${n > 1 ? 's' : ''} ainda com presença pendente. Marque Presente, Falta ou Ausente.`);
+    document.querySelector('.pres.pend')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   },
   encerrar() {
     const at = {};

@@ -418,6 +418,9 @@ export function paresPorMedium(pessoas, g) {
 
 // Encerrar a gira: todo presente precisa aparecer na escala.
 // Quem estava para cambonar (ou médium de passe) e não ficou com nenhum médium vai para o Suporte.
+// Quem ainda está com a presença pendente (não pode encerrar a gira assim).
+export const pendentesDaGira = (pessoas, g) => pessoas.filter((p) => contaNaPresenca(p) && status(p, g) === 'pend');
+
 // Duplas que envolvem quem faltou ou mudou de status são descartadas.
 export function encerrar(pessoas, g) {
   const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
