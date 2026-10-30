@@ -184,7 +184,7 @@ main.addEventListener('submit', async (e) => {
     const btn = document.getElementById('l-btn');
     emailLogin = document.getElementById('l-email').value.trim();
     btn.disabled = true;
-    btn.textContent = 'Entrando…';
+    btn.textContent = ehAcessoCorrente(emailLogin) ? 'Procurando…' : 'Entrando…';
     try {
       const r = await entrar(emailLogin, document.getElementById('l-senha').value);
       erroLogin = '';

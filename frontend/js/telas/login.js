@@ -46,6 +46,9 @@ export function ajustarCampoSenha(ehCorrente) {
   const rot = document.getElementById('l-senha-rotulo');
   const inp = document.getElementById('l-senha');
   if (!rot || !inp) return;
+  // No acesso da corrente o botão procura o nome na lista; com e-mail e senha, entra.
+  const btn = document.getElementById('l-btn');
+  if (btn && !btn.disabled) btn.textContent = ehCorrente ? 'Procurar' : 'Entrar';
   if (ehCorrente && inp.type !== 'text') {
     rot.textContent = 'Seu nome';
     inp.type = 'text';
