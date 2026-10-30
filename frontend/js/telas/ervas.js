@@ -3,6 +3,21 @@
 import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca, normalizarNome, linhaEvento } from '/shared/ervas.js';
 import { estado, pode, pessoasOrd, carregarErvas, escolherErva, acaoErvas, salvarPedidoDe, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
+import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
+
+// Dados da imagem do pedido ao fornecedor ou da cobrança.
+function dadosImagem(E, r, vista) {
+  const sub = linhaEvento({ gira: E.gira, data: E.data }) || new Date().toLocaleDateString('pt-BR');
+  if (vista === 'fornecedor') {
+    const tot = totaisPorErva(r);
+    return { rotulo: 'Pedido de ervas', titulo: 'Pedido ao fornecedor', subtitulo: sub,
+      linhas: tot.map((t) => ({ texto: t.nome })), rodape: `Total: ${tot.length} erva${tot.length === 1 ? '' : 's'}` };
+  }
+  return { rotulo: 'Ervas', titulo: 'Cobrança', subtitulo: sub + (r.totalFrete ? ` · frete ${reais(r.totalFrete)} ÷ ${r.pessoas.length}` : ''),
+    linhas: r.pessoas.map((p) => ({ texto: p.nome, valor: reais(p.total),
+      sub: `${p.itens.map((i) => i.nome + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')} (${reais(p.subtotal)})${p.frete ? ` + frete ${reais(p.frete)}` : ''}` })),
+    rodape: `Total a receber: ${reais(r.totalGeral)}` };
+}
 
 const qtdDe = (ervaId) => (estado.ervas.minhas || []).find((m) => m.ervaId === ervaId)?.quantidade || 0;
 const precoTxt = (v) => (v === null || v === undefined ? 'preço a definir' : reais(centavos(v)));
@@ -204,7 +219,11 @@ function cardPedidos(E) {
         <button class="btn primary" data-act="copiarervas">Copiar</button>
         <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Abrir no WhatsApp</a>
         <button class="btn" data-act="csvervas">Baixar planilha</button>
-      </div></div>`;
+        <button class="btn" data-act="imgervas">${estado.ervasImg && estado.ervasImg.chave === vista + txt ? 'Atualizar imagem' : 'Imagem'}</button>
+      </div>
+      ${estado.ervasImg && estado.ervasImg.chave === vista + txt ? `<img class="prev" src="${estado.ervasImg.url}" alt="Imagem: ${titulo}">
+        <div class="row"><button class="btn primary" data-act="shareimgervas">Compartilhar imagem</button><button class="btn" data-act="saveimgervas">Salvar imagem</button></div>` : ''}
+      </div>`;
   }
   h += `<div class="grp" style="border-top:1px solid var(--line);padding-top:12px">
       <p class="muted" style="margin:0;font-size:.85rem">Depois de cobrar, comece uma nova compra: os pedidos são apagados e a lista reabre. As ervas, os preços e o frete ficam.</p>
@@ -282,6 +301,22 @@ export const cliques = {
       avisar();
     }
   },
+  async imgervas() {
+    const E = estado.ervas;
+    const r = E.pedidos;
+    const vista = estado.ervasVista;
+    try {
+      const blob = await gerarImagemLista(dadosImagem(E, r, vista));
+      if (estado.ervasImg) URL.revokeObjectURL(estado.ervasImg.url);
+      estado.ervasImg = { chave: vista + val('ev-txt'), blob, url: URL.createObjectURL(blob), nome: (vista === 'fornecedor' ? 'pedido-ervas-' : 'cobranca-ervas-') + hoje() + '.png' };
+      avisar();
+    } catch (e) { toast(e.message); }
+  },
+  async shareimgervas() {
+    const i = estado.ervasImg;
+    if (i && !(await compartilharImagem(i.blob, i.nome, 'Ervas'))) toast('Este aparelho não compartilha imagens daqui. Use Salvar imagem.');
+  },
+  saveimgervas() { const i = estado.ervasImg; if (i) baixar(i.url, i.nome); },
   copiarervas() {
     const txt = val('ev-txt');
     const fb = () => { const t = document.getElementById('ev-txt'); t.focus(); t.select(); toast('Lista selecionada. Copie com o menu do aparelho.'); };

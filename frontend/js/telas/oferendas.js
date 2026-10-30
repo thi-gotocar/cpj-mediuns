@@ -166,6 +166,7 @@ function rodapeOferenda(of, admin) {
   if (!admin) return h;   // compartilhar, editar e excluir: só admin
   const aberto = u.compartilhar === of.id;
   h += `<div class="row"><button class="btn ${aberto ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${aberto}">Compartilhar lista</button>
+    <button class="btn" data-act="imgofdireto" data-id="${of.id}">Compartilhar imagem</button>
     ${admin && u.editar !== of.id ? `<button class="btn" data-act="editarof" data-id="${of.id}">Editar</button>
       ${estado.confirm === 'of:' + of.id ? `<button class="btn danger" data-act="delof" data-id="${of.id}">Confirmar exclusão</button>` : `<button class="btn" data-act="askdel" data-k="of:${of.id}">Excluir</button>`}` : ''}</div>`;
   if (aberto) {
@@ -268,6 +269,23 @@ export const cliques = {
       const blob = await gerarImagemOferenda(of);
       if (U().img) URL.revokeObjectURL(U().img.url);
       U().img = { id: of.id, chave: textoOferenda(of), blob, url: URL.createObjectURL(blob), nome: 'oferenda-' + of.data + '.png' };
+      avisar();
+    } catch (e) { toast(e.message); }
+  },
+  // Gera a imagem e já abre o compartilhar do aparelho; se não der, mostra a imagem para salvar.
+  async imgofdireto(el) {
+    const { of } = achar(el.dataset.id);
+    try {
+      const blob = await gerarImagemOferenda(of);
+      if (U().img) URL.revokeObjectURL(U().img.url);
+      U().img = { id: of.id, chave: textoOferenda(of), blob, url: URL.createObjectURL(blob), nome: 'oferenda-' + of.data + '.png' };
+      const f = new File([blob], U().img.nome, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], title: of.titulo }).catch(() => {});
+      } else {
+        U().compartilhar = of.id;
+        toast('Imagem pronta: toque em Salvar imagem.');
+      }
       avisar();
     } catch (e) { toast(e.message); }
   },

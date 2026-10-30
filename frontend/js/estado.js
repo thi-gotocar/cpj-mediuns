@@ -12,6 +12,7 @@ export const estado = {
   usuarios: null,      // só admin
   ervas: null,         // compra de ervas (GET /api/ervas)
   ervasVista: null,
+  ervasImg: null,      // imagem gerada do pedido ao fornecedor / cobrança
   ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
