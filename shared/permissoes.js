@@ -16,12 +16,15 @@ export const PERMISSOES = {
     'dados:importar',
     'ervas:escolher',
     'ervas:gerenciar',  // cadastrar ervas e preços, frete, fechar a lista, ver e exportar pedidos
+    'oferendas:doar',
+    'oferendas:gerenciar', // criar oferendas e itens, marcar item entregue
   ],
   usuario: [
     'escala:completa',
     'pessoas:ler',
     'giras:ler',        // ver a escala, o histórico e exportar (texto e imagem)
     'ervas:escolher',   // escolher as ervas que quer comprar
+    'oferendas:doar',   // escolher o que vai doar nas oferendas
   ],
   // Quem entra com o acesso da corrente (sem senha, só com o nome):
   // só a aba Gira com o resultado do sorteio e a aba Ervas.
@@ -29,6 +32,7 @@ export const PERMISSOES = {
     'pessoas:ler',      // os nomes, para mostrar as duplas
     'giras:ler',
     'ervas:escolher',
+    'oferendas:doar',
   ],
 };
 

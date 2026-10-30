@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 12;  // v12: gira nova já com atendimentos (gira antiga)
+export const VERSAO = 13;  // v13: oferendas
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -479,6 +479,125 @@ export const MIGRACOES = [
      delete from ervas_escolhas;
      update sistema set valor = 'true' where chave = 'ervas_aberta';
      return ervas_estado();
+   end;
+   $$`,
+
+  // ================================================== v13: oferendas
+  `create table if not exists oferendas (
+     id         uuid primary key default gen_random_uuid(),
+     titulo     text not null check (length(btrim(titulo)) between 1 and 120),
+     data       date not null,
+     criado_em  timestamptz not null default now()
+   )`,
+  // entrega vazia = no dia do evento
+  `create table if not exists oferenda_itens (
+     id           uuid primary key default gen_random_uuid(),
+     oferenda_id  uuid not null references oferendas (id) on delete cascade,
+     nome         text not null check (length(btrim(nome)) between 1 and 80),
+     quantidade   integer not null check (quantidade between 1 and 10000),
+     entrega      date,
+     entregue     boolean not null default false,
+     criado_em    timestamptz not null default now()
+   )`,
+  `create index if not exists oferenda_itens_oferenda on oferenda_itens (oferenda_id)`,
+  `create table if not exists oferenda_doacoes (
+     item_id        uuid not null references oferenda_itens (id) on delete cascade,
+     pessoa_chave   text not null check (length(pessoa_chave) between 3 and 120),
+     pessoa_nome    text not null check (length(btrim(pessoa_nome)) between 1 and 80),
+     quantidade     integer not null check (quantidade between 1 and 10000),
+     atualizado_em  timestamptz not null default now(),
+     primary key (item_id, pessoa_chave)
+   )`,
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data,
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  `create or replace function oferenda_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into oferendas (titulo, data) values (btrim(p ->> 'titulo'), (p ->> 'data')::date);
+     else
+       update oferendas set titulo = btrim(p ->> 'titulo'), data = (p ->> 'data')::date where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Oferenda não encontrada.'; end if;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from oferendas where id = (p ->> 'id')::uuid;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_doado int;
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into oferenda_itens (oferenda_id, nome, quantidade, entrega)
+       values ((p ->> 'oferendaId')::uuid, btrim(p ->> 'nome'), (p ->> 'quantidade')::int, nullif(p ->> 'entrega', '')::date);
+     else
+       select coalesce(sum(quantidade), 0) into v_doado from oferenda_doacoes where item_id = (p ->> 'id')::uuid;
+       if (p ->> 'quantidade')::int < v_doado then
+         raise exception 'Já foram prometidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update oferenda_itens set nome = btrim(p ->> 'nome'), quantidade = (p ->> 'quantidade')::int,
+              entrega = nullif(p ->> 'entrega', '')::date
+       where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_item_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from oferenda_itens where id = (p ->> 'id')::uuid;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_item_entregue(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferenda_itens set entregue = (p ->> 'entregue')::boolean where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Item não encontrado.'; end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  // Doação de uma pessoa num item (0 = desiste). Não deixa passar da quantidade pedida.
+  `create or replace function oferenda_doar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_item uuid := (p ->> 'itemId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_qtd int := (p ->> 'quantidade')::int;
+     v_total int; v_entregue boolean; v_outros int;
+   begin
+     select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
+     if not found then raise exception 'Item não encontrado.'; end if;
+     if v_entregue then raise exception 'Este item já foi entregue.'; end if;
+     select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
+     if v_qtd > 0 and v_outros + v_qtd > v_total then
+       if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;
+       raise exception 'Só faltam % deste item.', v_total - v_outros;
+     end if;
+     delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
+     if v_qtd > 0 then
+       insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
+       values (v_item, v_chave, btrim(p ->> 'nome'), v_qtd);
+     end if;
+     return oferendas_estado();
    end;
    $$`,
 ];

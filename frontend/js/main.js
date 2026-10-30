@@ -10,12 +10,13 @@ import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
 import * as usuarios from './telas/usuarios.js';
 import * as ervas from './telas/ervas.js';
+import * as oferendas from './telas/oferendas.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
 const tabs = document.getElementById('tabs');
 const conta = document.getElementById('conta');
-const TELAS = { gira, pessoas, hist: historico, ervas, usuarios };
+const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let instalado = true;
@@ -41,10 +42,12 @@ function render() {
   }
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
   if (prefs.tab === 'ervas' && !pode('ervas:escolher')) prefs.tab = 'gira';
+  if (prefs.tab === 'oferendas' && !pode('oferendas:doar')) prefs.tab = 'gira';
   if ((prefs.tab === 'pessoas' || prefs.tab === 'hist') && !pode('escala:completa')) prefs.tab = 'gira';
   tabs.hidden = false;
   tabs.querySelector('[data-tab="usuarios"]').hidden = !pode('usuarios:gerenciar');
   tabs.querySelector('[data-tab="ervas"]').hidden = !pode('ervas:escolher');
+  tabs.querySelector('[data-tab="oferendas"]').hidden = !pode('oferendas:doar');
   tabs.querySelector('[data-tab="pessoas"]').hidden = !pode('escala:completa');
   tabs.querySelector('[data-tab="hist"]').hidden = !pode('escala:completa');
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
@@ -204,6 +207,8 @@ main.addEventListener('submit', async (e) => {
     await pessoas.enviarFormulario();
   } else if (id === 'f-user') {
     await usuarios.enviarFormulario();
+  } else if (id === 'f-of' || e.target.dataset.form) {
+    await oferendas.enviar(e.target);
   }
 });
 

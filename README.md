@@ -19,14 +19,16 @@ api/                   Backend: funções da Vercel (Node)
   _lib/db.js           acesso ao Postgres (SQL por HTTP) e migração automática
   _lib/senhas.js       senhas (scrypt) e sessões (token assinado)
   _lib/sessao.js       quem está chamando e permissões
-  auth/[acao].js       estado, instalar, entrar, trocar senha
+  auth/[acao].js       estado, instalar, entrar, trocar senha, me
   ervas/index.js       compra coletiva de ervas
-  me.js  importar.js  pessoas/  giras/  usuarios/
+  oferendas/index.js   oferendas: itens e doações
+  importar.js  pessoas/  giras/  usuarios/
 db/esquema.js          tabelas e funções do banco (aplicadas sozinhas)
 shared/                Usado pelos dois lados
   regras.js            regras do sorteio, rodízio e remanejamento
   permissoes.js        o que cada perfil pode fazer
   ervas.js             cálculo dos pedidos, divisão do frete e exportação
+  oferendas.js         situação dos itens e texto para compartilhar
 scripts/               servidor local e build
 test/                  testes do backend (Postgres local)
 ```
@@ -94,7 +96,7 @@ Todas exigem `Authorization: Bearer <token>`, exceto `GET /api/auth/estado`, `PO
 | Método e rota | Permissão |
 |---|---|
 | `GET /api/auth/estado` · `POST /api/auth/instalar` · `POST /api/auth/entrar` | pública |
-| `POST /api/auth/senha` · `GET /api/me` | logado |
+| `POST /api/auth/senha` · `GET /api/auth/me` | logado |
 | `GET /api/pessoas` · `POST /api/pessoas` | `pessoas:ler` · `pessoas:editar` |
 | `PATCH/DELETE /api/pessoas/:id` | `pessoas:editar` |
 | `GET /api/giras` · `GET /api/giras/:data` | `giras:ler` |
@@ -104,6 +106,7 @@ Todas exigem `Authorization: Bearer <token>`, exceto `GET /api/auth/estado`, `PO
 | `GET/POST /api/usuarios` · `PATCH/DELETE /api/usuarios/:id` | `usuarios:gerenciar` |
 | `POST /api/importar` | `dados:importar` |
 | `GET/PUT /api/ervas` · `POST /api/ervas` | `ervas:escolher` · `ervas:gerenciar` |
+| `GET /api/oferendas` · `POST /api/oferendas` (doar · demais ações) | `oferendas:doar` · `oferendas:gerenciar` |
 
 Plano Hobby: o projeto usa 12 funções, que é o limite do plano. Uma rota nova precisa reaproveitar um arquivo existente.
 

@@ -19,7 +19,9 @@ export const estado = {
   manual: null,
   renomear: null,
   editLic: null,
-  giraAntiga: null,    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
+  giraAntiga: null,
+  oferendas: null,     // GET /api/oferendas: { oferendas, eu }
+  ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
 
@@ -50,7 +52,7 @@ function definirGiras(lista) {
 }
 
 export async function carregarTudo() {
-  const [me, pessoas, giras] = await Promise.all([api('GET', '/me'), api('GET', '/pessoas'), api('GET', '/giras')]);
+  const [me, pessoas, giras] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras')]);
   estado.me = me;
   estado.pessoas = pessoas;
   definirGiras(giras);
@@ -330,4 +332,50 @@ export async function acaoErvas(acao, dados = {}) {
     toast(e.message);
     return false;
   }
+}
+
+// ---------- oferendas ----------
+export async function carregarOferendas() {
+  try { estado.oferendas = await api('GET', '/oferendas'); } catch (e) { toast(e.message); estado.oferendas = estado.oferendas || { oferendas: [], eu: {} }; }
+  avisar();
+}
+
+export async function acaoOferendas(acao, dados = {}) {
+  try {
+    estado.oferendas = await api('POST', '/oferendas', { acao, ...dados });
+    avisar();
+    return true;
+  } catch (e) {
+    toast(e.message);
+    return false;
+  }
+}
+
+// Minha doação num item: muda na tela na hora e envia em seguida (só o último valor).
+const timersDoacao = {};
+let filaDoacao = Promise.resolve();
+export function doarItem(itemId, quantidade) {
+  const O = estado.oferendas;
+  const eu = O.eu;
+  for (const of of O.oferendas) {
+    const item = of.itens.find((i) => i.id === itemId);
+    if (!item) continue;
+    const resto = item.doacoes.filter((d) => d.chave !== eu.chave);
+    const minha = item.doacoes.find((d) => d.chave === eu.chave);
+    item.doacoes = quantidade > 0 ? (minha ? item.doacoes.map((d) => (d.chave === eu.chave ? { ...d, quantidade } : d)) : [...resto, { chave: eu.chave, nome: eu.nome, quantidade }]) : resto;
+  }
+  avisar();
+  clearTimeout(timersDoacao[itemId]);
+  timersDoacao[itemId] = setTimeout(() => {
+    filaDoacao = filaDoacao.then(async () => {
+      try {
+        estado.oferendas = await api('POST', '/oferendas', { acao: 'doar', itemId, quantidade });
+        toast(quantidade > 0 ? 'Doação registrada. Obrigado!' : 'Doação retirada.');
+      } catch (e) {
+        toast(e.message);
+        try { estado.oferendas = await api('GET', '/oferendas'); } catch { /* mantém */ }
+      }
+      avisar();
+    });
+  }, 500);
 }

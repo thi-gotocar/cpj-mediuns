@@ -3,6 +3,7 @@
 //   POST /api/auth/instalar { codigo, nome, email, senha }  — cria o primeiro admin
 //   POST /api/auth/entrar   { email, senha }  → { token, usuario }
 //   POST /api/auth/senha    { atual, nova }   → { token }  (logado)
+//   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
 
 import { rota, corpo, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
@@ -22,6 +23,12 @@ function validarNovaSenha(s) {
 }
 
 const acoes = {
+  async me(req) {
+    if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
+    const u = await exigir(req);
+    return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, permissoes: PERMISSOES[u.papel] || [], corrente: u.papel === 'corrente' };
+  },
+
   async estado(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     return db.rpc('sistema_estado');

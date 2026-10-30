@@ -54,7 +54,7 @@ test('login: senha certa, errada e bloqueio', async () => {
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ninguem@x.org', senha: 'nao' })).status, 401);
   const ok = await api('POST', '/api/auth/entrar', null, { email: ' USER@corrente.org ', senha: 'senha-do-ze' });
   assert.equal(ok.status, 200);
-  assert.deepEqual(ok.json.usuario.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher']);
+  assert.deepEqual(ok.json.usuario.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher', 'oferendas:doar']);
   USER = ok.json.token;
   for (let i = 0; i < 8; i++) await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' + i });
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' })).status, 429);
@@ -68,14 +68,14 @@ test('sem login: 401; token inválido ou adulterado: 401', async () => {
   assert.equal((await api('GET', '/api/pessoas', falso + '.' + ass)).status, 401);
 });
 
-test('/api/me mostra papel e permissões', async () => {
-  const a = await api('GET', '/api/me', ADMIN);
+test('/api/auth/me mostra papel e permissões', async () => {
+  const a = await api('GET', '/api/auth/me', ADMIN);
   assert.equal(a.status, 200);
   assert.equal(a.json.papel, 'admin');
   assert.ok(a.json.permissoes.includes('giras:sortear'));
-  const u = await api('GET', '/api/me', USER);
+  const u = await api('GET', '/api/auth/me', USER);
   assert.equal(u.json.papel, 'usuario');
-  assert.deepEqual(u.json.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher']);
+  assert.deepEqual(u.json.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher', 'oferendas:doar']);
 });
 
 test('admin cadastra a corrente; usuário só lê', async () => {
@@ -228,16 +228,16 @@ test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'novo@corrente.org', nome: 'N', senha: '12345678', papel: 'usuario' })).status, 400);
   assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'z@z.org', nome: 'Z', senha: '1', papel: 'usuario' })).status, 400);
 
-  const eu = (await api('GET', '/api/me', ADMIN)).json;
+  const eu = (await api('GET', '/api/auth/me', ADMIN)).json;
   assert.equal((await api('PATCH', '/api/usuarios/' + eu.id, ADMIN, { papel: 'usuario' })).status, 400);
   assert.equal((await api('DELETE', '/api/usuarios/' + eu.id, ADMIN)).status, 400);
 
   const user = novo.json.find((u) => u.email === 'novo@corrente.org');
   const tokNovo = (await api('POST', '/api/auth/entrar', null, { email: 'novo@corrente.org', senha: '12345678' })).json.token;
-  assert.equal((await api('GET', '/api/me', tokNovo)).status, 200);
+  assert.equal((await api('GET', '/api/auth/me', tokNovo)).status, 200);
   // Mudar o perfil encerra as sessões abertas daquela pessoa.
   assert.equal((await api('PATCH', '/api/usuarios/' + user.id, ADMIN, { papel: 'admin' })).json.papel, 'admin');
-  assert.equal((await api('GET', '/api/me', tokNovo)).status, 401);
+  assert.equal((await api('GET', '/api/auth/me', tokNovo)).status, 401);
   // Admin redefine a senha.
   assert.equal((await api('PATCH', '/api/usuarios/' + user.id, ADMIN, { senha: 'outra-senha' })).status, 200);
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'novo@corrente.org', senha: 'outra-senha' })).status, 200);
@@ -250,8 +250,8 @@ test('trocar a própria senha encerra as outras sessões', async () => {
   assert.equal((await api('POST', '/api/auth/senha', USER, { atual: 'errada', nova: 'nova-senha-ze' })).status, 400);
   const r = await api('POST', '/api/auth/senha', USER, { atual: 'senha-do-ze', nova: 'nova-senha-ze' });
   assert.equal(r.status, 200);
-  assert.equal((await api('GET', '/api/me', outra)).status, 401);
-  assert.equal((await api('GET', '/api/me', r.json.token)).status, 200);
+  assert.equal((await api('GET', '/api/auth/me', outra)).status, 401);
+  assert.equal((await api('GET', '/api/auth/me', r.json.token)).status, 200);
   USER = r.json.token;
 });
 
@@ -286,7 +286,7 @@ test('acesso da corrente: entra só com o nome, sem senha', async () => {
   assert.equal(r.json.usuario.nome, 'Dona Maria');
   assert.equal(r.json.usuario.papel, 'corrente');
   const tok = r.json.token;
-  const me = (await api('GET', '/api/me', tok)).json;
+  const me = (await api('GET', '/api/auth/me', tok)).json;
   assert.equal(me.corrente, true);
   assert.equal((await api('GET', '/api/giras', tok)).status, 200);
   assert.equal((await api('POST', '/api/pessoas', tok, { nome: 'X', funcao: 'medium' })).status, 403);
@@ -367,3 +367,32 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.equal(e.ervas.length, 1);
 });
 
+test('oferendas: admin cria itens, todos doam até o limite, admin marca entregue', async () => {
+  const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
+  assert.equal((await of({ acao: 'salvar', titulo: 'X', data: '2026-11-07' }, USER)).status, 403);
+  let r = (await of({ acao: 'salvar', titulo: 'Oferenda de Iemanjá', data: '2026-12-08' })).json;
+  const o = r.oferendas.find((x) => x.titulo === 'Oferenda de Iemanjá');
+  r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Rosas brancas', quantidade: 10, entrega: '' })).json;
+  r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Velas', quantidade: 3, entrega: '2026-12-06' })).json;
+  const [rosas, velas] = r.oferendas.find((x) => x.id === o.id).itens;
+  assert.equal(rosas.entrega, null, 'sem data = no dia do evento');
+  assert.equal(velas.entrega, '2026-12-06');
+  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  assert.equal((await of({ acao: 'doar', itemId: velas.id, quantidade: 2 }, ana)).status, 200);
+  const passou = await of({ acao: 'doar', itemId: velas.id, quantidade: 2 }, USER);
+  assert.equal(passou.status, 400);
+  assert.match(passou.json.erro, /Só faltam 1/);
+  r = (await of({ acao: 'doar', itemId: velas.id, quantidade: 1 }, USER)).json;
+  const v = r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === velas.id);
+  assert.deepEqual(v.doacoes.map((d) => [d.nome, d.quantidade]), [['Ana', 2], ['José Carlos', 1]]);
+  assert.match((await of({ acao: 'doar', itemId: velas.id, quantidade: 1 }, ADMIN)).json.erro, /completo/);
+  // Quem já doou pode diminuir; o admin não pode baixar a quantidade abaixo do prometido.
+  assert.equal((await of({ acao: 'doar', itemId: velas.id, quantidade: 1 }, ana)).status, 200);
+  assert.equal((await of({ acao: 'item', id: velas.id, nome: 'Velas', quantidade: 1, entrega: '2026-12-06' })).status, 400);
+  r = (await of({ acao: 'entregue', id: velas.id, entregue: true })).json;
+  assert.equal(r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === velas.id).entregue, true);
+  assert.match((await of({ acao: 'doar', itemId: velas.id, quantidade: 0 }, ana)).json.erro, /entregue/);
+  assert.equal((await of({ acao: 'entregue', id: velas.id, entregue: true }, USER)).status, 403);
+  r = (await of({ acao: 'excluir', id: o.id })).json;
+  assert.ok(!r.oferendas.some((x) => x.id === o.id));
+});

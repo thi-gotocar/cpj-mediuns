@@ -203,3 +203,30 @@ table.pedidos tr.eu th,table.pedidos tr.eu td{background:var(--accent-soft)}
 label.field{min-width:0;grid-template-columns:minmax(0,1fr)}
 input[type=date]{min-width:0}
 .pp.lic-ed{display:grid;grid-template-columns:1fr;gap:8px}
+
+/* oferendas */
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;vertical-align:-1px}
+.dot.ok{background:#2f9e5b}
+.dot.pend{background:#e3b021}
+.legenda{margin:0;font-size:.85rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.legenda .dot{margin-left:8px}
+.of-itens{display:grid;gap:10px}
+.of-item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:4px;background:var(--surface)}
+.of-item.completo{border-color:color-mix(in srgb,#2f9e5b 45%,var(--line))}
+.of-top{display:flex;align-items:center;gap:8px}
+.of-nome{font-weight:700;flex:1;min-width:0}
+.of-qtd{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.of-sub{font-size:.86rem}
+.of-doadores{font-size:.92rem}
+.of-doadores .eu{font-weight:700;color:var(--accent)}
+.of-doar{display:flex;align-items:center;gap:8px;font-size:.9rem;margin-top:2px}
+.of-doar .n{min-width:1.5em;text-align:center;font-weight:700}
+.of-adm{gap:6px;margin-top:4px;align-items:center}
+.of-novo summary,.anteriores summary{cursor:pointer;color:var(--accent);font-weight:700;padding:4px 0}
+.of-novo form{margin-top:8px}
+.anteriores{display:grid;gap:12px}
+.datehead .dia.of-titulo{text-transform:none}
+nav.tabs{overflow-x:auto;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{flex:1 0 auto}
+@media (max-width:420px){nav.tabs button{padding:10px 4px;font-size:.88rem}}
