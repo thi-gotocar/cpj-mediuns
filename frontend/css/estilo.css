@@ -366,3 +366,5 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .datehead .dia.gira-nome{text-transform:none}
 .enc-limp{display:flex;align-items:center;gap:8px;font-weight:700;font-size:.9rem}
 .enc-limp select{width:auto;padding:5px 8px;font-size:.9rem}
+.enc-limp-sec{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--accent);padding-top:8px;margin-top:2px}
+.enc-limp-sec:not(:has(*)){display:none}

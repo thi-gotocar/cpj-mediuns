@@ -212,11 +212,13 @@ export function render() {
     ${encerrada ? '' : blocoLimpeza(g, admin)}
     ${encerrada ? `<div class="infobox"><div class="enc-info"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>
       ${g.atendimentos ? `<span>${textoAtendimentos(g.atendimentos)}</span>` : ''}
+      ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}
+      <div class="enc-limp-sec">
       ${admin && temLimpeza(g) ? `<label class="enc-limp">🧹 Turma da limpeza <select data-act="limpezagira" aria-label="Turma da limpeza"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
       ${(() => { const L = limpezaDaGira(estado.pessoas, g, girasLista()); if (!L) return '';
         const quem = `${L.membros.map((p) => esc(p.nome)).join(', ')}${L.ajudantes.length ? ` · ajudam: ${L.ajudantes.map((p) => esc(p.nome)).join(', ')}` : ''}`;
         return admin ? (quem ? `<span class="muted" style="font-size:.88rem">${quem}</span>` : '') : `<span>🧹 Limpeza: <b>Turma ${L.turma}</b>${quem ? ` (${quem})` : ''}</span>`; })()}
-      ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}</div><span class="row" style="gap:6px">${pode('escala:completa') ? botaoResumo(g) : ''}${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</span></div>
+      </div></div><span class="row" style="gap:6px">${pode('escala:completa') ? botaoResumo(g) : ''}${admin ? '<button class="btn small" data-act="reabrir">Reabrir gira</button>' : ''}</span></div>
     ${pode('escala:completa') ? painelResumo(g) : ''}` : ''}
     ${avisoEntidade(ps, g, editar, admin)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
