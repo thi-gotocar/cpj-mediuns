@@ -342,3 +342,13 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-med.nao_pago,.sel-med.nao_pago{background:#f8dedb;color:#a2423a}
 .st-med.nao_vai,.sel-med.nao_vai{background:#e4e7ec;color:#5b6678}
 .of-med-l.pendente{border-left-color:#e3b021}.of-med-l.entregue{border-left-color:#2f9e5b}.of-med-l.pago{border-left-color:#2c4ea3}.of-med-l.nao_pago{border-left-color:#c0453b}.of-med-l.nao_vai{border-left-color:#aab2bf}
+
+/* Aba Gira: presentes no primeiro bloco, "Você nesta gira", próxima gira */
+.pres-topo{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:8px}
+.pres-topo h3{margin:0;font-size:.95rem}
+.prox-gira{align-self:flex-end;margin-bottom:2px}
+.card.eu{border-left:4px solid var(--accent)}
+.eu-nome{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:1.1rem}
+.eu-l{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:5px 0;font-size:.95rem}
+.eu-l:last-of-type{border-bottom:0}
+.eu-limp{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:7px 10px;font-weight:700;font-size:.92rem}

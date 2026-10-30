@@ -17,7 +17,7 @@ import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function publico(u) {
-  return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, permissoes: PERMISSOES[u.papel] || [] };
+  return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, pessoaId: u.pessoaId || null, permissoes: PERMISSOES[u.papel] || [] };
 }
 
 function validarNovaSenha(s) {
@@ -29,7 +29,7 @@ const acoes = {
   async me(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
-    return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, permissoes: PERMISSOES[u.papel] || [], corrente: u.papel === 'corrente' };
+    return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, pessoaId: u.pessoaId || null, permissoes: PERMISSOES[u.papel] || [], corrente: u.papel === 'corrente' };
   },
 
   async estado(req) {
@@ -66,7 +66,7 @@ const acoes = {
         // Junta no cadastro da pessoa o que ela (ou o admin por ela) preencheu antes com o nome digitado.
         const antigas = [...new Set([exata.nome, digitado, String(b.digitado || '')].filter(Boolean).map((n) => 'n:' + normalizarNome(n)))];
         await db.rpc('corrente_vincular', { chave: 'p:' + exata.id, nome: exata.nome, antigas });
-        const usuario = { id: null, nome: exata.nome, email: '', papel: 'corrente' };
+        const usuario = { id: null, nome: exata.nome, email: '', papel: 'corrente', pessoaId: exata.id };
         return { token: await emitirTokenCorrente(exata.nome, exata.id), usuario: publico(usuario) };
       }
       const candidatos = nomesParecidos(pessoas.map((p) => p.nome), digitado);

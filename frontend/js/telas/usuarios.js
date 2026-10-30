@@ -115,7 +115,7 @@ export async function renomear(form) {
     await atualizarUsuario(id, { nome });
   }
   const u = estado.usuarios.find((x) => x.id === id);
-  if (id === estado.me.id && u) { estado.me = { ...estado.me, nome: nomeDe(u) }; avisar(); }
+  if (id === estado.me.id && u) { estado.me = { ...estado.me, nome: nomeDe(u), pessoaId: u.pessoaId || null }; avisar(); }
 }
 
 export const mudancas = {

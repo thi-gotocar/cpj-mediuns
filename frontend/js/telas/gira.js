@@ -2,7 +2,7 @@
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
+import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -69,7 +69,8 @@ function avisoEntidade(ps, g, editar, admin) {
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
 // Antes, o total de presentes (quem está na gira), separado pelo que cada um faz no dia:
 // médium, cambone (inclui quem "não atende" e extra/passe fora da linha), passe, extra, senha e suporte.
-function blocosFora(ps, g) {
+// Total de presentes (quem está na gira), separado pelo que cada um faz no dia. Fica no primeiro bloco.
+function contagemPresentes(ps, g) {
   const dia = pessoasDaGira(ps, g);
   const conta = {
     'Médium': dia.filter((p) => presente(p, g) && p.funcao === 'medium').length,
@@ -80,20 +81,97 @@ function blocosFora(ps, g) {
     'Suporte': dia.filter((p) => status(p, g) === 'sup').length,
   };
   const naGira = Object.values(conta).reduce((a, n) => a + n, 0);
-  const presentes = naGira ? `<div class="grp"><div class="grp-h"><h3>Presentes</h3><span class="count">${naGira}</span></div>
-    <div class="presentes">${Object.entries(conta).map(([t, n]) => `<span><span class="muted">${t}</span> <b>${n}</b></span>`).join('')}</div></div>` : '';
-  return presentes + [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
+  if (!naGira) return '';
+  const fora = (st) => ps.filter((p) => status(p, g) === st).length;
+  const extra = [['f', 'faltas'], ['a', 'ausentes'], ['lic', 'de licença']].filter(([st]) => fora(st)).map(([st, t]) => `${fora(st)} ${t}`).join(' · ');
+  return `<div class="pres-topo"><div class="grp-h"><h3>Presentes</h3><span class="count">${naGira}${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span></div>
+    <div class="presentes">${Object.entries(conta).map(([t, n]) => `<span><span class="muted">${t}</span> <b>${n}</b></span>`).join('')}</div></div>`;
+}
+
+// Faltas, ausentes e licenças: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
+function blocosFora(ps, g) {
+  return [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
     return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
   }).join('');
 }
+
+// Próxima quarta-feira (hoje, se hoje for quarta).
+function proximaQuarta() {
+  const d = pd(hoje());
+  d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone', passe: 'Médium de passe', senha: 'Senha' };
+// Bloco de quem está logado: com quem trabalha nesta gira e se é da turma da limpeza.
+function blocoEu(g) {
+  const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
+  if (!p) return '';
+  const st = status(p, g);
+  const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
+  const pares = g.pares || [], passes = g.passes || [];
+  const sorteado = pares.length > 0 || passes.length > 0;
+  const camsDe = (m) => pares.filter((x) => x.m === m).map((x) => x.c);
+  const passesDe = (m) => passes.filter((x) => x.m === m).map((x) => x.c);
+  const L = [];
+  const lin = (rot, val) => L.push(`<div class="eu-l"><span class="muted">${rot}</span><b>${val}</b></div>`);
+  const aviso = (t) => L.push(`<p class="muted" style="margin:0">${t}</p>`);
+  if (st === 'lic') aviso('Você está de licença nesta data.');
+  else if (st === 'a') aviso('Você está marcado como <b>ausente</b> nesta gira.');
+  else if (st === 'f') aviso('Você está marcado com <b>falta</b> nesta gira.');
+  else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
+  else if (funcao === 'senha') lin('Função', 'Senha');
+  else if (!sorteado) aviso('A escala desta gira ainda não foi sorteada.');
+  else if (funcao === 'medium' || funcao === 'extra') {
+    const cs = camsDe(p.id);
+    if (!cs.length) aviso('Você ainda está sem cambone.');
+    cs.forEach((c, i) => lin(i ? `${i + 1}º cambone` : 'Cambone', esc(nome(c))));
+    if (funcao === 'medium') passesDe(p.id).forEach((c) => lin('Médium de passe', esc(nome(c))));
+  } else if (funcao === 'cambone') {
+    const meus = pares.filter((x) => x.c === p.id).map((x) => x.m);
+    if (!meus.length) aviso('Você não está com nenhum médium nesta escala.');
+    meus.forEach((m, i) => {
+      lin(meus.length > 1 ? `Médium ${i + 1}` : 'Médium', esc(nome(m)));
+      camsDe(m).filter((c) => c !== p.id).forEach((c) => lin('Cambone junto', esc(nome(c))));
+      passesDe(m).forEach((c) => lin('Médium de passe', esc(nome(c))));
+    });
+  } else if (funcao === 'passe') {
+    const meus = passes.filter((x) => x.c === p.id).map((x) => x.m);
+    if (!meus.length) aviso('Você ainda está sem médium.');
+    meus.forEach((m) => {
+      lin('Médium', esc(nome(m)));
+      camsDe(m).forEach((c) => lin('Cambone do médium', esc(nome(c))));
+    });
+  }
+  // Turma da limpeza
+  const Lp = limpezaDaGira(estado.pessoas, g, girasLista());
+  if (Lp && st !== 'lic') {
+    if (Number(p.limpeza) === Lp.turma) L.push(`<div class="eu-limp">🧹 Hoje é sua turma de limpeza.</div>`);
+    else if (Lp.ajudantes.some((x) => x.id === p.id)) {
+      const suaTurma = Lp.anterior && Number(p.limpeza) && Number(Lp.anterior.limpeza) === Number(p.limpeza);
+      L.push(`<div class="eu-limp">🧹 ${suaTurma ? 'Hoje você ajuda essa turma, pois faltou na sua turma na gira passada.' : 'Hoje você ajuda a turma da limpeza, pois faltou na gira passada.'}</div>`);
+    }
+  }
+  const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
+  return `<div class="card eu"><div class="grp-h"><span class="eyebrow">Você nesta gira</span></div>
+    <div class="eu-nome"><b>${esc(p.nome)}</b> <span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
+    ${L.join('')}</div>`;
+}
+
+// "Médiuns e cambones" começa minimizado; abre enquanto o app estiver aberto.
+const duplasAbertas = new Set();
+const botaoDobrar = (aberto) => `<button class="btn link small" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : '▸ Ver as duplas'}</button>`;
 
 // Só o resultado do sorteio (acesso da corrente).
 function resultado(g) {
   const { lista, semPasse } = paresPorMedium(estado.pessoas, g);
   const comDuplas = lista.some((x) => x.cams.length || x.passes.length);
   if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
-  let h = `<div class="card"><h2>Médiuns e cambones</h2><div class="pairs">`;
+  const aberto = duplasAbertas.has(g.data);
+  let h = `<div class="card"><div class="grp-h"><h2>Médiuns e cambones</h2>${botaoDobrar(aberto)}</div>`;
+  if (!aberto) return h + `<p class="muted" style="margin:0;font-size:.9rem">${lista.length} médiuns e extras na escala. Toque em <b>Ver as duplas</b> para abrir.</p>${blocosFora(pessoasOrd(), g)}</div>`;
+  h += `<div class="pairs">`;
   lista.forEach((x) => {
     h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span><span></span><div class="cams">`;
     h += x.cams.length ? x.cams.map((p) => `<div class="camrow"><span class="tag cam">Cambone</span><span class="nmc">${esc(nome(p.c))}</span></div>`).join('') : '<span class="muted">Sem cambone</span>';
@@ -124,6 +202,7 @@ export function render() {
     <div class="datehead"><span class="eyebrow">Gira de</span><span class="dia">${esc(dLong(g.data))}</span>${g.entidade ? `<span class="ent">${esc(nomeGira(g.entidade))}</span>` : ''}</div>
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
+      <button class="btn small prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Ir para a próxima gira</button>
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
       ${editar && temLimpeza(g) ? `<label class="field" style="flex:0 1 160px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
     </div>
@@ -132,7 +211,9 @@ export function render() {
     ${pode('escala:completa') ? painelResumo(g) : ''}` : ''}
     ${avisoEntidade(ps, g, editar, admin)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
+    ${existe || editar ? contagemPresentes(ps, g) : ''}
   </div>`;
+  if (existe) h += blocoEu(g);
 
   if (!ps.length) {
     return h + `<div class="card empty"><h2>Nenhuma pessoa cadastrada</h2><p class="muted">${pode('pessoas:editar') ? 'Cadastre a corrente na aba Pessoas.' : 'Um admin precisa cadastrar a corrente.'}</p>
@@ -210,8 +291,9 @@ export function render() {
       ${pas.length ? `<select data-act="addpasse" data-m="${x.m.id}" aria-label="Adicionar médium de passe a ${esc(x.m.nome)}"><option value="">+ médium de passe</option>${pas.map((c) => opt(c, 'passes', 'sai de')).join('')}</select>` : ''}
     </div>`;
   };
+  const aberto = manual || duplasAbertas.has(g.data);
   h += `<div class="card"><div class="grp-h"><h2>Médiuns e cambones</h2>
-      <div class="row">${sortearOk ? (temDuplas
+      <div class="row">${manual ? '' : botaoDobrar(aberto)}${sortearOk ? (temDuplas
         ? '<button class="btn primary" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button>'
         : '<button class="btn primary" data-act="sortear">Sortear</button>') : ''}
       ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}
@@ -226,6 +308,9 @@ export function render() {
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
   if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
+  if (!aberto) {
+    h += `<p class="muted" style="margin:0;font-size:.9rem">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes · ${temDuplas ? 'duplas sorteadas' : 'ainda sem sorteio'}.</p>${blocosFora(ps, g)}</div>`;
+  } else {
   if (!lista.length) h += `<p class="muted">Nenhum médium presente.</p>`;
   else if (!temDuplas && !manual) h += `<p class="muted">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes.${sortearOk ? ' Toque em sortear para montar as duplas.' : ' As duplas ainda não foram sorteadas.'}</p>`;
   else {
@@ -257,6 +342,7 @@ export function render() {
       <li>Os cambones são divididos por igual. Se faltar cambone, alguns acompanham dois médiuns; se sobrar, alguns médiuns ganham dois.</li>
       <li>Duplas fixadas ficam como estão. Entre opções empatadas, a escolha é aleatória.</li>
     </ul></details></div>`;
+  }
 
   // exportação
   const txt = textoWhats(estado.pessoas, g, prefs.fmt, girasLista());
@@ -292,7 +378,17 @@ export const cliques = {
     editarGira({ presenca: pr });
     avisar();
   },
-  sortear: () => sortear(),
+  sortear: () => { duplasAbertas.add(giraAtual().data); sortear(); },
+  dobrarduplas() {
+    const d = giraAtual().data;
+    if (duplasAbertas.has(d)) duplasAbertas.delete(d); else duplasAbertas.add(d);
+    avisar();
+  },
+  proxgira() {
+    const d = proximaQuarta();
+    if (prefs.data === d) { toast('Você já está na próxima gira.'); return; }
+    prefs.data = d; salvarPrefs(); avisar();
+  },
   encerrar() {
     const at = {};
     for (const [k, t] of ATEND) {
@@ -316,7 +412,7 @@ export const cliques = {
     editarGira({ [k]: (g[k] || []).filter((_, i) => i !== +el.dataset.i) });
     avisar();
   },
-  remanejar: () => remanejar(),
+  remanejar: () => { duplasAbertas.add(giraAtual().data); remanejar(); },
   fixo(el) {
     const k = el.dataset.k;
     const g = giraAtual();
