@@ -273,7 +273,7 @@ export function render() {
     .filter(([n], i) => n || i === 1).map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`).join(' · ');
   h += `<div class="card"><div class="grp-h"><h2>Presença</h2><span class="count">${partes}</span></div>`;
   if (editar && antesDoDia) h += `<div class="warnbox">Antes do dia da gira todos ficam <b>Pendente</b>; dá para marcar só <b>Ausente</b> (quem avisou antes). Presente e Falta são marcados no dia.</div>`;
-  if (editar) h += `<p class="muted" style="margin:0;font-size:.88rem">No dia da gira, confirme cada pessoa: <b>Presente</b> para quem foi, <b>Falta</b> para quem avisou em cima da hora e <b>Ausente</b> para quem avisou antes. <b>Pendente</b> (cinza) ainda entra na escala. O botão <b>Suporte</b> (verde quando ligado) deixa a pessoa fora do sorteio.</p>`;
+  if (editar) h += `<p class="muted" style="margin:0;font-size:.88rem">No dia da gira, confirme cada pessoa: <b>Presente</b> para quem foi, <b>Falta</b> para quem avisou em cima da hora e <b>Ausente</b> para quem avisou antes. <b>Pendente</b> (cinza) ainda entra na escala. No segundo campo fica a função do cadastro; troque para <b>Suporte</b> (fora do sorteio) ou <b>Não atende</b> (está na gira e cambona).</p>`;
   FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
@@ -289,13 +289,14 @@ export function render() {
           ? `<span class="badge lic" title="De licença de ${dDM(lic.inicio)} a ${dDM(lic.fim)}">de licença até ${dDM(lic.fim)}</span>`
           : editar
           ? (() => {
-            // Pendente, Presente, Falta, Ausente (+ "Não atende", só se já estiver assim). Suporte é o botão ao lado.
-            const sel = s === 'sup' ? 'p' : s;
-            const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a', ...(s === 'na' ? ['na'] : [])];
+            // 1º combo: Pendente, Presente, Falta, Ausente. 2º combo: a função do cadastro, Suporte ou Não atende.
+            const sel = s === 'sup' || s === 'na' ? 'p' : s;
+            const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a'];
+            const papel = s === 'sup' || s === 'na' ? s : 'cad';
             // Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
             const bloqueada = (k) => antesDoDia && (k === 'p' || k === 'f') && k !== sel;
             return `<span class="st-ctl"><select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''} ${bloqueada(k) ? 'disabled' : ''}>${STATUS[k]}${bloqueada(k) ? ' (no dia)' : ''}</option>`).join('')}</select>
-              <button class="sup-bt ${s === 'sup' ? 'on' : ''}" data-act="suporte" data-id="${p.id}" aria-pressed="${s === 'sup'}" title="Suporte: fica fora do sorteio">Suporte</button></span>`;
+              <select class="st papel ${papel}" id="pp-${p.id}" data-act="papel" data-id="${p.id}" aria-label="Como ${esc(p.nome)} trabalha nesta gira">${[['cad', ({ medium: 'Médium', cambone: 'Cambone', passe: 'Passe', extra: 'At. Extra', senha: 'Senha' })[p.funcao] || p.funcao], ['sup', 'Suporte'], ['na', 'Não atende']].map(([k, t]) => `<option value="${k}" ${k === papel ? 'selected' : ''}>${t}</option>`).join('')}</select></span>`;
           })()
           : `<span class="st-txt">${STATUS[s]}</span>`;
         return `<div class="pres ${classeStatus(s)}"><span class="nm">${esc(p.nome)}${xp}${hoje}</span>${ctl}</div>`;
@@ -424,15 +425,6 @@ export const cliques = {
     avisar();
   },
   // Suporte liga/desliga (desligado volta para Presente).
-  suporte(el) {
-    const g = giraAtual();
-    const p = estado.pessoas.find((x) => x.id === el.dataset.id);
-    if (!p) return;
-    const pr = { ...(g.presenca || {}) };
-    pr[p.id] = status(p, g) === 'sup' ? (g.pendentePadrao && g.data > hoje() ? 'pend' : 'p') : 'sup';
-    editarGira({ presenca: pr });
-    avisar();
-  },
   sortear: () => { duplasAbertas.add(giraAtual().data); sortear(); },
   dobrarduplas() {
     const d = giraAtual().data;
@@ -516,6 +508,14 @@ function saiDoSuporte(g, id) {
 }
 
 export const mudancas = {
+  // Função na gira: a do cadastro (volta para Presente, ou Pendente antes do dia), Suporte ou Não atende.
+  papel(t) {
+    const g = giraAtual();
+    const pr = { ...(g.presenca || {}) };
+    pr[t.dataset.id] = t.value === 'cad' ? (g.pendentePadrao && g.data > hoje() ? 'pend' : 'p') : t.value;
+    editarGira({ presenca: pr });
+    avisar();
+  },
   limpezagira(t) { editarGira({ limpeza: t.value ? Number(t.value) : null }); avisar(); },
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },
   entidade(t) { editarGira({ entidade: t.value }); avisar(); },

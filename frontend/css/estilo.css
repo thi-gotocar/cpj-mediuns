@@ -386,3 +386,7 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .infobox.rei{border-color:var(--off);background:var(--off-soft)}
 .add-seg{display:flex;width:100%}
 .add-seg button{flex:1 1 0;padding:8px 10px}
+.pres select.st.papel{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.pres select.st.papel.sup{background:var(--ok);color:#fff;border-color:var(--ok)}
+.pres select.st.papel.na{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.pres.nc select.st:not(.papel),.pres.na select.st:not(.papel){background:var(--ok-soft);color:var(--ok)}
