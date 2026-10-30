@@ -194,3 +194,4 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .tag.med-t{color:var(--ok);margin-right:8px;display:inline-block;min-width:74px}
 table.pedidos tr.eu th,table.pedidos tr.eu td{background:var(--accent-soft)}
 .gira-ped{margin:0;font-weight:700;color:var(--gold)}
+.presentes{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.92rem}
