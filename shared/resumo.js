@@ -40,23 +40,36 @@ export function lerResumo(texto) {
       continue;
     }
     if ((secao === 'ausentes' || secao === 'licenca') && !/^nenhum/.test(t)) {
-      // "Bruna Tiba T6" → "Bruna Tiba" (tira o código da turma no fim)
-      const nome = linha.replace(/\s+T\d+\s*$/i, '').trim();
+      // Nome inteiro, com o código da turma ("Bruna Tiba T6").
+      const nome = linha.replace(/\s+/g, ' ').trim();
       if (nome) r[secao].push(nome);
     }
   }
   return r;
 }
 
-// Liga cada nome lido a uma pessoa da corrente.
-//  1) nome igual; 2) um único nome que começa igual (ou vice-versa); 3) um único nome parecido (provável).
+// Separa o código da turma do fim do nome: "ana paula t8" → { base: 'ana paula', turma: 't8' }.
+const turmaDe = (n) => { const m = n.match(/^(.*?)\s+(t\d+)$/); return m ? { base: m[1], turma: m[2] } : { base: n, turma: '' }; };
+
+// Liga cada nome lido (inteiro, com a turma) a uma pessoa da corrente.
+//  1) nome inteiro igual;
+//  2) mesmo nome sem a turma, numa única pessoa (certo se a turma bate ou um dos lados não tem turma);
+//  3) um único nome que começa igual (ou vice-versa); 4) um único nome parecido (provável).
 export function casarNomes(nomes, pessoas) {
-  const norm = pessoas.map((p) => ({ p, n: normalizarNome(p.nome) }));
+  const norm = pessoas.map((p) => { const n = normalizarNome(p.nome); return { p, n, ...turmaDe(n) }; });
   return nomes.map((lido) => {
     const n = normalizarNome(lido);
     const exata = norm.find((x) => x.n === n);
     if (exata) return { lido, pessoa: exata.p, candidatos: [] };
-    const comeca = norm.filter((x) => x.n.startsWith(n + ' ') || n.startsWith(x.n + ' '));
+    const { base, turma } = turmaDe(n);
+    const mesmaBase = norm.filter((x) => x.base === base);
+    if (mesmaBase.length === 1) {
+      const x = mesmaBase[0];
+      const turmaOk = !turma || !x.turma || turma === x.turma;
+      return turmaOk ? { lido, pessoa: x.p, candidatos: [] } : { lido, pessoa: x.p, provavel: true, candidatos: [] };
+    }
+    if (mesmaBase.length > 1) return { lido, pessoa: null, candidatos: mesmaBase.map((x) => x.p.nome) };
+    const comeca = norm.filter((x) => x.base.startsWith(base + ' ') || base.startsWith(x.base + ' '));
     if (comeca.length === 1) return { lido, pessoa: comeca[0].p, provavel: true, candidatos: [] };
     const parecidos = nomesParecidos(pessoas.map((p) => p.nome), lido, 5);
     const cands = comeca.length ? comeca.map((x) => x.p.nome) : parecidos;
