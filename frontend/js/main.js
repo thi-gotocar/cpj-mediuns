@@ -33,6 +33,8 @@ function renderConta() {
 }
 
 function render() {
+  // Fora do app (login, instalação) não mostra o título no topo.
+  document.body.classList.toggle('deslogado', !logado());
   if (!logado() || !estado.pronto) {
     tabs.hidden = true;
     renderConta();

@@ -246,3 +246,5 @@ nav.tabs button{flex:1 0 auto}
 .of-por select{flex:1 1 160px;width:auto;padding:6px 9px}
 .of-por input{width:70px;padding:6px 9px}
 .papel.root{background:var(--warn-soft);color:var(--gold)}
+body.deslogado header.top > div:first-child{display:none}
+body.deslogado header.top{min-height:0;padding-bottom:0}
