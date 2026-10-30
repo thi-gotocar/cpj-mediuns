@@ -226,6 +226,8 @@ main.addEventListener('submit', async (e) => {
     await pessoas.enviarLicenca();
   } else if (id === 'f-add') {
     await pessoas.enviarFormulario();
+  } else if (id === 'f-curimba') {
+    await pessoas.enviarCurimba();
   } else if (id === 'f-uren') {
     await usuarios.renomear(e.target);
   } else if (id === 'f-user') {

@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, status, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -104,12 +104,13 @@ function proximaQuarta() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone', passe: 'Médium de passe', senha: 'Senha' };
+const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone', passe: 'Médium de passe', senha: 'Senha', curimba: 'Curimba' };
 // Bloco de quem está logado: com quem trabalha nesta gira e se é da turma da limpeza.
 function blocoEu(g) {
   const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p) return '';
-  const st = status(p, g);
+  const curimba = ehCurimba(p);
+  const st = curimba ? 'p' : status(p, g);
   const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
   const pares = g.pares || [], passes = g.passes || [];
   const sorteado = pares.length > 0 || passes.length > 0;
@@ -125,6 +126,7 @@ function blocoEu(g) {
   } else if (st === 'a') fora('❌ Você está marcado como <b>ausente</b> nesta gira.');
   else if (st === 'f') fora('🚫 Você está marcado com <b>falta</b> nesta gira.');
   else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
+  else if (curimba) lin('Função', 'Curimba');
   else if (funcao === 'senha') lin('Função', 'Senha');
   else if (!sorteado) aviso('A escala desta gira ainda não foi sorteada.');
   else if (funcao === 'medium' || funcao === 'extra') {
@@ -173,7 +175,7 @@ function resultado(g) {
   if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
   const aberto = duplasAbertas.has(g.data);
   let h = `<div class="card"><div class="grp-h"><h2>Médiuns e cambones</h2>${botaoDobrar(aberto)}</div>`;
-  if (!aberto) return h + `${blocosFora(pessoasOrd(), g)}</div>`;
+  if (!aberto) return h + `${blocosFora(pessoasOrd().filter(contaNaPresenca), g)}</div>`;
   h += `<div class="pairs">`;
   lista.forEach((x) => {
     h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span><span></span><div class="cams">`;
@@ -186,12 +188,12 @@ function resultado(g) {
   gruposExtras(estado.pessoas, g, girasLista()).forEach(([t, nomes]) => {
     h += `<div class="grp"><h3>${t}</h3><p style="margin:0">${nomes.map(esc).join(', ')}</p></div>`;
   });
-  h += blocosFora(pessoasOrd(), g);
+  h += blocosFora(pessoasOrd().filter(contaNaPresenca), g);
   return h + `</div>`;
 }
 
 export function render() {
-  const ps = pessoasOrd();
+  const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
   const g = giraAtual();
   const admin = pode('giras:editar');
   const encerrada = !!g.encerrada;

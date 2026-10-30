@@ -637,3 +637,11 @@ test('oferendas: uma linha para cada médium, admin marca a situação', async (
   assert.equal(of4.porMedium, false);
   assert.deepEqual(of4.mediuns, []);
 });
+
+test('curimba: cadastro e turma da limpeza', async () => {
+  const r = (await api('POST', '/api/pessoas', ADMIN, { nome: 'Tambor Um, Tambor Dois', funcao: 'curimba' })).json;
+  const cs = r.pessoas.filter((p) => p.funcao === 'curimba');
+  assert.ok(cs.length >= 2);
+  assert.equal((await api('PATCH', '/api/pessoas/' + cs[0].id, ADMIN, { limpeza: 4 })).json.limpeza, 4);
+  assert.equal((await api('POST', '/api/pessoas', ADMIN, { nome: 'X', funcao: 'tambor' })).status, 400);
+});

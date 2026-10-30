@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 25;  // v25: orixá da gira
+export const VERSAO = 26;  // v26: curimba (faz a limpeza, fora da presença)
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -45,6 +45,9 @@ export const MIGRACOES = [
      criado_em   timestamptz not null default now()
    )`,
   `create unique index if not exists pessoas_nome_unico on pessoas (lower(btrim(nome)))`,
+  // v26: curimba — entra nas turmas da limpeza, mas não na presença, no sorteio nem nas contagens
+  `alter table pessoas drop constraint if exists pessoas_funcao_check`,
+  `alter table pessoas add constraint pessoas_funcao_check check (funcao in ('medium', 'cambone', 'passe', 'senha', 'extra', 'curimba'))`,
   // v2: linhas em que Extra/Passe atuam na própria função (nas outras, cambonam)
   `alter table pessoas add column if not exists linhas text[] not null default '{}'`,
   // v23: turma da limpeza (1 a 7) da pessoa e a turma responsável pela gira

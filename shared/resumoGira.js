@@ -5,7 +5,7 @@
 //   textoResumo(pessoas, g, local?, giras?) → texto pronto para colar no WhatsApp
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
 
-import { status, licencaEm, nomeGira, orixaDaGira, limpezaDaGira } from './regras.js';
+import { status, licencaEm, nomeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -18,7 +18,7 @@ function diaSeguinte(iso) {
 }
 
 export function dadosResumo(pessoas, g) {
-  const ps = pessoas.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const ps = pessoas.filter(contaNaPresenca).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const com = (sts) => ps.filter((p) => sts.includes(status(p, g)));
   const presentes = com(PRES);
   const ausentes = com(['a']);
@@ -40,7 +40,7 @@ export function dadosResumo(pessoas, g) {
 
 // Situação de cada pessoa na gira, para a lista da limpeza.
 const SITUACAO = { p: ['✅', 'Presente'], na: ['✅', 'Presente'], sup: ['✅', 'Presente'], a: ['❌', 'Ausente'], f: ['🚫', 'Falta'], lic: ['📋', 'Licença'] };
-export const situacaoNaGira = (p, g) => SITUACAO[status(p, g)] || SITUACAO.p;
+export const situacaoNaGira = (p, g) => (ehCurimba(p) ? ['🥁', 'Curimba'] : SITUACAO[status(p, g)] || SITUACAO.p);
 
 // Turma da limpeza da gira: cada um da turma (licença incluída) e quem ajudou, com a situação.
 export function limpezaResumo(pessoas, g, giras = []) {

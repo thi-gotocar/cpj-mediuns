@@ -1,6 +1,6 @@
 // Tela "Pessoas": cadastro da corrente.
 
-import { FUNCOES, LINHAS, LINHA_LABEL, TURMAS_LIMPEZA } from '/shared/regras.js';
+import { FUNCOES, LINHAS, LINHA_LABEL, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
@@ -46,7 +46,7 @@ function cardTurmas(ps) {
   const aberto = estado.turmasAbertas ? ' open' : '';
   return `<div class="card"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${ps.length}</span></summary>
     <div class="turmas" style="margin-top:8px">${TURMAS_LIMPEZA.map((t) => {
-      const nomes = ps.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome));
+      const nomes = ps.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome) + (ehCurimba(p) ? ' 🥁' : ''));
       return `<div><b>Turma ${t}</b> <span class="muted">(${nomes.length})</span>: ${nomes.length ? nomes.join(', ') : '<span class="muted">ninguém</span>'}</div>`;
     }).join('')}
     ${ps.length > com.length ? `<div class="muted">Sem turma: ${ps.length - com.length}</div>` : ''}</div></details></div>`;
@@ -82,8 +82,34 @@ document.addEventListener('toggle', (e) => {
   }
 }, true);
 
+// Curimba: só nome e turma da limpeza (não entra na presença nem no sorteio).
+function cardCurimba(todas, editar) {
+  const cs = todas.filter(ehCurimba);
+  if (!editar && !cs.length) return '';
+  let h = `<div class="card"><div class="grp-h"><h2>🥁 Curimba</h2><span class="count">${cs.length}</span></div>
+    <p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
+  if (editar) {
+    h += `<form id="f-curimba" class="row" autocomplete="off">
+      <label class="field grow">Nome<input type="text" id="cur-nome" placeholder="Um nome, ou vários separados por vírgula" maxlength="4000"></label>
+      <button class="btn primary" type="submit">Adicionar</button></form>`;
+  }
+  if (!cs.length) return h + `</div>`;
+  h += `<div class="ppl">${cs.map((p) => {
+    if (!editar) return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nm">${esc(p.nome)}</span>${p.limpeza ? `<span class="muted" style="font-size:.85rem">🧹 Turma ${p.limpeza}</span>` : ''}</div>`;
+    const conf = estado.confirm === 'p:' + p.id;
+    const nomeHtml = estado.renomear === p.id
+      ? `<form id="f-ren" class="ren" data-id="${p.id}"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Novo nome de ${esc(p.nome)}"><button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelren">Cancelar</button></form>`
+      : `<span class="nmline"><span class="nm">${esc(p.nome)}</span><button class="btn link small" data-act="ren" data-id="${p.id}" title="Editar nome" aria-label="Editar nome de ${esc(p.nome)}">✎ editar</button></span>`;
+    return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell">${nomeHtml}
+      <label class="check small" style="white-space:nowrap">🧹 Limpeza: turma <select class="limp-sel" id="lp-${p.id}" data-act="limpeza" data-id="${p.id}" aria-label="Turma da limpeza de ${esc(p.nome)}"><option value="">—</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label></span>
+      ${conf ? `<button class="btn small danger" data-act="delpessoa" data-id="${p.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="p:${p.id}">Excluir</button>`}</div>`;
+  }).join('')}</div>`;
+  return h + `</div>`;
+}
+
 export function render() {
-  const ps = pessoasOrd();
+  const todas = pessoasOrd();
+  const ps = todas.filter((p) => !ehCurimba(p));   // a corrente (sem a curimba)
   const editar = pode('pessoas:editar');
   let h = `<section class="panel">`;
   if (editar) {
@@ -97,13 +123,13 @@ export function render() {
     h += `<p class="leitura" style="margin:0">Lista da corrente, só para consulta.</p>`;
   }
   if (!ps.length) {
-    return h + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div></section>`;
+    return h + cardCurimba(todas, editar) + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div></section>`;
   }
-  h += cardLicencas(ps, editar);
+  h += cardLicencas(ps, editar);   // licença: só a corrente
   // Totalizador da corrente, por função.
   h += `<div class="card"><div class="grp-h"><h2>Corrente</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="presentes">${FUNCOES.map((f) => `<span><span class="muted">${f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div></div>`;
-  h += cardTurmas(ps);
+  h += cardTurmas(todas);
   FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
@@ -129,6 +155,7 @@ export function render() {
     });
     h += `</div></div>`;
   });
+  h += cardCurimba(todas, editar);
   return h + '</section>';
 }
 
@@ -198,6 +225,17 @@ export async function enviarLicenca() {
   if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
   if (fim < inicio) { toast('A data final é antes do início.'); return; }
   if (await salvarLicenca(pessoa, inicio, fim, document.getElementById('lic-m').value.trim())) toast('Licença cadastrada.');
+}
+
+export async function enviarCurimba() {
+  const inp = document.getElementById('cur-nome');
+  if (!inp.value.trim()) { toast('Digite pelo menos um nome.'); return; }
+  try {
+    const n = await adicionarPessoas(inp.value, CURIMBA);
+    toast(n ? `${n} adicionada${n > 1 ? 's' : ''} na curimba.` : 'Esses nomes já estão cadastrados.');
+    const novo = document.getElementById('cur-nome');
+    if (novo) { novo.value = ''; novo.focus(); }
+  } catch (e) { toast(e.message); avisar(); }
 }
 
 export async function enviarFormulario() {

@@ -123,3 +123,21 @@ test('resumo da gira: orixá no cabeçalho e lido de volta', async () => {
   assert.equal(lerResumo(t).orixa, 'Oxóssi');
   assert.doesNotMatch(textoResumo([], { data: '2026-05-13', entidade: 'Exu', orixa: 'Ogum', presenca: {} }), /Orixá/);
 });
+
+test('curimba: entra na limpeza, mas não na presença', async () => {
+  const { textoResumo, dadosResumo } = await import('../shared/resumoGira.js');
+  const { limpezaDaGira } = await import('../shared/regras.js');
+  const pessoas = [
+    { id: 'a', nome: 'Ana', funcao: 'medium', limpeza: 3 }, { id: 'b', nome: 'Bia', funcao: 'cambone' },
+    { id: 'c', nome: 'Caio', funcao: 'curimba', limpeza: 3 }, { id: 'd', nome: 'Duda', funcao: 'curimba', limpeza: 2 },
+  ];
+  const ant = { data: '2026-05-06', entidade: 'Exu', limpeza: 2, presenca: { d: 'f' } };
+  const g = { data: '2026-05-13', entidade: 'Caboclo', limpeza: 3, presenca: { c: 'a' } };
+  const d = dadosResumo(pessoas, g);
+  assert.equal(d.presentes.length + d.ausentes.length + d.faltas.length + d.licenca.length, 2, 'curimba não conta');
+  assert.equal(d.pct.presenca, 100);
+  const L = limpezaDaGira(pessoas, g, [ant]);
+  assert.deepEqual(L.membros.map((p) => p.nome), ['Ana', 'Caio'], 'curimba faz parte da turma');
+  assert.deepEqual(L.ajudantes, [], 'curimba não tem falta, então não vira ajudante');
+  assert.match(textoResumo(pessoas, g, 'Terreiro', [ant]), /🥁 Caio - Curimba/);
+});

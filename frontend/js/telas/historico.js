@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -164,7 +164,7 @@ function cardEstatisticas(todas, ps) {
 
 export function render() {
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
-  const ps = pessoasOrd();
+  const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
   let h = `<section class="panel">`;
   h += cardEstatisticas(gs, ps);
   if (pode('giras:editar')) h += cardGiraAntiga(ps);
@@ -236,7 +236,7 @@ export const cliques = {
     F.msg = document.getElementById('ga-msg').value;
     const r = lerResumo(F.msg);
     if (!r.data && !r.ausentes.length && !r.faltas.length) { toast('Não reconheci a mensagem. Cole o “RESUMO DO EVENTO” completo.'); return; }
-    const ps = pessoasOrd();
+    const ps = pessoasOrd().filter(contaNaPresenca);
     const casados = [
       ...casarNomes(r.ausentes, ps),
       ...casarNomes(r.faltas, ps).map((c) => ({ ...c, falta: true })),
@@ -267,7 +267,7 @@ export const cliques = {
   gatodos(el) {
     const F = estado.giraAntiga;
     F.presenca = {};
-    if (el.dataset.v !== 'p') pessoasOrd().forEach((p) => { F.presenca[p.id] = el.dataset.v; });
+    if (el.dataset.v !== 'p') pessoasOrd().filter(contaNaPresenca).forEach((p) => { F.presenca[p.id] = el.dataset.v; });
     avisar();
   },
   // Aceita um ponto em dúvida (nome, data ou diferença na contagem). Tocar de novo desfaz.

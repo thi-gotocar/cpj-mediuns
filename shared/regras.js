@@ -15,7 +15,11 @@ export const FUNCOES = [
   { k: 'senha', label: 'Senha', pl: 'Senha' },
   { k: 'extra', label: 'Extra', pl: 'Extras' },
 ];
-export const FUNCAO_KEYS = FUNCOES.map((f) => f.k);
+// Curimba: cadastrada em Pessoas e nas turmas da limpeza, mas fora da presença, do sorteio e das contagens.
+export const CURIMBA = 'curimba';
+export const ehCurimba = (p) => p?.funcao === CURIMBA;
+export const contaNaPresenca = (p) => !ehCurimba(p);
+export const FUNCAO_KEYS = [...FUNCOES.map((f) => f.k), CURIMBA];
 export const STATUS = { p: 'Presente', na: 'Não atende', sup: 'Suporte', f: 'Falta', a: 'Ausente' };
 export const STATUS_KEYS = Object.keys(STATUS);
 
@@ -156,7 +160,7 @@ export function limpezaDaGira(pessoas, g, giras) {
   const deLicenca = daTurma.filter((p) => licencaEm(p, g.data));
   const anterior = giraAnteriorComLimpeza(giras, g.data);
   const ajudantes = anterior
-    ? pessoas.filter((p) => Number(p.limpeza) === Number(anterior.limpeza) && Number(p.limpeza) !== turma
+    ? pessoas.filter((p) => !ehCurimba(p) && Number(p.limpeza) === Number(anterior.limpeza) && Number(p.limpeza) !== turma
       && ['f', 'a'].includes(status(p, anterior)) && !licencaEm(p, g.data)).sort(porNome)
     : [];
   return { turma, membros, deLicenca, ajudantes, anterior };
