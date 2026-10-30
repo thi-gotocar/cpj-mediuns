@@ -166,6 +166,18 @@ export const presente = (p, g) => { const s = status(p, g); return s === 'p' || 
 export const TURMAS_LIMPEZA = [1, 2, 3, 4, 5, 6, 7];
 export const temLimpeza = (g) => !giraEspecial(g?.entidade);
 
+// Turma sugerida para uma gira nova: a seguinte à da última gira encerrada (antes desta data) com turma,
+// em rodízio de 1 a 7, pulando turmas sem ninguém cadastrado. Sem histórico, a primeira turma com gente.
+export function proximaTurma(pessoas, giras, data) {
+  const comGente = TURMAS_LIMPEZA.filter((t) => pessoas.some((p) => Number(p.limpeza) === t));
+  if (!comGente.length) return null;
+  const ultima = (giras || []).filter((g) => g.encerrada && g.data < data && TURMAS_LIMPEZA.includes(Number(g.limpeza)))
+    .sort((a, b) => b.data.localeCompare(a.data))[0];
+  if (!ultima) return comGente[0];
+  const t = Number(ultima.limpeza);
+  return comGente.find((x) => x > t) ?? comGente[0];
+}
+
 // Última gira antes desta com turma da limpeza definida (ignora gira interna e reunião).
 export function giraAnteriorComLimpeza(giras, data) {
   return (giras || []).filter((x) => x.data < data && temLimpeza(x) && TURMAS_LIMPEZA.includes(Number(x.limpeza)))

@@ -178,3 +178,16 @@ test('entrada na corrente: antes da data a pessoa não conta na gira', async () 
   assert.equal(r.presentes.length, 2);
   assert.equal(r.pct.presenca, 100);
 });
+
+test('turma da limpeza: rodízio a partir da última gira encerrada, pulando turmas vazias', async () => {
+  const { proximaTurma } = await import('../shared/regras.js');
+  const ps = [1, 2, 4, 7].map((t, i) => ({ id: 'p' + i, nome: 'P' + i, limpeza: t }));   // turmas 3, 5 e 6 vazias
+  const g = (data, limpeza, encerrada = true) => ({ data, limpeza, encerrada });
+  assert.equal(proximaTurma(ps, [], '2026-11-04'), 1, 'sem histórico: a primeira com gente');
+  assert.equal(proximaTurma(ps, [g('2026-10-28', 2)], '2026-11-04'), 4, 'pula a 3 (vazia)');
+  assert.equal(proximaTurma(ps, [g('2026-10-28', 4)], '2026-11-04'), 7, 'pula 5 e 6');
+  assert.equal(proximaTurma(ps, [g('2026-10-28', 7)], '2026-11-04'), 1, 'volta ao começo');
+  assert.equal(proximaTurma(ps, [g('2026-10-21', 1), g('2026-10-28', 2, false)], '2026-11-04'), 2, 'gira não encerrada não conta');
+  assert.equal(proximaTurma(ps, [g('2026-10-28', 1), g('2026-11-11', 4)], '2026-11-04'), 2, 'só giras antes da data');
+  assert.equal(proximaTurma([{ id: 'x', nome: 'X' }], [], '2026-11-04'), null, 'ninguém com turma');
+});
