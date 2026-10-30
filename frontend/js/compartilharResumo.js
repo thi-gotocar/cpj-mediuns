@@ -24,7 +24,7 @@ function dadosImagem(g) {
     linhas.push({ texto: `Limpeza · Turma ${lp.turma}`, valor: '', sub: lp.membros.length ? lp.membros.map((x) => `${x.pessoa.nome} (${x.situacao.toLowerCase()})`).join(', ') : 'Ninguém cadastrado nesta turma' });
     if (lp.ajudantes.length) linhas.push({ texto: 'Ajudaram na limpeza', valor: '', sub: lp.ajudantes.map((x) => `${x.pessoa.nome} (${x.situacao.toLowerCase()})`).join(', ') });
   }
-  return { rotulo: 'Resumo do evento', titulo: d.gira || 'Gira', subtitulo: `${dShort(g.data)} · ${LOCAL_PADRAO}`, linhas: linhas.map((l) => (l.sub ? l : { texto: l.texto, valor: l.valor })) };
+  return { rotulo: 'Resumo do evento', titulo: d.gira || 'Gira', subtitulo: `${d.orixa ? `Orixá ${d.orixa} · ` : ''}${dShort(g.data)} · ${LOCAL_PADRAO}`, linhas: linhas.map((l) => (l.sub ? l : { texto: l.texto, valor: l.valor })) };
 }
 
 // Botão que abre o painel (só para gira encerrada).

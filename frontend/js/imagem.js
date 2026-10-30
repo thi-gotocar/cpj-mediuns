@@ -1,6 +1,6 @@
 // Imagem PNG da escala (para mandar no grupo do WhatsApp).
 
-import { paresPorMedium, nomeGira } from '/shared/regras.js';
+import { paresPorMedium, nomeGira, orixaDaGira } from '/shared/regras.js';
 import { dLong, dShort } from './util.js';
 import { gruposExtras } from './exportar.js';
 
@@ -47,7 +47,7 @@ function desenhar(ctx, pessoas, g, desenhar, giras = []) {
   fonte(700, 36, FD);
   const tl = quebrar(ctx, titulo, CW);
   fonte(700, 22);
-  const el = g.entidade ? quebrar(ctx, nomeGira(g.entidade), CW) : [];
+  const el = g.entidade ? quebrar(ctx, nomeGira(g.entidade) + (orixaDaGira(g) ? ` · Orixá ${orixaDaGira(g)}` : ''), CW) : [];
   const hh = P + 22 + tl.length * 42 + (el.length ? 6 + el.length * 28 : 0) + P;
   y = P;
   if (desenhar) {

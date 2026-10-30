@@ -4,7 +4,7 @@
 import { rota, corpo, validarData, HttpError } from './_lib/http.js';
 import { exigir } from './_lib/sessao.js';
 import { db } from './_lib/db.js';
-import { FUNCAO_KEYS, LINHA_KEYS } from '../shared/regras.js';
+import { FUNCAO_KEYS, LINHA_KEYS, ORIXAS } from '../shared/regras.js';
 
 // Status das versões anteriores: true = presente, false = ausente, 'nc' = suporte.
 function statusAntigo(v) {
@@ -75,6 +75,7 @@ export default rota({
         presenca, pares: mapa(g.pares), passes: mapa(g.passes), encerrada: g.encerrada === true,
         ...(g.atendimentos && typeof g.atendimentos === 'object' ? { atendimentos: g.atendimentos } : {}),
         ...([1, 2, 3, 4, 5, 6, 7].includes(g.limpeza) ? { limpeza: g.limpeza } : {}),
+        ...(ORIXAS.includes(g.orixa) ? { orixa: g.orixa } : {}),
       });
       giras++;
     }

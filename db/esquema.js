@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 24;  // v24: oferenda com uma linha por médium
+export const VERSAO = 25;  // v25: orixá da gira
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -73,6 +73,8 @@ export const MIGRACOES = [
      atualizado_por  uuid references usuarios (id) on delete set null
    )`,
   `alter table giras add column if not exists limpeza smallint check (limpeza between 1 and 7)`,
+  // v25: orixá da gira (só nas giras das linhas; vazio = não definido)
+  `alter table giras add column if not exists orixa text not null default '' check (length(orixa) <= 40)`,
   // v6: gira encerrada (ninguém altera até reabrir)
   `alter table giras add column if not exists encerrada boolean not null default false`,
   // v7: quem foi para o Suporte ao encerrar e o status que tinha antes (volta ao reabrir)
@@ -315,6 +317,7 @@ export const MIGRACOES = [
        'suporteAuto', g.suporte_auto,
        'atendimentos', g.atendimentos,
        'limpeza', g.limpeza,
+       'orixa', g.orixa,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
@@ -342,15 +345,16 @@ export const MIGRACOES = [
      v_data date := (p ->> 'data')::date;
      v_user uuid := nullif(p ->> 'usuario', '')::uuid;
    begin
-     insert into giras (data, entidade, encerrada, atendimentos, limpeza, atualizado_em, atualizado_por)
+     insert into giras (data, entidade, encerrada, atendimentos, limpeza, orixa, atualizado_em, atualizado_por)
      values (v_data, coalesce(p ->> 'entidade', ''), coalesce((p ->> 'encerrada')::boolean, false),
-             nullif(p -> 'atendimentos', 'null'::jsonb), nullif(p ->> 'limpeza', '')::smallint, now(), v_user)
+             nullif(p -> 'atendimentos', 'null'::jsonb), nullif(p ->> 'limpeza', '')::smallint, coalesce(p ->> 'orixa', ''), now(), v_user)
      on conflict (data) do update set
        entidade       = case when p ? 'entidade' then coalesce(p ->> 'entidade', '') else giras.entidade end,
        encerrada      = case when p ? 'encerrada' then (p ->> 'encerrada')::boolean else giras.encerrada end,
        suporte_auto   = case when p ? 'suporteAuto' then coalesce(p -> 'suporteAuto', '{}'::jsonb) else giras.suporte_auto end,
        atendimentos   = case when p ? 'atendimentos' then nullif(p -> 'atendimentos', 'null'::jsonb) else giras.atendimentos end,
        limpeza        = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else giras.limpeza end,
+       orixa          = case when p ? 'orixa' then coalesce(p ->> 'orixa', '') else giras.orixa end,
        atualizado_em  = now(),
        atualizado_por = excluded.atualizado_por;
 

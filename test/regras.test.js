@@ -113,3 +113,18 @@ test('limpeza: turma do dia e quem faltou na gira anterior (sem reunião e gira 
   assert.equal(temLimpeza({ entidade: 'Reunião obrigatória' }), false);
   assert.equal(limpezaDaGira(pessoas, { ...g, entidade: 'Gira interna' }, giras), null);
 });
+
+test('orixá: lista em ordem alfabética e só nas giras das linhas', async () => {
+  const { ORIXAS, temOrixa, orixaDaGira } = await import('../shared/regras.js');
+  assert.deepEqual(ORIXAS, [...ORIXAS].sort((a, b) => a.localeCompare(b, 'pt-BR')));
+  assert.equal(ORIXAS.length, 12);
+  assert.ok(ORIXAS.every((o) => o[0] === o[0].toUpperCase()));
+  assert.equal(temOrixa({ entidade: 'Caboclo' }), true);
+  assert.equal(temOrixa({ entidade: 'Encontro das Linhas' }), true);
+  assert.equal(temOrixa({ entidade: 'Exu' }), false);
+  assert.equal(temOrixa({ entidade: 'Exus & Pombagira' }), false);
+  assert.equal(temOrixa({ entidade: 'Gira interna' }), false);
+  assert.equal(temOrixa({ entidade: '' }), false);
+  assert.equal(orixaDaGira({ entidade: 'Exu', orixa: 'Ogum' }), '', 'gira de esquerda não mostra orixá');
+  assert.equal(orixaDaGira({ entidade: 'Caboclo', orixa: 'Oxóssi' }), 'Oxóssi');
+});

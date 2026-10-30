@@ -115,3 +115,11 @@ test('resumo da gira: turma da limpeza com presente/ausente na frente de cada no
   assert.deepEqual(r.licenca, ['Duda']);
   assert.doesNotMatch(textoResumo(pessoas, { ...g, limpeza: null }, 'Terreiro', giras), /LIMPEZA/);
 });
+
+test('resumo da gira: orixá no cabeçalho e lido de volta', async () => {
+  const { textoResumo } = await import('../shared/resumoGira.js');
+  const t = textoResumo([{ id: 'a', nome: 'Ana' }], { data: '2026-05-13', entidade: 'Caboclo', orixa: 'Oxóssi', presenca: {} });
+  assert.match(t, /Gira: Caboclo\nOrixá: Oxóssi\nData: 13\/05\/2026/);
+  assert.equal(lerResumo(t).orixa, 'Oxóssi');
+  assert.doesNotMatch(textoResumo([], { data: '2026-05-13', entidade: 'Exu', orixa: 'Ogum', presenca: {} }), /Orixá/);
+});

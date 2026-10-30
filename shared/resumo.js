@@ -28,6 +28,7 @@ export function lerResumo(texto) {
       const k = normalizarNome(m[1]); const v = m[2].trim();
       if (k === 'data') { const d = v.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (d) r.data = `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`; }
       else if (k === 'horario') r.horario = v;
+      else if (k === 'orixa') r.orixa = v;
       else if (k === 'local') r.local = v;
       else if (k === 'coordenador') r.coordenador = v;
       else if (k === 'presentes') r.contagem.presentes = num(v);

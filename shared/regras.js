@@ -51,6 +51,15 @@ export const OPCOES_GIRA = [
   { grupo: 'Outras', itens: GIRAS_ESPECIAIS },
 ];
 
+// Orixás (em ordem alfabética). Só as giras das linhas (não Esquerda nem Outras) têm orixá.
+export const ORIXAS = ['Iansã', 'Iemanjá', 'Nanã', 'Obaluaê', 'Ogum', 'Omulu', 'Oroiná', 'Oxalá', 'Oxóssi', 'Oxum', 'Oxumaré', 'Xangô'];
+export const temOrixa = (g) => {
+  const l = linhaDaEntidade(g?.entidade);
+  return !!l && LINHAS.find((x) => x.grupo === 'Linhas').itens.some(([k]) => k === l);
+};
+// Orixá da gira para mostrar (vazio se a gira não leva orixá).
+export const orixaDaGira = (g) => (temOrixa(g) && ORIXAS.includes(g.orixa) ? g.orixa : '');
+
 export const LINHA_KEYS = LINHAS.flatMap((g) => g.itens.map(([k]) => k));
 export const LINHA_LABEL = Object.fromEntries([...LINHAS.flatMap((g) => g.itens), ...GIRAS_JUNTAS.map(([k, l]) => [k, l])]);
 

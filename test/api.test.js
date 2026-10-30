@@ -604,6 +604,10 @@ test('turma da limpeza: na pessoa e na gira (1 a 7)', async () => {
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 6 })).json.limpeza, 6);
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: 6, entidade: 'Caboclo' })).status, 409);
   assert.equal((await api('PUT', '/api/giras/2028-01-05', USER, { limpeza: 2 })).status, 403);
+  // orixá: só os da lista; pode mudar com a gira encerrada
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { orixa: 'Fulano' })).status, 400);
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { orixa: 'Oxóssi' })).json.orixa, 'Oxóssi');
+  assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { orixa: '' })).json.orixa, '');
 });
 
 test('oferendas: uma linha para cada médium, admin marca a situação', async () => {

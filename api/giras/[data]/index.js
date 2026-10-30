@@ -1,12 +1,12 @@
 // GET    /api/giras/:data
-// PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes?, atendimentos?, encerrada?, limpeza? }  (só substitui o que vier)
+// PUT    /api/giras/:data   { entidade?, presenca?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
 // POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' }  → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, encerrar, reabrir } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -38,8 +38,8 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const b = corpo(req);
-    // Gira encerrada: só a turma da limpeza ainda pode mudar (o resto, só reabrindo).
-    const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza');
+    // Gira encerrada: só a turma da limpeza e o orixá ainda podem mudar (o resto, só reabrindo).
+    const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza' || k === 'orixa');
     if (!soLimpeza && (await db.rpc('gira_obter', { data }))?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
     const p = { data, usuario: perfil.id };
     if ('entidade' in b) {
@@ -63,6 +63,11 @@ export default rota({
       if (b.limpeza === null || b.limpeza === '') p.limpeza = null;
       else if (TURMAS_LIMPEZA.includes(Number(b.limpeza))) p.limpeza = Number(b.limpeza);
       else throw new HttpError(400, 'Turma da limpeza inválida (1 a 7).');
+    }
+    if ('orixa' in b) {
+      const o = String(b.orixa ?? '').trim();
+      if (o && !ORIXAS.includes(o)) throw new HttpError(400, 'Orixá inválido.');
+      p.orixa = o;
     }
     if (b.encerrada === true) p.encerrada = true;
     return db.rpc('gira_salvar', p);

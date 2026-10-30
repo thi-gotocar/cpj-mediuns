@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -67,6 +67,7 @@ function cardGiraAntiga(ps) {
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="ga-data" data-act="gacampo" data-k="data" value="${esc(F.data)}" max="${hoje()}"></label>
       <label class="field grow">Gira (opcional)<select id="ga-ent" data-act="gacampo" data-k="entidade"><option value="">— escolha —</option>
         ${OPCOES_GIRA.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, l]) => `<option ${l === F.entidade ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select></label>
+      ${temOrixa(F) ? `<label class="field" style="flex:0 1 160px">Orixá<select id="ga-orixa" data-act="gacampo" data-k="orixa"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === F.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
     </div>`;
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;
   h += `<div class="grp-h"><h3>Presença</h3><span class="count">${cont('p') + cont('na') + cont('sup')} presentes · ${cont('a')} ausentes · ${cont('f')} faltas
@@ -189,7 +190,7 @@ export function render() {
       const nLic = n('lic');
       const conf = estado.confirm === 'g:' + g.data;
       const pr = presencaGira(ps, g);
-      h += `<div class="hi"><div><div class="d"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira não definida')}</span>
+      h += `<div class="hi"><div><div class="d"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira não definida')}${orixaDaGira(g) ? ` · ${esc(orixaDaGira(g))}` : ''}</span>
         ${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
         ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ` (${nLic} de licença)` : ''}`) : ''}</div>
         <div class="muted" style="font-size:.9rem">${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
@@ -225,7 +226,7 @@ export function render() {
 export const cliques = {
   ...cliquesResumo,
   gaabrir() {
-    estado.giraAntiga = { data: '', entidade: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
+    estado.giraAntiga = { data: '', entidade: '', orixa: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
     avisar();
   },
   gacancelar() { estado.giraAntiga = null; avisar(); },
@@ -247,6 +248,7 @@ export const cliques = {
       return { ...c, duvida, aceito: !duvida, provavelId: c.provavel ? c.pessoa.id : null, escolhido: c.pessoa ? c.pessoa.id : '' };
     });
     if (r.data) F.data = r.data;
+    if (r.orixa) { const o = ORIXAS.find((x) => x.localeCompare(r.orixa, 'pt-BR', { sensitivity: 'base' }) === 0); if (o) F.orixa = o; }
     // Gira escrita na mensagem (ex.: "Gira: Exu", "Gira interna", "Reunião obrigatória").
     // Só no cabeçalho, antes da lista de nomes.
     for (const l of F.msg.split(/\r?\n/)) {
@@ -284,7 +286,7 @@ export const cliques = {
     if (F.data > hoje()) { toast('A data é no futuro. Use a aba Gira para giras que ainda vão acontecer.'); return; }
     if (estado.giras[F.data]) { toast(`Já existe uma gira em ${F.data.split('-').reverse().join('/')}. Abra pelo histórico para alterar.`); return; }
     const presenca = Object.fromEntries(Object.entries(F.presenca).filter(([, s]) => s !== 'p'));
-    const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, presenca, atendimentos: F.at });
+    const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, ...(temOrixa(F) && F.orixa ? { orixa: F.orixa } : {}), presenca, atendimentos: F.at });
     if (ok) { toast('Gira antiga cadastrada.'); estado.giraAntiga = null; avisar(); }
   },
   stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
