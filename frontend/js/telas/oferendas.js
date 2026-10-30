@@ -1,7 +1,7 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
 import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR } from '/shared/oferendas.js';
-import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 
@@ -66,19 +66,23 @@ function linhaItem(of, i, admin) {
   }
   const conf = estado.confirm === 'oi:' + i.id;
   const libera = podeMarcarEntregue(i, of, hoje());
-  let h = `<div class="of-item ${s.completo ? 'completo' : ''}">
-    <div class="of-top"><span class="dot ${s.completo ? 'ok' : 'pend'}" title="${s.completo ? 'Completo' : 'Faltam doadores'}"></span>
+  const entregaTxt = `Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}`;
+  let h = s.completo
+    ? `<div class="of-item completo">
+    <div class="of-top"><span class="dot ok" title="Completo"></span>
+      <span class="of-nome">${esc(i.nome)}</span><span class="muted of-ent">${entregaTxt}</span></div>
+    ${admin ? doadoresAdmin(i, s) : `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>`}`
+    : `<div class="of-item">
+    <div class="of-top"><span class="dot pend" title="Faltam doadores"></span>
       <span class="of-nome">${esc(i.nome)}</span>
       <span class="of-qtd">${s.doado} de ${i.quantidade}</span></div>
-    <div class="muted of-sub">Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}${!s.completo ? ` · faltam <b>${s.falta}</b>` : ''}</div>
+    <div class="muted of-sub">${entregaTxt} · faltam <b>${s.falta}</b></div>
     ${admin ? doadoresAdmin(i, s) : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>'}`;
   if (!i.entregue && of.status === 'publicado' && (max > 0 || minha > 0)) {
     h += `<div class="of-doar"><span class="muted">Vou doar:</span>
       <button class="btn small" data-act="ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>
       <span class="n">${minha}</span>
       <button class="btn small ${minha ? '' : 'primary'}" data-act="ofmais" data-id="${i.id}" ${minha >= max ? 'disabled' : ''} aria-label="Mais ${esc(i.nome)}">+</button></div>`;
-  } else if (!i.entregue && s.completo) {
-    h += `<div class="muted of-sub">Item completo. Obrigado!</div>`;
   }
   if (admin) {
     h += `<div class="row of-adm">
@@ -108,12 +112,25 @@ function cardOferenda(of, admin) {
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       <p class="muted" style="margin:0;font-size:.88rem">${of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
-  h += `<div class="of-itens">${of.itens.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
+  const fechada = (prefs.ofFechadas || []).includes(of.id);
+  if (u.editar !== of.id && of.itens.length) {
+    h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? '▸ Ver os itens' : '▾ Minimizar'}</button>`;
+  }
+  if (fechada) return h + rodapeOferenda(of, admin) + `</div>`;
+  // Em aberto primeiro; os completos (verdes) no fim.
+  const ordem = [...of.itens].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
+  h += `<div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
   if (admin) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
-  // compartilhar
+  return h + rodapeOferenda(of, admin) + `</div>`;
+}
+
+// Compartilhar, editar e excluir (aparece também com a oferenda minimizada).
+function rodapeOferenda(of, admin) {
+  const u = U();
+  let h = '';
   const aberto = u.compartilhar === of.id;
   h += `<div class="row"><button class="btn ${aberto ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${aberto}">Compartilhar lista</button>
     ${admin && u.editar !== of.id ? `<button class="btn" data-act="editarof" data-id="${of.id}">Editar</button>
@@ -128,7 +145,7 @@ function cardOferenda(of, admin) {
       ${img ? `<img class="prev" src="${img.url}" alt="Imagem da lista da oferenda">
         <div class="row">${podeCompartilhar(img) ? `<button class="btn primary" data-act="shareimgof">Compartilhar imagem</button>` : ''}<button class="btn" data-act="saveimgof">Salvar imagem</button></div>` : ''}</div>`;
   }
-  return h + `</div>`;
+  return h;
 }
 
 function podeCompartilhar(img) {
@@ -195,6 +212,13 @@ export const cliques = {
   async delitem(el) { estado.confirm = null; if (await acaoOferendas('excluirItem', { id: el.dataset.id })) toast('Item excluído.'); },
   editarof(el) { U().editar = el.dataset.id; avisar(); },
   cancelarof() { U().editar = null; avisar(); },
+  dobrarof(el) {
+    const set = new Set(prefs.ofFechadas || []);
+    if (set.has(el.dataset.id)) set.delete(el.dataset.id); else set.add(el.dataset.id);
+    prefs.ofFechadas = [...set];
+    salvarPrefs();
+    avisar();
+  },
   async statusof(el) {
     const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda em rascunho: a corrente não vê.', encerrado: 'Oferenda encerrada: a corrente não vê mais.' };
     if (await acaoOferendas('status', { id: el.dataset.id, status: el.dataset.v })) toast(t[el.dataset.v]);
