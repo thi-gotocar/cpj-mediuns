@@ -213,12 +213,16 @@ export function render() {
   const anteriores = lista.filter((o) => o.data < hj).reverse();
   let h = `<section class="panel">`;
   if (admin) {
-    h += `<div class="card"><h2>Nova oferenda</h2><form id="f-of" class="row" autocomplete="off">
+    // Começa minimizado; abre ao tocar no título (aberto já se ainda não houver nenhuma oferenda).
+    const novaAberta = U().novaAberta ?? !lista.length;
+    h += `<div class="card"><button class="grp-h dobra" data-act="dobrarnova" aria-expanded="${novaAberta}"><h2>＋ Nova oferenda</h2><span class="count"><span class="seta" aria-hidden="true">${novaAberta ? '▾' : '▸'}</span></span></button>`;
+    if (novaAberta) h += `<form id="f-of" class="row" autocomplete="off">
       <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
       <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
       <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" style="margin-top:3px"><span>Uma linha para cada médium<br><span class="muted" style="font-size:.85rem">Médiuns, Extras e Passe. Em cada linha o admin marca Pendente, Entregue, Pago, Não pago ou Não vai.</span></span></label>
-      <button class="btn primary" type="submit">Criar</button></form></div>`;
+      <button class="btn primary" type="submit">Criar</button></form>`;
+    h += `</div>`;
   }
   if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda ainda. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação no momento. Quando o admin publicar, ela aparece aqui.'}</p></div></section>`;
   h += proximas.map((o) => cardOferenda(o, admin)).join('');
@@ -239,6 +243,7 @@ const achar = (id) => {
 };
 
 export const cliques = {
+  dobrarnova() { U().novaAberta = !(U().novaAberta ?? !estado.oferendas.oferendas.length); avisar(); },
   ofmais(el) {
     const { item } = achar(el.dataset.id);
     const eu = estado.oferendas.eu;
