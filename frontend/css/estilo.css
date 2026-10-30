@@ -281,3 +281,8 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-bt.publicado.ligado:disabled{opacity:1}
 .st-of.encerrado{background:#fbefc4;color:#7a5600}
 .of-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.ga-colar{display:grid;gap:8px}
+.ga-colar summary{cursor:pointer;color:var(--accent);font-weight:700}
+.ga-colar textarea{min-height:140px;font-family:var(--f-mono);font-size:.82rem}
+.ga-rel{display:grid;gap:8px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
+.ga-map select{width:100%}

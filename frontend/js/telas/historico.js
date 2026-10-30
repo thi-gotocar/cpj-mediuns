@@ -3,6 +3,28 @@
 import { recebe, ehCambone, ordRecebe, status, FUNCOES, STATUS, STATUS_KEYS, LINHAS, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
+import { lerResumo, casarNomes } from '/shared/resumo.js';
+
+// Resultado da leitura da mensagem: o que foi reconhecido e o que precisa de ajuste.
+function relatorioResumo(F, ps) {
+  const R = F.relatorio;
+  if (!R) return '';
+  const g = { data: F.data, presenca: F.presenca };
+  const n = (...st) => ps.filter((p) => st.includes(status(p, g))).length;
+  let h = `<div class="ga-rel"><b>Mensagem lida.</b>
+    <div class="muted" style="font-size:.88rem">Na mensagem: ${R.contagem.presentes ?? '?'} presentes · ${R.contagem.ausentes ?? '?'} ausentes${R.contagem.licenca ? ` · ${R.contagem.licenca} em licença` : ''}.
+      No app: ${n('p', 'na', 'sup')} presentes · ${n('a', 'f')} ausentes${n('lic') ? ` · ${n('lic')} de licença` : ''} (de ${ps.length} na corrente).</div>`;
+  const prov = R.casados.filter((c) => c.pessoa && c.provavel);
+  if (prov.length) h += `<div style="font-size:.88rem">Confira (reconhecidos por aproximação): ${prov.map((c) => `${esc(c.lido)} → <b>${esc(c.pessoa.nome)}</b>`).join(' · ')}</div>`;
+  const faltam = R.casados.map((c, i) => ({ ...c, i })).filter((c) => !c.pessoa);
+  if (faltam.length) {
+    h += `<div class="warnbox">Não achei na corrente — escolha quem é (ou deixe em branco para ignorar):</div>
+      ${faltam.map((c) => `<label class="field ga-map">${esc(c.lido)}${c.licenca ? ' (em licença)' : ''}<select data-act="gamap" data-i="${c.i}"><option value="">— ignorar —</option>
+        ${c.candidatos.length ? `<optgroup label="Parecidos">${c.candidatos.map((nm) => { const p = ps.find((x) => x.nome === nm); return p ? `<option value="${p.id}" ${c.escolhido === p.id ? 'selected' : ''}>${esc(p.nome)}</option>` : ''; }).join('')}</optgroup>` : ''}
+        <optgroup label="Todos">${ps.map((p) => `<option value="${p.id}" ${c.escolhido === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</optgroup></select></label>`).join('')}`;
+  }
+  return h + `</div>`;
+}
 
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
 const somaAt = (a) => ATEND.reduce((s, [k]) => s + (Number(a?.[k]) || 0), 0);
@@ -15,9 +37,15 @@ function cardGiraAntiga(ps) {
   const g = { data: F.data, presenca: F.presenca };
   let h = `<div class="card" id="card-ga"><h2>Cadastrar gira antiga</h2>
     <p class="muted" style="margin:0;font-size:.88rem">Só para o histórico: data, gira, presença e atendidos. Não tem escala de médiuns e não entra no rodízio. A gira fica salva como encerrada.</p>
+    <details class="ga-colar"${F.relatorio ? '' : ' open'}><summary>Colar o resumo do evento (WhatsApp)</summary>
+      <textarea id="ga-msg" rows="7" placeholder="RESUMO DO EVENTO&#10;Data: 30/09/2026&#10;…&#10;AUSENTES&#10;❌ Nome T8">${esc(F.msg || '')}</textarea>
+      <button class="btn primary" data-act="galer">Ler mensagem</button>
+      <p class="muted" style="margin:0;font-size:.82rem">Preenche a data, os ausentes e os atendidos. Quem não estiver na lista de ausentes fica como presente. Confira tudo antes de salvar.</p>
+    </details>
+    ${relatorioResumo(F, ps)}
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="ga-data" data-act="gacampo" data-k="data" value="${esc(F.data)}" max="${hoje()}"></label>
-      <label class="field grow">Gira<select id="ga-ent" data-act="gacampo" data-k="entidade"><option value="">— escolha —</option>
+      <label class="field grow">Gira (opcional)<select id="ga-ent" data-act="gacampo" data-k="entidade"><option value="">— escolha —</option>
         ${LINHAS.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, l]) => `<option ${l === F.entidade ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select></label>
     </div>`;
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;
@@ -95,6 +123,26 @@ export const cliques = {
     avisar();
   },
   gacancelar() { estado.giraAntiga = null; avisar(); },
+  // Lê a mensagem colada e preenche o formulário.
+  galer() {
+    const F = estado.giraAntiga;
+    F.msg = document.getElementById('ga-msg').value;
+    const r = lerResumo(F.msg);
+    if (!r.data && !r.ausentes.length) { toast('Não reconheci a mensagem. Cole o “RESUMO DO EVENTO” completo.'); return; }
+    const ps = pessoasOrd();
+    const casados = [
+      ...casarNomes(r.ausentes, ps),
+      ...casarNomes(r.licenca, ps).map((c) => ({ ...c, licenca: true })),
+    ];
+    if (r.data) F.data = r.data;
+    F.at = { ...r.atendimentos };
+    F.presenca = {};
+    casados.forEach((c) => { if (c.pessoa) F.presenca[c.pessoa.id] = 'a'; });
+    F.relatorio = { contagem: r.contagem, casados };
+    const ok = casados.filter((c) => c.pessoa).length;
+    toast(`Lido: ${r.data ? r.data.split('-').reverse().join('/') : 'sem data'} · ${ok} de ${casados.length} ausentes reconhecidos.`);
+    avisar();
+  },
   gatodos(el) {
     const F = estado.giraAntiga;
     F.presenca = {};
@@ -106,7 +154,6 @@ export const cliques = {
     if (!F.data) { toast('Informe a data do evento.'); return; }
     if (F.data > hoje()) { toast('A data é no futuro. Use a aba Gira para giras que ainda vão acontecer.'); return; }
     if (estado.giras[F.data]) { toast(`Já existe uma gira em ${F.data.split('-').reverse().join('/')}. Abra pelo histórico para alterar.`); return; }
-    if (!F.entidade) { toast('Escolha a gira.'); return; }
     const presenca = Object.fromEntries(Object.entries(F.presenca).filter(([, s]) => s !== 'p'));
     const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, presenca, atendimentos: F.at });
     if (ok) { toast('Gira antiga cadastrada.'); estado.giraAntiga = null; avisar(); }
@@ -123,6 +170,15 @@ export const mudancas = {
   gastatus(t) {
     const F = estado.giraAntiga;
     if (t.value === 'p') delete F.presenca[t.dataset.id]; else F.presenca[t.dataset.id] = t.value;
+    avisar();
+  },
+  // Escolhe a pessoa para um nome que não foi reconhecido.
+  gamap(t) {
+    const F = estado.giraAntiga;
+    const c = F.relatorio.casados[+t.dataset.i];
+    if (c.escolhido) delete F.presenca[c.escolhido];
+    c.escolhido = t.value || null;
+    if (t.value) F.presenca[t.value] = 'a';
     avisar();
   },
   gaat(t) { const n = parseInt(t.value, 10); estado.giraAntiga.at[t.dataset.k] = Number.isFinite(n) && n >= 0 ? n : 0; },
