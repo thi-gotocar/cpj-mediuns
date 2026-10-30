@@ -368,3 +368,10 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .enc-limp select{width:auto;padding:5px 8px;font-size:.9rem}
 .enc-limp-sec{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--accent);padding-top:8px;margin-top:2px}
 .enc-limp-sec:not(:has(*)){display:none}
+
+/* Ervas: resumo do meu pedido no primeiro bloco */
+.meu-ped{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:8px;font-variant-numeric:tabular-nums}
+.meu-ped ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.meu-ped li,.meu-tot{display:flex;justify-content:space-between;gap:10px}
+.meu-tot{border-top:1px solid var(--line);padding-top:6px;margin-top:2px;font-size:1.05rem}
+.meu-ped li>:last-child,.meu-tot b{white-space:nowrap;text-align:right}

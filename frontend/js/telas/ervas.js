@@ -235,12 +235,19 @@ function cardPedidos(E) {
 }
 
 // Cabeçalho com a gira e a data do pedido (todos veem; só o admin altera, no quadro Compra).
+// Primeiro bloco: a gira do pedido e o resumo do meu pedido (uma erva por linha e o total).
 function cabecalho(E) {
   const ev = linhaEvento({ gira: E.gira, data: E.data });
-  if (!ev) return '';
   const [y, m, d] = (E.data || '').split('-');
-  return `<div class="card"><div class="datehead"><span class="eyebrow">Pedido de ervas</span>
-    ${E.data ? `<span class="dia">${d}/${m}/${y}</span>` : ''}${E.gira ? `<span class="ent">${esc(E.gira)}</span>` : ''}</div></div>`;
+  const meu = E.ervas.length ? meuPedido(E, simular(E)) : { itens: [] };
+  const resumo = meu.itens.length
+    ? `<div class="meu-ped"><span class="eyebrow">Seu pedido</span>
+        <ul>${meu.itens.map((i) => `<li><span>${i.quantidade > 1 ? `${i.quantidade}× ` : ''}${esc(i.nome)}</span><b>${i.semPreco ? 'a definir' : '≈ ' + reais(i.valor)}</b></li>`).join('')}${meu.frete ? `<li class="muted"><span>Frete (sua parte)</span><span>≈ ${reais(meu.frete)}</span></li>` : ''}</ul>
+        <div class="meu-tot"><span>Valor total</span><b>≈ ${reais(meu.total)}${meu.pendente ? ' + a definir' : ''}</b></div></div>`
+    : `<p class="muted" style="margin:0;font-size:.9rem">Você ainda não escolheu nenhuma erva.</p>`;
+  return `<div class="card">${ev ? `<div class="datehead"><span class="eyebrow">Pedido de ervas</span>
+    ${E.data ? `<span class="dia">${d}/${m}/${y}</span>` : ''}${E.gira ? `<span class="ent">${esc(E.gira)}</span>` : ''}</div>` : '<h2>Pedido de ervas</h2>'}
+    ${resumo}</div>`;
 }
 
 export function render() {
