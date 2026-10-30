@@ -102,7 +102,14 @@ const seloPct = (pct, title) => `<span class="badge ${corPct(pct)}" style="text-
 const PRES = ['p', 'na', 'sup'];
 const AUS = ['a', 'f'];
 const pos = (i) => `<span class="st-pos">${i + 1}º</span>`;
-const barra = (v, max, cor) => `<span class="st-bar"><i class="${cor}" style="width:${max ? Math.max(4, Math.round((v / max) * 100)) : 0}%"></i></span>`;
+// Barra com a porcentagem escrita: v de "total" (ex.: 3 presenças em 4 giras = 75%).
+const pctDe = (v, total) => (total ? Math.round((v / total) * 100) : 0);
+// O número fica dentro da parte colorida (em branco) quando cabe; senão, logo depois dela.
+const barra = (v, total, cor) => {
+  const pc = pctDe(v, total);
+  const dentro = pc >= 45;
+  return `<span class="st-bar" title="${pc}%"><i class="${cor}" style="width:${Math.max(pc, 2)}%"></i><em class="${dentro ? 'dentro' : ''}" style="${dentro ? `right:${100 - pc}%` : `left:${Math.max(pc, 2)}%`}">${pc}%</em></span>`;
+};
 
 function cardEstatisticas(todas, ps) {
   if (!todas.length) return '';
@@ -129,7 +136,7 @@ function cardEstatisticas(todas, ps) {
     const max = lista.length ? lista[0][k] : 0;
     const ver = mais[k] ? lista : lista.slice(0, 5);
     return `<div class="st-bloco"><h3>${titulo}</h3>
-      ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.p.nome)}</span>${barra(x[k], max, cor)}<span class="st-num">${linha(x)}</span></li>`).join('')}</ol>
+      ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.p.nome)}</span>${barra(x[k], x.base, cor)}<span class="st-num">${linha(x)}</span></li>`).join('')}</ol>
       ${lista.length > 5 ? `<button class="btn link small" data-act="stmais" data-k="${k}">${mais[k] ? 'Ver menos' : `Ver mais (${lista.length})`}</button>` : ''}`
       : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém por aqui.</p>'}</div>`;
   };
@@ -139,16 +146,26 @@ function cardEstatisticas(todas, ps) {
   // Top 3 giras com mais atendidos.
   const comAt = gs.filter((g) => g.atendimentos && somaAt(g.atendimentos) > 0)
     .sort((a, b) => somaAt(b.atendimentos) - somaAt(a.atendimentos) || b.data.localeCompare(a.data)).slice(0, 3);
-  const maxAt = comAt.length ? somaAt(comAt[0].atendimentos) : 0;
+  const totAt = Object.fromEntries(ATEND.map(([k]) => [k, gs.reduce((s, g) => s + (Number(g.atendimentos?.[k]) || 0), 0)]));
+  const maxAt = somaAt(totAt);   // % de cada gira sobre o total de atendidos do período
   // Top 3 giras (linha/tipo) que mais tivemos.
   const cont = {};
   gs.forEach((g) => { const n = nomeGira(g.entidade); if (n) cont[n] = (cont[n] || 0) + 1; });
   const tipos = Object.entries(cont).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
-  const maxTipo = tipos.length ? tipos[0][1] : 0;
+  const maxTipo = gs.length;   // % sobre as giras do período
+  // Média de presença da corrente no período (giras com presença confirmada).
+  const pcts = gs.map((g) => presencaGira(ps, g).pct).filter((x) => x !== null);
+  const media = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+  const giraAt = gs.filter((g) => g.atendimentos).length;
 
   return `<div class="card st"><div class="grp-h"><h2>Estatísticas</h2>
       <select data-act="stano" aria-label="Período das estatísticas">${anos.map((a) => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}<option value="todos" ${ano === 'todos' ? 'selected' : ''}>Todos os anos</option></select></div>
     <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}. Licenças não contam.</p>
+    <div class="st-resumo">
+      <div><span class="muted">Total de atendimentos${giraAt ? ` <span style="font-size:.8rem">(${giraAt} gira${giraAt === 1 ? '' : 's'})</span>` : ''}</span><b class="st-grande">${somaAt(totAt)}</b>
+        <span class="st-det2">${ATEND.map(([k, t]) => `${t} <b>${totAt[k]}</b>`).join(' · ')}</span></div>
+      <div><span class="muted">Média de presença da corrente</span>${media !== null ? `<b class="st-grande">${media}%</b>${barra(media, 100, media >= 80 ? 'ok' : media >= 60 ? 'warn' : 'off')}` : '<b class="st-grande">—</b>'}</div>
+    </div>
     <div class="st-grid">
       ${ranking('pres', 'Mais presentes', 'ok', presentes, (x) => `<b>${x.pres}</b> de ${x.base}`)}
       ${ranking('aus', 'Mais faltas e ausências', 'off', faltantes, (x) => `<b>${x.aus}</b>${x.f ? ` <span class="muted">(${x.f} falta${x.f > 1 ? 's' : ''})</span>` : ''}`)}

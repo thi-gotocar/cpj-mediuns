@@ -301,13 +301,16 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 18px;margin-top:8px}
 .st-bloco h3{margin:0 0 6px;font-size:.95rem}
 .st-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
-.st-lista li{display:grid;grid-template-columns:28px minmax(0,1fr) 70px auto;align-items:center;gap:4px 8px;font-size:.9rem}
+.st-lista li{display:grid;grid-template-columns:28px minmax(0,1fr) 80px auto;align-items:center;gap:4px 8px;font-size:.9rem}
 .st-pos{font-weight:700;color:var(--muted)}
 .st-lista li:nth-child(1) .st-pos{color:var(--gold)}
 .st-nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st-nome .hi-gira{display:inline-block;color:var(--orange);font-weight:700;border:1.5px solid var(--orange);border-radius:6px;padding:0 6px;margin-right:6px;font-size:.85rem}
-.st-bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
-.st-bar i{display:block;height:100%;border-radius:4px}
+.st-bar{position:relative;height:18px;border-radius:9px;background:var(--line);overflow:hidden}
+.st-bar i{display:block;height:100%;border-radius:9px}
+.st-bar em{position:absolute;top:0;bottom:0;display:flex;align-items:center;padding:0 6px;font:700 .72rem var(--f-body);font-style:normal;color:var(--ink);white-space:nowrap}
+.st-bar em.dentro{color:#fff}
+.st-bar i.warn{background:var(--warn)}
 .st-bar i.ok{background:var(--ok)} .st-bar i.off{background:var(--off)} .st-bar i.acc{background:var(--accent)} .st-bar i.or{background:var(--orange)}
 .st-num{white-space:nowrap;text-align:right}
 .st-det{grid-column:2 / -1;font-size:.8rem;color:var(--muted);margin-top:-3px}
@@ -416,3 +419,9 @@ body.deslogado .rodape{display:none}
 .topo-logo{width:52px;height:52px;flex:none;border-radius:14px;background:#fff;padding:3px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .topo-id .eyebrow{display:block;margin-bottom:8px;color:var(--gold)}
 .sync:empty{display:none}
+
+/* Estatísticas: totais do período */
+.st-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.st-resumo > div{display:flex;flex-direction:column;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.st-grande{font:700 1.6rem var(--f-display);line-height:1.1}
+.st-det2{font-size:.85rem;color:var(--muted)}
