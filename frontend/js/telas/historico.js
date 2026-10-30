@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, presente } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, montarBackup, importarBackup, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 
@@ -22,10 +22,12 @@ export function render() {
   else {
     h += `<div class="hist">`;
     gs.forEach((g) => {
-      const np = ps.filter((p) => presente(p, g)).length;
+      // Presentes = quem esteve na gira (presente, não atende ou suporte).
+      const n = (...sts) => ps.filter((p) => sts.includes(status(p, g))).length;
+      const nLic = n('lic');
       const conf = estado.confirm === 'g:' + g.data;
       h += `<div class="hi"><div><div class="d">${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span></div>
-        <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${(g.pares || []).length} duplas · ${np} presentes${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
+        <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
         ${g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
         <div class="acts"><button class="btn small" data-act="abrir" data-d="${g.data}">Abrir</button>
         ${pode('giras:excluir') ? (conf ? `<button class="btn small danger" data-act="delgira" data-d="${g.data}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="g:${g.data}">Excluir</button>`) : ''}</div></div>`;
