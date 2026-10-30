@@ -135,7 +135,7 @@ export function render() {
       ${editar ? `<button class="btn link" data-act="todos" data-f="${f.k}" data-v="${np === gp.length ? 'a' : 'p'}">${np === gp.length ? 'marcar ausentes' : 'todos presentes'}</button>` : ''}</span></div>
       <div class="plist">${gp.map((p) => {
         const s = status(p, g);
-        const xp = p.experiente && p.funcao === 'medium' ? ' <span class="xp" title="Pode ter médium de passe junto">P</span>' : '';
+        const xp = p.experiente && p.funcao === 'medium' ? ' <span class="xp" title="Pode ter médium de passe junto" aria-label="Pode ter médium de passe junto">★</span>' : '';
         const hoje = funcaoNaGira(p, g) !== p.funcao ? ' <span class="badge rep" title="Esta entidade não está nas linhas da pessoa">hoje: cambone</span>' : '';
         const lic = licencaEm(p, g.data);
         const ctl = lic
