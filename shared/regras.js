@@ -37,11 +37,18 @@ export const LINHAS = [
 // cada um atua na própria função cadastrada.
 export const GIRAS_ESPECIAIS = [['interna', 'Gira interna']];
 export const ehGiraInterna = (entidade) => normalizar(entidade) === 'gira interna' || normalizar(entidade) === 'interna';
-// Opções do seletor "Gira / entidade do dia": as linhas e as giras especiais.
-export const OPCOES_GIRA = [...LINHAS, { grupo: 'Outras', itens: GIRAS_ESPECIAIS }];
+// Giras que juntam mais de uma linha. Só existem como gira (não se marcam na pessoa):
+// quem tem qualquer uma das linhas juntas atua na própria função.
+export const GIRAS_JUNTAS = [['exus-pombagira', 'Exus & Pombagira', ['exu', 'pomba-gira']]];
+const JUNTAS = Object.fromEntries(GIRAS_JUNTAS.map(([k, , ls]) => [k, ls]));
+// Opções do seletor "Gira / entidade do dia": as linhas, as juntas (na Esquerda) e as especiais.
+export const OPCOES_GIRA = [
+  ...LINHAS.map((g) => (g.grupo === 'Esquerda' ? { ...g, itens: [...g.itens, ...GIRAS_JUNTAS.map(([k, l]) => [k, l])] } : g)),
+  { grupo: 'Outras', itens: GIRAS_ESPECIAIS },
+];
 
 export const LINHA_KEYS = LINHAS.flatMap((g) => g.itens.map(([k]) => k));
-export const LINHA_LABEL = Object.fromEntries(LINHAS.flatMap((g) => g.itens));
+export const LINHA_LABEL = Object.fromEntries([...LINHAS.flatMap((g) => g.itens), ...GIRAS_JUNTAS.map(([k, l]) => [k, l])]);
 
 const normalizar = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
 const APELIDOS = {};
@@ -52,6 +59,8 @@ LINHAS.flatMap((g) => g.itens).forEach(([k, label]) => {
   APELIDOS[n.replace(/ /g, '')] = k;                           // junto: "Pombagira"
 });
 APELIDOS[normalizar('Ere')] = 'eres';
+['Exus & Pombagira', 'Exus e Pombagiras', 'Exu e Pomba Gira', 'Exus e Pombas Giras', 'Exu & Pombagira', 'Exus e Pombagira']
+  .forEach((t) => { APELIDOS[normalizar(t)] = 'exus-pombagira'; });
 APELIDOS[normalizar('Erê')] = 'eres';
 
 // Linha correspondente ao texto da entidade da gira (ou null se não for uma das linhas).
@@ -67,7 +76,7 @@ export function funcaoNaGira(p, g) {
   if (!usaLinhas(p)) return p.funcao;
   const linha = linhaDaEntidade(g.entidade);
   if (!linha) return p.funcao; // gira sem entidade definida: ninguém é convertido
-  return p.linhas.includes(linha) ? p.funcao : 'cambone';
+  return (JUNTAS[linha] || [linha]).some((l) => p.linhas.includes(l)) ? p.funcao : 'cambone';
 }
 
 // Lista de pessoas com a função que cada uma exerce nesta gira.

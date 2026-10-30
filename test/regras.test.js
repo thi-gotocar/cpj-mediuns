@@ -64,3 +64,16 @@ test('gira interna: ninguém é convertido e não vira linha', async () => {
   assert.equal(funcaoNaGira({ funcao: 'passe', linhas: ['exu'] }, { entidade: 'Gira interna' }), 'passe');
   assert.ok(OPCOES_GIRA.some((g) => g.itens.some(([, l]) => l === 'Gira interna')));
 });
+
+test('gira Exus & Pombagira: quem tem Exu ou Pomba Gira atua; os outros cambonam', async () => {
+  const { linhaDaEntidade, funcaoNaGira, OPCOES_GIRA, LINHA_KEYS } = await import('../shared/regras.js');
+  const g = { entidade: 'Exus & Pombagira' };
+  assert.equal(linhaDaEntidade('Exus & Pombagira'), 'exus-pombagira');
+  assert.equal(linhaDaEntidade('Exu e Pomba Gira'), 'exus-pombagira');
+  assert.equal(linhaDaEntidade('Exu'), 'exu');
+  assert.equal(funcaoNaGira({ funcao: 'extra', linhas: ['exu'] }, g), 'extra');
+  assert.equal(funcaoNaGira({ funcao: 'passe', linhas: ['pomba-gira'] }, g), 'passe');
+  assert.equal(funcaoNaGira({ funcao: 'extra', linhas: ['caboclo'] }, g), 'cambone');
+  assert.ok(OPCOES_GIRA.find((x) => x.grupo === 'Esquerda').itens.some(([, l]) => l === 'Exus & Pombagira'));
+  assert.ok(!LINHA_KEYS.includes('exus-pombagira'), 'não é linha da pessoa');
+});
