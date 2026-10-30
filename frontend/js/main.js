@@ -57,7 +57,13 @@ function render() {
   try { if (fid && a.selectionStart != null) { ss = a.selectionStart; se = a.selectionEnd; } } catch { /* input sem seleção */ }
   main.innerHTML = TELAS[prefs.tab].render();
   if (fid) {
-    const el = document.getElementById(fid);
+    let el = document.getElementById(fid);
+    // Campo de data em uso: mantém o mesmo elemento (no celular, trocar o elemento
+    // com o seletor de data aberto fecha ou trava o seletor).
+    if (el && a.tagName === 'INPUT' && a.type === 'date' && el.tagName === 'INPUT' && el.type === 'date') {
+      el.replaceWith(a);
+      el = a;
+    }
     if (el && el !== document.body) {
       el.focus({ preventScroll: true });
       try { if (ss != null) el.setSelectionRange(ss, se); } catch { /* ignora */ }

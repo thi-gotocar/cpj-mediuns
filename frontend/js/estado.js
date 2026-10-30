@@ -65,8 +65,12 @@ export async function carregarTudo() {
 }
 
 // Busca o que outras pessoas mudaram (ao voltar para a aba do app).
+let ultimaAtualizacao = 0;
 export async function atualizarDoServidor() {
   if (!estado.pronto || estado.salvando || Object.keys(pendente).length) return;
+  // Evita buscar de novo a cada foco (no celular, abrir e fechar o seletor de data dispara foco).
+  if (Date.now() - ultimaAtualizacao < 15000) return;
+  ultimaAtualizacao = Date.now();
   try {
     const [pessoas, giras] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras')]);
     estado.pessoas = pessoas;
