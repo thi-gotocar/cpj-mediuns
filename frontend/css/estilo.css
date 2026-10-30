@@ -106,7 +106,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .hi:last-child{border-bottom:0}
 .hi .d{font-weight:700;text-transform:capitalize}
 .hi .acts{display:flex;gap:6px}
-.hi .hi-gira{color:var(--orange);font-weight:700;text-transform:none;margin-right:2px}
+.hi .hi-gira{display:inline-block;color:var(--orange);font-weight:700;text-transform:none;border:1.5px solid var(--orange);border-radius:6px;padding:0 7px;margin-right:6px;line-height:1.5;font-size:.92rem}
 .matrix{overflow-x:auto}
 .matrix table{border-collapse:collapse;font-size:.85rem;font-variant-numeric:tabular-nums}
 .matrix th,.matrix td{border:1px solid var(--line);padding:5px 8px;text-align:center;white-space:nowrap}

@@ -122,8 +122,8 @@ export function render() {
       const nLic = n('lic');
       const conf = estado.confirm === 'g:' + g.data;
       const pr = presencaGira(ps, g);
-      h += `<div class="hi"><div><div class="d">${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
-        <span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira não definida')}</span>
+      h += `<div class="hi"><div><div class="d"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira não definida')}</span>
+        ${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
         ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ' (sem contar quem estava de licença)' : ''}`) : ''}</div>
         <div class="muted" style="font-size:.9rem">${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
         ${g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
