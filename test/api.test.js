@@ -249,6 +249,29 @@ test('perfis admin oferendas e admin ervas: cada um administra só a sua aba', a
   for (const o of lista.filter((x) => x.titulo === 'Teste')) await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: o.id });
 });
 
+test('admin só entra como admin com o e-mail dele; pelo cpj entra como corrente', async () => {
+  // Liga um admin a uma pessoa da corrente e tenta entrar pelo acesso da corrente com o nome dele.
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Admin Pessoa', funcao: 'senha' });
+  const pe = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Admin Pessoa');
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, email: 'adm2@corrente.org', senha: 'senha-forte-9', papel: 'admin' })).status, 200);
+  const pelaCorrente = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Admin Pessoa' })).json;
+  assert.equal(pelaCorrente.usuario.papel, 'corrente');
+  const tc = pelaCorrente.token;
+  assert.equal((await api('GET', '/api/auth/me', tc)).json.papel, 'corrente');
+  assert.equal((await api('POST', '/api/giras/2027-05-01/sortear', tc)).status, 403);
+  assert.equal((await api('GET', '/api/usuarios', tc)).status, 403);
+  assert.equal((await api('POST', '/api/ervas', tc, { acao: 'config', frete: '1' })).status, 403);
+  assert.equal((await api('POST', '/api/oferendas', tc, { acao: 'salvar', titulo: 'X', data: '2027-05-01' })).status, 403);
+  // Com o e-mail e a senha dele, é admin.
+  const pelaConta = (await api('POST', '/api/auth/entrar', null, { email: 'adm2@corrente.org', senha: 'senha-forte-9' })).json;
+  assert.equal(pelaConta.usuario.papel, 'admin');
+  assert.equal((await api('GET', '/api/usuarios', pelaConta.token)).status, 200);
+  // O nome no lugar do e-mail não serve para entrar como admin.
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'Admin Pessoa', senha: 'senha-forte-9' })).status, 401);
+  const u = (await api('GET', '/api/usuarios', ADMIN)).json.find((x) => x.email === 'adm2@corrente.org');
+  await api('DELETE', '/api/usuarios/' + u.id, ADMIN);
+});
+
 test('gestão de usuários: só admin, com travas', async () => {
   assert.equal((await api('GET', '/api/usuarios', USER)).status, 403);
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Novo', funcao: 'senha' });
