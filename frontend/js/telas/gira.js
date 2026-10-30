@@ -97,6 +97,25 @@ function blocosFora(ps, g) {
   }).join('');
 }
 
+// Ao lado da data: para o admin, numa gira em aberto, "Encerrar gira"; nos outros casos, "Próxima gira".
+function botaoTopo(g, editar, existe) {
+  if (!(editar && existe)) return `<button class="btn prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Próxima gira</button>`;
+  if (estado.confirm === 'enc:' + g.data) return `<button class="btn prox-gira" data-act="cancelenc">Cancelar</button>`;
+  const pend = pendentesDaGira(estado.pessoas, g).length;
+  return pend
+    ? `<button class="btn prox-gira enc-bt" data-act="encpend" data-n="${pend}" title="Confirme a presença de todos antes de encerrar">Encerrar gira</button>`
+    : `<button class="btn prox-gira enc-bt" data-act="askdel" data-k="enc:${g.data}">Encerrar gira</button>`;
+}
+
+// Encerrar: pede os atendimentos.
+function caixaEncerrar(g) {
+  const a = g.atendimentos || {};
+  return `<div class="infobox enc"><span><b>Encerrar a gira.</b> Quantas pessoas foram atendidas? (pode ser 0)</span>
+    <div class="row">${ATEND.map(([k, t]) => `<label class="field" style="flex:1 1 90px">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" value="${a[k] ?? 0}"></label>`).join('')}</div>
+    <span class="muted" style="font-size:.85rem">Quem estava para cambonar e não ficou com nenhum médium, e médium de passe sem médium, vão para o <b>Suporte</b>. Depois disso a escala não muda até ser reaberta; ao reabrir, essas pessoas voltam para a lista.</span>
+    <span class="row"><button class="btn small primary" data-act="encerrar">Encerrar</button><button class="btn small" data-act="cancelenc">Cancelar</button></span></div>`;
+}
+
 // Próxima quarta-feira (hoje, se hoje for quarta).
 function proximaQuarta() {
   const d = pd(hoje());
@@ -175,7 +194,7 @@ function resultado(g) {
   const comDuplas = lista.some((x) => x.cams.length || x.passes.length);
   if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
   const aberto = duplasAbertas.has(g.data);
-  let h = `<div class="card"><div class="grp-h"><h2>Médiuns e cambones</h2>${botaoDobrar(aberto)}</div>`;
+  let h = `<div class="card"><div class="grp-h"><h2>Sorteio</h2>${botaoDobrar(aberto)}</div>`;
   if (!aberto) return h + `${blocosFora(pessoasOrd().filter(contaNaPresenca), g)}</div>`;
   h += `<div class="pairs">`;
   lista.forEach((x) => {
@@ -208,11 +227,12 @@ export function render() {
     <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
       <div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
-      <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span><button class="btn prox-gira" data-act="proxgira" title="Vai para a próxima quarta-feira">Próxima gira</button></div></div>
+      <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span>${botaoTopo(g, editar, existe)}</div></div>
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
       ${editar && temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
       ${editar && temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
     </div>
+    ${editar && existe && estado.confirm === 'enc:' + g.data ? caixaEncerrar(g) : ''}
     ${encerrada ? '' : blocoLimpeza(g, admin)}
     ${encerrada ? `<div class="infobox"><div class="enc-info"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>
       ${g.atendimentos ? `<span>${textoAtendimentos(g.atendimentos)}</span>` : ''}
@@ -316,23 +336,12 @@ export function render() {
     </div>`;
   };
   const aberto = manual || duplasAbertas.has(g.data);
-  h += `<div class="card"><div class="grp-h"><h2>Médiuns e cambones</h2>
+  h += `<div class="card"><div class="grp-h"><h2>Sorteio</h2>
       <div class="row">${manual ? '' : botaoDobrar(aberto)}${sortearOk ? (temDuplas
         ? '<button class="btn primary" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button>'
         : '<button class="btn primary" data-act="sortear">Sortear</button>') : ''}
       ${editar && !passada ? `<button class="btn" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>` : ''}
-      ${editar && (temDuplas || existe) && estado.confirm !== 'enc:' + g.data ? (() => {
-        const pend = pendentesDaGira(estado.pessoas, g).length;
-        return pend ? `<button class="btn" data-act="encpend" data-n="${pend}" title="Confirme a presença de todos antes de encerrar">Encerrar gira (${pend} pendente${pend > 1 ? 's' : ''})</button>`
-          : `<button class="btn" data-act="askdel" data-k="enc:${g.data}">Encerrar gira</button>`;
-      })() : ''}</div></div>`;
-  if (editar && estado.confirm === 'enc:' + g.data) {
-    const a = g.atendimentos || {};
-    h += `<div class="infobox enc"><span><b>Encerrar a gira.</b> Quantas pessoas foram atendidas? (pode ser 0)</span>
-      <div class="row">${ATEND.map(([k, t]) => `<label class="field" style="flex:1 1 90px">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" value="${a[k] ?? 0}"></label>`).join('')}</div>
-      <span class="muted" style="font-size:.85rem">Quem estava para cambonar e não ficou com nenhum médium, e médium de passe sem médium, vão para o <b>Suporte</b>. Depois disso a escala não muda até ser reaberta; ao reabrir, essas pessoas voltam para a lista.</span>
-      <span class="row"><button class="btn small primary" data-act="encerrar">Encerrar</button><button class="btn small" data-act="cancelenc">Cancelar</button></span></div>`;
-  }
+      </div></div>`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
   if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;

@@ -381,3 +381,4 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-ctl{display:flex;align-items:center;gap:6px;flex:none}
 .sup-bt{font:700 .75rem var(--f-body);border-radius:6px;padding:5px 8px;border:1px solid var(--line);background:var(--line);color:var(--muted);cursor:pointer}
 .sup-bt.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.prox-gira.enc-bt{border-color:var(--warn);color:var(--warn)}
