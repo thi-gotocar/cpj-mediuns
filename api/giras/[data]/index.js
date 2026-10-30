@@ -7,7 +7,7 @@
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -91,7 +91,10 @@ export default rota({
     if (acao === 'reiniciar') {
       if (atual?.encerrada) throw new HttpError(409, 'A gira está encerrada. Reabra antes de reiniciar.');
       await db.rpc('gira_excluir', { data });
-      return { gira: await db.rpc('gira_salvar', { data, usuario: perfil.id }), mensagem: 'Gira reiniciada: todos voltaram para Pendente.' };
+      // Volta com a próxima turma da limpeza do rodízio (como uma gira nova).
+      const turma = proximaTurma(pessoas, await db.rpc('giras_listar'), data);
+      const gira = await db.rpc('gira_salvar', { data, usuario: perfil.id, ...(turma ? { limpeza: turma } : {}) });
+      return { gira, mensagem: `Gira reiniciada: todos voltaram para Pendente.${turma ? ` Turma da limpeza: Turma ${turma}.` : ''}` };
     }
     if (acao === 'reabrir') {
       if (!atual?.encerrada) return { gira: atual || giraVazia(data), mensagem: 'A gira já estava aberta.' };

@@ -674,7 +674,10 @@ test('reiniciar gira em aberto: volta tudo ao início, só a data fica', async (
   const r = (await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'reiniciar' })).json;
   assert.equal(r.gira.entidade, '');
   assert.equal(r.gira.orixa, '');
-  assert.equal(r.gira.limpeza, null);
+  // volta com a próxima turma do rodízio (ou vazia, se ninguém tiver turma)
+  const pss = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const temTurma = pss.some((x) => x.limpeza);
+  assert.equal(r.gira.limpeza === null, !temTurma);
   assert.deepEqual(r.gira.presenca, {});
   assert.deepEqual(r.gira.pares, []);
   assert.equal(r.gira.pendentePadrao, true);
@@ -688,4 +691,21 @@ test('entrada na corrente: só o admin root altera', async () => {
   assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { entrada: '2026-03-01' })).json.entrada, '2026-03-01');
   assert.equal((await api('PATCH', '/api/pessoas/' + p.id, USER, { entrada: '2026-03-01' })).status, 403);
   assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { entrada: null })).json.entrada, null);
+});
+
+test('reiniciar: a turma da limpeza volta para a próxima do rodízio', async () => {
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const comTurma = ps.filter((p) => p.limpeza);
+  for (const p of comTurma) await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: null });
+  await api('PATCH', '/api/pessoas/' + ps[0].id, ADMIN, { limpeza: 3 });
+  await api('PATCH', '/api/pessoas/' + ps[1].id, ADMIN, { limpeza: 6 });
+  await api('PUT', '/api/giras/2030-01-02', ADMIN, { entidade: 'Exu', limpeza: 3, encerrada: true });
+  await api('PUT', '/api/giras/2030-01-09', ADMIN, { entidade: 'Caboclo', limpeza: 1 });
+  const r = (await api('POST', '/api/giras/2030-01-09', ADMIN, { acao: 'reiniciar' })).json;
+  assert.equal(r.gira.limpeza, 6, 'depois da 3 vem a 6 (4 e 5 vazias)');
+  assert.match(r.mensagem, /Turma 6/);
+  for (const d of ['2030-01-02', '2030-01-09']) await api('DELETE', '/api/giras/' + d, ADMIN);
+  await api('PATCH', '/api/pessoas/' + ps[0].id, ADMIN, { limpeza: null });
+  await api('PATCH', '/api/pessoas/' + ps[1].id, ADMIN, { limpeza: null });
+  for (const p of comTurma) await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: p.limpeza });
 });
