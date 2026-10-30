@@ -1,9 +1,9 @@
 // Compartilhar o resumo de uma gira encerrada no WhatsApp: texto (copiar ou abrir o WhatsApp)
 // ou imagem. Usado na aba Gira e na aba Histórico.
 
-import { textoResumo, dadosResumo, linhaLicenca, LOCAL_PADRAO } from '/shared/resumoGira.js';
+import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, LOCAL_PADRAO } from '/shared/resumoGira.js';
 import { gerarImagemLista, compartilharImagem } from './imagemLista.js';
-import { estado, avisar } from './estado.js';
+import { estado, avisar, girasLista } from './estado.js';
 import { esc, toast, baixar, dShort } from './util.js';
 
 const giraDe = (data) => estado.giras[data];
@@ -18,8 +18,13 @@ function dadosImagem(g) {
     { texto: 'Em licença', valor: String(d.licenca.length), sub: d.licenca.map(linhaLicenca).join(' · ') },
     { texto: 'Taxa de presença', valor: d.pct.presenca + '%', sub: `Ausência ${d.pct.ausencia}% · Licença ${d.pct.licenca}%` },
     { texto: 'Atendimentos', valor: String(d.total), sub: `Preferencial ${d.atendimentos.preferencial} · Normal ${d.atendimentos.normal} · Passe ${d.atendimentos.passe}` },
-  ].map((l) => (l.sub ? l : { texto: l.texto, valor: l.valor }));
-  return { rotulo: 'Resumo do evento', titulo: d.gira || 'Gira', subtitulo: `${dShort(g.data)} · ${LOCAL_PADRAO}`, linhas };
+  ];
+  const lp = limpezaResumo(estado.pessoas, g, girasLista());
+  if (lp) {
+    linhas.push({ texto: `Limpeza · Turma ${lp.turma}`, valor: '', sub: lp.membros.length ? lp.membros.map((x) => `${x.pessoa.nome} (${x.situacao.toLowerCase()})`).join(', ') : 'Ninguém cadastrado nesta turma' });
+    if (lp.ajudantes.length) linhas.push({ texto: 'Ajudaram na limpeza', valor: '', sub: lp.ajudantes.map((x) => `${x.pessoa.nome} (${x.situacao.toLowerCase()})`).join(', ') });
+  }
+  return { rotulo: 'Resumo do evento', titulo: d.gira || 'Gira', subtitulo: `${dShort(g.data)} · ${LOCAL_PADRAO}`, linhas: linhas.map((l) => (l.sub ? l : { texto: l.texto, valor: l.valor })) };
 }
 
 // Botão que abre o painel (só para gira encerrada).
@@ -29,7 +34,7 @@ export const botaoResumo = (g) => (g && g.encerrada
 // Painel com as opções (aparece embaixo do botão da gira aberta).
 export function painelResumo(g) {
   if (!g || !g.encerrada || estado.resumo?.data !== g.data) return '';
-  const txt = textoResumo(estado.pessoas, g);
+  const txt = textoResumo(estado.pessoas, g, LOCAL_PADRAO, girasLista());
   const img = estado.resumo.img;
   return `<div class="rs-painel">
     <b>Compartilhar no WhatsApp</b>
@@ -54,7 +59,7 @@ export const cliquesResumo = {
   rscopiar() {
     const g = giraDe(estado.resumo?.data);
     if (!g) return;
-    const txt = textoResumo(estado.pessoas, g);
+    const txt = textoResumo(estado.pessoas, g, LOCAL_PADRAO, girasLista());
     const fb = () => {
       const t = document.getElementById('rs-txt');
       if (t) { t.closest('details').open = true; t.focus(); t.select(); }

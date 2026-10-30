@@ -2,9 +2,10 @@
 // (o mesmo que a aba Histórico sabe ler de volta).
 //
 //   dadosResumo(pessoas, g) → { gira, data, presentes, ausentes, faltas, licenca, pct, atendimentos, total }
-//   textoResumo(pessoas, g) → texto pronto para colar no WhatsApp
+//   textoResumo(pessoas, g, local?, giras?) → texto pronto para colar no WhatsApp
+//   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
 
-import { status, licencaEm, nomeGira } from './regras.js';
+import { status, licencaEm, nomeGira, limpezaDaGira } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -37,9 +38,22 @@ export function dadosResumo(pessoas, g) {
   };
 }
 
+// Situação de cada pessoa na gira, para a lista da limpeza.
+const SITUACAO = { p: ['✅', 'Presente'], na: ['✅', 'Presente'], sup: ['✅', 'Presente'], a: ['❌', 'Ausente'], f: ['🚫', 'Falta'], lic: ['📋', 'Licença'] };
+export const situacaoNaGira = (p, g) => SITUACAO[status(p, g)] || SITUACAO.p;
+
+// Turma da limpeza da gira: cada um da turma (licença incluída) e quem ajudou, com a situação.
+export function limpezaResumo(pessoas, g, giras = []) {
+  const L = limpezaDaGira(pessoas, g, giras);
+  if (!L) return null;
+  const linha = (p) => { const [e, t] = situacaoNaGira(p, g); return { pessoa: p, emoji: e, situacao: t }; };
+  const turma = [...L.membros, ...L.deLicenca].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(linha);
+  return { turma: L.turma, membros: turma, ajudantes: L.ajudantes.map(linha), anterior: L.anterior };
+}
+
 export const linhaLicenca = (l) => [l.pessoa.nome, l.motivo, l.retorno ? `Retorno em ${br(l.retorno)}` : ''].filter(Boolean).join(' - ');
 
-export function textoResumo(pessoas, g, local = LOCAL_PADRAO) {
+export function textoResumo(pessoas, g, local = LOCAL_PADRAO, giras = []) {
   const d = dadosResumo(pessoas, g);
   const L = [];
   L.push('RESUMO DO EVENTO');
@@ -73,5 +87,17 @@ export function textoResumo(pessoas, g, local = LOCAL_PADRAO) {
   L.push('');
   L.push('EM LICENÇA');
   if (d.licenca.length) d.licenca.forEach((l) => L.push(`📋 ${linhaLicenca(l)}`)); else L.push('Nenhum registro');
+  // Turma da limpeza (títulos sem ":" e em maiúsculas, para a leitura de volta no Histórico ignorar).
+  const lp = limpezaResumo(pessoas, g, giras);
+  if (lp) {
+    L.push('');
+    L.push(`🧹 LIMPEZA · TURMA ${lp.turma}`);
+    if (lp.membros.length) lp.membros.forEach((x) => L.push(`${x.emoji} ${x.pessoa.nome} - ${x.situacao}`)); else L.push('Ninguém cadastrado nesta turma');
+    if (lp.ajudantes.length) {
+      L.push('');
+      L.push(`AJUDARAM NA LIMPEZA (FALTARAM EM ${br(lp.anterior.data).slice(0, 5)})`);
+      lp.ajudantes.forEach((x) => L.push(`${x.emoji} ${x.pessoa.nome} - ${x.situacao}`));
+    }
+  }
   return L.join('\n');
 }
