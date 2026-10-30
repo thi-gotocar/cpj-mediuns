@@ -324,3 +324,21 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .limpeza{display:flex;flex-direction:column;gap:4px;border-left:3px solid var(--orange);background:var(--bg);border-radius:8px;padding:8px 12px;font-size:.92rem}
 .limp-sel{font-size:.85rem;padding:3px 6px;width:auto}
 .turmas{display:flex;flex-direction:column;gap:4px;font-size:.9rem}
+
+/* Oferenda com uma linha por médium */
+.of-med{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.of-med-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.of-med-h .btn{margin-left:auto}
+.of-med-cont{display:flex;flex-wrap:wrap;gap:6px}
+.of-med-lista{display:flex;flex-direction:column}
+.of-med-l{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 6px 10px;border-bottom:1px solid var(--line);border-left:4px solid transparent}
+.of-med-l:last-child{border-bottom:0}
+.of-med-l .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-med{display:inline-block;font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
+.sel-med{width:auto;font-size:.85rem;padding:4px 8px;font-weight:700;border-radius:8px}
+.st-med.pendente,.sel-med.pendente{background:#fbefc4;color:#7a5600}
+.st-med.entregue,.sel-med.entregue{background:#d5f0df;color:#1d6b3f}
+.st-med.pago,.sel-med.pago{background:#dbe6fb;color:#2c4ea3}
+.st-med.nao_pago,.sel-med.nao_pago{background:#f8dedb;color:#a2423a}
+.st-med.nao_vai,.sel-med.nao_vai{background:#e4e7ec;color:#5b6678}
+.of-med-l.pendente{border-left-color:#e3b021}.of-med-l.entregue{border-left-color:#2f9e5b}.of-med-l.pago{border-left-color:#2c4ea3}.of-med-l.nao_pago{border-left-color:#c0453b}.of-med-l.nao_vai{border-left-color:#aab2bf}

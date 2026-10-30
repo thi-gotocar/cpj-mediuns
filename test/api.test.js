@@ -600,3 +600,31 @@ test('turma da limpeza: na pessoa e na gira (1 a 7)', async () => {
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { entidade: 'Exu' })).json.limpeza, 5, 'outros campos não apagam a turma');
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { limpeza: null })).json.limpeza, null);
 });
+
+test('oferendas: uma linha para cada médium, admin marca a situação', async () => {
+  const ps0 = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const ps = Array.isArray(ps0) ? ps0 : ps0.pessoas;
+  const mediuns = ps.filter((p) => ['medium', 'extra', 'passe'].includes(p.funcao));
+  assert.ok(mediuns.length >= 1);
+  const r = (await api('POST', '/api/oferendas', ADMIN, { acao: 'salvar', responsavelId: RESP(), titulo: 'Por médium', data: '2029-03-03', porMedium: true })).json;
+  const of = r.oferendas.find((o) => o.titulo === 'Por médium');
+  assert.equal(of.porMedium, true);
+  assert.deepEqual(of.mediuns.map((m) => m.pessoaId).sort(), mediuns.map((p) => p.id).sort(), 'todos os médiuns, extras e passe');
+  assert.ok(of.mediuns.every((m) => m.status === 'pendente'));
+  const m0 = of.mediuns[0];
+  assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'talvez' })).status, 400);
+  assert.equal((await api('POST', '/api/oferendas', USER, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'pago' })).status, 403);
+  const r2 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'nao_pago' })).json;
+  assert.equal(r2.oferendas.find((o) => o.id === of.id).mediuns.find((m) => m.pessoaId === m0.pessoaId).status, 'nao_pago');
+  // médium cadastrado depois entra com "Incluir novos médiuns"; quem já estava continua igual
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Médium Novo Oferenda', funcao: 'extra' });
+  const r3 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'atualizarMediuns', id: of.id })).json;
+  const of3 = r3.oferendas.find((o) => o.id === of.id);
+  assert.equal(of3.mediuns.length, mediuns.length + 1);
+  assert.equal(of3.mediuns.find((m) => m.pessoaId === m0.pessoaId).status, 'nao_pago');
+  // sem a opção, a oferenda não tem linhas de médium
+  const r4 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'salvar', responsavelId: RESP(), titulo: 'Sem médium', data: '2029-03-04' })).json;
+  const of4 = r4.oferendas.find((o) => o.titulo === 'Sem médium');
+  assert.equal(of4.porMedium, false);
+  assert.deepEqual(of4.mediuns, []);
+});

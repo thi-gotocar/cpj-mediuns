@@ -2,7 +2,8 @@
 //   GET  /api/oferendas   { oferendas: [...], eu: { chave, nome } }
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
-//        admin:  salvar { id?, titulo, data, responsavelId } · excluir { id }
+//        admin:  salvar { id?, titulo, data, responsavelId, porMedium? (só ao criar) } · excluir { id }
+//                medium { oferendaId, pessoaId, status } · atualizarMediuns { id }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
@@ -13,6 +14,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
+import { STATUS_MEDIUM_KEYS } from '../../shared/oferendas.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 function resposta(oferendas, eu) {
@@ -21,6 +23,7 @@ function resposta(oferendas, eu) {
   const soMeus = (o) => ({
     ...o, bloqueada: true,
     itens: o.itens.filter((i) => i.doacoes.some((d) => d.chave === chave)).map((i) => ({ ...i, doacoes: i.doacoes.filter((d) => d.chave === chave) })),
+    mediuns: (o.mediuns || []).filter((m) => 'p:' + m.pessoaId === chave),
   });
   return {
     // Quem não administra: vê as publicadas e as bloqueadas (estas sem a lista de itens).
@@ -64,7 +67,7 @@ export default rota({
         // Responsável: uma pessoa da corrente (obrigatório).
         const resp = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável'));
         if (!resp) throw new HttpError(400, 'Escolha o responsável (uma pessoa da corrente).');
-        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id });
+        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id, porMedium: !b.id && b.porMedium === true });
         break;
       }
       case 'excluir':
@@ -102,6 +105,13 @@ export default rota({
         estado = await db.rpc('oferenda_doar', { itemId, chave, nome, quantidade, forcar: true });
         break;
       }
+      case 'medium':
+        if (!STATUS_MEDIUM_KEYS.includes(b.status)) throw new HttpError(400, 'Situação inválida.');
+        estado = await db.rpc('oferenda_medium_status', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium'), status: b.status });
+        break;
+      case 'atualizarMediuns':
+        estado = await db.rpc('oferenda_mediuns_atualizar', { id: validarId(b.id, 'Oferenda') });
+        break;
       case 'excluirItem':
         estado = await db.rpc('oferenda_item_excluir', { id: validarId(b.id, 'Item') });
         break;

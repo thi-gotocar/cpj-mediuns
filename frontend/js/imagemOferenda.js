@@ -1,6 +1,6 @@
 // Imagem PNG da lista de uma oferenda (para mandar no grupo do WhatsApp).
 
-import { situacao, dataBR, textoEntrega } from '/shared/oferendas.js';
+import { situacao, dataBR, textoEntrega, STATUS_MEDIUM, STATUS_MEDIUM_LABEL, contagemMediuns } from '/shared/oferendas.js';
 
 const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5', verde: '#2f9e5b', amarelo: '#e3b021', ok: '#24785a' };
 const FD = '"Alegreya",Georgia,serif';
@@ -40,6 +40,38 @@ function desenhar(ctx, of, pintar) {
     ctx.fillText(`${dataBR(of.data)} · ${semana}${of.responsavel ? ` · Responsável: ${of.responsavel}` : ''}`, P, P + 20 + tl.length * 40 + 4);
   }
   let y = hh + 20;
+  // médiuns (oferenda com uma linha por médium)
+  if (of.porMedium && (of.mediuns || []).length) {
+    const COR = { pendente: ['#fbefc4', '#7a5600'], entregue: ['#d5f0df', '#1d6b3f'], pago: ['#dbe6fb', '#2c4ea3'], nao_pago: ['#f8dedb', '#a2423a'], nao_vai: ['#e4e7ec', '#5b6678'] };
+    const c = contagemMediuns(of);
+    fonte(500, 16);
+    const resumo = quebrar(ctx, STATUS_MEDIUM.filter(([k]) => c[k]).map(([k, l]) => `${l} ${c[k]}`).join(' · '), CW - 36);
+    const LH = 34;
+    const h = 18 + 26 + resumo.length * 22 + 8 + of.mediuns.length * LH + 10;
+    if (pintar) {
+      ctx.fillStyle = C.card; ctx.strokeStyle = C.line; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(P, y, CW, h, 12) : ctx.rect(P, y, CW, h); ctx.fill(); ctx.stroke();
+      const x = P + 18;
+      let yy = y + 16;
+      fonte(700, 21); ctx.fillStyle = C.ink; ctx.fillText(`Médiuns (${of.mediuns.length})`, x, yy); yy += 28;
+      fonte(500, 16); ctx.fillStyle = C.muted; resumo.forEach((l) => { ctx.fillText(l, x, yy); yy += 22; });
+      yy += 8;
+      of.mediuns.forEach((m, k) => {
+        if (k) { ctx.fillStyle = C.line; ctx.fillRect(x, yy - 4, CW - 36, 1); }
+        const [bg, fg] = COR[m.status] || COR.pendente;
+        ctx.fillStyle = fg; ctx.fillRect(x, yy + 2, 4, LH - 12);
+        fonte(500, 19); ctx.fillStyle = C.ink; ctx.fillText(m.nome, x + 14, yy + 3);
+        fonte(700, 14);
+        const t = (STATUS_MEDIUM_LABEL[m.status] || m.status).toUpperCase();
+        const tw = ctx.measureText(t).width + 20;
+        ctx.fillStyle = bg;
+        ctx.beginPath(); ctx.roundRect ? ctx.roundRect(P + CW - 18 - tw, yy + 2, tw, 24, 12) : ctx.rect(P + CW - 18 - tw, yy + 2, tw, 24); ctx.fill();
+        ctx.fillStyle = fg; ctx.fillText(t, P + CW - 18 - tw + 10, yy + 7);
+        yy += LH;
+      });
+    }
+    y += h + 12;
+  }
   // itens
   of.itens.forEach((i) => {
     const s = situacao(i);

@@ -1,6 +1,6 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, STATUS_MEDIUM, STATUS_MEDIUM_LABEL, contagemMediuns } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -98,14 +98,30 @@ function linhaItem(of, i, admin) {
   return h + `</div>`;
 }
 
+// Oferenda com uma linha por médium: a situação de cada um. O admin escolhe; a corrente só vê.
+const etqMed = (st) => `<span class="st-med ${st}">${STATUS_MEDIUM_LABEL[st] || st}</span>`;
+function blocoMediuns(of, admin) {
+  const ms = of.mediuns || [];
+  const c = contagemMediuns(of);
+  let h = `<div class="of-med"><div class="of-med-h"><b>Médiuns</b> <span class="muted">(${ms.length})</span>
+    ${admin ? `<button class="btn link small" data-act="atualizarmed" data-id="${of.id}" title="Acrescenta quem foi cadastrado como médium depois">↻ Incluir novos médiuns</button>` : ''}</div>
+    <div class="of-med-cont">${STATUS_MEDIUM.filter(([k]) => c[k]).map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>`;
+  if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Nenhum médium na lista.</p></div>`;
+  h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${m.status}"><span class="nm">${esc(m.nome)}</span>
+    ${admin ? `<select class="sel-med ${m.status}" data-act="ofmedium" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="Situação de ${esc(m.nome)}">${STATUS_MEDIUM.map(([k, l]) => `<option value="${k}" ${k === m.status ? 'selected' : ''}>${l}</option>`).join('')}</select>` : etqMed(m.status)}</div>`).join('')}</div>`;
+  return h + `</div>`;
+}
+
 // Primeiro bloco da oferenda: quem está logado e o que se comprometeu a doar.
 function meusCompromissos(of) {
   const eu = estado.oferendas.eu;
   const meus = of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q);
+  const minhaLinha = of.porMedium ? (of.mediuns || []).find((m) => 'p:' + m.pessoaId === eu.chave) : null;
   return `<div class="of-meus"><div class="of-meus-h"><span class="eyebrow">Seus compromissos</span><b>${esc(eu.nome || '')}</b></div>
+    ${minhaLinha ? `<p style="margin:0;font-size:.92rem">Sua oferenda (médium): ${etqMed(minhaLinha.status)}</p>` : ''}
     ${meus.length
       ? `<ul>${meus.map(({ i, q }) => `<li><span class="of-meus-nome">${esc(i.nome)}</span> <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}${i.entregue ? ' · ✓ entregue' : ''}</span></li>`).join('')}</ul>`
-      : `<p class="muted" style="margin:0;font-size:.88rem">${of.status === 'publicado' ? 'Você ainda não escolheu nada para doar. Toque em + no item que quiser doar.' : 'Você ainda não tem compromissos nesta oferenda.'}</p>`}
+      : minhaLinha && !of.itens.length ? '' : `<p class="muted" style="margin:0;font-size:.88rem">${of.status === 'publicado' ? 'Você ainda não escolheu nada para doar. Toque em + no item que quiser doar.' : 'Você ainda não tem compromissos nesta oferenda.'}</p>`}
   </div>`;
 }
 
@@ -136,19 +152,21 @@ function cardOferenda(of, admin) {
         <span class="st-of-bts">${bts}</span></div>` : ''}
       ${!admin && (of.status === 'rascunho' || of.responsavel) ? `<div class="of-topo">${of.status === 'rascunho' ? etiqueta('rascunho') : '<span></span>'}${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${admin && of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
-      <p class="muted" style="margin:0;font-size:.88rem">${of.bloqueada ? 'Lista bloqueada no momento.' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
+      <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por médium · ${(of.mediuns || []).length} médiuns${(() => { const c = contagemMediuns(of); return c.pendente ? ` · ${c.pendente} pendente${c.pendente > 1 ? 's' : ''}` : ''; })()}${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
   // Sempre começa minimizada; abre só enquanto o app estiver aberto.
   // Bloqueada: para a corrente, itens ocultos e sem o botão de ver. O admin continua vendo e alterando.
   const bloqueada = of.status === 'rascunho' && !admin;
-  const fechada = bloqueada || (of.itens.length > 0 && !(u.abertas || []).includes(of.id));
-  if (u.editar !== of.id && of.itens.length && !bloqueada) {
-    h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? '▸ Ver os itens' : '▾ Minimizar'}</button>`;
+  const temLista = of.itens.length > 0 || (of.porMedium && (of.mediuns || []).length > 0);
+  const fechada = bloqueada || (temLista && !(u.abertas || []).includes(of.id));
+  if (u.editar !== of.id && temLista && !bloqueada) {
+    h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? (of.porMedium ? '▸ Ver a lista' : '▸ Ver os itens') : '▾ Minimizar'}</button>`;
   }
   if (fechada) return h + rodapeOferenda(of, admin) + `</div>`;
   // Em aberto primeiro; os completos (verdes) no fim.
   const ordem = [...of.itens].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
+  if (of.porMedium) h += blocoMediuns(of, admin);
   // Cadastrar item fica no topo da lista.
   if (admin) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
@@ -199,6 +217,7 @@ export function render() {
       <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
       <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
+      <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" style="margin-top:3px"><span>Uma linha para cada médium<br><span class="muted" style="font-size:.85rem">Médiuns, Extras e Passe. Em cada linha o admin marca Pendente, Entregue, Pago, Não pago ou Não vai.</span></span></label>
       <button class="btn primary" type="submit">Criar</button></form></div>`;
   }
   if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda ainda. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação no momento. Quando o admin publicar, ela aparece aqui.'}</p></div></section>`;
@@ -256,6 +275,13 @@ export const cliques = {
     const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda bloqueada: a corrente vê, mas sem a lista de itens.', encerrado: 'Oferenda encerrada: saiu da lista da corrente.', aguardando: 'Voltou para Aguardando publicação: a corrente não vê.' };
     if (await acaoOferendas('status', { id: el.dataset.id, status: el.dataset.v })) toast(t[el.dataset.v]);
   },
+  async atualizarmed(el) {
+    const antes = (achar(el.dataset.id).of?.mediuns || []).length;
+    if (await acaoOferendas('atualizarMediuns', { id: el.dataset.id })) {
+      const n = (achar(el.dataset.id).of?.mediuns || []).length - antes;
+      toast(n ? `${n} médium${n > 1 ? 'ns' : ''} incluído${n > 1 ? 's' : ''}.` : 'A lista já tem todos os médiuns.');
+    }
+  },
   async delof(el) { estado.confirm = null; if (await acaoOferendas('excluir', { id: el.dataset.id })) toast('Oferenda excluída.'); },
   compartilhar(el) { U().compartilhar = U().compartilhar === el.dataset.id ? null : el.dataset.id; avisar(); },
   copiarof(el) {
@@ -308,6 +334,10 @@ async function porAlguem(el, delta) {
 }
 
 export const mudancas = {
+  async ofmedium(t) {
+    t.className = 'sel-med ' + t.value;
+    if (!(await acaoOferendas('medium', { oferendaId: t.dataset.of, pessoaId: t.dataset.p, status: t.value }))) avisar();
+  },
   // "No dia do evento" esconde a data; "Escolher data" mostra.
   modoentrega(t) {
     const campo = t.closest('form').querySelector('input[name=entrega]');
@@ -322,9 +352,16 @@ export async function enviar(form) {
   if (form.id === 'f-of') {
     const titulo = document.getElementById('of-titulo').value, data = document.getElementById('of-data').value;
     const responsavelId = document.getElementById('of-resp').value;
+    const porMedium = document.getElementById('of-pormedium').checked;
     if (!data) { toast('Escolha a data.'); return; }
     if (!responsavelId) { toast('Escolha o responsável.'); return; }
-    if (await acaoOferendas('salvar', { titulo, data, responsavelId })) toast('Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
+    if (await acaoOferendas('salvar', { titulo, data, responsavelId, porMedium })) {
+      toast(porMedium ? 'Oferenda criada com uma linha para cada médium. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
+      if (porMedium) {
+        const nova = estado.oferendas.oferendas.filter((o) => o.porMedium && o.titulo === titulo.replace(/\s+/g, ' ').trim() && o.data === data).pop();
+        if (nova) { U().abertas = [...new Set([...(U().abertas || []), nova.id])]; avisar(); }
+      }
+    }
     return;
   }
   if (form.dataset.form === 'ofed') {
