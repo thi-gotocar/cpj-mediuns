@@ -270,3 +270,8 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-of.rascunho{background:#fbe0de;color:#a2423a}
 .st-of-bts .btn.bloquear{color:#a2423a;border-color:#e8b4ae}
 .st-of-bts .btn.bloquear.atual{background:#fbe0de;color:#a2423a;border-color:#a2423a}
+/* botões de situação (liga/desliga) */
+.st-bt.ligado.publicado{background:#d5f0df;color:#1d6b3f;border-color:#2f9e5b}
+.st-bt.ligado.rascunho{background:#fbe0de;color:#a2423a;border-color:#a2423a}
+.st-bt.ligado.encerrado{background:#e4e7ec;color:#5b6678;border-color:#8a94a6}
+.st-of-bts .btn.bloquear{color:inherit;border-color:var(--line)}
