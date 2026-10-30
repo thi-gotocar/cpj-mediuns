@@ -6,14 +6,14 @@
 //                           Se não for exato → { confirmar: true, candidatos: [nomes parecidos] } (sem token)
 //   POST /api/auth/senha    { atual, nova }   → { token }  (logado)
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
-//   GET  /api/auth/perfil   meu perfil (orixás e guias) → { pessoaId, nome, perfil }
+//   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro
 
 import { rota, corpo, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
-import { PERMISSOES, ehAcessoCorrente } from '../../shared/permissoes.js';
+import { PERMISSOES, ehAcessoCorrente, pode } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
 import { normalizarPerfil } from '../../shared/perfil.js';
 
@@ -38,12 +38,15 @@ const acoes = {
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).
   async perfil(req) {
     const eu = await exigir(req);
-    if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
+    const limpo = (r) => ({ ...r, perfil: normalizarPerfil(r.perfil) });
     if (req.method === 'GET') {
-      const r = await db.rpc('perfil_ler', { pessoaId: eu.pessoaId });
-      return { ...r, perfil: normalizarPerfil(r.perfil) };
+      const r = { eu: eu.pessoaId ? limpo(await db.rpc('perfil_ler', { pessoaId: eu.pessoaId })) : null };
+      // Admin: o perfil de todos, para acompanhar respostas, guias e oferendas.
+      if (pode(eu.papel, 'pessoas:editar')) r.todos = (await db.rpc('perfis_listar')).map(limpo);
+      return r;
     }
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
+    if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
     const r = await db.rpc('perfil_salvar', { pessoaId: eu.pessoaId, perfil: normalizarPerfil(corpo(req).perfil) });
     return { ...r, perfil: normalizarPerfil(r.perfil) };
   },

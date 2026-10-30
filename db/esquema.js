@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 33;  // v33: perfil (orixás e guias) de cada pessoa
+export const VERSAO = 34;  // v34: admin vê o perfil (orixás e guias) de todos
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -838,5 +838,12 @@ export const MIGRACOES = [
      if not found then raise exception 'Pessoa não encontrada.'; end if;
      return perfil_ler(p);
    end;
+   $$`,
+  // v34: perfis de todos (para o admin acompanhar respostas, guias e oferendas)
+  `create or replace function perfis_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('pessoaId', id, 'nome', nome, 'funcao', funcao, 'perfil', perfil)
+                               order by lower(nome)), '[]'::jsonb)
+     from pessoas
    $$`,
 ];

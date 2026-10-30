@@ -16,6 +16,10 @@ export const GUIAS = LINHAS.flatMap((g) => g.itens).filter(([k]) => k !== 'mista
 const GUIA_KEYS = GUIAS.map(([k]) => k);
 export const NOME_GUIA_MAX = 60;
 
+// A pessoa já respondeu: escolheu algum orixá ou guia, ou escreveu algum nome.
+export const respondeu = (p) => !!p && (Object.values(p.orixas || {}).some((x) => x.nome)
+  || Object.values(p.guias || {}).some((x) => x.linha) || Object.keys(p.outros || {}).length > 0);
+
 const txt = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // Limpa o que veio da tela (ou do banco): só campos conhecidos e valores válidos.

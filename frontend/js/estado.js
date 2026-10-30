@@ -23,7 +23,8 @@ export const estado = {
   renomearUsuario: null, // id do usuário com o nome em edição (aba Usuários)
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
-  perfil: null,        // GET /api/auth/perfil: { pessoaId, nome, perfil } (ou { erro })
+  perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
+  pfUi: { abertos: {}, faltam: false },
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
@@ -352,9 +353,12 @@ export async function carregarPerfil() {
 let timerPerfil = null;
 let filaPerfil = Promise.resolve();
 export function mudarPerfil(fn) {
-  const P = estado.perfil;
+  const P = estado.perfil?.eu;
   if (!P || !P.perfil) return;
   fn(P.perfil);
+  // Admin: os blocos da corrente já mostram a mudança.
+  const meu = (estado.perfil.todos || []).find((x) => x.pessoaId === P.pessoaId);
+  if (meu) meu.perfil = JSON.parse(JSON.stringify(P.perfil));
   avisar();
   clearTimeout(timerPerfil);
   timerPerfil = setTimeout(() => {
