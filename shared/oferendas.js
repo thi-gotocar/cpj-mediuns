@@ -42,7 +42,7 @@ export function textoOferenda(of) {
   const L = [`*OFERENDA · ${of.titulo}*`, `${dataBR(of.data)} (${semana(of.data)})`, ...(of.responsavel ? [`Responsável: ${of.responsavel}`] : []), ''];
   if (of.porMedium && (of.mediuns || []).length) {
     const c = contagemMediuns(of);
-    L.push(`*Médiuns* · ${STATUS_MEDIUM.filter(([k]) => c[k]).map(([k, l]) => `${l} ${c[k]}`).join(' · ')}`);
+    L.push(`*Pessoas* · ${STATUS_MEDIUM.filter(([k]) => c[k]).map(([k, l]) => `${l} ${c[k]}`).join(' · ')}`);
     STATUS_MEDIUM.forEach(([k, l, e]) => {
       const nomes = of.mediuns.filter((m) => m.status === k).map((m) => m.nome);
       if (nomes.length) L.push(`${e} *${l}:* ${nomes.join(', ')}`);

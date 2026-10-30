@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 31;  // v31: tirar médium da oferenda
+export const VERSAO = 32;  // v32: oferenda com uma linha por pessoa (todos os cadastrados)
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -773,7 +773,7 @@ export const MIGRACOES = [
        returning id into v_id;
        if coalesce((p ->> 'porMedium')::boolean, false) then
          insert into oferenda_mediuns (oferenda_id, pessoa_id)
-         select v_id, id from pessoas where funcao in ('medium', 'extra', 'passe');
+         select v_id, id from pessoas;   -- v32: todos os cadastrados
        end if;
      else
        update oferendas set titulo = btrim(p ->> 'titulo'), data = (p ->> 'data')::date,
@@ -800,7 +800,7 @@ export const MIGRACOES = [
      update oferendas set por_medium = true where id = (p ->> 'id')::uuid;
      if not found then raise exception 'Oferenda não encontrada.'; end if;
      insert into oferenda_mediuns (oferenda_id, pessoa_id)
-     select (p ->> 'id')::uuid, id from pessoas where funcao in ('medium', 'extra', 'passe')
+     select (p ->> 'id')::uuid, id from pessoas
      on conflict do nothing;
      return oferendas_estado();
    end;

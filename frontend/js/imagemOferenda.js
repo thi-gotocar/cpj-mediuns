@@ -53,7 +53,7 @@ function desenhar(ctx, of, pintar) {
       ctx.beginPath(); ctx.roundRect ? ctx.roundRect(P, y, CW, h, 12) : ctx.rect(P, y, CW, h); ctx.fill(); ctx.stroke();
       const x = P + 18;
       let yy = y + 16;
-      fonte(700, 21); ctx.fillStyle = C.ink; ctx.fillText(`Médiuns (${of.mediuns.length})`, x, yy); yy += 28;
+      fonte(700, 21); ctx.fillStyle = C.ink; ctx.fillText(`Pessoas (${of.mediuns.length})`, x, yy); yy += 28;
       fonte(500, 16); ctx.fillStyle = C.muted; resumo.forEach((l) => { ctx.fillText(l, x, yy); yy += 22; });
       yy += 8;
       of.mediuns.forEach((m, k) => {

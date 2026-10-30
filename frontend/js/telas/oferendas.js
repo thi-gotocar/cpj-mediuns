@@ -103,10 +103,10 @@ const etqMed = (st) => `<span class="st-med ${st}">${STATUS_MEDIUM_LABEL[st] || 
 function blocoMediuns(of, admin) {
   const ms = of.mediuns || [];
   const c = contagemMediuns(of);
-  let h = `<div class="of-med"><div class="of-med-h"><b>Médiuns</b> <span class="muted">(${ms.length})</span>
-    ${admin ? `<button class="btn link small" data-act="atualizarmed" data-id="${of.id}" title="Acrescenta quem foi cadastrado como médium depois">↻ Incluir novos médiuns</button>` : ''}</div>
+  let h = `<div class="of-med"><div class="of-med-h"><b>Pessoas</b> <span class="muted">(${ms.length})</span>
+    ${admin ? `<button class="btn link small" data-act="atualizarmed" data-id="${of.id}" title="Acrescenta quem foi cadastrado depois">↻ Incluir novos cadastrados</button>` : ''}</div>
     <div class="of-med-cont">${STATUS_MEDIUM.filter(([k]) => c[k]).map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>`;
-  if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Nenhum médium na lista.</p></div>`;
+  if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Ninguém na lista.</p></div>`;
   h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${m.status}"><span class="nm">${esc(m.nome)}</span>
     ${admin ? `<span class="of-med-acts"><select class="sel-med ${m.status}" data-act="ofmedium" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="Situação de ${esc(m.nome)}">${STATUS_MEDIUM.map(([k, l]) => `<option value="${k}" ${k === m.status ? 'selected' : ''}>${l}</option>`).join('')}</select>
       ${estado.confirm === 'om:' + of.id + ':' + m.pessoaId
@@ -121,7 +121,7 @@ function meusCompromissos(of) {
   const meus = of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q);
   const minhaLinha = of.porMedium ? (of.mediuns || []).find((m) => 'p:' + m.pessoaId === eu.chave) : null;
   return `<div class="of-meus"><div class="of-meus-h"><span class="eyebrow">Seus compromissos</span><b>${esc(eu.nome || '')}</b></div>
-    ${minhaLinha ? `<p style="margin:0;font-size:.92rem">Sua oferenda (médium): ${etqMed(minhaLinha.status)}</p>` : ''}
+    ${minhaLinha ? `<p style="margin:0;font-size:.92rem">Sua oferenda: ${etqMed(minhaLinha.status)}</p>` : ''}
     ${meus.length
       ? `<ul>${meus.map(({ i, q }) => `<li><span class="of-meus-nome">${esc(i.nome)}</span> <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}${i.entregue ? ' · ✓ entregue' : ''}</span></li>`).join('')}</ul>`
       : minhaLinha && !of.itens.length ? '' : `<p class="muted" style="margin:0;font-size:.88rem">${of.status === 'publicado' ? 'Você ainda não escolheu nada para doar. Toque em + no item que quiser doar.' : 'Você ainda não tem compromissos nesta oferenda.'}</p>`}
@@ -155,7 +155,7 @@ function cardOferenda(of, admin) {
         <span class="st-of-bts">${bts}</span></div>` : ''}
       ${!admin && (of.status === 'rascunho' || of.responsavel) ? `<div class="of-topo">${of.status === 'rascunho' ? etiqueta('rascunho') : '<span></span>'}${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${admin && of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
-      <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por médium · ${(of.mediuns || []).length} médiuns${(() => { const c = contagemMediuns(of); return c.pendente ? ` · ${c.pendente} pendente${c.pendente > 1 ? 's' : ''}` : ''; })()}${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
+      <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa · ${(of.mediuns || []).length} pessoas${(() => { const c = contagemMediuns(of); return c.pendente ? ` · ${c.pendente} pendente${c.pendente > 1 ? 's' : ''}` : ''; })()}${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
   // Sempre começa minimizada; abre só enquanto o app estiver aberto.
@@ -223,7 +223,7 @@ export function render() {
       <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
       <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
-      <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" style="margin-top:3px"><span>Uma linha para cada médium<br><span class="muted" style="font-size:.85rem">Médiuns, Extras e Passe. Em cada linha o admin marca Pendente, Entregue, Pago, Não pago ou Não vai.</span></span></label>
+      <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" style="margin-top:3px"><span>Uma linha para cada pessoa<br><span class="muted" style="font-size:.85rem">Todos os cadastrados (corrente e curimba). Em cada linha o admin marca Pendente, Entregue, Pago, Não pago ou Não vai, e pode tirar quem não participa.</span></span></label>
       <button class="btn primary" type="submit">Criar</button></form>`;
     h += `</div>`;
   }
@@ -286,13 +286,13 @@ export const cliques = {
   async delmedium(el) {
     estado.confirm = null;
     const m = (achar(el.dataset.of).of?.mediuns || []).find((x) => x.pessoaId === el.dataset.p);
-    if (await acaoOferendas('excluirMedium', { oferendaId: el.dataset.of, pessoaId: el.dataset.p })) toast(`${m?.nome || 'Médium'} saiu da lista desta oferenda.`);
+    if (await acaoOferendas('excluirMedium', { oferendaId: el.dataset.of, pessoaId: el.dataset.p })) toast(`${m?.nome || 'A pessoa'} saiu da lista desta oferenda.`);
   },
   async atualizarmed(el) {
     const antes = (achar(el.dataset.id).of?.mediuns || []).length;
     if (await acaoOferendas('atualizarMediuns', { id: el.dataset.id })) {
       const n = (achar(el.dataset.id).of?.mediuns || []).length - antes;
-      toast(n ? `${n} médium${n > 1 ? 'ns' : ''} incluído${n > 1 ? 's' : ''}.` : 'A lista já tem todos os médiuns.');
+      toast(n ? `${n} pessoa${n > 1 ? 's' : ''} incluída${n > 1 ? 's' : ''}.` : 'A lista já tem todos os cadastrados.');
     }
   },
   async delof(el) { estado.confirm = null; if (await acaoOferendas('excluir', { id: el.dataset.id })) toast('Oferenda excluída.'); },
@@ -369,7 +369,7 @@ export async function enviar(form) {
     if (!data) { toast('Escolha a data.'); return; }
     if (!responsavelId) { toast('Escolha o responsável.'); return; }
     if (await acaoOferendas('salvar', { titulo, data, responsavelId, porMedium })) {
-      toast(porMedium ? 'Oferenda criada com uma linha para cada médium. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
+      toast(porMedium ? 'Oferenda criada com uma linha para cada pessoa. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
       if (porMedium) {
         const nova = estado.oferendas.oferendas.filter((o) => o.porMedium && o.titulo === titulo.replace(/\s+/g, ' ').trim() && o.data === data).pop();
         if (nova) { U().abertas = [...new Set([...(U().abertas || []), nova.id])]; avisar(); }
