@@ -133,8 +133,17 @@ function cardCompra(E) {
   </div>`;
 }
 
+// Começa minimizado a cada vez que o app abre; tocar no título expande.
+// Sem nenhuma erva cadastrada, já abre para cadastrar (e fica aberto enquanto cadastra).
+let precosAberto = null;
 function cardCatalogo(E) {
-  let h = `<div class="card"><h2>Ervas e preços</h2>
+  if (precosAberto === null) precosAberto = !E.ervas.length;
+  const aberto = precosAberto;
+  const sem = E.ervas.filter((e) => !temPreco(e)).length;
+  let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarprecos" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'} Ervas e preços">
+      <h2>Ervas e preços</h2><span class="count">${E.ervas.length} erva${E.ervas.length === 1 ? '' : 's'}${sem ? ` · ${sem} sem preço` : ''} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  if (!aberto) return h + `</div>`;
+  h += `
     <form id="f-erva" class="row" autocomplete="off">
       <label class="field grow">Erva<input type="text" id="ev-nome" maxlength="60" required placeholder="Ex.: Arruda"></label>
       <label class="field" style="flex:0 1 170px">Preço total (R$, opcional)<input type="text" inputmode="decimal" id="ev-preco" placeholder="a definir"></label>
@@ -220,6 +229,7 @@ export function render() {
 const val = (id) => document.getElementById(id)?.value ?? '';
 
 export const cliques = {
+  dobrarprecos() { precosAberto = !precosAberto; avisar(); },
   mais(el) { escolherErva(el.dataset.id, Math.min(99, qtdDe(el.dataset.id) + 1)); },
   menos(el) { escolherErva(el.dataset.id, Math.max(0, qtdDe(el.dataset.id) - 1)); },
   async evento() { if (await acaoErvas('config', { gira: val('ev-gira'), data: val('ev-data') })) toast('Gira do pedido salva.'); },
