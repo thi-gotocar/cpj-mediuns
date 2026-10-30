@@ -85,6 +85,16 @@ function cardGiraAntiga(ps) {
   return h;
 }
 
+// Presença da corrente na gira: presentes (presente, não atende, suporte) sobre a corrente,
+// sem contar quem estava de licença.
+function presencaGira(ps, g) {
+  const sts = ps.map((p) => status(p, g)).filter((st) => st !== 'lic');
+  const pres = sts.filter((st) => st === 'p' || st === 'na' || st === 'sup').length;
+  return { pres, base: sts.length, pct: sts.length ? Math.round((pres / sts.length) * 100) : null };
+}
+const corPct = (pct) => (pct >= 80 ? 'new' : pct >= 60 ? 'hot' : 're');
+const seloPct = (pct, title) => `<span class="badge ${corPct(pct)}" style="text-transform:none" title="${title}">${pct}% de presença</span>`;
+
 export function render() {
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd();
@@ -97,6 +107,12 @@ export function render() {
     const tot = Object.fromEntries(ATEND.map(([k]) => [k, comAt.reduce((s, g) => s + (Number(g.atendimentos[k]) || 0), 0)]));
     h += `<p class="muted" style="margin:0;font-size:.9rem">Em ${comAt.length} gira${comAt.length === 1 ? '' : 's'} · ${linhaAt(tot)}</p>`;
   }
+  // Média de presença da corrente em todas as giras salvas.
+  const pcts = gs.map((g) => presencaGira(ps, g).pct).filter((x) => x !== null);
+  if (pcts.length) {
+    const media = Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
+    h += `<p class="muted" style="margin:0;font-size:.9rem">Presença média da corrente: ${seloPct(media, 'Média das giras salvas')}</p>`;
+  }
   if (!gs.length) h += `<p class="muted">Nenhuma gira ainda.</p>`;
   else {
     h += `<div class="hist">`;
@@ -105,7 +121,9 @@ export function render() {
       const n = (...sts) => ps.filter((p) => sts.includes(status(p, g))).length;
       const nLic = n('lic');
       const conf = estado.confirm === 'g:' + g.data;
-      h += `<div class="hi"><div><div class="d">${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span></div>
+      const pr = presencaGira(ps, g);
+      h += `<div class="hi"><div><div class="d">${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
+        ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ' (sem contar quem estava de licença)' : ''}`) : ''}</div>
         <div class="muted" style="font-size:.9rem">${esc(g.entidade || 'Entidade não definida')} · ${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
         ${g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
         <div class="acts"><button class="btn small" data-act="abrir" data-d="${g.data}">Abrir</button>
