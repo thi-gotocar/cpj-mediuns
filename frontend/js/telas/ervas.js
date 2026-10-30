@@ -95,11 +95,17 @@ function cardPedidoDe(E) {
   return h;
 }
 
+// Nome da gira e data do pedido, logo abaixo do título dos quadros de pedidos.
+function linhaGira(E) {
+  const ev = linhaEvento({ gira: E.gira, data: E.data });
+  return ev ? `<p class="gira-ped">${esc(ev)}</p>` : '';
+}
+
 // Andamento geral dos pedidos (para quem não é admin): consolidado por erva, só leitura.
 function cardStatus(E) {
   const r = E.pedidos;
   if (!r) return '';
-  let h = `<div class="card"><div class="grp-h"><h2>Pedidos da corrente</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'} · lista ${E.aberta ? 'aberta' : 'fechada'}</span></div>`;
+  let h = `<div class="card"><div class="grp-h"><h2>Pedidos da corrente</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'} · lista ${E.aberta ? 'aberta' : 'fechada'}</span></div>${linhaGira(E)}`;
   if (!r.pessoas.length) return h + `<p class="muted" style="margin:0">Ninguém escolheu ervas ainda.</p></div>`;
   const precos = Object.fromEntries(E.ervas.map((e) => [e.nome, e.preco]));
   const minhas = new Set((E.minhas || []).map((m) => E.ervas.find((e) => e.id === m.ervaId)?.nome));
@@ -152,7 +158,7 @@ function cardCatalogo(E) {
 
 function cardPedidos(E) {
   const r = E.pedidos || calcularPedidos(E.ervas, [], E.frete);
-  let h = `<div class="card"><div class="grp-h"><h2>Pedidos</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'}</span></div>`;
+  let h = `<div class="card"><div class="grp-h"><h2>Pedidos</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'}</span></div>${linhaGira(E)}`;
   if (!r.pessoas.length) return h + `<p class="muted" style="margin:0">Ninguém escolheu ervas ainda.</p></div>`;
   if (r.faltamPrecos.length) h += `<div class="warnbox">Preço a definir: <b>${r.faltamPrecos.map(esc).join(', ')}</b>. Preencha em “Ervas e preços” para fechar o valor de cada um.</div>`;
   h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Nome</th><th class="rh">Ervas</th><th>Ervas R$</th><th>Frete</th><th>Total</th><th></th></tr></thead><tbody>
