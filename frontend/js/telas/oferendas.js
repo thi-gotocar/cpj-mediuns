@@ -131,11 +131,12 @@ function cardOferenda(of, admin) {
   if (fechada) return h + rodapeOferenda(of, admin) + `</div>`;
   // Em aberto primeiro; os completos (verdes) no fim.
   const ordem = [...of.itens].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
-  h += `<div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
+  // Cadastrar item fica no topo da lista.
   if (admin) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
+  h += `<div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
   return h + rodapeOferenda(of, admin) + `</div>`;
 }
 
