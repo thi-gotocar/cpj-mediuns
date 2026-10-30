@@ -11,17 +11,8 @@ function cardLicencas(ps, editar) {
   const hj = hoje();
   const lics = ps.flatMap((p) => (p.licencas || []).filter((l) => l.fim >= hj).map((l) => ({ ...l, pessoa: p })))
     .sort((a, b) => a.inicio.localeCompare(b.inicio) || a.pessoa.nome.localeCompare(b.pessoa.nome, 'pt-BR'));
-  if (!editar && !lics.length) return '';
+  if (!lics.length) return '';
   let h = `<div class="card"><div class="grp-h"><h2>Licenças</h2><span class="count">${lics.length}</span></div>`;
-  if (editar) {
-    h += `<form id="f-lic" class="row" autocomplete="off">
-      <label class="field grow">Pessoa<select id="lic-p"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
-      <label class="field" style="flex:1 1 140px">Início<input type="date" id="lic-i" value="${hj}"></label>
-      <label class="field" style="flex:1 1 140px">Fim<input type="date" id="lic-f"></label>
-      <label class="field" style="flex:2 1 220px">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…"></label>
-      <button class="btn primary" type="submit">Adicionar</button></form>`;
-  }
-  if (!lics.length) return h + `<p class="muted" style="margin:0;font-size:.85rem">Ninguém de licença. Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p></div>`;
   h += `<div class="ppl">${lics.map((l) => {
     const agora = l.inicio <= hj;
     const conf = estado.confirm === 'lic:' + l.id;
@@ -85,15 +76,9 @@ document.addEventListener('toggle', (e) => {
 // Curimba: só nome e turma da limpeza (não entra na presença nem no sorteio).
 function cardCurimba(todas, editar) {
   const cs = todas.filter(ehCurimba);
-  if (!editar && !cs.length) return '';
+  if (!cs.length) return '';
   let h = `<div class="card"><div class="grp-h"><h2>🥁 Curimba</h2><span class="count">${cs.length}</span></div>
     <p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
-  if (editar) {
-    h += `<form id="f-curimba" class="row" autocomplete="off">
-      <label class="field grow">Nome<input type="text" id="cur-nome" placeholder="Um nome, ou vários separados por vírgula" maxlength="4000"></label>
-      <button class="btn primary" type="submit">Adicionar</button></form>`;
-  }
-  if (!cs.length) return h + `</div>`;
   h += `<div class="ppl">${cs.map((p) => {
     if (!editar) return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nm">${esc(p.nome)}</span>${p.limpeza ? `<span class="muted" style="font-size:.85rem">🧹 Turma ${p.limpeza}</span>` : ''}</div>`;
     const conf = estado.confirm === 'p:' + p.id;
@@ -107,18 +92,41 @@ function cardCurimba(todas, editar) {
   return h + `</div>`;
 }
 
+// Card "Adicionar": escolhe o que cadastrar (pessoas da corrente, licença ou curimba).
+const MODOS = [['pessoas', 'Pessoas'], ['licenca', 'Licença'], ['curimba', 'Curimba']];
+function cardAdicionar(ps) {
+  const modo = estado.addModo || 'pessoas';
+  let h = `<div class="card"><h2>＋ Adicionar</h2>
+    <div class="seg add-seg" role="group" aria-label="O que adicionar">${MODOS.map(([k, t]) => `<button data-act="addmodo" data-v="${k}" aria-pressed="${modo === k}">${t}</button>`).join('')}</div>`;
+  if (modo === 'pessoas') {
+    h += `<form id="f-add" class="row">
+      <label class="field grow">Nome<input type="text" id="f-nome" placeholder="Um nome, ou vários separados por vírgula" autocomplete="off" maxlength="4000"></label>
+      <label class="field" style="flex:0 1 150px">Função<select id="f-func">${FUNCOES.map((f) => `<option value="${f.k}" ${f.k === prefs.lastFunc ? 'selected' : ''}>${f.label}</option>`).join('')}</select></label>
+      <button class="btn primary" type="submit">Adicionar</button></form>`;
+  } else if (modo === 'licenca') {
+    h += `<form id="f-lic" class="row" autocomplete="off">
+      <label class="field grow">Pessoa<select id="lic-p"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <label class="field" style="flex:1 1 140px">Início<input type="date" id="lic-i" value="${hoje()}"></label>
+      <label class="field" style="flex:1 1 140px">Fim<input type="date" id="lic-f"></label>
+      <label class="field" style="flex:2 1 220px">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…"></label>
+      <button class="btn primary" type="submit">Adicionar</button></form>
+      <p class="muted" style="margin:0;font-size:.85rem">Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p>`;
+  } else {
+    h += `<form id="f-curimba" class="row" autocomplete="off">
+      <label class="field grow">Nome<input type="text" id="cur-nome" placeholder="Um nome, ou vários separados por vírgula" maxlength="4000"></label>
+      <button class="btn primary" type="submit">Adicionar</button></form>
+      <p class="muted" style="margin:0;font-size:.85rem">A curimba entra nas turmas da limpeza, mas não conta presença nem falta e não entra no sorteio.</p>`;
+  }
+  return h + `</div>`;
+}
+
 export function render() {
   const todas = pessoasOrd();
   const ps = todas.filter((p) => !ehCurimba(p));   // a corrente (sem a curimba)
   const editar = pode('pessoas:editar');
   let h = `<section class="panel">`;
   if (editar) {
-    h += `<div class="card"><h2>Adicionar pessoas</h2>
-    <form id="f-add" class="row">
-      <label class="field grow">Nome<input type="text" id="f-nome" placeholder="Um nome, ou vários separados por vírgula" autocomplete="off" maxlength="4000"></label>
-      <label class="field" style="flex:0 1 150px">Função<select id="f-func">${FUNCOES.map((f) => `<option value="${f.k}" ${f.k === prefs.lastFunc ? 'selected' : ''}>${f.label}</option>`).join('')}</select></label>
-      <button class="btn primary" type="submit">Adicionar</button>
-    </form></div>`;
+    h += cardAdicionar(ps);
   } else {
     h += `<p class="leitura" style="margin:0">Lista da corrente, só para consulta.</p>`;
   }
@@ -160,6 +168,7 @@ export function render() {
 }
 
 export const cliques = {
+  addmodo(el) { estado.addModo = el.dataset.v; avisar(); document.querySelector('#f-nome, #lic-p, #cur-nome')?.focus(); },
   // Minimiza / expande o bloco de uma função (lembra no aparelho).
   dobrar(el) {
     const k = el.dataset.f;

@@ -384,3 +384,5 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .prox-gira.enc-bt{border-color:var(--warn);color:var(--warn)}
 .rei-bt{float:right;margin:-4px 0 0 8px;border-color:var(--off);color:var(--off)}
 .infobox.rei{border-color:var(--off);background:var(--off-soft)}
+.add-seg{display:flex;width:100%}
+.add-seg button{flex:1 1 0;padding:8px 10px}
