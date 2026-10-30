@@ -356,3 +356,4 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .eu-l{display:flex;gap:6px;border-bottom:1px solid var(--line);padding:5px 0;font-size:.95rem}
 .eu-l:last-of-type{border-bottom:0}
 .eu-limp{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:7px 10px;font-weight:700;font-size:.92rem}
+.eu-fora{background:var(--off-soft);color:var(--off);border-radius:8px;padding:8px 10px;font-size:.95rem}

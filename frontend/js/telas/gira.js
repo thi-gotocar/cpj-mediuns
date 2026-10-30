@@ -118,9 +118,12 @@ function blocoEu(g) {
   const L = [];
   const lin = (rot, val) => L.push(`<div class="eu-l"><span class="muted">${rot}:</span> <b>${val}</b></div>`);
   const aviso = (t) => L.push(`<p class="muted" style="margin:0">${t}</p>`);
-  if (st === 'lic') aviso('Você está de licença nesta data.');
-  else if (st === 'a') aviso('Você está marcado como <b>ausente</b> nesta gira.');
-  else if (st === 'f') aviso('Você está marcado com <b>falta</b> nesta gira.');
+  const fora = (t) => L.push(`<div class="eu-fora">${t}</div>`);
+  if (st === 'lic') {
+    const l = licencaEm(p, g.data);
+    fora(`📋 Você está <b>de licença</b>${l ? ` de ${dDM(l.inicio)} a ${dDM(l.fim)}` : ''}${l?.motivo ? ` · ${esc(l.motivo)}` : ''}.`);
+  } else if (st === 'a') fora('❌ Você está marcado como <b>ausente</b> nesta gira.');
+  else if (st === 'f') fora('🚫 Você está marcado com <b>falta</b> nesta gira.');
   else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
   else if (funcao === 'senha') lin('Função', 'Senha');
   else if (!sorteado) aviso('A escala desta gira ainda não foi sorteada.');
@@ -217,7 +220,7 @@ export function render() {
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
     ${!encerrada && (existe || editar) ? contagemPresentes(ps, g) : ''}
   </div>`;
-  if (existe) h += blocoEu(g);
+  if (existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data))) h += blocoEu(g);
 
   if (!ps.length) {
     return h + `<div class="card empty"><h2>Nenhuma pessoa cadastrada</h2><p class="muted">${pode('pessoas:editar') ? 'Cadastre a corrente na aba Pessoas.' : 'Um admin precisa cadastrar a corrente.'}</p>
