@@ -192,7 +192,8 @@ function blocoEu(g) {
     });
   }
   const pr = presencaDe(p, g);
-  if (!curimba && estado.me?.corrente) {
+  // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
+  if (sorteado) { /* nada */ } else if (!curimba && estado.me?.corrente) {
     // Acesso da corrente (cpj): o combo mostra sempre o status da lista de presença.
     // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica bloqueado.
     const gs = estado.giras[g.data];
