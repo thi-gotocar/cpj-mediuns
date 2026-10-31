@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
-import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
 import { ehAcessoCorrente, PIN_VALIDO } from '/shared/permissoes.js';
 import * as gira from './telas/gira.js';
@@ -131,6 +131,7 @@ tabs.addEventListener('click', (e) => {
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
   if (b.dataset.tab === 'perfil') estado.perfil = null;
+  salvarPerfilAgora();
   salvarPrefs();
   render();
 });
@@ -216,6 +217,7 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
   if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
   if (e.target.dataset.mascara === 'tel' && !String(e.inputType || '').startsWith('delete')) mascaraTel(e.target);
+  if (prefs.tab === 'perfil' && (e.target.dataset.act === 'pfinfo' || e.target.dataset.act === 'pfnome')) perfil.digitando(e.target);
 });
 
 main.addEventListener('submit', async (e) => {
@@ -295,7 +297,11 @@ main.addEventListener('submit', async (e) => {
 });
 
 // Ao voltar para o app, busca o que outras pessoas mudaram.
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') atualizarDoServidor(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') atualizarDoServidor();
+  else salvarPerfilAgora();   // saiu do app com o perfil por salvar
+});
+window.addEventListener('pagehide', salvarPerfilAgora);
 window.addEventListener('focus', () => atualizarDoServidor());
 
 iniciar();

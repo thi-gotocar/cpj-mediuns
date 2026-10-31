@@ -593,3 +593,4 @@ body.deslogado .rodape{display:none}
 .cruz-vermelha{color:#d32f2f;font-family:system-ui,sans-serif;font-weight:900}
 .ev-mes-h.dobra{width:100%;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-align:left;padding:8px 0}
 .ev-mes-h .seta{color:var(--accent);margin-left:6px}
+.pf-salvo{font-size:.82rem;color:var(--muted)}.pf-salvo.salvo{color:#1d7a3c;font-weight:700}.pf-salvo.erro{color:var(--off);font-weight:700}

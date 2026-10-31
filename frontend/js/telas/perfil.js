@@ -69,7 +69,8 @@ function cardAjustes(todos) {
 function cardInfo(eu) {
   const I = eu.perfil.info || {};
   const campo = (k, rotulo, attrs, valor) => `<label class="field pf-info-c">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
-  return `<div class="card"><div class="grp-h"><h2>Informações</h2></div>
+  const sv = estado.perfilSalvo;
+  return `<div class="card"><div class="grp-h"><h2>Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
     <div class="pf-info">
       ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome)}
       ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
@@ -190,6 +191,19 @@ export async function enviarNascimento(form) {
   if (await salvarNascimentoDe(form.dataset.id, iso)) toast(iso ? 'Data de nascimento salva.' : 'Data de nascimento apagada.');
 }
 
+// Enquanto digita: guarda e salva sozinho (sem esperar sair do campo), se o valor já estiver completo.
+export function digitando(el) {
+  const k = el.dataset.k;
+  let v = el.value.replace(/\s+/g, ' ').trim();
+  if (el.dataset.act === 'pfnome') {
+    mudarPerfil((P) => { if (v) P.outros[k] = v; else delete P.outros[k]; }, { silencioso: true });
+    return;
+  }
+  if (k === 'nascimento' && v) { v = lerNascimento(v); if (!v) return; }
+  if ((k === 'celular' || k === 'contatoTelefone') && v) { v = soNumeros(v); if (v.length < 10) return; }
+  mudarPerfil((P) => { P.info = { ...(P.info || {}), [k]: v }; }, { silencioso: true });
+}
+
 export const mudancas = {
   ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
   ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
@@ -214,10 +228,12 @@ export const mudancas = {
       v = soNumeros(v);
       if (v.length < 10) { toast('Telefone incompleto: coloque o DDD e o número.'); return; }
     }
-    mudarPerfil((P) => { P.info = { ...(P.info || {}), [k]: v }; });
+    // Sem redesenhar a tela: no celular, redesenhar ao sair do campo tirava o foco do próximo
+    // campo tocado (o que se digitava nele se perdia).
+    mudarPerfil((P) => { P.info = { ...(P.info || {}), [k]: v }; }, { silencioso: true });
   },
   pfnome(el) {
     const v = el.value.replace(/\s+/g, ' ').trim();
-    mudarPerfil((P) => { if (v) P.outros[el.dataset.k] = v; else delete P.outros[el.dataset.k]; });
+    mudarPerfil((P) => { if (v) P.outros[el.dataset.k] = v; else delete P.outros[el.dataset.k]; }, { silencioso: true });
   },
 };

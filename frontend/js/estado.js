@@ -2,6 +2,7 @@
 // As telas leem "estado" e chamam as funções daqui; nada fala com a API direto.
 
 import { api } from './api.js';
+import { token } from './auth.js';
 import { giraVazia, ordenarPessoas } from '/shared/regras.js';
 import { hoje, toast } from './util.js';
 
@@ -408,22 +409,47 @@ export async function salvarNascimentoDe(pessoaId, nascimento) {
 // Muda o perfil na tela na hora e salva em seguida (só a última versão).
 let timerPerfil = null;
 let filaPerfil = Promise.resolve();
-export function mudarPerfil(fn) {
+let perfilPendente = null;   // o perfil que ainda não foi enviado
+// Mostra no bloco Informações se salvou (sem redesenhar a tela, para não atrapalhar quem digita).
+function avisoPerfil(t) {
+  estado.perfilSalvo = t;
+  const el = document.getElementById('pf-salvo');
+  if (el) { el.textContent = t === 'salvando' ? 'Salvando…' : t === 'salvo' ? '✓ Salvo' : t === 'erro' ? 'Não salvou' : ''; el.className = 'pf-salvo ' + t; }
+}
+function enviarPerfil() {
+  clearTimeout(timerPerfil);
+  if (!perfilPendente) return;
+  const enviar = perfilPendente;
+  perfilPendente = null;
+  avisoPerfil('salvando');
+  filaPerfil = filaPerfil.then(() => api('POST', '/auth/perfil', { perfil: enviar }))
+    .then(() => { if (!perfilPendente) avisoPerfil('salvo'); })
+    .catch((e) => { avisoPerfil('erro'); toast('O perfil não foi salvo: ' + e.message); });
+}
+// silencioso: enquanto a pessoa digita (não redesenha a tela).
+export function mudarPerfil(fn, { silencioso = false } = {}) {
   const P = estado.perfil?.eu;
   if (!P || !P.perfil) return;
   fn(P.perfil);
   // Admin: os blocos da corrente já mostram a mudança.
   const meu = (estado.perfil.todos || []).find((x) => x.pessoaId === P.pessoaId);
   if (meu) meu.perfil = JSON.parse(JSON.stringify(P.perfil));
-  avisar();
+  perfilPendente = JSON.parse(JSON.stringify(P.perfil));
+  avisoPerfil('salvando');
+  if (!silencioso) avisar();
   clearTimeout(timerPerfil);
-  timerPerfil = setTimeout(() => {
-    const enviar = JSON.parse(JSON.stringify(P.perfil));
-    estado.salvando++;
-    filaPerfil = filaPerfil.then(() => api('POST', '/auth/perfil', { perfil: enviar }))
-      .catch((e) => toast(e.message))
-      .finally(() => { estado.salvando--; avisar(); });
-  }, 400);
+  timerPerfil = setTimeout(enviarPerfil, silencioso ? 900 : 300);
+}
+// Ao sair do app ou trocar de tela com algo por salvar: envia na hora (mesmo fechando a página).
+export function salvarPerfilAgora() {
+  if (!perfilPendente) return;
+  clearTimeout(timerPerfil);
+  const enviar = perfilPendente;
+  perfilPendente = null;
+  try {
+    fetch('/api/auth/perfil', { method: 'POST', keepalive: true,
+      headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' }, body: JSON.stringify({ perfil: enviar }) });
+  } catch { /* sem conexão */ }
 }
 
 // ---------- oferendas ----------
