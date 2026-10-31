@@ -17,7 +17,7 @@ function cardLicencas(ps, editar) {
   const lics = ps.flatMap((p) => (p.licencas || []).filter((l) => l.fim >= hj).map((l) => ({ ...l, pessoa: p })))
     .sort((a, b) => a.inicio.localeCompare(b.inicio) || a.pessoa.nome.localeCompare(b.pessoa.nome, 'pt-BR'));
   if (!lics.length) return '';
-  let h = `<div class="card"><div class="grp-h"><h2>Licenças</h2><span class="count">${lics.length}</span></div>`;
+  let h = `<div class="card"><div class="grp-h"><h2><span class="cruz-vermelha" aria-hidden="true">✚</span> Licenças</h2><span class="count">${lics.length}</span></div>`;
   h += `<div class="ppl">${lics.map((l) => {
     const agora = l.inicio <= hj;
     const conf = estado.confirm === 'lic:' + l.id;
