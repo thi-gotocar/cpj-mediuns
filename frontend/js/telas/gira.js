@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, publicarEscala, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
@@ -99,6 +99,10 @@ function contagemPresentes(ps, g, pct = null) {
 function blocosFora(ps, g) {
   return [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
+    // Quem não edita a gira: só o nome, com a etiqueta "em licença" ao lado.
+    if (st === 'lic' && quem.length && !pode('giras:editar')) {
+      return `<div class="grp fora lic-lista">${quem.map((p) => `<div class="lic-l"><span>${esc(p.nome)}</span><span class="selo-lic">em licença</span></div>`).join('')}</div>`;
+    }
     return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
   }).join('');
 }
@@ -219,7 +223,10 @@ function blocoEu(g) {
 
 // "Médiuns e cambones" começa minimizado; abre enquanto o app estiver aberto.
 const duplasAbertas = new Set();
-const botaoDobrar = (aberto) => `<button class="btn link small ver-mais" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : '▸ Ver mais'}</button>`;
+// Quem não edita a gira vê "Ver escala"; o admin, "Ver mais".
+const botaoDobrar = (aberto) => `<button class="btn link small ver-mais" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : pode('giras:editar') ? '▸ Ver mais' : '▸ Ver escala'}</button>`;
+// Título do bloco do sorteio: para quem não edita, depois de publicado, "Sorteio realizado!".
+const tituloSorteio = () => (pode('giras:editar') ? '<h2>Sorteio</h2>' : '<h2 class="sorteio-ok">🚀 Sorteio realizado! ❤️</h2>');
 // Presença e WhatsApp também começam minimizados (abrem enquanto o app estiver aberto).
 const abertos = new Set();
 const cabDobra = (k, titulo, extra = '') => {
@@ -236,7 +243,7 @@ function resultado(g) {
       <p class="muted">Previsão: <b>${esc(dLong(g.data))}</b> (${esc(dDM(g.data))})</p></div>`;
   }
   const aberto = duplasAbertas.has(g.data);
-  let h = `<div class="card"><div class="grp-h"><h2>Sorteio</h2></div>`;
+  let h = `<div class="card"><div class="grp-h">${tituloSorteio()}</div>`;
   if (!aberto) return h + `${blocosFora(pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data)), g)}${botaoDobrar(false)}</div>`;
   h += `<div class="pairs">`;
   lista.forEach((x) => {
@@ -440,10 +447,13 @@ function renderGira() {
     </div>`;
   };
   const aberto = manual || duplasAbertas.has(g.data);
-  h += `<div class="card"><div class="grp-h"><h2>Sorteio</h2></div>
+  h += `<div class="card"><div class="grp-h">${temDuplas ? tituloSorteio() : '<h2>Sorteio</h2>'}</div>
       ${sortearOk ? (temDuplas
         ? '<div class="sort-acoes"><button class="btn primary btn-grande" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button></div>'
         : '<button class="btn primary btn-grande" data-act="sortear">🎲 Sortear</button>') : ''}
+      ${editar && temDuplas ? (g.publicada
+        ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
+        : `<button class="btn btn-grande pub-bt" data-act="publicar">📢 Publicar escala</button><p class="muted" style="margin:0;font-size:.85rem">Só os admins veem o sorteio até publicar.</p>`) : ''}
       ${editar && !passada ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
@@ -540,6 +550,8 @@ export const cliques = {
     if (duplasAbertas.has(d)) duplasAbertas.delete(d); else duplasAbertas.add(d);
     avisar();
   },
+  publicar() { publicarEscala(true); },
+  despublicar() { publicarEscala(false); },
   // A gira cadastrada mais recente antes da data aberta.
   giraanterior() {
     const d = Object.keys(estado.giras).filter((x) => x < prefs.data).sort().pop();

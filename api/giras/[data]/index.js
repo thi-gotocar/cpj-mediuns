@@ -1,12 +1,14 @@
 // GET    /api/giras/:data
 // PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
-// POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
+// POST   /api/giras/:data   { acao: 'publicar', publicada?: false } → a escala fica visível para todos (ou volta a ficar só para os admins)
+//                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
+import { ocultarSorteio } from '../../_lib/escala.js';
 import { db } from '../../_lib/db.js';
 import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma, podeDeclararAusencia } from '../../../shared/regras.js';
 
@@ -44,15 +46,15 @@ async function declararAusencia(req) {
   if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
   if (hojeBR() >= data) throw new HttpError(400, 'A ausência só pode ser declarada até o dia anterior à gira. Fale com a Michelle.');
   if (!podeDeclararAusencia(p, atual, hojeBR())) throw new HttpError(400, 'Sua presença nesta gira já foi definida. Fale com a Michelle.');
-  const gira = await db.rpc('presenca_marcar', { data, pessoaId: p.id, status: 'a' });
+  const gira = ocultarSorteio(eu, await db.rpc('presenca_marcar', { data, pessoaId: p.id, status: 'a' }));
   return { gira, mensagem: 'Ausência registrada. Obrigado por avisar! #boa gira' };
 }
 
 export default rota({
   GET: async (req) => {
-    await exigir(req, 'giras:ler');
+    const eu = await exigir(req, 'giras:ler');
     const data = validarData(req.query.data);
-    return (await db.rpc('gira_obter', { data })) || giraVazia(data);
+    return ocultarSorteio(eu, (await db.rpc('gira_obter', { data })) || giraVazia(data));
   },
   PUT: async (req) => {
     const perfil = await exigir(req, 'giras:editar');
@@ -107,6 +109,11 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const { acao, atendimentos } = b;
+    if (acao === 'publicar') {
+      if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');
+      const pub = b.publicada !== false;
+      return { gira: await db.rpc('gira_publicar', { data, publicada: pub }), mensagem: pub ? 'Escala publicada: agora todos veem o sorteio.' : 'Publicação desfeita: só os admins veem o sorteio.' };
+    }
     if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
     if (acao === 'reiniciar') {

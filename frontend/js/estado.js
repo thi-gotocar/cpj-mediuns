@@ -183,6 +183,7 @@ export const reabrirGira = () => situacaoDaGira('reabrir');
 export const reiniciarGira = () => situacaoDaGira('reiniciar');
 // Acesso da corrente: a própria pessoa declara que não vai (Pendente → Ausente).
 export const declararAusencia = () => situacaoDaGira('ausencia');
+export const publicarEscala = (publicada = true) => situacaoDaGira('publicar', { publicada });
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = () => acaoDaGira('remanejar');
 

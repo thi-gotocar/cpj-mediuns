@@ -624,3 +624,12 @@ body.deslogado .rodape{display:none}
 .card .grp-h.dobra:has(.selo-preench){flex-wrap:nowrap;align-items:center}
 .card .grp-h.dobra:has(.selo-preench) h2{flex:1 1 auto;min-width:0}
 .card .grp-h.dobra:has(.selo-preench) .count{flex:none;text-align:right}
+/* Sorteio: publicar a escala */
+.pub-bt{border:2px solid var(--ok);color:var(--ok);font-weight:700}
+.pub-linha{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--ok-soft);border-radius:10px;padding:8px 12px}
+.pub-ok{color:var(--ok);font-weight:700;font-size:.92rem}
+.sorteio-ok{color:var(--ok)}
+.lic-lista{display:flex;flex-direction:column;gap:6px}
+.lic-l{display:flex;align-items:center;gap:12px}
+.selo-lic{display:inline-block;font-size:.75rem;font-weight:700;border-radius:20px;padding:1px 10px;border:1.5px solid #d4a017;color:#8a6500;background:#fff7d6}
+.sort-acoes{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}.sort-acoes .btn{white-space:normal;min-width:0;line-height:1.2}

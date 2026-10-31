@@ -6,6 +6,7 @@ import { rota, corpo, validarData, validarId, HttpError } from '../_lib/http.js'
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { TIPO_EVENTO_KEYS } from '../../shared/eventos.js';
+import { ocultarSorteios } from '../_lib/escala.js';
 
 export default rota({
   GET: async (req) => {
@@ -13,8 +14,8 @@ export default rota({
       await exigir(req);
       return db.rpc('eventos_listar');
     }
-    await exigir(req, 'giras:ler');
-    return db.rpc('giras_listar');
+    const eu = await exigir(req, 'giras:ler');
+    return ocultarSorteios(eu, await db.rpc('giras_listar'));
   },
   POST: async (req) => {
     await exigir(req, 'eventos:editar');

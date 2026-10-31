@@ -939,3 +939,25 @@ test('perfil: afinidade com as entidades por função (extra, passe, cambone)', 
   assert.equal((await api('POST', '/api/auth/perfil', med, { acao: 'afinidade', tipo: 'passe', linhas: [] })).status, 400, 'médium não tem esses blocos');
   assert.equal((await api('POST', '/api/auth/perfil', passe, { acao: 'afinidade', tipo: 'passe', linhas: ['xyz'] })).status, 400);
 });
+
+test('escala: o sorteio só aparece para todos depois de publicado', async () => {
+  const d = '2099-02-04';
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Caboclo' });
+  const s = await api('POST', `/api/giras/${d}/sortear`, ADMIN);
+  assert.equal(s.status, 200, JSON.stringify(s.json));
+  const adm = (await api('GET', '/api/giras/' + d, ADMIN)).json;
+  assert.equal(adm.publicada, false);
+  assert.ok(adm.pares.length > 0, 'admin vê o sorteio');
+  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  for (const t of [USER, ana]) {
+    assert.deepEqual((await api('GET', '/api/giras/' + d, t)).json.pares, [], 'antes de publicar, ninguém mais vê');
+    assert.deepEqual((await api('GET', '/api/giras', t)).json.find((g) => g.data === d).pares, []);
+  }
+  assert.equal((await api('POST', '/api/giras/' + d, USER, { acao: 'publicar' })).status, 403);
+  const pub = await api('POST', '/api/giras/' + d, ADMIN, { acao: 'publicar' });
+  assert.equal(pub.json.gira.publicada, true);
+  assert.equal((await api('GET', '/api/giras/' + d, ana)).json.pares.length, adm.pares.length);
+  await api('POST', '/api/giras/' + d, ADMIN, { acao: 'publicar', publicada: false });
+  assert.deepEqual((await api('GET', '/api/giras/' + d, ana)).json.pares, []);
+  await api('DELETE', '/api/giras/' + d, ADMIN);
+});
