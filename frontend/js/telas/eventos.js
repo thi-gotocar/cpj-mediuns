@@ -25,11 +25,12 @@ function linha(e, editar) {
       ${conf ? `<button class="btn small danger" data-act="evexcluir" data-id="${e.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="ev:${e.id}">Excluir</button>`}</span>` : ''}</div>`;
 }
 
-// Um mês dentro do bloco "Eventos cadastrados".
+// Um mês dentro do bloco "Eventos cadastrados": começa minimizado; tocar no nome expande.
 function blocoMes(chave, lista, editar) {
   const [a, m] = chave.split('-');
-  return `<div class="ev-mes"><div class="ev-mes-h"><b>${MESES[Number(m) - 1]}</b> <span class="muted ev-ano">${a}</span><span class="count">${lista.length}</span></div>
-    <div class="ev-lista">${lista.map((e) => linha(e, editar)).join('')}</div></div>`;
+  const aberto = (U().meses ||= new Set()).has(chave);
+  return `<div class="ev-mes"><button class="ev-mes-h dobra" data-act="evmes" data-k="${chave}" aria-expanded="${aberto}"><b>${MESES[Number(m) - 1]}</b> <span class="muted ev-ano">${a}</span><span class="count">${lista.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>
+    ${aberto ? `<div class="ev-lista">${lista.map((e) => linha(e, editar)).join('')}</div>` : ''}</div>`;
 }
 
 // Blocos de eventos (ficam na aba Histórico): 1) cadastrar evento (admin); 2) eventos cadastrados, por mês.
@@ -82,6 +83,11 @@ export function mascaraData(el, apagando) {
 
 export const cliques = {
   evnovo(el) { U().novo = el.getAttribute('aria-expanded') !== 'true'; avisar(); if (U().novo) document.getElementById('ev-data')?.focus(); },
+  evmes(el) {
+    const s = (U().meses ||= new Set());
+    if (s.has(el.dataset.k)) s.delete(el.dataset.k); else s.add(el.dataset.k);
+    avisar();
+  },
   evlista(el) { U().lista = el.getAttribute('aria-expanded') !== 'true'; avisar(); },
   eveditar(el) { U().editar = el.dataset.id; avisar(); },
   evcancelar() { U().editar = null; avisar(); },
