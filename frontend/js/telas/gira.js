@@ -213,7 +213,7 @@ function blocoEu(g) {
   const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
   const nomeDaGira = g.entidade ? `${nomeGira(g.entidade)}${orixaDaGira(g) ? ` · ${orixaDaGira(g)}` : ''}` : '';
   return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span>${nomeDaGira ? `<span class="eu-gira">${esc(nomeDaGira)}</span>` : ''}</div>
-    <div class="eu-nome"><b>${esc(p.nome)}</b> <span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
+    <div class="eu-nome"><b>${esc(p.nome)}</b> ${!sorteado && !['medium', 'cambone'].includes(p.funcao) ? '<span class="muted eu-poss">Possivelmente:</span> ' : ''}<span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
     ${L.join('')}</div>`;
 }
 
