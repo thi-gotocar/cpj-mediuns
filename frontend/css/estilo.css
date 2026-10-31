@@ -543,3 +543,9 @@ body.deslogado .rodape{display:none}
 .of-med-etqs{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 .of-med-cont .muted{font-size:.8rem;align-self:center}
 @media (max-width:420px){.of-med-l{flex-wrap:wrap}.of-med-l .nm{flex-basis:100%}.of-med-acts{flex:1;justify-content:flex-end}}
+.ev-tipo{flex:0 1 130px}
+.evs-tipo{flex:none;margin-left:auto;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 8px;background:var(--bg);color:var(--muted);border:1px solid var(--line);align-self:center}
+.ev-nome .evs-tipo{margin-left:4px;vertical-align:middle}
+.evs-tipo.gira{background:#e6ecfb;color:#2c4ea3;border-color:#cdd8f5}
+.evs-tipo.amaci{background:#e3f4e8;color:#1d7a3c;border-color:#c6e7d1}
+.evs-tipo.aviso{background:#fbefc4;color:#7a5600;border-color:#f0dd9a}

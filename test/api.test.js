@@ -881,16 +881,18 @@ test('acesso da corrente declara a própria ausência (Pendente → Ausente) at�
 });
 
 test('eventos: o admin cadastra, edita e exclui; todos leem', async () => {
-  const r = await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2027-05-13', nome: '  Festa   dos Pretos Velhos ' });
+  const r = await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2027-05-13', nome: '  Festa   dos Pretos Velhos ', tipo: 'evento' });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const ev = r.json.find((e) => e.nome === 'Festa dos Pretos Velhos');
   assert.equal(ev.data, '2027-05-13');
-  assert.equal((await api('POST', '/api/giras', USER, { acao: 'evento', data: '2027-05-13', nome: 'X' })).status, 403);
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'evento', data: '2027-05-13', nome: 'X', tipo: 'evento' })).status, 403);
   const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
   assert.ok((await api('GET', '/api/giras?lista=eventos', ana)).json.some((e) => e.id === ev.id), 'a corrente vê os eventos');
-  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '13/05', nome: 'X' })).status, 400);
-  const ed = (await api('POST', '/api/giras', ADMIN, { acao: 'evento', id: ev.id, data: '2027-05-14', nome: 'Festa' })).json;
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '13/05', nome: 'X', tipo: 'evento' })).status, 400);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2027-05-13', nome: 'X', tipo: 'festa' })).status, 400);
+  const ed = (await api('POST', '/api/giras', ADMIN, { acao: 'evento', id: ev.id, data: '2027-05-14', nome: 'Festa', tipo: 'amaci' })).json;
   assert.equal(ed.find((e) => e.id === ev.id).data, '2027-05-14');
+  assert.equal(ed.find((e) => e.id === ev.id).tipo, 'amaci');
   const fim = (await api('POST', '/api/giras', ADMIN, { acao: 'excluirEvento', id: ev.id })).json;
   assert.ok(!fim.some((e) => e.id === ev.id));
 });

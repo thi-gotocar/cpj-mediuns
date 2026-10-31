@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 39;  // v39: oferenda por pessoa com duas conferências (pagamento e entrega)
+export const VERSAO = 40;  // v40: tipo do evento (gira, amaci, aviso, evento)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1211,6 +1211,25 @@ export const MIGRACOES = [
      where oferenda_id = (p ->> 'oferendaId')::uuid and pessoa_id = (p ->> 'pessoaId')::uuid;
      if not found then raise exception 'Pessoa não está nesta oferenda.'; end if;
      return oferendas_estado();
+   end;
+   $$`,
+
+  // ================================================== v40: tipo do evento
+  `alter table eventos add column if not exists tipo text not null default 'evento' check (tipo in ('gira', 'amaci', 'aviso', 'evento'))`,
+  `create or replace function eventos_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'data', data, 'nome', nome, 'tipo', tipo) order by data, lower(nome)), '[]'::jsonb) from eventos
+   $$`,
+  `create or replace function evento_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if coalesce(p ->> 'id', '') = '' then
+       insert into eventos (data, nome, tipo) values ((p ->> 'data')::date, btrim(p ->> 'nome'), coalesce(p ->> 'tipo', 'evento'));
+     else
+       update eventos set data = (p ->> 'data')::date, nome = btrim(p ->> 'nome'), tipo = coalesce(p ->> 'tipo', tipo) where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Evento não encontrado.'; end if;
+     end if;
+     return eventos_listar();
    end;
    $$`,
 ];

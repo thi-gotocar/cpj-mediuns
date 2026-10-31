@@ -24,10 +24,22 @@ export function lerDataCurta(txt, hoje) {
   return iso(ano, mes, d);
 }
 
+export const TIPOS_EVENTO = [['gira', 'Gira'], ['amaci', 'Amaci'], ['aviso', 'Aviso'], ['evento', 'Evento']];
+export const TIPO_EVENTO_KEYS = TIPOS_EVENTO.map(([k]) => k);
+export const TIPO_EVENTO_LABEL = Object.fromEntries(TIPOS_EVENTO);
+
+const porData = (a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0);
 // Eventos de hoje até daqui a 7 dias.
 export const eventosDaSemana = (eventos, hoje) => {
   const fim = somaDias(hoje, 7);
-  return (eventos || []).filter((e) => e.data >= hoje && e.data <= fim).sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0));
+  return (eventos || []).filter((e) => e.data >= hoje && e.data <= fim).sort(porData);
 };
+// Bloco "Eventos" da aba Gira: gira, evento e aviso do mês (de hoje até o fim do mês);
+// amaci só os da semana (hoje + 7 dias). O que já passou não aparece.
+export function eventosDoTopo(eventos, hoje) {
+  const fimSemana = somaDias(hoje, 7);
+  const mes = hoje.slice(0, 7);
+  return (eventos || []).filter((e) => e.data >= hoje && ((e.tipo || 'evento') === 'amaci' ? e.data <= fimSemana : e.data.slice(0, 7) === mes)).sort(porData);
+}
 
 export const dataCurta = (isoData) => `${isoData.slice(8, 10)}/${isoData.slice(5, 7)}`;
