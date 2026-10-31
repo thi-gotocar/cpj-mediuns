@@ -915,3 +915,27 @@ test('perfil: admin ajusta a data de nascimento de outra pessoa (Ajustes)', asyn
   const todos = (await api('GET', '/api/auth/perfil', ADMIN)).json.todos;
   assert.equal(todos.find((t) => t.pessoaId === ana).perfil.info.nascimento, '1990-10-31');
 });
+
+test('perfil: afinidade com as entidades por função (extra, passe, cambone)', async () => {
+  const add = async (nome, funcao) => {
+    await api('POST', '/api/pessoas', ADMIN, { nome, funcao });
+    return (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: nome })).json.token;
+  };
+  const passe = await add('Paula Passe', 'passe');
+  const camb = await add('Caio Cambone', 'cambone');
+  const med = await add('Mara Medium', 'medium');
+  const eu = (await api('GET', '/api/auth/perfil', passe)).json.eu;
+  assert.equal(eu.funcao, 'passe');
+  // Passe: o bloco Passe vai para as linhas do cadastro (vale no sorteio); o de atendimento extra fica à parte.
+  let r = (await api('POST', '/api/auth/perfil', passe, { acao: 'afinidade', tipo: 'passe', linhas: ['caboclo', 'exu'] })).json;
+  assert.deepEqual(r.linhas, ['caboclo', 'exu']);
+  r = (await api('POST', '/api/auth/perfil', passe, { acao: 'afinidade', tipo: 'extra', linhas: ['baiano'] })).json;
+  assert.deepEqual([r.linhas, r.afinidadeExtra], [['caboclo', 'exu'], ['baiano']]);
+  assert.deepEqual((await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Paula Passe').linhas, ['caboclo', 'exu']);
+  // Cambone: só o bloco Passe (guardado à parte; o cadastro não muda).
+  r = (await api('POST', '/api/auth/perfil', camb, { acao: 'afinidade', tipo: 'passe', linhas: ['eres'] })).json;
+  assert.deepEqual([r.afinidadePasse, r.linhas], [['eres'], []]);
+  assert.equal((await api('POST', '/api/auth/perfil', camb, { acao: 'afinidade', tipo: 'extra', linhas: ['eres'] })).status, 400);
+  assert.equal((await api('POST', '/api/auth/perfil', med, { acao: 'afinidade', tipo: 'passe', linhas: [] })).status, 400, 'médium não tem esses blocos');
+  assert.equal((await api('POST', '/api/auth/perfil', passe, { acao: 'afinidade', tipo: 'passe', linhas: ['xyz'] })).status, 400);
+});

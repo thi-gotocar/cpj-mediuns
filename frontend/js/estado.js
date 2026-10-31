@@ -394,6 +394,19 @@ export async function carregarPerfil() {
   avisar();
 }
 
+// Aba Perfil: entidades com que a pessoa tem afinidade (atendimento extra / passe).
+export async function salvarAfinidade(tipo, linhas) {
+  try {
+    const r = await api('POST', '/auth/perfil', { acao: 'afinidade', tipo, linhas });
+    Object.assign(estado.perfil.eu, { linhas: r.linhas, afinidadeExtra: r.afinidadeExtra, afinidadePasse: r.afinidadePasse });
+    // As da própria função valem no sorteio: atualiza o cadastro na tela.
+    const p = estado.pessoas.find((x) => x.id === r.pessoaId);
+    if (p) p.linhas = r.linhas || [];
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
 // Admin (bloco Ajustes da aba Perfil): informações de outra pessoa.
 export async function salvarInfoDe(pessoaId, info) {
   try {

@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 40;  // v40: tipo do evento (gira, amaci, aviso, evento)
+export const VERSAO = 41;  // v41: afinidade com as entidades (atendimento extra e passe), marcada na aba Perfil
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1230,6 +1230,35 @@ export const MIGRACOES = [
        if not found then raise exception 'Evento não encontrado.'; end if;
      end if;
      return eventos_listar();
+   end;
+   $$`,
+
+  // ================================================== v41: afinidade com as entidades (aba Perfil)
+  // A da própria função fica em pessoas.linhas (Extra → atendimento extra; Passe → passe).
+  // As outras: Passe marca também o atendimento extra; Cambone marca o passe.
+  `alter table pessoas add column if not exists afinidade_extra text[] not null default '{}'`,
+  `alter table pessoas add column if not exists afinidade_passe text[] not null default '{}'`,
+  `create or replace function perfil_ler(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare r jsonb;
+   begin
+     select jsonb_build_object('pessoaId', id, 'nome', nome, 'perfil', perfil, 'funcao', funcao, 'linhas', to_jsonb(linhas),
+                               'afinidadeExtra', to_jsonb(afinidade_extra), 'afinidadePasse', to_jsonb(afinidade_passe)) into r
+     from pessoas where id = (p ->> 'pessoaId')::uuid;
+     if r is null then raise exception 'Pessoa não encontrada.'; end if;
+     return r;
+   end;
+   $$`,
+  `create or replace function afinidade_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_l text[] := array(select distinct jsonb_array_elements_text(coalesce(p -> 'linhas', '[]'::jsonb)) order by 1);
+   begin
+     if p ->> 'campo' = 'linhas' then update pessoas set linhas = v_l where id = (p ->> 'pessoaId')::uuid;
+     elsif p ->> 'campo' = 'extra' then update pessoas set afinidade_extra = v_l where id = (p ->> 'pessoaId')::uuid;
+     elsif p ->> 'campo' = 'passe' then update pessoas set afinidade_passe = v_l where id = (p ->> 'pessoaId')::uuid;
+     else raise exception 'Campo inválido.'; end if;
+     if not found then raise exception 'Pessoa não encontrada.'; end if;
+     return perfil_ler(p);
    end;
    $$`,
 ];

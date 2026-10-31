@@ -42,6 +42,16 @@ export function telefoneBR(n) {
   return `(${d.slice(0, 2)}) ${resto.length > corte ? `${resto.slice(0, corte)}-${resto.slice(corte)}` : resto}`;
 }
 
+// Blocos de afinidade com as entidades na aba Perfil, por função:
+// Extra → Atendimento extra · Passe → Passe e Atendimento extra · Cambone → Passe.
+// "campo": onde fica guardado (linhas = as da própria função, as que valem no sorteio).
+export function blocosAfinidade(funcao) {
+  if (funcao === 'extra') return [{ tipo: 'extra', campo: 'linhas' }];
+  if (funcao === 'passe') return [{ tipo: 'passe', campo: 'linhas' }, { tipo: 'extra', campo: 'extra' }];
+  if (funcao === 'cambone') return [{ tipo: 'passe', campo: 'passe' }];
+  return [];
+}
+
 const txt = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // Limpa o que veio da tela (ou do banco): só campos conhecidos e valores válidos.

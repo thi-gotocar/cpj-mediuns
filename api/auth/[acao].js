@@ -17,7 +17,8 @@ import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { permissoesDe, ehAcessoCorrente, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
-import { normalizarPerfil } from '../../shared/perfil.js';
+import { normalizarPerfil, blocosAfinidade } from '../../shared/perfil.js';
+import { LINHA_KEYS } from '../../shared/regras.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,6 +55,15 @@ const acoes = {
     }
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const b = corpo(req);
+    // A própria pessoa marca as entidades com que tem afinidade (atendimento extra / passe).
+    if (b.acao === 'afinidade') {
+      if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
+      const atual = await db.rpc('perfil_ler', { pessoaId: eu.pessoaId });
+      const bloco = blocosAfinidade(atual.funcao).find((x) => x.tipo === b.tipo);
+      if (!bloco) throw new HttpError(400, 'Este bloco não é da sua função.');
+      if (!Array.isArray(b.linhas) || b.linhas.some((l) => !LINHA_KEYS.includes(l))) throw new HttpError(400, 'Entidade inválida.');
+      return limpo(await db.rpc('afinidade_salvar', { pessoaId: eu.pessoaId, campo: bloco.campo, linhas: [...new Set(b.linhas)] }));
+    }
     // Admin (bloco Ajustes): muda as informações do perfil de outra pessoa (o resto do perfil fica igual).
     if (b.pessoaId && b.pessoaId !== eu.pessoaId) {
       if (!pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin altera o perfil de outra pessoa.');

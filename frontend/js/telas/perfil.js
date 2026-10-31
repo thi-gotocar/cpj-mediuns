@@ -1,9 +1,9 @@
 // Tela "Perfil": cada pessoa registra as suas informações, os seus orixás, guias e outros guias.
 // O admin também acompanha a corrente: quem já respondeu, os guias de todos e as oferendas pendentes.
 
-import { ORIXAS } from '/shared/regras.js';
-import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, carregarUsuarios, atualizarPessoa } from '../estado.js';
+import { ORIXAS, LINHAS_CADASTRO } from '/shared/regras.js';
+import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade } from '/shared/perfil.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa } from '../estado.js';
 import { esc, toast } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
@@ -111,6 +111,24 @@ function cardInfo(eu) {
     </div></div>`;
 }
 
+// Blocos de afinidade com as entidades (logo abaixo de Informações), conforme a função da pessoa.
+const AFIN = {
+  extra: { titulo: 'Médium de atendimento extra', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento extra.', funcao: 'atendimento extra' },
+  passe: { titulo: 'Médium de passe', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento Passe.', funcao: 'passe' },
+};
+function cardsAfinidade(eu) {
+  return blocosAfinidade(eu.funcao).map(({ tipo, campo }) => {
+    const A = AFIN[tipo];
+    const ls = (campo === 'linhas' ? eu.linhas : campo === 'extra' ? eu.afinidadeExtra : eu.afinidadePasse) || [];
+    return `<div class="card"><div class="grp-h"><h2>${A.titulo}</h2><span class="count">${ls.length ? `${ls.length} marcada${ls.length > 1 ? 's' : ''}` : ''}</span></div>
+      <p class="muted" style="margin:0;font-size:.9rem">${A.texto}</p>
+      ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Sem nenhuma marcada, atua como ${A.funcao} em todas.</p>` : ''}
+      ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
+        `<label class="chip"><input type="checkbox" id="af-${tipo}-${k}" data-act="afin" data-tipo="${tipo}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
 // Uma linha: rótulo, combo e "Oferenda realizada" ao lado.
 function linhaEscolha({ grupo, k, rotulo, valor, opcoes, oferenda }) {
   return `<div class="pf-linha">
@@ -131,7 +149,7 @@ function meusCards(eu) {
   // Orixás, guias e outros guias começam minimizados (para todos); tocar no título expande.
   const padrao = false;
   const orixas = ORIXAS.map((o) => [o, o]);
-  return cardInfo(eu) + card('orixas', 'Orixás', '', padrao, () =>
+  return cardInfo(eu) + cardsAfinidade(eu) + card('orixas', 'Orixás', '', padrao, () =>
     POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: orixas, oferenda: P.orixas[k].oferenda })).join(''), true)
   + card('guias', 'Guias', '', padrao, () =>
     POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''), true)
@@ -248,6 +266,14 @@ export function digitando(el) {
 }
 
 export const mudancas = {
+  afin(t) {
+    const eu = estado.perfil.eu;
+    const bloco = blocosAfinidade(eu.funcao).find((x) => x.tipo === t.dataset.tipo);
+    if (!bloco) return;
+    const atual = new Set((bloco.campo === 'linhas' ? eu.linhas : bloco.campo === 'extra' ? eu.afinidadeExtra : eu.afinidadePasse) || []);
+    if (t.checked) atual.add(t.dataset.l); else atual.delete(t.dataset.l);
+    salvarAfinidade(bloco.tipo, [...atual].sort());
+  },
   infopessoa(t) { estado.infoPessoa = t.value; avisar(); },
   ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
   ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
