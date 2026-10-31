@@ -641,3 +641,7 @@ body.deslogado .rodape{display:none}
 .lic-l{gap:10px}
 .selo-lic{border-color:var(--off);color:var(--off);background:var(--off-soft)}
 .sup-lista{display:flex;flex-direction:column;gap:6px}.sup-l{display:flex;align-items:center;gap:10px}
+/* Presença: quem está fora da função do cadastro nesta gira */
+.nm-mudou{display:inline-block;color:#8a6500;background:#fff7d6;border:1.5px solid #d4a017;border-radius:8px;padding:0 7px;line-height:1.5}
+.pres select.st.papel-dia.pas{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.pres .nm .nm-mudou{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}

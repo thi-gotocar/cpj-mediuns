@@ -270,3 +270,17 @@ test('perfil: informações (nascimento e telefones validados)', async () => {
   assert.deepEqual(p.info, { nome: 'Ana Maria', nascimento: '1990-10-31', celular: '11987654321', contatoNome: 'Mãe', contatoTelefone: '' });
   assert.deepEqual(normalizarPerfil(null).info, { nome: '', nascimento: '', celular: '', contatoNome: '', contatoTelefone: '' });
 });
+
+test('função do dia: Extra como Passe (pas) e Passe como Cambone (na)', async () => {
+  const { funcaoNaGira, status, presente, cambonaHoje, pessoasDaGira, papelDe } = await import('../shared/regras.js');
+  const ex = { id: 'e', nome: 'Ex', funcao: 'extra', linhas: [] };
+  const pa = { id: 'p', nome: 'Pa', funcao: 'passe', linhas: [] };
+  const g = { data: '2030-01-01', entidade: 'Caboclo', presenca: { e: 'p', p: 'p' }, papeis: { e: 'pas', p: 'na' } };
+  assert.equal(funcaoNaGira(ex, g), 'passe');
+  assert.equal(papelDe(ex, g), 'pas');
+  assert.equal(status(ex, g), 'p');
+  assert.ok(presente(ex, g));
+  assert.equal(pessoasDaGira([ex], g)[0].funcao, 'passe');
+  assert.ok(cambonaHoje(pa, g), 'passe como cambone cambona');
+  assert.equal(papelDe({ ...pa, funcao: 'medium' }, { ...g, papeis: { p: 'pas' } }), 'cad', "'pas' só vale para Extra");
+});

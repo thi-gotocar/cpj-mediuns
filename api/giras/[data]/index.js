@@ -83,7 +83,7 @@ export default rota({
       p.papeis = {};
       for (const [id, v] of Object.entries(b.papeis)) {
         validarId(id, 'Pessoa');
-        if (v !== 'sup' && v !== 'na' && v !== 'cad') throw new HttpError(400, 'Função do dia inválida.');
+        if (!['sup', 'na', 'cad', 'pas'].includes(v)) throw new HttpError(400, 'Função do dia inválida.');
         p.papeis[id] = v;
       }
     }

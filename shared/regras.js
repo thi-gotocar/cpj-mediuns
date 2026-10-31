@@ -110,6 +110,8 @@ export function foraDaLinha(p, g) {
   return ![linha, ...(JUNTAS[linha] || [])].some((l) => p.linhas.includes(l));
 }
 export function funcaoNaGira(p, g) {
+  // Extra escolhido como Passe nesta gira (papeis[id] = 'pas').
+  if ((g.papeis || {})[p.id] === 'pas' && p.funcao === 'extra') return 'passe';
   // O admin pode manter a função do cadastro mesmo fora da linha (papeis[id] = 'cad').
   if ((g.papeis || {})[p.id] === 'cad') return p.funcao;
   return foraDaLinha(p, g) ? 'cambone' : p.funcao;
@@ -149,7 +151,8 @@ export function licencaEm(p, data) {
 
 // Na gira, cada pessoa tem duas coisas separadas:
 //  - presença (g.presenca): pendente, presente, falta ou ausente ('lic' = de licença, vale sobre tudo);
-//  - função do dia (g.papeis): a do cadastro, 'sup' (Suporte, fora do sorteio) ou 'na' (Não atende: cambona).
+//  - função do dia (g.papeis): a do cadastro, 'sup' (Suporte, fora do sorteio), 'na' (Não atende: cambona;
+//    para o médium de passe aparece como "Cambone") ou 'pas' (Extra que atua como Passe nesta gira).
 // Giras antigas guardavam 'sup'/'na' na própria presença: continuam valendo (como presente).
 export function presencaDe(p, g) {
   if (licencaEm(p, g.data)) return 'lic';
@@ -160,6 +163,7 @@ export function presencaDe(p, g) {
 export function papelDe(p, g) {
   const r = (g.papeis || {})[p.id];
   if (r === 'sup' || r === 'na' || r === 'cad') return r;
+  if (r === 'pas' && p.funcao === 'extra') return 'pas';
   const v = (g.presenca || {})[p.id];
   if (v === 'sup' || v === 'na') return v;
   // Extra/Passe fora das linhas que marcou: entra como "Não atende" (está na gira e cambona).
@@ -170,7 +174,7 @@ export function status(p, g) {
   const pr = presencaDe(p, g);
   if (pr === 'lic' || pr === 'f' || pr === 'a') return pr;
   const papel = papelDe(p, g);
-  return papel === 'cad' ? pr : papel;
+  return papel === 'cad' || papel === 'pas' ? pr : papel;
 }
 // Pendente (presença ainda não confirmada) conta como presente na escala e no sorteio.
 export const presente = (p, g) => { const s = status(p, g); return s === 'p' || s === 'pend'; };
@@ -509,7 +513,7 @@ export function reabrir(pessoas, g) {
   const nomes = [];
   for (const [id, antes] of Object.entries(g.suporteAuto || {})) {
     if (papeis[id] === 'sup') {
-      if (antes === 'na') papeis[id] = 'na'; else delete papeis[id];
+      if (antes === 'na' || antes === 'pas') papeis[id] = antes; else delete papeis[id];
     } else if (presenca[id] === 'sup') {
       presenca[id] = antes === 'cad' ? 'p' : antes;   // formato antigo
     } else continue;
