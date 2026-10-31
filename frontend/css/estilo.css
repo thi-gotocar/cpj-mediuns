@@ -654,3 +654,5 @@ body.deslogado .rodape{display:none}
 .camrow .falta-bt,.pair>.falta-bt{margin-left:auto;flex:none}
 .pair>.falta-bt{justify-self:end}
 .med .falta-bt{margin-left:auto}
+.eu-guia b{color:var(--accent)}
+.eu-l.eu-guia{display:block}

@@ -284,3 +284,12 @@ test('função do dia: Extra como Passe (pas) e Passe como Cambone (na)', async 
   assert.ok(cambonaHoje(pa, g), 'passe como cambone cambona');
   assert.equal(papelDe({ ...pa, funcao: 'medium' }, { ...g, papeis: { p: 'pas' } }), 'cad', "'pas' só vale para Extra");
 });
+
+test('guia de atendimento na gira: pela linha da entidade (e gira junta)', async () => {
+  const { guiaNaGira } = await import('../shared/regras.js');
+  const p = { guiasAtendimento: { 'preto-velho': 'Pai Joaquim', exu: 'Tranca Rua', 'pomba-gira': 'Maria Padilha' } };
+  assert.equal(guiaNaGira(p, { entidade: 'Preto Velho' }), 'Pai Joaquim');
+  assert.equal(guiaNaGira(p, { entidade: 'Exus & Pombagira' }), 'Tranca Rua / Maria Padilha');
+  assert.equal(guiaNaGira(p, { entidade: 'Caboclo' }), '');
+  assert.equal(guiaNaGira(p, { entidade: '' }), '');
+});

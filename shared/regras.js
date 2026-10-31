@@ -49,6 +49,14 @@ export const ehGiraInterna = (entidade) => giraEspecial(entidade) === 'interna';
 // quem tem qualquer uma das linhas juntas atua na própria função.
 export const GIRAS_JUNTAS = [['exus-pombagira', 'Exus & Pombagira', ['exu', 'pomba-gira']]];
 const JUNTAS = Object.fromEntries(GIRAS_JUNTAS.map(([k, , ls]) => [k, ls]));
+// Nome do guia de atendimento da pessoa na linha desta gira (aba Perfil → Guias de atendimento).
+// Gira junta (Exus & Pombagira): os das linhas dela. Sem nome cadastrado: ''.
+export function guiaNaGira(p, g) {
+  const l = linhaDaEntidade(g?.entidade);
+  if (!l || !p) return '';
+  const G = p.guiasAtendimento || {};
+  return [l, ...(JUNTAS[l] || [])].map((k) => G[k]).filter((x) => typeof x === 'string' && x.trim()).join(' / ');
+}
 // Opções do seletor "Gira / entidade do dia": as linhas, as juntas (na Esquerda) e as especiais.
 export const OPCOES_GIRA = [
   ...LINHAS.map((g) => (g.grupo === 'Esquerda' ? { ...g, itens: [...g.itens, ...GIRAS_JUNTAS.map(([k, l]) => [k, l])] } : g)),

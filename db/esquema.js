@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 42;  // v42: publicar a escala (o sorteio só aparece para todos depois de publicado)
+export const VERSAO = 43;  // v43: guias de atendimento (nome do guia por linha) na lista de pessoas, para o Você nesta gira
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1299,5 +1299,17 @@ export const MIGRACOES = [
                            from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
      )
      from giras g where g.data = d;
+   $$`,
+
+  // ================================================== v43: a lista de pessoas leva o nome dos guias de atendimento (todos veem)
+  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
+       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza, p.entrada,
+              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
+                        from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas,
+              coalesce(p.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento"
+       from pessoas p
+     ) x;
    $$`,
 ];
