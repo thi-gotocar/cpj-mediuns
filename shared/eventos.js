@@ -11,7 +11,8 @@ function somaDias(isoData, n) {
 // "31/10", "3/1", "31/10/26" ou "31/10/2026" → 'AAAA-MM-DD' (ou null se não for uma data válida).
 // Sem ano: o deste ano; se essa data já passou há mais de 2 meses, é a do ano que vem.
 export function lerDataCurta(txt, hoje) {
-  const m = String(txt || '').trim().match(/^(\d{1,2})\s*[/.-]\s*(\d{1,2})(?:\s*[/.-]\s*(\d{2}|\d{4}))?$/);
+  // A barra que a máscara põe no fim ("31/10/") não atrapalha.
+  const m = String(txt || '').trim().replace(/[/.-]+$/, '').match(/^(\d{1,2})\s*[/.-]\s*(\d{1,2})(?:\s*[/.-]\s*(\d{2}|\d{4}))?$/);
   if (!m) return null;
   const d = Number(m[1]), mes = Number(m[2]);
   let ano = m[3] ? Number(m[3].length === 2 ? '20' + m[3] : m[3]) : Number(hoje.slice(0, 4));

@@ -234,6 +234,7 @@ test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)'
   assert.equal(lerDataCurta('5/1', hoje), '2027-01-05', 'já passou há mais de 2 meses: ano que vem');
   assert.equal(lerDataCurta('15/09', hoje), '2026-09-15', 'passou há pouco: este ano');
   assert.equal(lerDataCurta('31/10/2027', hoje), '2027-10-31');
+  assert.equal(lerDataCurta('31/10/', hoje), '2026-10-31', 'barra da máscara no fim');
   assert.equal(lerDataCurta('1/2/27', hoje), '2027-02-01');
   assert.equal(lerDataCurta('31/02', hoje), null);
   assert.equal(lerDataCurta('abc', hoje), null);

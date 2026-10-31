@@ -212,6 +212,7 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoCorrente(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
+  if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
 });
 
 main.addEventListener('submit', async (e) => {

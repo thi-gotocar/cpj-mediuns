@@ -14,7 +14,7 @@ function linha(e, editar) {
   const u = U();
   if (editar && u.editar === e.id) {
     return `<form id="f-evento-ed" class="ev-form" data-id="${e.id}" autocomplete="off">
-      <label class="field ev-data">Data<input type="text" name="data" inputmode="numeric" maxlength="10" required value="${dataCurta(e.data)}/${e.data.slice(0, 4)}" placeholder="31/10"></label>
+      <label class="field ev-data">Data<input type="text" name="data" inputmode="numeric" maxlength="10" data-mascara="data" required value="${dataCurta(e.data)}/${e.data.slice(0, 4)}" placeholder="31/10"></label>
       ${seletorTipo(e.tipo)}
       <label class="field grow">Nome<input type="text" name="nome" maxlength="120" required value="${esc(e.nome)}"></label>
       <span class="row ev-bts"><button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="evcancelar">Cancelar</button></span></form>`;
@@ -40,11 +40,11 @@ export function render() {
     const aberto = u.novo ?? !evs.length;
     h += `<div class="card"><button class="grp-h dobra" data-act="evnovo" aria-expanded="${aberto}"><h2>＋ Cadastrar evento</h2><span class="count"><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>
       ${aberto ? `<form id="f-evento" class="ev-form" autocomplete="off">
-        <label class="field ev-data">Data<input type="text" id="ev-data" name="data" inputmode="numeric" maxlength="10" required placeholder="31/10"></label>
+        <label class="field ev-data">Data<input type="text" id="ev-data" name="data" inputmode="numeric" maxlength="10" data-mascara="data" required placeholder="31/10"></label>
         ${seletorTipo(estado.evUi?.ultimoTipo)}
         <label class="field grow">Nome<input type="text" id="ev-nome" name="nome" maxlength="120" required placeholder="Ex.: Festa de Iemanjá"></label>
         <span class="row ev-bts"><button class="btn primary" type="submit">Cadastrar</button></span></form>
-        <p class="muted" style="margin:0;font-size:.82rem">Digite só dia e mês (31/10). Se a data deste ano já passou há mais de 2 meses, fica para o ano que vem; para outro ano, digite 31/10/2027.</p>` : ''}</div>`;
+        <p class="muted" style="margin:0;font-size:.82rem">Digite só dia e mês (3110 vira 31/10). Se a data deste ano já passou há mais de 2 meses, fica para o ano que vem; para outro ano, continue digitando o ano (31/10/2027).</p>` : ''}</div>`;
   }
   if (!evs.length) return h + `<div class="card empty"><p class="muted">Nenhum evento cadastrado.</p></div></section>`;
   // Um bloco por mês: o mês atual e os próximos em cima; os que já passaram, no fim.
@@ -60,6 +60,16 @@ export function render() {
     if (u.passados) passados.forEach((k) => { h += cardMes(k, porMes[k], editar); });
   }
   return h + '</section>';
+}
+
+// Campo de data no celular (teclado só de números): a barra entra sozinha.
+// "3110" → "31/10" · "31102027" → "31/10/2027". Ao apagar, não põe a barra de volta.
+export function mascaraData(el, apagando) {
+  const d = el.value.replace(/\D/g, '').slice(0, 8);
+  let v = d.slice(0, 2);
+  if (d.length > 2 || (d.length === 2 && !apagando)) v += '/' + d.slice(2, 4);
+  if (d.length > 4 || (d.length === 4 && !apagando)) v += '/' + d.slice(4, 8);
+  el.value = v;
 }
 
 export const cliques = {
