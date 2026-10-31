@@ -618,3 +618,9 @@ body.deslogado .rodape{display:none}
 .sorteio-pend h2{color:var(--off)}
 .sorteio-pend p{margin:0}
 .eu-poss{font-size:.88rem}
+.selo-preench.oferenda{border-color:var(--orange);color:var(--orange);background:color-mix(in srgb,var(--orange) 10%,transparent)}
+.selo-preench.andamento{border-color:#2c4ea3;color:#2c4ea3;background:#e6ecfb}
+/* Perfil: título e selo na mesma linha (o título encolhe/quebra, o selo fica à direita) */
+.card .grp-h.dobra:has(.selo-preench){flex-wrap:nowrap;align-items:center}
+.card .grp-h.dobra:has(.selo-preench) h2{flex:1 1 auto;min-width:0}
+.card .grp-h.dobra:has(.selo-preench) .count{flex:none;text-align:right}

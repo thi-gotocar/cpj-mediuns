@@ -45,7 +45,7 @@ function cardAjustes(todos) {
       h += `<div class="aj-ver">
         ${POSICOES_ORIXA.map(([k, rot]) => linha(rot, Pf.orixas[k].nome, Pf.orixas[k].oferenda)).join('')}
         ${POSICOES_GUIA.map(([k, rot]) => linha(rot, GUIA_LABEL[Pf.guias[k].linha], Pf.guias[k].oferenda)).join('')}
-        ${outros.length ? `<div class="aj-v"><span class="muted">Outros guias</span><b>${outros.map(([k, l]) => `${esc(l)}: ${esc(Pf.outros[k])}`).join(' · ')}</b></div>` : ''}
+        ${outros.length ? `<div class="aj-v"><span class="muted">Guias de atendimento</span><b>${outros.map(([k, l]) => `${esc(l)}: ${esc(Pf.outros[k])}`).join(' · ')}</b></div>` : ''}
         ${respondeu(Pf) ? '' : '<p class="muted" style="margin:0">Ainda não respondeu os orixás e guias.</p>'}</div>`;
     } else if (A.campo === 'entrada') {
       // Igual era na aba Usuários: a pessoa só conta nas giras a partir dessa data.
@@ -112,7 +112,15 @@ function cardInfo(eu) {
 }
 
 // Selo ao lado do título: "não preenchido" (amarelo) ou "preenchido" (verde).
-const selo = (ok) => `<span class="selo-preench ${ok ? 'ok' : ''}">${ok ? 'preenchido' : 'não preenchido'}</span>`;
+// ok: true/false, ou um estado: 'oferenda' (laranja) / 'andamento' (azul).
+const SELOS = { true: ['ok', 'preenchido'], false: ['', 'não preenchido'], oferenda: ['oferenda', 'pendente oferenda de apresentação'], andamento: ['andamento', 'em andamento'] };
+const selo = (ok) => { const [c, t] = SELOS[ok] || SELOS.false; return `<span class="selo-preench ${c}">${t}</span>`; };
+// Orixás / Guias: todos escolhidos e todas as oferendas marcadas = preenchido;
+// tudo escolhido mas falta alguma oferenda = pendente oferenda de apresentação.
+function situacaoOferendas(itens, campo) {
+  if (!itens.every((x) => x[campo])) return false;
+  return itens.every((x) => x.oferenda) ? true : 'oferenda';
+}
 
 // Blocos de afinidade com as entidades (logo abaixo de Informações), conforme a função da pessoa.
 const AFIN = {
@@ -152,15 +160,16 @@ function meusCards(eu) {
   // Orixás, guias e outros guias começam minimizados (para todos); tocar no título expande.
   const padrao = false;
   const orixas = ORIXAS.map((o) => [o, o]);
-  // Preenchido: os 3 orixás, os 2 guias e pelo menos um nome em Outros guias.
-  const okOrixas = POSICOES_ORIXA.every(([k]) => P.orixas[k].nome);
-  const okGuias = POSICOES_GUIA.every(([k]) => P.guias[k].linha);
-  const okOutros = Object.keys(P.outros || {}).length > 0;
+  // Preenchido só quando todos os campos estão preenchidos.
+  const okOrixas = situacaoOferendas(POSICOES_ORIXA.map(([k]) => P.orixas[k]), 'nome');
+  const okGuias = situacaoOferendas(POSICOES_GUIA.map(([k]) => P.guias[k]), 'linha');
+  const nOutros = GUIAS.filter(([k]) => (P.outros || {})[k]).length;
+  const okOutros = nOutros === GUIAS.length ? true : nOutros ? 'andamento' : false;
   return cardInfo(eu) + cardsAfinidade(eu) + card('orixas', 'Orixás', selo(okOrixas), padrao, () =>
     POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: orixas, oferenda: P.orixas[k].oferenda })).join(''), true)
   + card('guias', 'Guias', selo(okGuias), padrao, () =>
     POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''), true)
-  + card('outros', 'Outros guias', selo(okOutros), padrao, () => `
+  + card('outros', 'Guias de atendimento', selo(okOutros), padrao, () => `
     <p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>
     ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">
       <label class="pf-rot" for="pf-outro-${k}">${esc(label)}</label>
