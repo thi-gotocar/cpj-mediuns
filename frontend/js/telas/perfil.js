@@ -120,12 +120,12 @@ function cardsAfinidade(eu) {
   return blocosAfinidade(eu.funcao).map(({ tipo, campo }) => {
     const A = AFIN[tipo];
     const ls = (campo === 'linhas' ? eu.linhas : campo === 'extra' ? eu.afinidadeExtra : eu.afinidadePasse) || [];
-    return `<div class="card"><div class="grp-h"><h2>${A.titulo}</h2><span class="count">${ls.length ? `${ls.length} marcada${ls.length > 1 ? 's' : ''}` : ''}</span></div>
+    // Começa minimizado; tocar no título expande.
+    return card('afin-' + tipo, A.titulo, ls.length ? `${ls.length} marcada${ls.length > 1 ? 's' : ''}` : '', false, () => `
       <p class="muted" style="margin:0;font-size:.9rem">${A.texto}</p>
       ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Sem nenhuma marcada, atua como ${A.funcao} em todas.</p>` : ''}
       ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
-        `<label class="chip"><input type="checkbox" id="af-${tipo}-${k}" data-act="afin" data-tipo="${tipo}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}
-    </div>`;
+        `<label class="chip"><input type="checkbox" id="af-${tipo}-${k}" data-act="afin" data-tipo="${tipo}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}`, true);
   }).join('');
 }
 
