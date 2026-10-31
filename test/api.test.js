@@ -904,6 +904,9 @@ test('perfil: admin ajusta a data de nascimento de outra pessoa (Ajustes)', asyn
   assert.equal(r.json.perfil.info.nascimento, '1990-10-31');
   assert.equal((await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: ana, info: { nascimento: '2999-01-01' } })).status, 400);
   assert.equal((await api('POST', '/api/auth/perfil', USER, { pessoaId: ana, info: { nascimento: '1990-10-31' } })).status, 403);
+  const r2 = await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: ana, info: { celular: '11987654321', contatoNome: 'Mãe', contatoTelefone: '1134567890' } });
+  assert.deepEqual(r2.json.perfil.info, { nome: '', nascimento: '1990-10-31', celular: '11987654321', contatoNome: 'Mãe', contatoTelefone: '1134567890' }, 'só muda o que veio');
+  assert.equal((await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: ana, info: { celular: '123' } })).status, 400);
   // O resto do perfil não muda.
   const todos = (await api('GET', '/api/auth/perfil', ADMIN)).json.todos;
   assert.equal(todos.find((t) => t.pessoaId === ana).perfil.info.nascimento, '1990-10-31');

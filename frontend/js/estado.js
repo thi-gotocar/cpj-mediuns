@@ -394,10 +394,10 @@ export async function carregarPerfil() {
   avisar();
 }
 
-// Admin (bloco Ajustes da aba Perfil): data de nascimento de outra pessoa.
-export async function salvarNascimentoDe(pessoaId, nascimento) {
+// Admin (bloco Ajustes da aba Perfil): informações de outra pessoa.
+export async function salvarInfoDe(pessoaId, info) {
   try {
-    const r = await api('POST', '/auth/perfil', { pessoaId, info: { nascimento } });
+    const r = await api('POST', '/auth/perfil', { pessoaId, info });
     const x = (estado.perfil?.todos || []).find((t) => t.pessoaId === pessoaId);
     if (x) x.perfil = r.perfil;
     if (estado.perfil?.eu?.pessoaId === pessoaId) estado.perfil.eu.perfil = r.perfil;

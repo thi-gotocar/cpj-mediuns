@@ -594,3 +594,11 @@ body.deslogado .rodape{display:none}
 .ev-mes-h.dobra{width:100%;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-align:left;padding:8px 0}
 .ev-mes-h .seta{color:var(--accent);margin-left:6px}
 .pf-salvo{font-size:.82rem;color:var(--muted)}.pf-salvo.salvo{color:#1d7a3c;font-weight:700}.pf-salvo.erro{color:var(--off);font-weight:700}
+.aj-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.aj-bts{grid-column:1/-1;display:flex;justify-content:flex-end}
+.aj-ver{display:flex;flex-direction:column}
+.aj-v{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:7px 0;border-top:1px solid var(--line)}
+.aj-v:first-child{border-top:0}
+.aj-v .muted{flex:0 0 130px;font-size:.88rem}
+.aj-of{font-size:.75rem;font-weight:700;border-radius:20px;padding:1px 8px;background:var(--off-soft);color:var(--off)}
+.aj-of.ok{background:#e3f4e8;color:#1d7a3c}

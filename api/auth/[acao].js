@@ -50,15 +50,18 @@ const acoes = {
     }
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const b = corpo(req);
-    // Admin (bloco Ajustes): muda informações do perfil de outra pessoa (por enquanto, a data de nascimento).
+    // Admin (bloco Ajustes): muda as informações do perfil de outra pessoa (o resto do perfil fica igual).
     if (b.pessoaId && b.pessoaId !== eu.pessoaId) {
       if (!pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin altera o perfil de outra pessoa.');
       const atual = await db.rpc('perfil_ler', { pessoaId: validarId(b.pessoaId, 'Pessoa') });
       const info = b.info && typeof b.info === 'object' ? b.info : {};
       const p = normalizarPerfil(atual.perfil);
-      if ('nascimento' in info) p.info.nascimento = info.nascimento || '';
+      const CAMPOS = ['nome', 'nascimento', 'celular', 'contatoNome', 'contatoTelefone'];
+      CAMPOS.forEach((k) => { if (k in info) p.info[k] = info[k] || ''; });
       const novo = normalizarPerfil(p);
       if (info.nascimento && !novo.info.nascimento) throw new HttpError(400, 'Data de nascimento inválida.');
+      if (info.celular && !novo.info.celular) throw new HttpError(400, 'Celular incompleto: coloque o DDD e o número.');
+      if (info.contatoTelefone && !novo.info.contatoTelefone) throw new HttpError(400, 'Telefone para contato incompleto: coloque o DDD e o número.');
       return limpo(await db.rpc('perfil_salvar', { pessoaId: atual.pessoaId, perfil: novo }));
     }
     if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');

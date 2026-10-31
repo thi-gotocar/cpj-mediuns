@@ -3,7 +3,7 @@
 
 import { ORIXAS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarNascimentoDe, carregarUsuarios, atualizarPessoa } from '../estado.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, carregarUsuarios, atualizarPessoa } from '../estado.js';
 import { esc, toast } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
@@ -28,19 +28,36 @@ function cardAjustes(todos) {
   const A = (estado.ajUi ||= { pessoa: '', campo: '' });
   const root = pode('usuarios:gerenciar');
   if (root && estado.usuarios === null) { estado.usuarios = undefined; carregarUsuarios(); }
-  const CAMPOS = [['nascimento', 'Data de nascimento'], ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
+  const CAMPOS = [['info', 'Informações'], ['espiritual', 'Orixás e guias'], ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
   if (!CAMPOS.some(([k]) => k === A.campo)) A.campo = '';
   const x = todos.find((t) => t.pessoaId === A.pessoa);
   return card('ajustes', '⚙️ Ajustes', '', true, () => {
     let h = `<div class="aj-sel">
       <label class="field">Pessoa<select data-act="ajpessoa" aria-label="Pessoa"><option value="">— escolha a pessoa —</option>${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === A.pessoa ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
-      <label class="field">O que incluir ou alterar<select data-act="ajcampo" aria-label="O que alterar" ${x ? '' : 'disabled'}><option value="">— escolha —</option>${CAMPOS.map(([k, l]) => `<option value="${k}" ${k === A.campo ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field">O que ver, incluir ou alterar<select data-act="ajcampo" aria-label="O que alterar" ${x ? '' : 'disabled'}><option value="">— escolha —</option>${CAMPOS.map(([k, l]) => `<option value="${k}" ${k === A.campo ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>`;
     if (!x || !A.campo) return h;
-    if (A.campo === 'nascimento') {
-      h += `<form id="f-ajnasc" class="aj-form" autocomplete="off" data-id="${x.pessoaId}">
-        <label class="field">Data de nascimento<input type="text" id="aj-nasc" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" value="${nascimentoBR(x.perfil.info?.nascimento)}"></label>
-        <button class="btn primary" type="submit">Salvar</button></form>`;
+    if (A.campo === 'info') {
+      // Informações da pessoa: o admin vê e altera; só grava ao tocar em Salvar.
+      const I = x.perfil.info || {};
+      const c = (k, rot, attrs, v) => `<label class="field">${rot}<input name="${k}" ${attrs} value="${esc(v || '')}"></label>`;
+      h += `<form id="f-ajinfo" class="aj-info" autocomplete="off" data-id="${x.pessoaId}">
+        ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
+        ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
+        ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.celular))}
+        ${c('contatoNome', 'Nome para contato', 'type="text" maxlength="80"', I.contatoNome)}
+        ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.contatoTelefone))}
+        <div class="aj-bts"><button class="btn primary" type="submit">Salvar</button></div></form>`;
+    } else if (A.campo === 'espiritual') {
+      // Orixás e guias da pessoa (só para ver).
+      const Pf = x.perfil;
+      const linha = (rot, val, of) => `<div class="aj-v"><span class="muted">${rot}</span><b>${val ? esc(val) : '<span class="muted">—</span>'}</b>${val ? `<span class="aj-of ${of ? 'ok' : ''}">${of ? '✓ oferenda' : 'sem oferenda'}</span>` : ''}</div>`;
+      const outros = GUIAS.filter(([k]) => Pf.outros[k]);
+      h += `<div class="aj-ver">
+        ${POSICOES_ORIXA.map(([k, rot]) => linha(rot, Pf.orixas[k].nome, Pf.orixas[k].oferenda)).join('')}
+        ${POSICOES_GUIA.map(([k, rot]) => linha(rot, GUIA_LABEL[Pf.guias[k].linha], Pf.guias[k].oferenda)).join('')}
+        ${outros.length ? `<div class="aj-v"><span class="muted">Outros guias</span><b>${outros.map(([k, l]) => `${esc(l)}: ${esc(Pf.outros[k])}`).join(' · ')}</b></div>` : ''}
+        ${respondeu(Pf) ? '' : '<p class="muted" style="margin:0">Ainda não respondeu os orixás e guias.</p>'}</div>`;
     } else if (A.campo === 'entrada') {
       // Igual era na aba Usuários: a pessoa só conta nas giras a partir dessa data.
       const p = estado.pessoas.find((y) => y.id === x.pessoaId);
@@ -183,12 +200,24 @@ export const cliques = {
   snfechar() { estado.senhaEdit = null; avisar(); },
 };
 
-// Ajustes: salva a data de nascimento da pessoa escolhida.
-export async function enviarNascimento(form) {
-  const v = document.getElementById('aj-nasc').value.trim();
-  const iso = v ? lerNascimento(v) : '';
-  if (v && !iso) { toast('Data de nascimento inválida. Use dia/mês/ano, por exemplo 31/10/1990.'); return; }
-  if (await salvarNascimentoDe(form.dataset.id, iso)) toast(iso ? 'Data de nascimento salva.' : 'Data de nascimento apagada.');
+// Ajustes: o admin salva as informações da pessoa escolhida.
+export async function enviarInfo(form) {
+  const f = form.elements;
+  const nasc = f.nascimento.value.trim();
+  const iso = nasc ? lerNascimento(nasc) : '';
+  if (nasc && !iso) { toast('Data de nascimento inválida. Use dia/mês/ano, por exemplo 31/10/1990.'); return; }
+  const tel = (campo, rot) => {
+    const d = soNumeros(f[campo].value);
+    if (d && d.length < 10) { toast(`${rot} incompleto: coloque o DDD e o número.`); return null; }
+    return d;
+  };
+  const celular = tel('celular', 'Celular');
+  if (celular === null) return;
+  const contatoTelefone = tel('contatoTelefone', 'Telefone para contato');
+  if (contatoTelefone === null) return;
+  const limpo = (v) => v.replace(/\s+/g, ' ').trim();
+  const info = { nome: limpo(f.nome.value), nascimento: iso, celular, contatoNome: limpo(f.contatoNome.value), contatoTelefone };
+  if (await salvarInfoDe(form.dataset.id, info)) toast('Informações salvas.');
 }
 
 // Enquanto digita: guarda e salva sozinho (sem esperar sair do campo), se o valor já estiver completo.
