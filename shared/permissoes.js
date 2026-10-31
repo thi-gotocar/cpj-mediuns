@@ -12,6 +12,7 @@ export const ABAS = [
   { k: 'hist', nome: 'Histórico', ver: 'Histórico, estatísticas e a presença completa na Gira.', editar: 'Excluir giras, backup e restauração.' },
   { k: 'ervas', nome: 'Ervas', ver: 'Escolher as próprias ervas.', editar: 'Ervas, preços, frete, pedidos e cobrança.' },
   { k: 'oferendas', nome: 'Oferendas', ver: 'Escolher o que doar.', editar: 'Criar oferendas, itens e marcar entregas.' },
+  { k: 'eventos', nome: 'Eventos', ver: 'A aba Eventos (a lista do mês).', editar: 'Cadastrar, editar e excluir eventos.' },
   { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás e guias).', editar: 'Ver o perfil de todos e as pendências.' },
 ];
 export const ABA_KEYS = ABAS.map((a) => a.k);
@@ -24,6 +25,7 @@ const MAPA = {
   ervas: { ver: ['ervas:escolher'], editar: ['ervas:gerenciar'] },
   oferendas: { ver: ['oferendas:doar'], editar: ['oferendas:gerenciar'] },
   perfil: { ver: ['perfil:ver'], editar: ['perfil:corrente'] },
+  eventos: { ver: ['eventos:ver'], editar: ['eventos:editar'] },
 };
 // Todo mundo logado vê os nomes da corrente (para mostrar as duplas, os pedidos etc.).
 const BASE = ['pessoas:ler'];

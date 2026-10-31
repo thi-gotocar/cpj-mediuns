@@ -120,7 +120,7 @@ test('limpeza: turma do dia e quem faltou na gira anterior (sem reunião e gira 
 test('orixá: lista em ordem alfabética e só nas giras das linhas', async () => {
   const { ORIXAS, temOrixa, orixaDaGira } = await import('../shared/regras.js');
   assert.deepEqual(ORIXAS, [...ORIXAS].sort((a, b) => a.localeCompare(b, 'pt-BR')));
-  assert.equal(ORIXAS.length, 12);
+  assert.equal(ORIXAS.length, 13);
   assert.ok(ORIXAS.every((o) => o[0] === o[0].toUpperCase()));
   assert.equal(temOrixa({ entidade: 'Caboclo' }), true);
   assert.equal(temOrixa({ entidade: 'Encontro das Linhas' }), true);
@@ -225,4 +225,18 @@ test('perfil: só orixás e guias válidos; oferenda só com algo escolhido', as
   assert.deepEqual(p.outros, { 'preto-velho': 'Pai Joaquim' });
   assert.ok(!GUIAS.some(([k]) => k === 'mista'));
   assert.deepEqual(normalizarPerfil(null).outros, {});
+});
+
+test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)', async () => {
+  const { lerDataCurta, eventosDaSemana } = await import('../shared/eventos.js');
+  const hoje = '2026-10-31';
+  assert.equal(lerDataCurta('31/10', hoje), '2026-10-31');
+  assert.equal(lerDataCurta('5/1', hoje), '2027-01-05', 'já passou há mais de 2 meses: ano que vem');
+  assert.equal(lerDataCurta('15/09', hoje), '2026-09-15', 'passou há pouco: este ano');
+  assert.equal(lerDataCurta('31/10/2027', hoje), '2027-10-31');
+  assert.equal(lerDataCurta('1/2/27', hoje), '2027-02-01');
+  assert.equal(lerDataCurta('31/02', hoje), null);
+  assert.equal(lerDataCurta('abc', hoje), null);
+  const evs = [{ data: '2026-10-30', nome: 'Ontem' }, { data: '2026-11-07', nome: 'Daqui a 7' }, { data: '2026-10-31', nome: 'Hoje' }, { data: '2026-11-08', nome: 'Daqui a 8' }];
+  assert.deepEqual(eventosDaSemana(evs, hoje).map((e) => e.nome), ['Hoje', 'Daqui a 7']);
 });

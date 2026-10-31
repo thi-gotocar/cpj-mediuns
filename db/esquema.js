@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 37;  // v37: a pessoa da corrente declara a própria ausência na gira
+export const VERSAO = 38;  // v38: eventos (aba Eventos e "Eventos da semana" na aba Gira)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1131,6 +1131,40 @@ export const MIGRACOES = [
      on conflict (gira_data, pessoa_id) do update set status = excluded.status;
      update giras set atualizado_em = now() where data = (p ->> 'data')::date;
      return gira_obter(jsonb_build_object('data', p ->> 'data'));
+   end;
+   $$`,
+
+  // ================================================== v38: eventos da casa (todos veem os da semana na aba Gira)
+  `create table if not exists eventos (
+     id         uuid primary key default gen_random_uuid(),
+     data       date not null,
+     nome       text not null check (length(btrim(nome)) between 1 and 120),
+     criado_em  timestamptz not null default now()
+   )`,
+  `create index if not exists eventos_por_data on eventos (data)`,
+  // O Admin já cuida da aba Eventos (os outros perfis, o root libera na aba Usuários).
+  `update perfis set abas = abas || '{"eventos": {"ver": true, "editar": true}}'::jsonb where chave = 'admin' and not (abas ? 'eventos')`,
+  `create or replace function eventos_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'data', data, 'nome', nome) order by data, lower(nome)), '[]'::jsonb) from eventos
+   $$`,
+  `create or replace function evento_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if coalesce(p ->> 'id', '') = '' then
+       insert into eventos (data, nome) values ((p ->> 'data')::date, btrim(p ->> 'nome'));
+     else
+       update eventos set data = (p ->> 'data')::date, nome = btrim(p ->> 'nome') where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Evento não encontrado.'; end if;
+     end if;
+     return eventos_listar();
+   end;
+   $$`,
+  `create or replace function evento_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from eventos where id = (p ->> 'id')::uuid;
+     return eventos_listar();
    end;
    $$`,
 ];

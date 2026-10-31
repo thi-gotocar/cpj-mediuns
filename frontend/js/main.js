@@ -12,6 +12,7 @@ import * as usuarios from './telas/usuarios.js';
 import * as ervas from './telas/ervas.js';
 import * as oferendas from './telas/oferendas.js';
 import * as perfil from './telas/perfil.js';
+import * as eventos from './telas/eventos.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
@@ -20,7 +21,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, perfil, usuarios };
+const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -57,7 +58,7 @@ function render() {
   }
   // Abas que o perfil pode ver (a Gira sempre aparece).
   const VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
-    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), gira: true };
+    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), eventos: pode('eventos:ver'), perfil: pode('perfil:ver'), gira: true };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
@@ -272,6 +273,8 @@ main.addEventListener('submit', async (e) => {
     await pessoas.enviarCurimba();
   } else if (id === 'f-uren') {
     await usuarios.renomear(e.target);
+  } else if (id === 'f-evento' || id === 'f-evento-ed') {
+    await eventos.enviar(e.target);
   } else if (id === 'f-perfilnovo') {
     await usuarios.criarPerfil();
   } else if (id === 'f-perfilnome') {

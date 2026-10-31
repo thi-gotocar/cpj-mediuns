@@ -28,6 +28,7 @@ export const estado = {
   perfisCfg: null,     // aba Usuários: perfis e as abas de cada um
   senhas: null,        // aba Usuários: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
+  eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
@@ -59,8 +60,10 @@ function definirGiras(lista) {
 }
 
 export async function carregarTudo() {
-  const [me, pessoas, giras] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras')]);
+  const [me, pessoas, giras, eventos] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
+    api('GET', '/giras?lista=eventos').catch(() => [])]);
   estado.me = me;
+  estado.eventos = eventos;
   estado.pessoas = pessoas;
   definirGiras(giras);
   estado.pronto = true;
@@ -81,8 +84,9 @@ export async function atualizarDoServidor() {
   if (Date.now() - ultimaAtualizacao < 15000) return;
   ultimaAtualizacao = Date.now();
   try {
-    const [pessoas, giras] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras')]);
+    const [pessoas, giras, eventos] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos)]);
     estado.pessoas = pessoas;
+    estado.eventos = eventos || [];
     definirGiras(giras);
     // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
     if (estado.oferendas !== null && prefs.tab === 'oferendas' && !Object.values(timersDoacao).some(Boolean)) {
@@ -266,6 +270,15 @@ export async function acaoUsuarios(acao, dados = {}) {
   try {
     const r = await api('POST', '/usuarios', { acao, ...dados });
     if (acao === 'pin') estado.senhas = r; else estado.perfisCfg = r;
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
+// ---------- eventos da casa ----------
+export async function acaoEventos(acao, dados = {}) {
+  try {
+    estado.eventos = await api('POST', '/giras', { acao, ...dados });
     avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }
