@@ -38,7 +38,7 @@ export function render() {
   let h = '<section class="panel">';
   if (editar) {
     const aberto = u.novo ?? !evs.length;
-    h += `<div class="card"><button class="grp-h dobra" data-act="evnovo" aria-expanded="${aberto}"><h2>＋ Cadastrar evento</h2><span class="count"><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>
+    h += `<div class="card adm"><button class="grp-h dobra" data-act="evnovo" aria-expanded="${aberto}"><h2>＋ Cadastrar evento</h2><span class="count"><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>
       ${aberto ? `<form id="f-evento" class="ev-form" autocomplete="off">
         <label class="field ev-data">Data<input type="text" id="ev-data" name="data" inputmode="numeric" maxlength="10" data-mascara="data" required placeholder="31/10"></label>
         ${seletorTipo(estado.evUi?.ultimoTipo)}

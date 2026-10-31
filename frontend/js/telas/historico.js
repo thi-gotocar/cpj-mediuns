@@ -55,7 +55,7 @@ function cardGiraAntiga(ps) {
   const F = estado.giraAntiga;
   if (!F) return `<div class="row"><button class="btn" data-act="gaabrir">+ Cadastrar gira antiga</button></div>`;
   const g = { data: F.data, presenca: F.presenca };
-  let h = `<div class="card" id="card-ga"><h2>Cadastrar gira antiga</h2>
+  let h = `<div class="card adm" id="card-ga"><h2>Cadastrar gira antiga</h2>
     <p class="muted" style="margin:0;font-size:.88rem">Só para o histórico: data, gira, presença e atendidos. Não tem escala de médiuns e não entra no rodízio. A gira fica salva como encerrada.</p>
     <details class="ga-colar"${F.relatorio ? '' : ' open'}><summary>Colar o resumo do evento (WhatsApp)</summary>
       <textarea id="ga-msg" rows="7" placeholder="RESUMO DO EVENTO&#10;Data: 30/09/2026&#10;…&#10;AUSENTES&#10;❌ Nome T8">${esc(F.msg || '')}</textarea>
@@ -245,7 +245,7 @@ export function render() {
   }
 
   if (pode('dados:importar')) {
-    h += `<div class="card"><h2>Backup</h2><p class="muted" style="margin:0;font-size:.9rem">Os dados ficam no banco da corrente. O backup é uma cópia extra em arquivo; “Restaurar” também importa o backup da versão anterior do app (a que salvava no aparelho).</p>
+    h += `<div class="card adm"><h2>Backup</h2><p class="muted" style="margin:0;font-size:.9rem">Os dados ficam no banco da corrente. O backup é uma cópia extra em arquivo; “Restaurar” também importa o backup da versão anterior do app (a que salvava no aparelho).</p>
       <div class="row"><button class="btn" data-act="backup">Baixar backup</button>
       <label class="btn" for="f-import" style="cursor:pointer">Restaurar backup</label><input type="file" id="f-import" accept="application/json,.json" hidden></div></div>`;
   }

@@ -3,7 +3,7 @@
 
 import { ORIXAS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil } from '../estado.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarNascimentoDe, carregarUsuarios, atualizarPessoa } from '../estado.js';
 import { esc, toast } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
@@ -17,9 +17,52 @@ function cab(k, titulo, count, aberto, dobra) {
   return `<button class="grp-h dobra" data-act="pfdobra" data-k="${k}" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'}">
     <h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
 }
-function card(k, titulo, count, padrao, corpo, dobra = admin()) {
+function card(k, titulo, count, padrao, corpo, dobra = admin(), adm = false) {
   const ab = !dobra || (U().abertos[k] ?? padrao);
-  return `<div class="card">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
+  return `<div class="card${adm ? ' adm' : ''}">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
+}
+
+// ---------- admin: Ajustes (escolhe a pessoa e o que alterar) ----------
+// Data de nascimento: admin. Entrada na corrente e senha: só o admin root (como era na aba Usuários).
+function cardAjustes(todos) {
+  const A = (estado.ajUi ||= { pessoa: '', campo: '' });
+  const root = pode('usuarios:gerenciar');
+  if (root && estado.usuarios === null) { estado.usuarios = undefined; carregarUsuarios(); }
+  const CAMPOS = [['nascimento', 'Data de nascimento'], ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
+  if (!CAMPOS.some(([k]) => k === A.campo)) A.campo = '';
+  const x = todos.find((t) => t.pessoaId === A.pessoa);
+  return card('ajustes', '⚙️ Ajustes', '', true, () => {
+    let h = `<div class="aj-sel">
+      <label class="field">Pessoa<select data-act="ajpessoa" aria-label="Pessoa"><option value="">— escolha a pessoa —</option>${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === A.pessoa ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
+      <label class="field">O que incluir ou alterar<select data-act="ajcampo" aria-label="O que alterar" ${x ? '' : 'disabled'}><option value="">— escolha —</option>${CAMPOS.map(([k, l]) => `<option value="${k}" ${k === A.campo ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    </div>`;
+    if (!x || !A.campo) return h;
+    if (A.campo === 'nascimento') {
+      h += `<form id="f-ajnasc" class="aj-form" autocomplete="off" data-id="${x.pessoaId}">
+        <label class="field">Data de nascimento<input type="text" id="aj-nasc" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" value="${nascimentoBR(x.perfil.info?.nascimento)}"></label>
+        <button class="btn primary" type="submit">Salvar</button></form>`;
+    } else if (A.campo === 'entrada') {
+      // Igual era na aba Usuários: a pessoa só conta nas giras a partir dessa data.
+      const p = estado.pessoas.find((y) => y.id === x.pessoaId);
+      h += p ? `<p class="muted" style="margin:0;font-size:.85rem">A pessoa só conta nas giras a partir da data de entrada (presença, faltas, sorteio, limpeza e estatísticas). Sem data, conta em todas.</p>
+        <div class="aj-form"><label class="field">Entrada na corrente<input type="date" id="ent-${p.id}" data-act="entrada" data-id="${p.id}" value="${p.entrada || ''}"></label>
+        ${p.entrada ? `<button class="btn" data-act="limparentrada" data-id="${p.id}" aria-label="Tirar a data de entrada">✕ Tirar a data</button>` : ''}</div>` : '';
+    } else if (A.campo === 'senha') {
+      // Igual era no bloco Senhas da aba Usuários: define uma nova senha, depois de confirmar.
+      if (!estado.senhas || !Array.isArray(estado.usuarios)) return h + '<div class="loading">Carregando…</div>';
+      const s = estado.senhas.find((y) => y.pessoaId === x.pessoaId);
+      const u = estado.usuarios.find((y) => y.pessoaId === x.pessoaId);
+      const ed = estado.senhaEdit;
+      const form = (tipo, id) => `<form id="f-sn" class="sn-form" data-tipo="${tipo}" data-id="${id}" autocomplete="off">
+        <input type="password" id="sn-in" ${tipo === 'pin' ? 'inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Nova senha (4 a 8 números)"' : 'minlength="8" placeholder="Nova senha do e-mail (mín. 8)"'} autocomplete="new-password" required aria-label="Nova senha de ${esc(x.nome)}">
+        <button class="btn small danger" type="submit">Confirmar alteração</button><button class="btn small" type="button" data-act="snfechar">Cancelar</button></form>`;
+      h += `<div class="sn-l"><div class="sn-nome"><b>${esc(x.nome)}</b> <span class="badge ${s?.temSenha ? 'sn-com' : 'sn-sem'}">${s?.temSenha ? 'com senha' : 'sem senha'}</span>${u ? ` <span class="muted" style="font-size:.8rem">· ${esc(u.email)}</span>` : ''}</div>
+        <div class="sn-bts"><button class="btn small" data-act="snabrir" data-tipo="pin" data-id="${x.pessoaId}">Senha da corrente</button>${u ? `<button class="btn small" data-act="snabrir" data-tipo="email" data-id="${u.id}">Senha do e-mail</button>` : ''}</div>
+        ${ed && ((ed.tipo === 'pin' && ed.id === x.pessoaId) || (ed.tipo === 'email' && u && ed.id === u.id)) ? form(ed.tipo, ed.id) : ''}</div>
+        <p class="muted" style="margin:0;font-size:.82rem">As senhas ficam guardadas embaralhadas: nem o app consegue mostrá-las. <b>Senha da corrente</b>: a de quem entra com a palavra-chave e o nome. <b>Senha do e-mail</b>: a de quem tem usuário.</p>`;
+    }
+    return h;
+  }, true, true);
 }
 
 // Primeiro bloco: informações da pessoa (salva ao sair de cada campo).
@@ -77,7 +120,7 @@ function cardRespostas(todos) {
     <div class="pf-resp"><b>${pct}%</b><span>${sim.length} ${sim.length === 1 ? 'pessoa respondeu' : 'pessoas responderam'} · ${nao.length} ${nao.length === 1 ? 'falta' : 'faltam'}</span></div>
     <div class="pf-barra" role="img" aria-label="${pct}% responderam"><span style="width:${pct}%"></span></div>
     ${nao.length ? `<button class="btn link small pf-mais" data-act="pffaltam">${U().faltam ? '− Esconder' : `＋ Ver quem ainda não respondeu (${nao.length})`}</button>
-      ${U().faltam ? `<ul class="pf-lista">${nao.map((x) => `<li>${esc(x.nome)}</li>`).join('')}</ul>` : ''}` : '<p class="muted" style="margin:6px 0 0">Todo mundo já respondeu. 🙌</p>'}`);
+      ${U().faltam ? `<ul class="pf-lista">${nao.map((x) => `<li>${esc(x.nome)}</li>`).join('')}</ul>` : ''}` : '<p class="muted" style="margin:6px 0 0">Todo mundo já respondeu. 🙌</p>'}`, true, true);
 }
 
 function cardGuiasCorrente(todos) {
@@ -89,7 +132,7 @@ function cardGuiasCorrente(todos) {
         const l = x.perfil.guias[k].linha;
         return `<span>${l ? esc(GUIA_LABEL[l]) : '<span class="muted">—</span>'}</span>`;
       }).join('')}</div>`).join('')}
-    </div>` : '<p class="muted" style="margin:0">Ninguém informou os guias ainda.</p>'));
+    </div>` : '<p class="muted" style="margin:0">Ninguém informou os guias ainda.</p>'), true, true);
 }
 
 // Oferendas que faltam, só de quem já respondeu (quem não respondeu está no bloco Respostas).
@@ -108,7 +151,7 @@ function cardOferendas(todos) {
     ${grupos.map(([t, l]) => `<div class="pf-grupo"><div class="pf-gt">${t} <span class="count">${l.length}</span></div>
       ${l.length ? `<ul class="pf-lista">${l.map((x) => `<li><b>${esc(x.nome)}</b> <span class="muted">— ${x.falta.map(esc).join(', ')}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:2px 0 0">Ninguém pendente.</p>'}
     </div>`).join('')}
-    <p class="muted" style="margin:8px 0 0;font-size:.82rem">Só de quem já respondeu o perfil.</p>` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'));
+    <p class="muted" style="margin:8px 0 0;font-size:.82rem">Só de quem já respondeu o perfil.</p>` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'), true, true);
 }
 
 export function render() {
@@ -116,7 +159,7 @@ export function render() {
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;
   let h = '';
-  if (admin()) h += cardRespostas(todos);
+  if (admin()) h += cardAjustes(todos) + cardRespostas(todos);
   if (eu) h += meusCards(eu);
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
   if (admin()) h += cardGuiasCorrente(todos) + cardOferendas(todos);
@@ -130,9 +173,27 @@ export const cliques = {
     avisar();
   },
   pffaltam() { U().faltam = !U().faltam; avisar(); },
+  limparentrada(el) { atualizarPessoa(el.dataset.id, { entrada: null }); },
+  snabrir(el) {
+    estado.senhaEdit = { tipo: el.dataset.tipo, id: el.dataset.id };
+    avisar();
+    document.getElementById('sn-in')?.focus();
+  },
+  snfechar() { estado.senhaEdit = null; avisar(); },
 };
 
+// Ajustes: salva a data de nascimento da pessoa escolhida.
+export async function enviarNascimento(form) {
+  const v = document.getElementById('aj-nasc').value.trim();
+  const iso = v ? lerNascimento(v) : '';
+  if (v && !iso) { toast('Data de nascimento inválida. Use dia/mês/ano, por exemplo 31/10/1990.'); return; }
+  if (await salvarNascimentoDe(form.dataset.id, iso)) toast(iso ? 'Data de nascimento salva.' : 'Data de nascimento apagada.');
+}
+
 export const mudancas = {
+  ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
+  ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
+  entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
   pfsel(el) {
     const { g, k } = el.dataset;
     const campo = g === 'orixas' ? 'nome' : 'linha';

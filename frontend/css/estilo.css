@@ -576,3 +576,9 @@ body.deslogado .rodape{display:none}
 .mp-lista{max-height:12rem;overflow-y:auto;overscroll-behavior:contain;margin-right:-6px;padding-right:6px}
 .mp-l{min-height:2.4rem;box-sizing:border-box}
 .mp-gira{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Blocos que só o admin vê: borda dourada */
+.card.adm{border:2px solid var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 12%,transparent)}
+/* Perfil: Ajustes */
+.aj-sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.aj-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.aj-form .field{flex:1 1 180px}

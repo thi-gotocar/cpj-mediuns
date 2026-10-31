@@ -11,7 +11,7 @@
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro
 
-import { rota, corpo, HttpError } from '../_lib/http.js';
+import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
@@ -49,8 +49,20 @@ const acoes = {
       return r;
     }
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
+    const b = corpo(req);
+    // Admin (bloco Ajustes): muda informações do perfil de outra pessoa (por enquanto, a data de nascimento).
+    if (b.pessoaId && b.pessoaId !== eu.pessoaId) {
+      if (!pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin altera o perfil de outra pessoa.');
+      const atual = await db.rpc('perfil_ler', { pessoaId: validarId(b.pessoaId, 'Pessoa') });
+      const info = b.info && typeof b.info === 'object' ? b.info : {};
+      const p = normalizarPerfil(atual.perfil);
+      if ('nascimento' in info) p.info.nascimento = info.nascimento || '';
+      const novo = normalizarPerfil(p);
+      if (info.nascimento && !novo.info.nascimento) throw new HttpError(400, 'Data de nascimento inválida.');
+      return limpo(await db.rpc('perfil_salvar', { pessoaId: atual.pessoaId, perfil: novo }));
+    }
     if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
-    const r = await db.rpc('perfil_salvar', { pessoaId: eu.pessoaId, perfil: normalizarPerfil(corpo(req).perfil) });
+    const r = await db.rpc('perfil_salvar', { pessoaId: eu.pessoaId, perfil: normalizarPerfil(b.perfil) });
     return { ...r, perfil: normalizarPerfil(r.perfil) };
   },
 

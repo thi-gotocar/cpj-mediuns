@@ -112,8 +112,8 @@ function cardAdicionar(ps) {
   const modo = corrente ? estado.addModo || 'pessoas' : 'pessoas';
   // Começa minimizado (aberto só quando ainda não há ninguém cadastrado).
   const aberto = estado.addAberto ?? (corrente && !ps.length);
-  if (!aberto) return `<div class="card">${cabDobra('dobraradd', '＋ Adicionar', '', false)}</div>`;
-  let h = `<div class="card">${cabDobra('dobraradd', '＋ Adicionar', '', true)}
+  if (!aberto) return `<div class="card adm">${cabDobra('dobraradd', '＋ Adicionar', '', false)}</div>`;
+  let h = `<div class="card adm">${cabDobra('dobraradd', '＋ Adicionar', '', true)}
     ${corrente ? `<div class="seg add-seg" role="group" aria-label="O que adicionar">${MODOS.map(([k, t]) => `<button data-act="addmodo" data-v="${k}" aria-pressed="${modo === k}">${t}</button>`).join('')}</div>` : ''}`;
   if (modo === 'pessoas') {
     const fs = funcoesCadastro();

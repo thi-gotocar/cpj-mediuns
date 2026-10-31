@@ -242,7 +242,7 @@ export function render() {
   if (admin) {
     // Começa minimizado; abre ao tocar no título (aberto já se ainda não houver nenhuma oferenda).
     const novaAberta = U().novaAberta ?? !lista.length;
-    h += `<div class="card"><button class="grp-h dobra" data-act="dobrarnova" aria-expanded="${novaAberta}"><h2>＋ Nova oferenda</h2><span class="count"><span class="seta" aria-hidden="true">${novaAberta ? '▾' : '▸'}</span></span></button>`;
+    h += `<div class="card adm"><button class="grp-h dobra" data-act="dobrarnova" aria-expanded="${novaAberta}"><h2>＋ Nova oferenda</h2><span class="count"><span class="seta" aria-hidden="true">${novaAberta ? '▾' : '▸'}</span></span></button>`;
     if (novaAberta) h += `<form id="f-of" class="row" autocomplete="off">
       <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>

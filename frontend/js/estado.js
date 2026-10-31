@@ -393,6 +393,18 @@ export async function carregarPerfil() {
   avisar();
 }
 
+// Admin (bloco Ajustes da aba Perfil): data de nascimento de outra pessoa.
+export async function salvarNascimentoDe(pessoaId, nascimento) {
+  try {
+    const r = await api('POST', '/auth/perfil', { pessoaId, info: { nascimento } });
+    const x = (estado.perfil?.todos || []).find((t) => t.pessoaId === pessoaId);
+    if (x) x.perfil = r.perfil;
+    if (estado.perfil?.eu?.pessoaId === pessoaId) estado.perfil.eu.perfil = r.perfil;
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+
 // Muda o perfil na tela na hora e salva em seguida (só a última versão).
 let timerPerfil = null;
 let filaPerfil = Promise.resolve();

@@ -300,7 +300,7 @@ function renderGira() {
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return `<section class="panel"><div class="card card-novo">
+    return `<section class="panel"><div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       <div class="row">${navegarGiras(g)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button></div></section>`;

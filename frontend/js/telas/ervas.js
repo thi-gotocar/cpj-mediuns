@@ -84,7 +84,7 @@ function cardEscolha(E) {
 // Admin: pedido de outra pessoa (quem não tem acesso ao app, ou para corrigir um pedido).
 function cardPedidoDe(E) {
   const P = estado.ervasPara;
-  let h = `<div class="card" id="card-para"><div class="grp-h"><h2>Pedido para outra pessoa</h2></div>`;
+  let h = `<div class="card adm" id="card-para"><div class="grp-h"><h2>Pedido para outra pessoa</h2></div>`;
   if (!P) {
     const comPedido = new Set((E.pedidos?.pessoas || []).map((p) => p.chave));
     return h + `<form id="f-para" class="row" autocomplete="off">
@@ -135,7 +135,7 @@ function cardStatus(E) {
 }
 
 function cardCompra(E) {
-  return `<div class="card"><h2>Compra</h2>
+  return `<div class="card adm"><h2>Compra</h2>
     <div class="row">
       <label class="field grow">Nome da gira<input type="text" id="ev-gira" maxlength="80" value="${esc(E.gira || '')}" placeholder="Ex.: Gira de Caboclo"></label>
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="ev-data" value="${esc(E.data || '')}"></label>
@@ -157,7 +157,7 @@ function cardCatalogo(E) {
   if (precosAberto === null) precosAberto = !E.ervas.length;
   const aberto = precosAberto;
   const sem = E.ervas.filter((e) => !temPreco(e)).length;
-  let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarprecos" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'} Ervas e preços">
+  let h = `<div class="card adm"><button class="grp-h dobra" data-act="dobrarprecos" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'} Ervas e preços">
       <h2>Ervas e preços</h2><span class="count">${E.ervas.length} erva${E.ervas.length === 1 ? '' : 's'}${sem ? ` · ${sem} sem preço` : ''} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
   if (!aberto) return h + `</div>`;
   h += `
@@ -184,7 +184,7 @@ function cardCatalogo(E) {
 
 function cardPedidos(E) {
   const r = E.pedidos || calcularPedidos(E.ervas, [], E.frete);
-  let h = `<div class="card"><div class="grp-h"><h2>Pedidos</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'}</span></div>${linhaGira(E)}`;
+  let h = `<div class="card adm"><div class="grp-h"><h2>Pedidos</h2><span class="count">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'}</span></div>${linhaGira(E)}`;
   if (!r.pessoas.length) return h + `<p class="muted" style="margin:0">Ninguém escolheu ervas ainda.</p></div>`;
   if (r.faltamPrecos.length) h += `<div class="warnbox">Preço a definir: <b>${r.faltamPrecos.map(esc).join(', ')}</b>. Preencha em “Ervas e preços” para fechar o valor de cada um.</div>`;
   h += `<div class="matrix"><table class="pedidos"><thead><tr><th class="rh">Nome</th><th class="rh">Ervas</th><th>Ervas R$</th><th>Frete</th><th>Total</th><th></th></tr></thead><tbody>

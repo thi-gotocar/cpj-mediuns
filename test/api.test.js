@@ -896,3 +896,15 @@ test('eventos: o admin cadastra, edita e exclui; todos leem', async () => {
   const fim = (await api('POST', '/api/giras', ADMIN, { acao: 'excluirEvento', id: ev.id })).json;
   assert.ok(!fim.some((e) => e.id === ev.id));
 });
+
+test('perfil: admin ajusta a data de nascimento de outra pessoa (Ajustes)', async () => {
+  const ana = RESP();
+  const r = await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: ana, info: { nascimento: '1990-10-31' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.perfil.info.nascimento, '1990-10-31');
+  assert.equal((await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: ana, info: { nascimento: '2999-01-01' } })).status, 400);
+  assert.equal((await api('POST', '/api/auth/perfil', USER, { pessoaId: ana, info: { nascimento: '1990-10-31' } })).status, 403);
+  // O resto do perfil não muda.
+  const todos = (await api('GET', '/api/auth/perfil', ADMIN)).json.todos;
+  assert.equal(todos.find((t) => t.pessoaId === ana).perfil.info.nascimento, '1990-10-31');
+});
