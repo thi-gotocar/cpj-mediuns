@@ -26,11 +26,12 @@ function cardLicencas(ps, editar) {
         <div class="row"><label class="field" style="flex:1 1 130px">Início<input type="date" id="el-i" value="${l.inicio}"></label>
         <label class="field" style="flex:1 1 130px">Fim<input type="date" id="el-f" value="${l.fim}"></label>
         <label class="field" style="flex:2 1 200px">Motivo<input type="text" id="el-m" maxlength="200" value="${esc(l.motivo || '')}"></label></div>
-        <div class="row"><button class="btn small primary" data-act="salvarlic" data-id="${l.id}">Salvar</button><button class="btn small" data-act="cancelarlic">Cancelar</button></div></div>`;
+        <div class="row"><button class="btn small primary" data-act="salvarlic" data-id="${l.id}">Salvar</button><button class="btn small" data-act="cancelarlic">Cancelar</button>
+          ${conf ? `<button class="btn small danger" data-act="dellic" data-id="${l.id}">Confirmar remoção</button>` : `<button class="btn small" data-act="askdel" data-k="lic:${l.id}">Remover</button>`}</div></div>`;
     }
     return `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(l.pessoa.nome)}</span>
       <span class="muted" style="font-size:.85rem">${dBR(l.inicio)} a ${dBR(l.fim)}${l.motivo ? ` · ${esc(l.motivo)}` : ''}${agora ? ' · <b>de licença agora</b>' : ' · começa depois'}</span></span>
-      ${editar ? `<span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn small" data-act="editlic" data-id="${l.id}">Editar</button>${conf ? `<button class="btn small danger" data-act="dellic" data-id="${l.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="lic:${l.id}">Remover</button>`}</span>` : ''}</div>`;
+      ${editar ? `<button class="btn small" data-act="editlic" data-id="${l.id}">Editar</button>` : ''}</div>`;
   }).join('')}</div>`;
   return h + `</div>`;
 }
@@ -239,7 +240,7 @@ export const cliques = {
     if (fim < inicio) { toast('A data final é antes do início.'); return; }
     if (await editarLicenca(el.dataset.id, inicio, fim, document.getElementById('el-m').value.trim())) { estado.editLic = null; toast('Licença alterada.'); avisar(); }
   },
-  dellic(el) { estado.confirm = null; removerLicenca(el.dataset.id); },
+  dellic(el) { estado.confirm = null; estado.editLic = null; removerLicenca(el.dataset.id); },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
   ren(el) {
     estado.renomear = el.dataset.id;
