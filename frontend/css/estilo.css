@@ -645,3 +645,12 @@ body.deslogado .rodape{display:none}
 .nm-mudou{display:inline-block;color:#8a6500;background:#fff7d6;border:1.5px solid #d4a017;border-radius:8px;padding:0 7px;line-height:1.5}
 .pres select.st.papel-dia.pas{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
 .pres .nm .nm-mudou{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
+/* Sorteio (admin): botões Falta alinhados à direita; linha entre os médiuns mais grossa */
+.pair{border-bottom-width:2px;padding-bottom:10px}
+.pairs{gap:10px}
+.camrow{flex-wrap:nowrap}
+.camrow select{flex:1 1 0;min-width:0}
+.camrow .badge{white-space:nowrap}
+.camrow .falta-bt,.pair>.falta-bt{margin-left:auto;flex:none}
+.pair>.falta-bt{justify-self:end}
+.med .falta-bt{margin-left:auto}

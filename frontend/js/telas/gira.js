@@ -445,7 +445,7 @@ function renderGira() {
   // Quem está no Suporte também pode ser posto como cambone (sai do Suporte).
   const doSuporte = psg.filter((p) => status(p, g) === 'sup');
   const grupoSup = (lista, fn) => (lista.length ? `<optgroup label="Do Suporte">${lista.map(fn).join('')}</optgroup>` : '');
-  const selo = (e) => (!e ? `<span class="badge new">1ª vez juntos</span>`
+  const selo = (e) => (!e ? ''
     : e.recente ? `<span class="badge hot">repetiu da última</span>`
       : `<span class="badge rep">${e.n + 1}ª vez · última ${dDM(e.ultima)}</span>`);
   const passada = g.data < hoje();
@@ -498,7 +498,7 @@ function renderGira() {
     const tirar = (k, i) => (manual ? `<button class="lock rm" data-act="remover" data-k="${k}" data-i="${i}" title="Tirar deste médium" aria-label="Tirar">✕</button>` : '');
     h += `<div class="pairs">`;
     lista.forEach((x) => {
-      h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}${editar && !passada && !manual ? botaoFalta(x.m.id) : ''}</span><span class="muted" style="font-size:.85rem">${x.cams.length} cambone${x.cams.length === 1 ? '' : 's'}</span>${editar ? confirmaFalta(x.m.id) : ''}<div class="cams">`;
+      h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span>${editar && !passada && !manual ? botaoFalta(x.m.id) : '<span></span>'}${editar ? confirmaFalta(x.m.id) : ''}<div class="cams">`;
       x.cams.forEach((p) => { const i = (g.pares || []).indexOf(p); h += linha('pares', p, i, camsPres, map, 'Cambone').replace(/<\/div>$/, tirar('pares', i) + '</div>'); });
       if (!x.cams.length) h += `<span class="muted">Sem cambone.${manual ? '' : sortearOk ? ' Sorteie de novo.' : ''}</span>`;
       x.passes.forEach((p) => { const i = (g.passes || []).indexOf(p); h += linha('passes', p, i, passPres, mapP, 'Passe').replace(/<\/div>$/, tirar('passes', i) + '</div>'); });
