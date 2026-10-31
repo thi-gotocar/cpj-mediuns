@@ -62,6 +62,10 @@ function render() {
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
+  // Perfil: logo depois de Gira; para quem é admin, depois de Pessoas.
+  const btPerfil = tabs.querySelector('[data-tab="perfil"]');
+  const antes = tabs.querySelector(pode('pessoas:editar') ? '[data-tab="pessoas"]' : '[data-tab="gira"]');
+  if (antes.nextElementSibling !== btPerfil) antes.after(btPerfil);
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();
 
