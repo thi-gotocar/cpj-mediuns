@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 36;  // v36: oferenda completa há um dia fecha as doações (só o responsável altera)
+export const VERSAO = 37;  // v37: a pessoa da corrente declara a própria ausência na gira
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1119,6 +1119,18 @@ export const MIGRACOES = [
        delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
      end if;
      return oferendas_estado();
+   end;
+   $$`,
+
+  // ================================================== v37: a pessoa declara a própria ausência (só a presença dela muda)
+  `create or replace function presenca_marcar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into presencas (gira_data, pessoa_id, status)
+     values ((p ->> 'data')::date, (p ->> 'pessoaId')::uuid, p ->> 'status')
+     on conflict (gira_data, pessoa_id) do update set status = excluded.status;
+     update giras set atualizado_em = now() where data = (p ->> 'data')::date;
+     return gira_obter(jsonb_build_object('data', p ->> 'data'));
    end;
    $$`,
 ];

@@ -3,11 +3,15 @@
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
 // POST   /api/giras/:data   { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
+//                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma, podeDeclararAusencia } from '../../../shared/regras.js';
+
+// Data de hoje no horário de Brasília (AAAA-MM-DD).
+const hojeBR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -27,6 +31,21 @@ function validarAtendimentos(a) {
     at[k] = n;
   }
   return at;
+}
+
+// Quem entra pelo acesso da corrente (cpj), com ou sem senha, avisa que não vai.
+async function declararAusencia(req) {
+  const eu = await exigir(req, 'giras:ler');
+  if (eu.papel !== 'corrente' || !eu.pessoaId) throw new HttpError(403, 'Só quem entra pelo acesso da corrente declara ausência por aqui.');
+  const data = validarData(req.query.data);
+  const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
+  const p = pessoas.find((x) => x.id === eu.pessoaId);
+  if (!atual) throw new HttpError(404, 'Esta gira ainda não foi criada.');
+  if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+  if (hojeBR() >= data) throw new HttpError(400, 'A ausência só pode ser declarada até o dia anterior à gira. Fale com a Michelle.');
+  if (!podeDeclararAusencia(p, atual, hojeBR())) throw new HttpError(400, 'Sua presença nesta gira já foi definida. Fale com a Michelle.');
+  const gira = await db.rpc('presenca_marcar', { data, pessoaId: p.id, status: 'a' });
+  return { gira, mensagem: 'Ausência registrada. Obrigado por avisar! #boa gira' };
 }
 
 export default rota({
@@ -83,9 +102,11 @@ export default rota({
     return db.rpc('gira_salvar', p);
   },
   POST: async (req) => {
+    const b = corpo(req);
+    if (b.acao === 'ausencia') return declararAusencia(req);
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
-    const { acao, atendimentos } = corpo(req);
+    const { acao, atendimentos } = b;
     if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
     if (acao === 'reiniciar') {

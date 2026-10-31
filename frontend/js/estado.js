@@ -176,6 +176,8 @@ async function situacaoDaGira(acao, extra = {}) {
 export const encerrarGira = (atendimentos) => situacaoDaGira('encerrar', { atendimentos });
 export const reabrirGira = () => situacaoDaGira('reabrir');
 export const reiniciarGira = () => situacaoDaGira('reiniciar');
+// Acesso da corrente: a própria pessoa declara que não vai (Pendente → Ausente).
+export const declararAusencia = () => situacaoDaGira('ausencia');
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = () => acaoDaGira('remanejar');
 

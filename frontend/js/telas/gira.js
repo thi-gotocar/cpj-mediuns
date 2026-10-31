@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, avisar } from '../estado.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia } from '/shared/regras.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
@@ -171,7 +171,16 @@ function blocoEu(g) {
       camsDe(m).forEach((c) => lin('Cambone do médium', esc(nome(c))));
     });
   }
-  if (!curimba && presencaDe(p, g) === 'pend') aviso('Sua presença ainda não foi confirmada.');
+  if (!curimba && presencaDe(p, g) === 'pend') {
+    // Acesso da corrente (cpj): até a véspera, a pessoa pode avisar que não vai.
+    const declara = estado.me?.corrente && podeDeclararAusencia(p, estado.giras[g.data], hoje());
+    if (!declara) aviso('Sua presença ainda não foi confirmada.');
+    else {
+      aviso('Altere o status para “Ausente” caso não consiga ir no dia, o controle segue com a Michelle. #boa gira');
+      L.push(`<label class="eu-aus"><span class="muted">Seu status:</span>
+        <select id="eu-aus" data-act="ausencia" aria-label="Seu status nesta gira"><option value="pend" selected>Pendente</option><option value="a">Ausente</option></select></label>`);
+    }
+  }
   // Turma da limpeza
   const Lp = limpezaDaGira(estado.pessoas, g, girasLista());
   if (Lp && st !== 'lic') {
@@ -181,7 +190,8 @@ function blocoEu(g) {
     }
   }
   const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
-  return `<div class="card eu"><div class="grp-h"><span class="eyebrow">Você nesta gira</span></div>
+  const nomeDaGira = g.entidade ? `${nomeGira(g.entidade)}${orixaDaGira(g) ? ` · ${orixaDaGira(g)}` : ''}` : '';
+  return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span>${nomeDaGira ? `<span class="eu-gira">${esc(nomeDaGira)}</span>` : ''}</div>
     <div class="eu-nome"><b>${esc(p.nome)}</b> <span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
     ${L.join('')}</div>`;
 }
@@ -588,6 +598,12 @@ function janelaPresenca() {
 }
 
 export const mudancas = {
+  // Acesso da corrente: Pendente → Ausente (só ela mesma, até a véspera).
+  async ausencia(t) {
+    if (t.value !== 'a') return;
+    if (!confirm('Confirmar que você NÃO vai nesta gira?\nDepois disso, só a Michelle consegue mudar.')) { t.value = 'pend'; return; }
+    await declararAusencia();
+  },
   // Função na gira: a do cadastro (volta para Presente, ou Pendente antes do dia), Suporte ou Não atende.
   // Não mexe na presença.
   papel(t) {

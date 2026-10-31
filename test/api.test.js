@@ -845,3 +845,25 @@ test('oferenda 100% há mais de um dia: só o responsável altera; o card mostra
   assert.equal((await of({ acao: 'doarPor', itemId: item.id, pessoaId: RESP(), quantidade: 1 })).status, 200);
   await of({ acao: 'excluir', id: o.id });
 });
+
+test('acesso da corrente declara a própria ausência (Pendente → Ausente) até a véspera', async () => {
+  const d = '2099-01-07';
+  const ausencia = (tok, data = d) => api('POST', '/api/giras/' + data, tok, { acao: 'ausencia' });
+  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  assert.equal((await ausencia(ana)).status, 404, 'gira ainda não criada');
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Caboclo' });
+  assert.equal((await ausencia(USER)).status, 403, 'só pelo acesso da corrente');
+  const r = await ausencia(ana);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.gira.presenca[RESP()], 'a');
+  assert.equal((await ausencia(ana)).status, 400, 'já está ausente: só a Michelle muda');
+  // Outras presenças não mudam.
+  assert.equal(Object.keys(r.json.gira.presenca).length, 1);
+  // No dia (ou depois) não pode mais.
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  await api('PUT', '/api/giras/' + hoje, ADMIN, { entidade: 'Baiano' });
+  const noDia = await ausencia(ana, hoje);
+  assert.equal(noDia.status, 400);
+  assert.match(noDia.json.erro, /dia anterior/);
+  for (const x of [d, hoje]) await api('DELETE', '/api/giras/' + x, ADMIN);
+});
