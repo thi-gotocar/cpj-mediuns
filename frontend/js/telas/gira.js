@@ -231,7 +231,10 @@ const cabDobra = (k, titulo, extra = '') => {
 function resultado(g) {
   const { lista, semPasse } = paresPorMedium(estado.pessoas, g);
   const comDuplas = lista.some((x) => x.cams.length || x.passes.length);
-  if (!comDuplas) return `<div class="card empty"><h2>Sorteio ainda não feito</h2><p class="muted">A escala desta gira ainda não foi sorteada.</p></div>`;
+  if (!comDuplas) {
+    return `<div class="card empty sorteio-pend"><span class="sp-icone" aria-hidden="true">⚠️</span><h2>Sorteio de escala pendente da Michelle</h2>
+      <p class="muted">Previsão: <b>${esc(dLong(g.data))}</b> (${esc(dDM(g.data))})</p></div>`;
+  }
   const aberto = duplasAbertas.has(g.data);
   let h = `<div class="card"><div class="grp-h"><h2>Sorteio</h2></div>`;
   if (!aberto) return h + `${blocosFora(pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data)), g)}${botaoDobrar(false)}</div>`;

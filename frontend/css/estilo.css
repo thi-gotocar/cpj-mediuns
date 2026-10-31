@@ -612,3 +612,8 @@ body.deslogado .rodape{display:none}
 /* selo "não preenchido" / "preenchido" ao lado do título */
 .selo-preench{display:inline-block;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 9px;border:1.5px solid #d4a017;color:#8a6500;background:#fff7d6;vertical-align:middle;font-family:var(--f-body)}
 .selo-preench.ok{border-color:#2e9b55;color:#1d7a3c;background:#e3f4e8}
+/* Gira: sorteio ainda não feito */
+.card.sorteio-pend{border:2px solid var(--off);background:color-mix(in srgb,var(--off) 5%,var(--surface))}
+.sorteio-pend .sp-icone{font-size:1.8rem;line-height:1}
+.sorteio-pend h2{color:var(--off)}
+.sorteio-pend p{margin:0}
