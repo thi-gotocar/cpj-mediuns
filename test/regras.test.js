@@ -241,16 +241,17 @@ test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)'
   assert.deepEqual(eventosDaSemana(evs, hoje).map((e) => e.nome), ['Hoje', 'Daqui a 7']);
 });
 
-test('bloco Eventos da aba Gira: gira/evento/aviso do mês, amaci só da semana, nada do passado', async () => {
+test('bloco Eventos da aba Gira: gira/evento/aviso dos próximos 30 dias, amaci só da semana, nada do passado', async () => {
   const { eventosDoTopo } = await import('../shared/eventos.js');
   const hoje = '2026-11-03';
   const evs = [
     { data: '2026-11-02', nome: 'Passou', tipo: 'gira' },
     { data: '2026-11-03', nome: 'Hoje', tipo: 'aviso' },
     { data: '2026-11-25', nome: 'Gira do mês', tipo: 'gira' },
-    { data: '2026-12-01', nome: 'Mês que vem', tipo: 'evento' },
+    { data: '2026-12-03', nome: 'Daqui a 30', tipo: 'evento' },
+    { data: '2026-12-04', nome: 'Daqui a 31', tipo: 'evento' },
     { data: '2026-11-09', nome: 'Amaci da semana', tipo: 'amaci' },
     { data: '2026-11-20', nome: 'Amaci depois', tipo: 'amaci' },
   ];
-  assert.deepEqual(eventosDoTopo(evs, hoje).map((e) => e.nome), ['Hoje', 'Amaci da semana', 'Gira do mês']);
+  assert.deepEqual(eventosDoTopo(evs, hoje).map((e) => e.nome), ['Hoje', 'Amaci da semana', 'Gira do mês', 'Daqui a 30']);
 });

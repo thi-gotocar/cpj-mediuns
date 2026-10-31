@@ -34,12 +34,12 @@ export const eventosDaSemana = (eventos, hoje) => {
   const fim = somaDias(hoje, 7);
   return (eventos || []).filter((e) => e.data >= hoje && e.data <= fim).sort(porData);
 };
-// Bloco "Eventos" da aba Gira: gira, evento e aviso do mês (de hoje até o fim do mês);
+// Bloco "Eventos" da aba Gira: gira, evento e aviso dos próximos 30 dias;
 // amaci só os da semana (hoje + 7 dias). O que já passou não aparece.
 export function eventosDoTopo(eventos, hoje) {
   const fimSemana = somaDias(hoje, 7);
-  const mes = hoje.slice(0, 7);
-  return (eventos || []).filter((e) => e.data >= hoje && ((e.tipo || 'evento') === 'amaci' ? e.data <= fimSemana : e.data.slice(0, 7) === mes)).sort(porData);
+  const fim30 = somaDias(hoje, 30);
+  return (eventos || []).filter((e) => e.data >= hoje && e.data <= ((e.tipo || 'evento') === 'amaci' ? fimSemana : fim30)).sort(porData);
 }
 
 export const dataCurta = (isoData) => `${isoData.slice(8, 10)}/${isoData.slice(5, 7)}`;

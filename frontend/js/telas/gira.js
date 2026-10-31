@@ -237,14 +237,14 @@ function resultado(g) {
   return h + `${botaoDobrar(true)}</div>`;
 }
 
-// Topo da aba Gira: gira, evento e aviso do mês; amaci só da semana (rola se forem muitos).
+// Topo da aba Gira: gira, evento e aviso dos próximos 30 dias; amaci só da semana (rola se forem muitos).
 function cardSemana() {
   const hj = hoje();
   const evs = eventosDoTopo(estado.eventos, hj);
   const dia = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()) + ' ' + dataCurta(d));
   return `<div class="card ev-semana"><div class="grp-h"><span class="eyebrow">📅 Eventos</span>${evs.length ? `<span class="count">${evs.length}</span>` : ''}</div>
     ${evs.length ? `<div class="evs-lista">${evs.map((e) => `<div class="evs-l${e.data === hj ? ' hoje' : ''}"><span class="evs-dia">${dia(e.data)}</span><span class="evs-sep">-</span><span class="evs-nome">${esc(e.nome)}</span><span class="evs-tipo ${e.tipo || 'evento'}">${TIPO_EVENTO_LABEL[e.tipo] || 'Evento'}</span></div>`).join('')}</div>`
-      : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum evento até o fim do mês.</p>'}</div>`;
+      : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum evento nos próximos 30 dias.</p>'}</div>`;
 }
 
 export function render() {
