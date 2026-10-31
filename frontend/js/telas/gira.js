@@ -488,12 +488,12 @@ function renderGira() {
   if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
   if (!temDuplas && !manual) {
     // Ainda não sorteado: sem Ajuste manual e sem "Ver mais"; só o resumo e quem está fora (licença etc.).
-    h += `${lista.length ? `<p class="muted" style="margin:0">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes.${sortearOk ? ' Toque em sortear para montar as duplas.' : ' As duplas ainda não foram sorteadas.'}</p>` : '<p class="muted" style="margin:0">Nenhum médium presente.</p>'}${blocosFora(ps, g)}</div>`;
+    h += `${!lista.length ? '<p class="muted" style="margin:0">Nenhum médium presente.</p>' : sortearOk ? '' : '<p class="muted" style="margin:0">As duplas ainda não foram sorteadas.</p>'}${blocosFora(ps, g)}</div>`;
   } else if (!aberto) {
     h += `${blocosFora(ps, g)}${botaoDobrar(false)}</div>`;
   } else {
   if (!lista.length) h += `<p class="muted">Nenhum médium presente.</p>`;
-  else if (!temDuplas && !manual) h += `<p class="muted">${lista.length} médiuns e extras, ${camsPres.length} cambones e ${passPres.length} médiuns de passe presentes.${sortearOk ? ' Toque em sortear para montar as duplas.' : ' As duplas ainda não foram sorteadas.'}</p>`;
+
   else {
     const tirar = (k, i) => (manual ? `<button class="lock rm" data-act="remover" data-k="${k}" data-i="${i}" title="Tirar deste médium" aria-label="Tirar">✕</button>` : '');
     h += `<div class="pairs">`;
