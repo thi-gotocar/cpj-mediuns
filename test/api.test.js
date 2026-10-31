@@ -859,6 +859,14 @@ test('acesso da corrente declara a própria ausência (Pendente → Ausente) at�
   assert.equal((await ausencia(ana)).status, 400, 'já está ausente: só a Michelle muda');
   // Outras presenças não mudam.
   assert.equal(Object.keys(r.json.gira.presenca).length, 1);
+  // Depois que o admin marcou a presença (qualquer status), só o admin muda.
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const outra = ps.find((p) => p.id !== RESP() && p.funcao !== 'curimba' && p.nome === 'Bruno');
+  const bruno = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Bruno' })).json.token;
+  await api('PUT', '/api/giras/' + d, ADMIN, { presenca: { [RESP()]: 'a', [outra.id]: 'p' } });
+  const bloq = await ausencia(bruno);
+  assert.equal(bloq.status, 400, 'admin já marcou');
+  assert.match(bloq.json.erro, /já foi definida/);
   // No dia (ou depois) não pode mais.
   const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
   await api('PUT', '/api/giras/' + hoje, ADMIN, { entidade: 'Baiano' });

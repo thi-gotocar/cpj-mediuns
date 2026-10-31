@@ -120,9 +120,11 @@ export function funcaoNaGira(p, g) {
 export const naCorrenteEm = (p, data) => !p?.entrada || !data || p.entrada <= data;
 export const daGira = (pessoas, g) => pessoas.filter((p) => naCorrenteEm(p, g.data));
 // Quem entra pelo acesso da corrente declara a própria ausência: só em gira já criada e em aberto,
-// estando Pendente, e até o dia anterior ao evento (hoje = 'AAAA-MM-DD').
+// estando Pendente, até o dia anterior ao evento (hoje = 'AAAA-MM-DD'), e enquanto ninguém marcou
+// a presença dela (o último status vale; depois que está na lista de presença, só o admin muda).
+export const statusMarcado = (p, g) => !!p && !!g && Object.prototype.hasOwnProperty.call(g.presenca || {}, p.id);
 export const podeDeclararAusencia = (p, g, hoje) => !!p && !!g && !g.encerrada && !ehCurimba(p)
-  && naCorrenteEm(p, g.data) && hoje < g.data && presencaDe(p, g) === 'pend';
+  && naCorrenteEm(p, g.data) && hoje < g.data && presencaDe(p, g) === 'pend' && !statusMarcado(p, g);
 
 export function pessoasDaGira(pessoas, g) {
   return daGira(pessoas, g).map((p) => {

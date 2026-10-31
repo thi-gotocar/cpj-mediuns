@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -125,6 +125,7 @@ function proximaQuarta() {
 
 const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone', passe: 'Médium de passe', senha: 'Senha', curimba: 'Curimba' };
 // Bloco de quem está logado: com quem trabalha nesta gira e se é da turma da limpeza.
+const ROTULO_PRESENCA = { pend: 'Pendente', p: 'Presente', f: 'Falta', a: 'Ausente', lic: 'Licença' };
 function blocoEu(g) {
   const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p) return '';
@@ -171,16 +172,21 @@ function blocoEu(g) {
       camsDe(m).forEach((c) => lin('Cambone do médium', esc(nome(c))));
     });
   }
-  if (!curimba && presencaDe(p, g) === 'pend') {
-    // Acesso da corrente (cpj): até a véspera, a pessoa pode avisar que não vai.
-    const declara = estado.me?.corrente && podeDeclararAusencia(p, estado.giras[g.data], hoje());
-    if (!declara) aviso('Sua presença ainda não foi confirmada.');
-    else {
-      aviso('Altere o status para “Ausente” caso não consiga ir no dia, o controle segue com a Michelle. #boa gira');
-      L.push(`<label class="eu-aus"><span class="muted">Seu status:</span>
-        <select id="eu-aus" data-act="ausencia" aria-label="Seu status nesta gira"><option value="pend" selected>Pendente</option><option value="a">Ausente</option></select></label>`);
-    }
-  }
+  const pr = presencaDe(p, g);
+  if (!curimba && estado.me?.corrente) {
+    // Acesso da corrente (cpj): o combo mostra sempre o status da lista de presença.
+    // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica bloqueado.
+    const gs = estado.giras[g.data];
+    const declara = podeDeclararAusencia(p, gs, hoje());
+    if (declara) aviso('Altere o status para “Ausente” caso não consiga ir no dia, o controle segue com a Michelle. #boa gira');
+    const opts = declara ? [['pend', 'Pendente'], ['a', 'Ausente']] : [[pr, ROTULO_PRESENCA[pr] || pr]];
+    const motivo = declara ? '' : pr === 'pend' && !statusMarcado(p, gs) && gs && hoje() >= g.data
+      ? 'No dia da gira, só a Michelle altera.'
+      : gs?.encerrada ? 'Gira encerrada.' : 'Status definido na lista de presença.';
+    L.push(`<label class="eu-aus"><span class="muted">Seu status:</span>
+      <select id="eu-aus" class="st-${pr}" data-act="ausencia" aria-label="Seu status nesta gira" ${declara ? '' : 'disabled'}>${opts.map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      ${declara ? '' : `<span class="muted eu-trava">🔒 ${motivo}</span>`}</label>`);
+  } else if (!curimba && pr === 'pend') aviso('Sua presença ainda não foi confirmada.');
   // Turma da limpeza
   const Lp = limpezaDaGira(estado.pessoas, g, girasLista());
   if (Lp && st !== 'lic') {
