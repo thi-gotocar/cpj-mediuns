@@ -498,3 +498,12 @@ body.deslogado .rodape{display:none}
 .al-l:first-child{border-top:0}
 .al-l select{max-width:130px}
 @media (max-width:420px){.al-l{grid-template-columns:minmax(0,1fr) auto}.al-l select{grid-column:1;max-width:none}}
+/* oferendas: percentual das doações */
+.of-pct{margin:6px 0 4px}
+.of-pct-h{display:flex;align-items:baseline;gap:6px;font-size:.92rem}
+.of-pct-h b{font:700 1.3rem var(--f-display);color:var(--accent)}
+.of-pct-barra{height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin-top:4px}
+.of-pct-barra span{display:block;height:100%;background:var(--accent);border-radius:6px}
+.of-pct.cheio .of-pct-h b{color:#1d7a3c}
+.of-pct.cheio .of-pct-barra span{background:#2e9b55}
+.of-pct-aviso{margin:6px 0 0;font-size:.85rem;color:var(--ink)}

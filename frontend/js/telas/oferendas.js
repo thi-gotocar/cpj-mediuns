@@ -1,6 +1,6 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, STATUS_MEDIUM, STATUS_MEDIUM_LABEL, contagemMediuns } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, STATUS_MEDIUM, STATUS_MEDIUM_LABEL, contagemMediuns, percentualDoado, travadaPara, fechaEm } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -80,7 +80,7 @@ function linhaItem(of, i, admin) {
       <span class="of-qtd">${s.doado} de ${i.quantidade}</span></div>
     <div class="muted of-sub">${entregaTxt} · faltam <b>${s.falta}</b></div>
     ${admin ? doadoresAdmin(i, s) : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>'}`;
-  if (!i.entregue && of.status === 'publicado' && (max > 0 || minha > 0)) {
+  if (!i.entregue && of.status === 'publicado' && (max > 0 || minha > 0) && !travadaPara(of, eu.chave)) {
     h += `<div class="of-doar"><span class="muted">Vou doar:</span>
       <button class="btn small" data-act="ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>
       <span class="n">${minha}</span>
@@ -128,6 +128,25 @@ function meusCompromissos(of) {
   </div>`;
 }
 
+// Percentual das doações e, quando completa, até quando dá para alterar.
+const hora = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} às ${String(d.getHours()).padStart(2, '0')}h${String(d.getMinutes()).padStart(2, '0')}`;
+function barraDoacoes(of) {
+  if (of.bloqueada || !of.itens.length) return '';
+  const pct = percentualDoado(of);
+  const eu = estado.oferendas.eu;
+  let aviso = '';
+  if (of.fechada) {
+    aviso = travadaPara(of, eu.chave)
+      ? `🔒 Completa há mais de um dia: as doações estão fechadas.${of.responsavel ? ` Só o responsável (${esc(of.responsavel)}) pode alterar.` : ''}`
+      : '🔒 Completa há mais de um dia: só você, que é o responsável, ainda pode alterar.';
+  } else if (pct >= 100 && of.completaEm) {
+    aviso = `✅ Completa! Dá para alterar até ${hora(fechaEm(of))}; depois, só o responsável.`;
+  }
+  return `<div class="of-pct ${pct >= 100 ? 'cheio' : ''}"><div class="of-pct-h"><b>${pct}%</b> <span class="muted">das doações</span></div>
+    <div class="of-pct-barra" role="img" aria-label="${pct}% das doações"><span style="width:${pct}%"></span></div>
+    ${aviso ? `<p class="of-pct-aviso">${aviso}</p>` : ''}</div>`;
+}
+
 function cardOferenda(of, admin) {
   const u = U();
   let h = `<div class="card" id="of-${of.id}">`;
@@ -155,6 +174,7 @@ function cardOferenda(of, admin) {
         <span class="st-of-bts">${bts}</span></div>` : ''}
       ${!admin && (of.status === 'rascunho' || of.responsavel) ? `<div class="of-topo">${of.status === 'rascunho' ? etiqueta('rascunho') : '<span></span>'}${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${admin && of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
+      ${barraDoacoes(of)}
       <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa · ${(of.mediuns || []).length} pessoas${(() => { const c = contagemMediuns(of); return c.pendente ? ` · ${c.pendente} pendente${c.pendente > 1 ? 's' : ''}` : ''; })()}${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);

@@ -811,3 +811,37 @@ test('alunos da CPJ: turmas 09 a 11, fora da corrente; admin oferendas cadastra 
   const fim = (await api('POST', '/api/pessoas', of, { acao: 'excluirAluno', id: um.id })).json;
   assert.ok(!fim.alunos.some((a) => a.id === um.id));
 });
+
+test('oferenda 100% há mais de um dia: só o responsável altera; o card mostra o percentual', async () => {
+  const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
+  let r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Oferenda Completa', data: '2027-03-01' })).json;
+  const o = r.oferendas.find((x) => x.titulo === 'Oferenda Completa');
+  r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Flores', quantidade: 2, entrega: '' })).json;
+  const item = r.oferendas.find((x) => x.id === o.id).itens[0];
+  await of({ acao: 'status', id: o.id, status: 'publicado' });
+  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;   // a responsável
+  r = (await of({ acao: 'doar', itemId: item.id, quantidade: 1 }, USER)).json;
+  let x = r.oferendas.find((y) => y.id === o.id);
+  assert.equal(x.completaEm, null);
+  const { percentualDoado } = await import('../shared/oferendas.js');
+  assert.equal(percentualDoado(x), 50);
+  r = (await of({ acao: 'doar', itemId: item.id, quantidade: 1 }, ana)).json;
+  x = r.oferendas.find((y) => y.id === o.id);
+  assert.ok(x.completaEm, 'marcou quando ficou completa');
+  assert.equal(x.fechada, false, 'no primeiro dia ainda dá para alterar');
+  assert.equal(percentualDoado(x), 100);
+  // Passou um dia.
+  sql(`update oferendas set completa_em = now() - interval '25 hours' where id = '${o.id}'`);
+  const tentar = await of({ acao: 'doar', itemId: item.id, quantidade: 0 }, USER);
+  assert.equal(tentar.status, 400);
+  assert.match(tentar.json.erro, /fechadas.*responsável \(Ana\)/);
+  assert.equal((await api('GET', '/api/oferendas', USER)).json.oferendas.find((y) => y.id === o.id).fechada, true);
+  // A responsável altera; continua fechada mesmo sem estar mais 100%.
+  r = (await of({ acao: 'doar', itemId: item.id, quantidade: 0 }, ana)).json;
+  x = r.oferendas.find((y) => y.id === o.id);
+  assert.equal(x.fechada, true);
+  assert.equal((await of({ acao: 'doar', itemId: item.id, quantidade: 1 }, USER)).status, 400);
+  // O admin ainda corrige pelo "doação por alguém".
+  assert.equal((await of({ acao: 'doarPor', itemId: item.id, pessoaId: RESP(), quantidade: 1 })).status, 200);
+  await of({ acao: 'excluir', id: o.id });
+});

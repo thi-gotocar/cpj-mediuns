@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 35;  // v35: perfis no banco, alunos e turmas, senha (PIN) da corrente
+export const VERSAO = 36;  // v36: oferenda completa há um dia fecha as doações (só o responsável altera)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1011,6 +1011,114 @@ export const MIGRACOES = [
      return alunos_estado();
    exception when unique_violation then
      raise exception 'Essa turma já existe.';
+   end;
+   $$`,
+
+  // ================================================== v36: oferenda completa (100%) há mais de um dia: fecha as doações
+  `alter table oferendas add column if not exists completa_em timestamptz`,
+  // Marca quando todos os itens ficaram completos (e desmarca se voltar a faltar),
+  // mas depois de fechada (um dia completa) continua fechada.
+  `create or replace function oferenda_conferir_completa(v_of uuid)
+   returns void language plpgsql as $$
+   declare v_completa boolean;
+   begin
+     select exists (select 1 from oferenda_itens i where i.oferenda_id = v_of)
+        and not exists (select 1 from oferenda_itens i where i.oferenda_id = v_of
+                        and i.quantidade > coalesce((select sum(d.quantidade) from oferenda_doacoes d where d.item_id = i.id), 0))
+       into v_completa;
+     update oferendas set completa_em = case
+         when completa_em is not null and completa_em <= now() - interval '1 day' then completa_em
+         when v_completa then coalesce(completa_em, now())
+         else null end
+     where id = v_of;
+   end;
+   $$`,
+  `create or replace function oferenda_completa_trg()
+   returns trigger language plpgsql as $$
+   declare v_of uuid;
+   begin
+     if tg_table_name = 'oferenda_itens' then
+       v_of := case when tg_op = 'DELETE' then old.oferenda_id else new.oferenda_id end;
+     else
+       select oferenda_id into v_of from oferenda_itens
+       where id = case when tg_op = 'DELETE' then old.item_id else new.item_id end;
+     end if;
+     if v_of is not null then perform oferenda_conferir_completa(v_of); end if;
+     return null;
+   end;
+   $$`,
+  `drop trigger if exists oferenda_doacoes_completa on oferenda_doacoes`,
+  `create trigger oferenda_doacoes_completa after insert or update or delete on oferenda_doacoes
+   for each row execute function oferenda_completa_trg()`,
+  `drop trigger if exists oferenda_itens_completa on oferenda_itens`,
+  `create trigger oferenda_itens_completa after insert or update of quantidade or delete on oferenda_itens
+   for each row execute function oferenda_completa_trg()`,
+  // As que já estavam completas: conta desde a última doação.
+  `update oferendas o set completa_em = (select max(d.atualizado_em) from oferenda_doacoes d join oferenda_itens i on i.id = d.item_id where i.oferenda_id = o.id)
+   where o.completa_em is null
+     and exists (select 1 from oferenda_itens i where i.oferenda_id = o.id)
+     and not exists (select 1 from oferenda_itens i where i.oferenda_id = o.id
+                     and i.quantidade > coalesce((select sum(d.quantidade) from oferenda_doacoes d where d.item_id = i.id), 0))`,
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
+       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
+       'porMedium', o.por_medium,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'mediuns', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pe.id, 'nome', pe.nome, 'status', om.status)
+                                             order by lower(pe.nome))
+                            from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
+                            where om.oferenda_id = o.id and not om.excluido), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  `create or replace function oferenda_doar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_item uuid := (p ->> 'itemId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_qtd int := (p ->> 'quantidade')::int;
+     v_total int; v_entregue boolean; v_outros int;
+     v_completa timestamptz; v_resp uuid;
+   begin
+     select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
+     if not found then raise exception 'Item não encontrado.'; end if;
+     if not coalesce((p ->> 'forcar')::boolean, false)
+        and (select o.status from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item) <> 'publicado' then
+       raise exception 'Esta oferenda não está aberta para doações.';
+     end if;
+     if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
+     -- v36: completa há mais de um dia → só o responsável altera (o admin altera pelo "doação por alguém").
+     if not coalesce((p ->> 'forcar')::boolean, false) then
+       select o.completa_em, o.responsavel_id into v_completa, v_resp
+       from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item;
+       if v_completa is not null and v_completa <= now() - interval '1 day' and v_chave is distinct from 'p:' || v_resp::text then
+         raise exception 'Esta oferenda está completa há mais de um dia: as doações estão fechadas. Só o responsável%pode alterar.',
+           coalesce(' (' || (select nome from pessoas where id = v_resp) || ') ', ' ');
+       end if;
+     end if;
+     select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
+     if v_qtd > 0 and v_outros + v_qtd > v_total then
+       if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;
+       raise exception 'Só faltam % deste item.', v_total - v_outros;
+     end if;
+     -- Uma alteração só (sem apagar e inserir), para não reiniciar a contagem do "completa há um dia".
+     if v_qtd > 0 then
+       insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
+       values (v_item, v_chave, btrim(p ->> 'nome'), v_qtd)
+       on conflict (item_id, pessoa_chave) do update set quantidade = excluded.quantidade, pessoa_nome = excluded.pessoa_nome, atualizado_em = now();
+     else
+       delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
+     end if;
+     return oferendas_estado();
    end;
    $$`,
 ];

@@ -21,6 +21,19 @@ export function situacao(item) {
   return { doado, falta: Math.max(0, item.quantidade - doado), completo: doado >= item.quantidade };
 }
 
+// Quanto da oferenda já tem doador (0 a 100), somando todos os itens (o que passa do pedido não conta).
+export function percentualDoado(of) {
+  const total = (of.itens || []).reduce((s, i) => s + i.quantidade, 0);
+  if (!total) return 0;
+  const doado = (of.itens || []).reduce((s, i) => s + Math.min(i.quantidade, situacao(i).doado), 0);
+  return Math.floor((doado / total) * 100);
+}
+
+// Completa há mais de um dia: só o responsável altera as próprias doações.
+export const travadaPara = (of, chave) => !!of.fechada && chave !== 'p:' + of.responsavelId;
+// Quando fecha (um dia depois de ficar completa).
+export const fechaEm = (of) => (of.completaEm ? new Date(new Date(of.completaEm).getTime() + 24 * 3600 * 1000) : null);
+
 // Data de entrega do item: a escolhida ou, se vazia, o dia do evento.
 export const dataEntrega = (item, oferenda) => item.entrega || oferenda.data;
 
