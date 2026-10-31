@@ -247,8 +247,35 @@ function cardSemana() {
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum evento nos próximos 30 dias.</p>'}</div>`;
 }
 
+// Fim da aba Gira: a presença de quem está logado no ano (giras até hoje; licença e pendente não contam).
+function cardMinhaPresenca() {
+  const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
+  if (!p || !contaNaPresenca(p)) return '';
+  const hj = hoje();
+  const ano = hj.slice(0, 4);
+  const gs = girasLista().filter((g) => g.data.startsWith(ano) && g.data <= hj && naCorrenteEm(p, g.data));
+  let pres = 0, base = 0;
+  const faltas = [];
+  gs.forEach((g) => {
+    const st = presencaDe(p, g);
+    if (st === 'lic' || st === 'pend') return;
+    base++;
+    if (st === 'f' || st === 'a') faltas.push([g, st]); else pres++;
+  });
+  if (!base) return '';
+  faltas.sort(([a], [b]) => b.data.localeCompare(a.data));
+  const pct = Math.round((pres / base) * 100);
+  const cor = pct === 100 ? 'ok' : pct >= 80 ? 'bom' : pct >= 60 ? 'medio' : 'baixo';
+  return `<div class="card mp"><div class="grp-h"><span class="eyebrow">Sua presença em ${ano}</span><span class="count">${pres} de ${base} gira${base > 1 ? 's' : ''}</span></div>
+    <div class="mp-pct ${cor}"><b>${pct}%</b><span>${pct === 100 ? 'de presença · veio em todas! 🙌' : 'de presença'}</span></div>
+    <div class="mp-barra ${cor}"><span style="width:${pct}%"></span></div>
+    ${faltas.length ? `<div class="mp-lista">${faltas.map(([g, st]) => `<div class="mp-l"><span class="mp-dia">${dDM(g.data)}</span><span class="mp-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span><span class="mp-st ${st}">${st === 'f' ? 'Falta' : 'Ausência'}</span></div>`).join('')}</div>` : ''}</div>`;
+}
+
 export function render() {
-  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
+  const h = renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
+  const fim = h.lastIndexOf('</section>');
+  return fim < 0 ? h + cardMinhaPresenca() : h.slice(0, fim) + cardMinhaPresenca() + h.slice(fim);
 }
 
 function renderGira() {
