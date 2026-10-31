@@ -183,11 +183,10 @@ export function render() {
   if (!ps.length) {
     return h + cardCurimba(todas, editar) + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div>${verAlunos ? cardAlunos() : ''}</section>`;
   }
-  // Ordem: Adicionar, Corrente, Licenças, Turmas da limpeza, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba.
+  // Ordem: Adicionar, Corrente, Licenças, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba, Turmas da limpeza, Alunos.
   h += `<div class="card"><div class="grp-h"><h2>Corrente</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span><span class="muted">${f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div></div>`;
   h += cardLicencas(ps, editar);   // licença: só a corrente
-  h += cardTurmas(todas);
   ORDEM_FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
@@ -214,6 +213,7 @@ export function render() {
     h += `</div></div>`;
   });
   h += cardCurimba(todas, editar);
+  h += cardTurmas(todas);
   if (verAlunos) h += cardAlunos();
   return h + '</section>';
 }
