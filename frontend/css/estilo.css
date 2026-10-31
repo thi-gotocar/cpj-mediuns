@@ -566,3 +566,8 @@ body.deslogado .rodape{display:none}
 .mp-gira{flex:1;min-width:0}
 .mp-st{flex:none;font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 9px;background:var(--off-soft);color:var(--off)}
 .mp-st.a{background:#fbefc4;color:#7a5600}
+/* aba Gira (quem não é admin): gira anterior, próxima e calendário */
+.nav-gira{display:flex;gap:8px;flex:1 1 100%;min-width:0}
+.nav-bt{flex:1 1 0;min-width:0;height:44px;padding:0 10px;font-size:.98rem;white-space:nowrap}
+.nav-cal{position:relative;flex:0 0 48px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem;overflow:hidden}
+.nav-cal input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0}

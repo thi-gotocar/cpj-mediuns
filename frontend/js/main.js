@@ -171,6 +171,8 @@ rodape.addEventListener('click', cliqueConta);
 
 main.addEventListener('click', async (e) => {
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }
+  // Calendário da aba Gira (quem não é admin): abre o seletor de data também no computador.
+  if (e.target.id === 'f-data' && e.target.closest('.nav-cal')) { try { e.target.showPicker(); } catch { /* o toque já abre */ } return; }
   if (e.target.closest('[data-conta="voltarlogin"]')) { pinLogin = null; erroLogin = ''; render(); return; }
   // Acesso da corrente: a pessoa confirma qual nome cadastrado é o dela.
   const eu = e.target.closest('[data-soueu]');

@@ -118,6 +118,15 @@ function caixaEncerrar(g) {
 }
 
 // Próxima quarta-feira (hoje, se hoje for quarta).
+// Quem não é admin: gira anterior, próxima gira e o calendário para buscar outra data.
+function navegarGiras(g) {
+  return `<div class="nav-gira">
+    <button class="btn nav-bt" data-act="giraanterior" title="Vai para a gira anterior">‹ Gira anterior</button>
+    <button class="btn nav-bt" data-act="proxgira" title="Vai para a próxima gira">Próxima gira ›</button>
+    <label class="btn nav-cal" title="Escolher outra data"><span aria-hidden="true">📅</span><input type="date" id="f-data" value="${esc(g.data)}" aria-label="Escolher outra data"></label>
+  </div>`;
+}
+
 function proximaQuarta() {
   const d = pd(hoje());
   d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7));
@@ -306,8 +315,8 @@ function renderGira() {
     <div class="datehead"><div class="dh-linha"><span class="eyebrow">${esc(dLong(g.data))}</span>${editar && existe && estado.confirm !== 'rei:' + g.data
       ? `<button class="btn small rei-bt" data-act="askdel" data-k="rei:${g.data}" title="Volta a gira ao início (só a data fica)">↺ Reiniciar</button>` : ''}</div><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
-      <div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
-      <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span>${botaoTopo(g, editar, existe)}</div></div>
+      ${admin ? `<div class="data-linha"><label class="field">Data do evento<input type="date" id="f-data" value="${esc(g.data)}"></label>
+      <div class="field prox-campo"><span aria-hidden="true">&nbsp;</span>${botaoTopo(g, editar, existe)}</div></div>` : navegarGiras(g)}
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
       ${editar && temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
       ${editar && temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
@@ -524,8 +533,16 @@ export const cliques = {
     if (duplasAbertas.has(d)) duplasAbertas.delete(d); else duplasAbertas.add(d);
     avisar();
   },
+  // A gira cadastrada mais recente antes da data aberta.
+  giraanterior() {
+    const d = Object.keys(estado.giras).filter((x) => x < prefs.data).sort().pop();
+    if (!d) { toast('Não há gira anterior a esta.'); return; }
+    prefs.data = d; salvarPrefs(); avisar();
+  },
   proxgira() {
-    const d = proximaQuarta();
+    // Quem não é admin vai para a próxima gira cadastrada (se houver); o admin, para a próxima quarta.
+    const cad = !pode('giras:editar') && Object.keys(estado.giras).filter((x) => x >= hoje()).sort()[0];
+    const d = cad || proximaQuarta();
     if (prefs.data === d) { toast('Você já está na próxima gira.'); return; }
     prefs.data = d; salvarPrefs(); avisar();
   },
