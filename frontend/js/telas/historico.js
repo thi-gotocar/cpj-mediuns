@@ -5,6 +5,7 @@ import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, 
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
+import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 
 // Resultado da leitura da mensagem. Tudo o que ficou em dúvida aparece em vermelho, com opção de
 // corrigir e um botão Aceitar; só dá para gravar depois de aceitar todos.
@@ -191,13 +192,29 @@ function cardEstatisticas(todas, ps) {
     </div></div>`;
 }
 
+// Listas que mostram só os primeiros N itens e rolam o resto ([data-rolar="N"]):
+// a altura máxima é medida depois de desenhar, porque cada item tem uma altura.
+function ajustarRolagem() {
+  document.querySelectorAll('[data-rolar]').forEach((el) => {
+    const n = Number(el.dataset.rolar);
+    const kids = el.children;
+    el.style.maxHeight = '';
+    if (kids.length <= n) return;
+    el.style.maxHeight = (kids[n].offsetTop - kids[0].offsetTop) + 'px';
+  });
+}
+
 export function render() {
+  setTimeout(ajustarRolagem, 0);
+  // Eventos (antes numa aba própria) ficam no topo do Histórico.
+  let h = `<section class="panel">${pode('eventos:ver') ? blocosEventos() : ''}`;
+  if (!pode('historico:ver')) return h + '</section>';
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
-  let h = `<section class="panel">`;
   h += cardEstatisticas(gs, ps);
-  if (pode('giras:editar')) h += cardGiraAntiga(ps);
-  h += `<div class="card"><h2>Giras salvas</h2>`;
+  h += `<div class="card"><div class="grp-h"><h2>Giras salvas</h2>${pode('giras:editar') && !estado.giraAntiga ? '<button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button>' : ''}</div>`;
+  // Cadastrar gira antiga: dentro do bloco (o formulário abre aqui).
+  if (pode('giras:editar') && estado.giraAntiga) h += cardGiraAntiga(ps).replace('<div class="card adm" id="card-ga">', '<div class="ga-box" id="card-ga">');
   // Soma dos atendidos de todas as giras que têm o registro.
   const comAt = gs.filter((g) => g.atendimentos);
   if (comAt.length) {
@@ -212,7 +229,7 @@ export function render() {
   }
   if (!gs.length) h += `<p class="muted">Nenhuma gira ainda.</p>`;
   else {
-    h += `<div class="hist">`;
+    h += `<div class="hist" data-rolar="3">`;
     gs.forEach((g) => {
       // Presentes = quem esteve na gira (presente, não atende ou suporte).
       const n = (...sts) => ps.filter((p) => naCorrenteEm(p, g.data) && sts.includes(status(p, g))).length;
@@ -238,10 +255,13 @@ export function render() {
     const cnt = {};
     gs.forEach((g) => (g.pares || []).forEach((p) => { const k = p.m + '|' + p.c; cnt[k] = (cnt[k] || 0) + 1; }));
     const usados = cams.filter((c) => meds.some((m) => cnt[m.id + '|' + c.id]));
-    h += `<div class="card"><h2>Quem já cambonou quem</h2><p class="muted" style="margin:0;font-size:.9rem">Vezes que cada cambone acompanhou cada médium, em todas as giras.</p>
+    const camAberto = !!estado.cambAberto;
+    h += `<div class="card"><button class="grp-h dobra" data-act="dobrarcamb" aria-expanded="${camAberto}"><h2>Quem já cambonou quem</h2><span class="count"><span class="seta" aria-hidden="true">${camAberto ? '▾' : '▸'}</span></span></button>`;
+    if (camAberto) h += `<p class="muted" style="margin:0;font-size:.9rem">Vezes que cada cambone acompanhou cada médium, em todas as giras.</p>
       <div class="matrix"><table><thead><tr><th></th>${usados.map((c) => `<th>${esc(c.nome)}</th>`).join('')}</tr></thead><tbody>
       ${meds.map((m) => `<tr><th class="rh">${esc(m.nome)}</th>${usados.map((c) => { const n = cnt[m.id + '|' + c.id] || 0; return `<td class="${n === 0 ? 'z' : n === 1 ? 'h1' : 'h2'}">${n || '·'}</td>`; }).join('')}</tr>`).join('')}
-      </tbody></table></div></div>`;
+      </tbody></table></div>`;
+    h += '</div>';
   }
 
   if (pode('dados:importar')) {
@@ -254,6 +274,8 @@ export function render() {
 
 export const cliques = {
   ...cliquesResumo,
+  ...cliquesEventos,
+  dobrarcamb() { estado.cambAberto = !estado.cambAberto; avisar(); },
   gaabrir() {
     estado.giraAntiga = { data: '', entidade: '', orixa: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
     avisar();

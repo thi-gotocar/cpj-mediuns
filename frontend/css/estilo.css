@@ -582,3 +582,11 @@ body.deslogado .rodape{display:none}
 .aj-sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .aj-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
 .aj-form .field{flex:1 1 180px}
+/* Histórico: listas que mostram até 3 itens e rolam o resto */
+[data-rolar]{overflow-y:auto;overscroll-behavior:contain}
+.hist[data-rolar]{margin-right:-6px;padding-right:6px}
+.ga-box{display:grid;gap:12px;border:1.5px dashed var(--gold);border-radius:var(--r);padding:12px}
+.ev-mes{padding:6px 0 2px;border-top:1px solid var(--line)}
+.ev-mes:first-child{border-top:0;padding-top:0}
+.ev-mes-h{display:flex;align-items:baseline;gap:6px;font-size:1.02rem;padding:4px 0}
+.ev-mes-h .count{margin-left:auto}

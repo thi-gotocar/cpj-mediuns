@@ -25,19 +25,22 @@ function linha(e, editar) {
       ${conf ? `<button class="btn small danger" data-act="evexcluir" data-id="${e.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="ev:${e.id}">Excluir</button>`}</span>` : ''}</div>`;
 }
 
-function cardMes(chave, lista, editar) {
+// Um mês dentro do bloco "Eventos cadastrados".
+function blocoMes(chave, lista, editar) {
   const [a, m] = chave.split('-');
-  return `<div class="card"><div class="grp-h"><h2>${MESES[Number(m) - 1]} <span class="muted ev-ano">${a}</span></h2><span class="count">${lista.length}</span></div>
+  return `<div class="ev-mes"><div class="ev-mes-h"><b>${MESES[Number(m) - 1]}</b> <span class="muted ev-ano">${a}</span><span class="count">${lista.length}</span></div>
     <div class="ev-lista">${lista.map((e) => linha(e, editar)).join('')}</div></div>`;
 }
 
-export function render() {
+// Blocos de eventos (ficam na aba Histórico): 1) cadastrar evento (admin); 2) eventos cadastrados, por mês.
+// Os dois começam minimizados. Na lista aparecem até 3 meses; o resto rola dentro do bloco.
+export function blocosEventos() {
   const editar = pode('eventos:editar');
   const evs = estado.eventos || [];
   const u = U();
-  let h = '<section class="panel">';
+  let h = '';
   if (editar) {
-    const aberto = u.novo ?? !evs.length;
+    const aberto = !!u.novo;
     h += `<div class="card adm"><button class="grp-h dobra" data-act="evnovo" aria-expanded="${aberto}"><h2>＋ Cadastrar evento</h2><span class="count"><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>
       ${aberto ? `<form id="f-evento" class="ev-form" autocomplete="off">
         <label class="field ev-data">Data<input type="text" id="ev-data" name="data" inputmode="numeric" maxlength="10" data-mascara="data" required placeholder="31/10"></label>
@@ -46,20 +49,25 @@ export function render() {
         <span class="row ev-bts"><button class="btn primary" type="submit">Cadastrar</button></span></form>
         <p class="muted" style="margin:0;font-size:.82rem">Digite só dia e mês (3110 vira 31/10). Se a data deste ano já passou há mais de 2 meses, fica para o ano que vem; para outro ano, continue digitando o ano (31/10/2027).</p>` : ''}</div>`;
   }
-  if (!evs.length) return h + `<div class="card empty"><p class="muted">Nenhum evento cadastrado.</p></div></section>`;
-  // Um bloco por mês: o mês atual e os próximos em cima; os que já passaram, no fim.
+  const aberto = !!u.lista;
+  h += `<div class="card"><button class="grp-h dobra" data-act="evlista" aria-expanded="${aberto}"><h2>📅 Eventos cadastrados</h2><span class="count">${evs.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  if (!aberto) return h + '</div>';
+  if (!evs.length) return h + '<p class="muted" style="margin:0">Nenhum evento cadastrado.</p></div>';
+  // O mês atual e os próximos em cima; os que já passaram, no fim (escondidos).
   const mesAtual = hoje().slice(0, 7);
   const porMes = {};
   evs.forEach((e) => { (porMes[e.data.slice(0, 7)] ||= []).push(e); });
   const chaves = Object.keys(porMes);
   const futuros = chaves.filter((k) => k >= mesAtual).sort();
   const passados = chaves.filter((k) => k < mesAtual).sort().reverse();
-  futuros.forEach((k) => { h += cardMes(k, porMes[k], editar); });
-  if (passados.length) {
-    h += `<button class="btn link small" data-act="evpassados">${u.passados ? '▾ Esconder meses anteriores' : `▸ Meses anteriores (${passados.length})`}</button>`;
-    if (u.passados) passados.forEach((k) => { h += cardMes(k, porMes[k], editar); });
-  }
-  return h + '</section>';
+  h += `<div class="rolar3" data-rolar="3">${futuros.map((k) => blocoMes(k, porMes[k], editar)).join('')}${u.passados ? passados.map((k) => blocoMes(k, porMes[k], editar)).join('') : ''}</div>`;
+  if (!futuros.length && !u.passados) h += '<p class="muted" style="margin:0">Nenhum evento daqui para frente.</p>';
+  if (passados.length) h += `<button class="btn link small" data-act="evpassados">${u.passados ? '▾ Esconder meses anteriores' : `▸ Meses anteriores (${passados.length})`}</button>`;
+  return h + '</div>';
+}
+
+export function render() {
+  return `<section class="panel">${blocosEventos()}</section>`;
 }
 
 // Campo de data no celular (teclado só de números): a barra entra sozinha.
@@ -74,6 +82,7 @@ export function mascaraData(el, apagando) {
 
 export const cliques = {
   evnovo(el) { U().novo = el.getAttribute('aria-expanded') !== 'true'; avisar(); if (U().novo) document.getElementById('ev-data')?.focus(); },
+  evlista(el) { U().lista = el.getAttribute('aria-expanded') !== 'true'; avisar(); },
   eveditar(el) { U().editar = el.dataset.id; avisar(); },
   evcancelar() { U().editar = null; avisar(); },
   evpassados() { U().passados = !U().passados; avisar(); },
