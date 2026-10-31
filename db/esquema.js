@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 38;  // v38: eventos (aba Eventos e "Eventos da semana" na aba Gira)
+export const VERSAO = 39;  // v39: oferenda por pessoa com duas conferências (pagamento e entrega)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1165,6 +1165,52 @@ export const MIGRACOES = [
    begin
      delete from eventos where id = (p ->> 'id')::uuid;
      return eventos_listar();
+   end;
+   $$`,
+
+  // ================================================== v39: oferenda por pessoa: pagamento (Pago/Não pago) e entrega (Pendente/Entregue) separados
+  `alter table oferenda_mediuns add column if not exists pagamento text not null default 'nao_pago' check (pagamento in ('pago', 'nao_pago'))`,
+  `alter table oferenda_mediuns add column if not exists entrega text not null default 'pendente' check (entrega in ('pendente', 'entregue'))`,
+  `alter table oferenda_mediuns drop constraint if exists oferenda_mediuns_status_check`,
+  // Passa a situação antiga (um status só) para as duas conferências, uma vez ("Não vai" sai da lista).
+  `update oferenda_mediuns set
+     pagamento = case when status = 'pago' then 'pago' else 'nao_pago' end,
+     entrega   = case when status = 'entregue' then 'entregue' else 'pendente' end,
+     excluido  = excluido or status = 'nao_vai',
+     status    = 'v39'
+   where status in ('pendente', 'entregue', 'pago', 'nao_pago', 'nao_vai')`,
+  `alter table oferenda_mediuns alter column status set default 'v39'`,
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
+       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
+       'porMedium', o.por_medium,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'mediuns', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pe.id, 'nome', pe.nome, 'pagamento', om.pagamento, 'entrega', om.entrega)
+                                             order by lower(pe.nome))
+                            from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
+                            where om.oferenda_id = o.id and not om.excluido), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  `create or replace function oferenda_medium_status(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferenda_mediuns set
+       pagamento = case when p ? 'pagamento' then p ->> 'pagamento' else pagamento end,
+       entrega   = case when p ? 'entrega' then p ->> 'entrega' else entrega end,
+       atualizado_em = now()
+     where oferenda_id = (p ->> 'oferendaId')::uuid and pessoa_id = (p ->> 'pessoaId')::uuid;
+     if not found then raise exception 'Pessoa não está nesta oferenda.'; end if;
+     return oferendas_estado();
    end;
    $$`,
 ];

@@ -538,3 +538,8 @@ body.deslogado .rodape{display:none}
 .ev-dia{flex:none;min-width:5.6em;font-weight:700;color:var(--accent)}
 .ev-nome{flex:1 1 140px;min-width:0}
 .ev-acts{display:flex;gap:6px;margin-left:auto}
+/* oferenda por pessoa: pagamento e entrega separados */
+.of-med-l.ok{border-left-color:#2f9e5b}.of-med-l.meio{border-left-color:#2c4ea3}.of-med-l.pend{border-left-color:#e3b021}
+.of-med-etqs{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.of-med-cont .muted{font-size:.8rem;align-self:center}
+@media (max-width:420px){.of-med-l{flex-wrap:wrap}.of-med-l .nm{flex-basis:100%}.of-med-acts{flex:1;justify-content:flex-end}}

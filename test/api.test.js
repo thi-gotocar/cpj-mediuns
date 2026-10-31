@@ -652,12 +652,16 @@ test('oferendas: uma linha para cada médium, admin marca a situação', async (
   const of = r.oferendas.find((o) => o.titulo === 'Por médium');
   assert.equal(of.porMedium, true);
   assert.deepEqual(of.mediuns.map((m) => m.pessoaId).sort(), mediuns.map((p) => p.id).sort(), 'todos os cadastrados');
-  assert.ok(of.mediuns.every((m) => m.status === 'pendente'));
+  assert.ok(of.mediuns.every((m) => m.pagamento === 'nao_pago' && m.entrega === 'pendente'), 'começa Não pago e Pendente');
   const m0 = of.mediuns[0];
-  assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'talvez' })).status, 400);
-  assert.equal((await api('POST', '/api/oferendas', USER, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'pago' })).status, 403);
-  const r2 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, status: 'nao_pago' })).json;
-  assert.equal(r2.oferendas.find((o) => o.id === of.id).mediuns.find((m) => m.pessoaId === m0.pessoaId).status, 'nao_pago');
+  assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, pagamento: 'talvez' })).status, 400);
+  assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, entrega: 'pago' })).status, 400);
+  assert.equal((await api('POST', '/api/oferendas', USER, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, pagamento: 'pago' })).status, 403);
+  // As duas conferências são separadas: mudar uma não mexe na outra.
+  await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, pagamento: 'pago' });
+  const r2 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: m0.pessoaId, entrega: 'entregue' })).json;
+  const l0 = r2.oferendas.find((o) => o.id === of.id).mediuns.find((m) => m.pessoaId === m0.pessoaId);
+  assert.deepEqual([l0.pagamento, l0.entrega], ['pago', 'entregue']);
   // tirar um médium da lista: some, e não volta com "Incluir novos médiuns"
   const m1 = of.mediuns[1];
   assert.equal((await api('POST', '/api/oferendas', USER, { acao: 'excluirMedium', oferendaId: of.id, pessoaId: m1.pessoaId })).status, 403);
@@ -669,7 +673,7 @@ test('oferendas: uma linha para cada médium, admin marca a situação', async (
   const of3 = r3.oferendas.find((o) => o.id === of.id);
   assert.equal(of3.mediuns.length, mediuns.length, '+1 novo, -1 tirado');
   assert.ok(!of3.mediuns.some((m) => m.pessoaId === m1.pessoaId), 'quem foi tirado não volta');
-  assert.equal(of3.mediuns.find((m) => m.pessoaId === m0.pessoaId).status, 'nao_pago');
+  assert.equal(of3.mediuns.find((m) => m.pessoaId === m0.pessoaId).pagamento, 'pago');
   // sem a opção, a oferenda não tem linhas de médium
   const r4 = (await api('POST', '/api/oferendas', ADMIN, { acao: 'salvar', responsavelId: RESP(), titulo: 'Sem médium', data: '2029-03-04' })).json;
   const of4 = r4.oferendas.find((o) => o.titulo === 'Sem médium');

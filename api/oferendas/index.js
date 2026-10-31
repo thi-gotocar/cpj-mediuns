@@ -3,7 +3,7 @@
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
 //        admin:  salvar { id?, titulo, data, responsavelId, porMedium? (só ao criar) } · excluir { id }
-//                medium { oferendaId, pessoaId, status } · excluirMedium { oferendaId, pessoaId } · atualizarMediuns { id }  (oferenda com uma linha por médium)
+//                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · atualizarMediuns { id }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
@@ -14,7 +14,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { STATUS_MEDIUM_KEYS } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS } from '../../shared/oferendas.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 function resposta(oferendas, eu) {
@@ -105,10 +105,20 @@ export default rota({
         estado = await db.rpc('oferenda_doar', { itemId, chave, nome, quantidade, forcar: true });
         break;
       }
-      case 'medium':
-        if (!STATUS_MEDIUM_KEYS.includes(b.status)) throw new HttpError(400, 'Situação inválida.');
-        estado = await db.rpc('oferenda_medium_status', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium'), status: b.status });
+      case 'medium': {
+        const p = { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') };
+        if ('pagamento' in b) {
+          if (!PAGAMENTO_KEYS.includes(b.pagamento)) throw new HttpError(400, 'Pagamento inválido.');
+          p.pagamento = b.pagamento;
+        }
+        if ('entrega' in b) {
+          if (!ENTREGA_KEYS.includes(b.entrega)) throw new HttpError(400, 'Entrega inválida.');
+          p.entrega = b.entrega;
+        }
+        if (!p.pagamento && !p.entrega) throw new HttpError(400, 'Informe o pagamento ou a entrega.');
+        estado = await db.rpc('oferenda_medium_status', p);
         break;
+      }
       case 'excluirMedium':
         estado = await db.rpc('oferenda_medium_excluir', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') });
         break;
