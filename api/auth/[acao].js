@@ -4,7 +4,9 @@
 //   POST /api/auth/entrar   { email, senha }  → { token, usuario }
 //                           acesso da corrente: a "senha" é o nome; precisa estar na lista de pessoas.
 //                           Se não for exato → { confirmar: true, candidatos: [nomes parecidos] } (sem token)
+//                           Se a pessoa tem senha (PIN): sem "pin" → { precisaSenha: true, nome }; com "pin" errado → 401
 //   POST /api/auth/senha    { atual, nova }   → { token }  (logado)
+//   POST /api/auth/criarSenha { senha }  acesso da corrente: cria a senha (4 a 8 números) → { token }
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro
@@ -13,14 +15,15 @@ import { rota, corpo, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
-import { PERMISSOES, ehAcessoCorrente, pode } from '../../shared/permissoes.js';
+import { permissoesDe, ehAcessoCorrente, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
 import { normalizarPerfil } from '../../shared/perfil.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function publico(u) {
-  return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, pessoaId: u.pessoaId || null, permissoes: PERMISSOES[u.papel] || [] };
+  return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, papelNome: u.papelNome || '', pessoaId: u.pessoaId || null,
+    permissoes: u.permissoes || permissoesDe(u.papel, u.abas) };
 }
 
 function validarNovaSenha(s) {
@@ -32,7 +35,7 @@ const acoes = {
   async me(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
-    return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, pessoaId: u.pessoaId || null, permissoes: PERMISSOES[u.papel] || [], corrente: u.papel === 'corrente' };
+    return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' ? { temSenha: !!u.temSenha } : {}) };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).
@@ -42,7 +45,7 @@ const acoes = {
     if (req.method === 'GET') {
       const r = { eu: eu.pessoaId ? limpo(await db.rpc('perfil_ler', { pessoaId: eu.pessoaId })) : null };
       // Admin: o perfil de todos, para acompanhar respostas, guias e oferendas.
-      if (pode(eu.papel, 'pessoas:editar')) r.todos = (await db.rpc('perfis_listar')).map(limpo);
+      if (pode(eu, 'perfil:corrente')) r.todos = (await db.rpc('perfis_listar')).map(limpo);
       return r;
     }
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
@@ -82,11 +85,23 @@ const acoes = {
       const pessoas = await db.rpc('pessoas_listar');
       const exata = pessoas.find((p) => normalizarNome(p.nome) === normalizarNome(digitado));
       if (exata) {
+        // Quem criou senha (PIN) precisa digitá-la.
+        const pin = await db.rpc('pessoa_pin', { pessoaId: exata.id });
+        if (pin.pinHash) {
+          if (b.pin === undefined || b.pin === null || b.pin === '') return { precisaSenha: true, nome: exata.nome };
+          if (pin.bloqueadoAte) throw new HttpError(429, 'Muitas tentativas erradas. Espere alguns minutos e tente de novo.');
+          if (!(await conferirSenha(String(b.pin), pin.pinHash))) {
+            await db.rpc('login_falha', { email: 'pin:' + exata.id });
+            throw new HttpError(401, 'Senha incorreta.');
+          }
+          await db.rpc('login_ok', { email: 'pin:' + exata.id });
+        }
         // Junta no cadastro da pessoa o que ela (ou o admin por ela) preencheu antes com o nome digitado.
         const antigas = [...new Set([exata.nome, digitado, String(b.digitado || '')].filter(Boolean).map((n) => 'n:' + normalizarNome(n)))];
         await db.rpc('corrente_vincular', { chave: 'p:' + exata.id, nome: exata.nome, antigas });
-        const usuario = { id: null, nome: exata.nome, email: '', papel: 'corrente', pessoaId: exata.id };
-        return { token: await emitirTokenCorrente(exata.nome, exata.id), usuario: publico(usuario) };
+        const s = await db.rpc('corrente_sessao', { pessoaId: exata.id });
+        const usuario = { id: null, nome: exata.nome, email: '', papel: 'corrente', papelNome: s.papelNome, pessoaId: exata.id, abas: s.abas };
+        return { token: await emitirTokenCorrente(exata.nome, exata.id, s.pinVersao), usuario: publico(usuario) };
       }
       const candidatos = nomesParecidos(pessoas.map((p) => p.nome), digitado);
       if (candidatos.length) return { confirmar: true, candidatos };
@@ -104,6 +119,17 @@ const acoes = {
     }
     await db.rpc('login_ok', { email });
     return { token: await emitirToken(info.usuario), usuario: publico(info.usuario) };
+  },
+
+  // Quem entrou pelo acesso da corrente cria a própria senha (uma vez; depois só o root troca).
+  async criarSenha(req) {
+    if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
+    const eu = await exigir(req);
+    if (eu.papel !== 'corrente') throw new HttpError(400, 'Só o acesso da corrente cria senha aqui. Use Trocar senha.');
+    const senha = String(corpo(req).senha ?? '');
+    if (!PIN_VALIDO.test(senha)) throw new HttpError(400, 'A senha precisa ter de 4 a 8 números.');
+    const { pinVersao } = await db.rpc('pin_definir', { pessoaId: eu.pessoaId, pinHash: await gerarHash(senha), soSeVazio: true });
+    return { token: await emitirTokenCorrente(eu.nome, eu.pessoaId, pinVersao) };
   },
 
   async senha(req) {

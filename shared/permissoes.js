@@ -1,68 +1,74 @@
 // O que cada perfil pode fazer. O backend é quem garante (devolve 403);
-// o frontend só usa esta lista para esconder botões.
+// o frontend só usa a lista para esconder abas e botões.
 //
-// Para mudar as permissões, altere este arquivo: vale para os dois lados.
+// Os perfis ficam no banco (tabela perfis): o admin root cria e edita na aba Usuários,
+// marcando por aba se o perfil pode Ver e/ou Editar. As permissões saem dessas marcações.
 
-export const PERMISSOES = {
-  // Admin root: o mesmo que o admin, e só ele gerencia os usuários. Não precisa estar no cadastro de pessoas.
-  root: [],
-  admin: [
-    'escala:completa',  // presença, abas Pessoas e Histórico
-    'pessoas:ler',
-    'pessoas:editar',   // cadastrar, trocar função, marcar "pode ter passe", linhas, excluir
-    'giras:ler',
-    'giras:editar',     // entidade, presença, troca manual de duplas, fixar
-    'giras:sortear',    // sortear e remanejar faltas
-    'giras:excluir',
-    'dados:importar',
-    'ervas:escolher',
-    'ervas:gerenciar',  // cadastrar ervas e preços, frete, fechar a lista, ver e exportar pedidos
-    'oferendas:doar',
-    'oferendas:gerenciar', // criar oferendas e itens, marcar item entregue
-  ],
-  usuario: [
-    'escala:completa',
-    'pessoas:ler',
-    'giras:ler',        // ver a escala, o histórico e exportar (texto e imagem)
-    'ervas:escolher',   // escolher as ervas que quer comprar
-    'oferendas:doar',   // escolher o que vai doar nas oferendas
-  ],
-  // Usuário que também administra só a aba Oferendas.
-  admin_oferendas: [
-    'escala:completa',
-    'pessoas:ler',
-    'giras:ler',
-    'ervas:escolher',
-    'oferendas:doar',
-    'oferendas:gerenciar',
-  ],
-  // Usuário que também administra só a aba Ervas.
-  admin_ervas: [
-    'escala:completa',
-    'pessoas:ler',
-    'giras:ler',
-    'ervas:escolher',
-    'ervas:gerenciar',
-    'oferendas:doar',
-  ],
-  // Quem entra com o acesso da corrente (sem senha, só com o nome):
-  // só a aba Gira com o resultado do sorteio e a aba Ervas.
-  corrente: [
-    'pessoas:ler',      // os nomes, para mostrar as duplas
-    'giras:ler',
-    'ervas:escolher',
-    'oferendas:doar',
-  ],
+// Abas que entram na tabela de perfis (a aba Usuários é sempre só do admin root).
+export const ABAS = [
+  { k: 'gira', nome: 'Gira', ver: 'A escala. Sem o Histórico, vê só o resultado do sorteio.', editar: 'Presença, entidade, sorteio e encerrar.' },
+  { k: 'pessoas', nome: 'Pessoas', ver: 'A corrente, licenças e turmas da limpeza.', editar: 'Cadastrar, editar e excluir pessoas e licenças.' },
+  { k: 'alunos', nome: 'Alunos', ver: 'O bloco Alunos (na aba Pessoas).', editar: 'Cadastrar alunos e turmas.' },
+  { k: 'hist', nome: 'Histórico', ver: 'Histórico, estatísticas e a presença completa na Gira.', editar: 'Excluir giras, backup e restauração.' },
+  { k: 'ervas', nome: 'Ervas', ver: 'Escolher as próprias ervas.', editar: 'Ervas, preços, frete, pedidos e cobrança.' },
+  { k: 'oferendas', nome: 'Oferendas', ver: 'Escolher o que doar.', editar: 'Criar oferendas, itens e marcar entregas.' },
+  { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás e guias).', editar: 'Ver o perfil de todos e as pendências.' },
+];
+export const ABA_KEYS = ABAS.map((a) => a.k);
+
+const MAPA = {
+  gira: { ver: ['giras:ler'], editar: ['giras:editar', 'giras:sortear'] },
+  pessoas: { ver: ['pessoas:ver'], editar: ['pessoas:editar'] },
+  alunos: { ver: ['alunos:ver'], editar: ['alunos:editar'] },
+  hist: { ver: ['historico:ver', 'escala:completa'], editar: ['giras:excluir', 'dados:importar'] },
+  ervas: { ver: ['ervas:escolher'], editar: ['ervas:gerenciar'] },
+  oferendas: { ver: ['oferendas:doar'], editar: ['oferendas:gerenciar'] },
+  perfil: { ver: ['perfil:ver'], editar: ['perfil:corrente'] },
 };
+// Todo mundo logado vê os nomes da corrente (para mostrar as duplas, os pedidos etc.).
+const BASE = ['pessoas:ler'];
+const TODAS = [...new Set([...BASE, ...Object.values(MAPA).flatMap((m) => [...m.ver, ...m.editar])])];
+export const PERMISSOES_ROOT = [...TODAS, 'usuarios:gerenciar'];
 
-// Perfis que podem ser dados a usuários cadastrados.
-PERMISSOES.root = [...PERMISSOES.admin, 'usuarios:gerenciar'];   // aba Usuários: só o root
+// Deixa só abas conhecidas; Editar já inclui Ver.
+export function normalizarAbas(abas) {
+  const o = abas && typeof abas === 'object' ? abas : {};
+  const r = {};
+  for (const k of ABA_KEYS) {
+    const x = o[k] || {};
+    const editar = !!x.editar;
+    r[k] = { ver: editar || !!x.ver, editar };
+  }
+  return r;
+}
 
-export const PAPEIS = { root: 'Admin root', admin: 'Admin', usuario: 'Usuário', admin_oferendas: 'Admin oferendas', admin_ervas: 'Admin ervas' };
+export function permissoesDe(papel, abas) {
+  if (papel === 'root') return PERMISSOES_ROOT;
+  const a = normalizarAbas(abas);
+  const r = [...BASE];
+  for (const k of ABA_KEYS) {
+    if (a[k].ver) r.push(...MAPA[k].ver);
+    if (a[k].editar) r.push(...MAPA[k].editar);
+  }
+  return [...new Set(r)];
+}
+
+const tudo = (ver, editar) => ({ ver, editar });
+const abasDe = (o) => normalizarAbas(o);
+// Perfis que já vêm cadastrados (o root pode mudar tudo, menos o próprio Admin root).
+export const PERFIS_PADRAO = [
+  { chave: 'root', nome: 'Admin root', ordem: 0, abas: abasDe(Object.fromEntries(ABA_KEYS.map((k) => [k, tudo(true, true)]))) },
+  { chave: 'admin', nome: 'Admin', ordem: 1, abas: abasDe(Object.fromEntries(ABA_KEYS.map((k) => [k, tudo(true, true)]))) },
+  { chave: 'usuario', nome: 'Usuário', ordem: 2, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true) }) },
+  { chave: 'admin_oferendas', nome: 'Admin oferendas', ordem: 3, abas: abasDe({ gira: tudo(true), alunos: tudo(true, true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true, true), perfil: tudo(true) }) },
+  { chave: 'admin_ervas', nome: 'Admin ervas', ordem: 4, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true, true), oferendas: tudo(true), perfil: tudo(true) }) },
+  { chave: 'corrente', nome: 'Corrente', ordem: 99, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true) }) },
+];
+// Perfis do sistema: não podem ser excluídos (o root e o acesso da corrente também não mudam de nome).
+export const PERFIS_SISTEMA = PERFIS_PADRAO.map((p) => p.chave);
+
 // Perfis que podem existir sem cadastro na corrente.
 export const SEM_CADASTRO = ['root'];
-// Rótulo de cada perfil (inclui o acesso da corrente).
-export const ROTULOS = { ...PAPEIS, corrente: 'Corrente' };
 
 // No login, quem digita isto (ou só "cpj") no campo de e-mail entra sem senha, informando só o nome.
 export const ACESSO_CORRENTE = 'corrente-cpj';
@@ -70,6 +76,10 @@ export const ACESSO_CORRENTE = 'corrente-cpj';
 export const ACESSOS_CORRENTE = [ACESSO_CORRENTE, 'cpj'];
 export const ehAcessoCorrente = (email) => ACESSOS_CORRENTE.includes(String(email || '').trim().toLowerCase());
 
-export function pode(papel, permissao) {
-  return (PERMISSOES[papel] || []).includes(permissao);
+// Senha (PIN) de quem entra pelo acesso da corrente: só números, de 4 a 8.
+export const PIN_VALIDO = /^\d{4,8}$/;
+
+// Quem já foi identificado no backend (exigir) carrega a lista "permissoes".
+export function pode(quem, permissao) {
+  return !!quem && (quem.permissoes || []).includes(permissao);
 }

@@ -4,7 +4,8 @@ import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { gerarHash, SENHA_MINIMA } from '../_lib/senhas.js';
-import { PAPEIS, SEM_CADASTRO } from '../../shared/permissoes.js';
+import { SEM_CADASTRO } from '../../shared/permissoes.js';
+import { papelValido } from '../_lib/perfis.js';
 
 export default rota({
   PATCH: async (req) => {
@@ -16,7 +17,7 @@ export default rota({
     if (!atual) throw new HttpError(404, 'Usuário não encontrado.');
     const papel = 'papel' in b ? b.papel : atual.papel;
     if ('papel' in b) {
-      if (!(b.papel in PAPEIS)) throw new HttpError(400, 'Perfil inválido.');
+      if (!(await papelValido(b.papel))) throw new HttpError(400, 'Perfil inválido.');
       if (id === eu.id && !['admin', 'root'].includes(b.papel)) throw new HttpError(400, 'Você não pode tirar o seu próprio acesso de admin.');
       p.papel = b.papel;
     }
@@ -45,7 +46,7 @@ export default rota({
       if (senha.length < SENHA_MINIMA || senha.length > 200) throw new HttpError(400, `A senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.`);
       p.senhaHash = await gerarHash(senha);
     }
-    const { sessaoVersao, ...u } = await db.rpc('usuario_atualizar', p);
+    const { sessaoVersao, abas, ...u } = await db.rpc('usuario_atualizar', p);
     // O que a pessoa preencheu com a conta passa para o cadastro dela.
     if (p.pessoaId) await db.rpc('corrente_vincular', { chave: 'p:' + p.pessoaId, nome: u.nome, antigas: ['u:' + id] });
     return u;

@@ -63,7 +63,7 @@ test('login: senha certa, errada e bloqueio', async () => {
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ninguem@x.org', senha: 'nao' })).status, 401);
   const ok = await api('POST', '/api/auth/entrar', null, { email: ' USER@corrente.org ', senha: 'senha-do-ze' });
   assert.equal(ok.status, 200);
-  assert.deepEqual(ok.json.usuario.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher', 'oferendas:doar']);
+  assert.deepEqual(ok.json.usuario.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver']);
   USER = ok.json.token;
   for (let i = 0; i < 8; i++) await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' + i });
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' })).status, 429);
@@ -84,7 +84,7 @@ test('/api/auth/me mostra papel e permissões', async () => {
   assert.ok(a.json.permissoes.includes('giras:sortear'));
   const u = await api('GET', '/api/auth/me', USER);
   assert.equal(u.json.papel, 'usuario');
-  assert.deepEqual(u.json.permissoes, ['escala:completa', 'pessoas:ler', 'giras:ler', 'ervas:escolher', 'oferendas:doar']);
+  assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver']);
 });
 
 test('perfil: cada um vê e salva só o seu; root sem cadastro não tem', async () => {
@@ -728,4 +728,86 @@ test('reiniciar: a turma da limpeza volta para a próxima do rodízio', async ()
   await api('PATCH', '/api/pessoas/' + ps[0].id, ADMIN, { limpeza: null });
   await api('PATCH', '/api/pessoas/' + ps[1].id, ADMIN, { limpeza: null });
   for (const p of comTurma) await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: p.limpeza });
+});
+
+test('perfis no banco: o root cria um perfil, marca as abas e as permissões valem na hora', async () => {
+  const perfis = (await api('GET', '/api/usuarios?lista=perfis', ADMIN)).json;
+  assert.ok(['root', 'admin', 'usuario', 'admin_oferendas', 'admin_ervas', 'corrente'].every((k) => perfis.some((f) => f.chave === k)));
+  assert.equal((await api('GET', '/api/usuarios?lista=perfis', USER)).status, 403);
+  const criado = (await api('POST', '/api/usuarios', ADMIN, { acao: 'perfil', nome: 'Admin giras', abas: { gira: { editar: true } } })).json;
+  const ag = criado.find((f) => f.nome === 'Admin giras');
+  assert.deepEqual(ag.abas.gira, { ver: true, editar: true }, 'editar inclui ver');
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'perfil', nome: 'admin giras' })).status, 400, 'nome repetido');
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Gil Giras', funcao: 'senha' });
+  const pe = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Gil Giras');
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, email: 'gil@corrente.org', senha: 'senha-forte-9', papel: ag.chave })).status, 200);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, email: 'gil2@corrente.org', senha: 'senha-forte-9', papel: 'corrente' })).status, 400, 'corrente não é perfil de usuário');
+  const gil = (await api('POST', '/api/auth/entrar', null, { email: 'gil@corrente.org', senha: 'senha-forte-9' })).json.token;
+  const me = (await api('GET', '/api/auth/me', gil)).json;
+  assert.equal(me.papelNome, 'Admin giras');
+  assert.ok(me.permissoes.includes('giras:sortear') && !me.permissoes.includes('historico:ver'));
+  assert.equal((await api('GET', '/api/ervas', gil)).status, 403);
+  // O root libera Ervas: vale na próxima chamada, sem entrar de novo.
+  await api('POST', '/api/usuarios', ADMIN, { acao: 'perfil', chave: ag.chave, abas: { gira: { editar: true }, ervas: { ver: true } } });
+  assert.equal((await api('GET', '/api/ervas', gil)).status, 200);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'perfil', chave: 'root', abas: {} })).status, 400);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'excluirPerfil', chave: 'admin' })).status, 400);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'excluirPerfil', chave: ag.chave })).status, 400, 'ainda tem usuário');
+  const gilU = (await api('GET', '/api/usuarios', ADMIN)).json.find((u) => u.email === 'gil@corrente.org');
+  await api('DELETE', '/api/usuarios/' + gilU.id, ADMIN);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'excluirPerfil', chave: ag.chave })).status, 200);
+});
+
+test('senha da corrente (PIN): cria uma vez, o login passa a pedir, o root troca', async () => {
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Penha Pin', funcao: 'medium' });
+  const entrar = (corpo) => api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Penha Pin', ...corpo });
+  const t1 = (await entrar()).json.token;
+  assert.ok(t1);
+  assert.equal((await api('GET', '/api/auth/me', t1)).json.temSenha, false);
+  assert.equal((await api('POST', '/api/auth/criarSenha', t1, { senha: '12' })).status, 400);
+  assert.equal((await api('POST', '/api/auth/criarSenha', t1, { senha: 'abcd' })).status, 400);
+  assert.equal((await api('POST', '/api/auth/criarSenha', ADMIN, { senha: '1234' })).status, 400, 'só o acesso da corrente');
+  const c = await api('POST', '/api/auth/criarSenha', t1, { senha: '4321' });
+  assert.equal(c.status, 200);
+  assert.equal((await api('GET', '/api/auth/me', t1)).status, 401, 'a sessão antiga caiu');
+  const t2 = c.json.token;
+  assert.equal((await api('GET', '/api/auth/me', t2)).json.temSenha, true);
+  assert.equal((await api('POST', '/api/auth/criarSenha', t2, { senha: '9999' })).status, 400, 'só cria uma vez');
+  assert.deepEqual((await entrar()).json, { precisaSenha: true, nome: 'Penha Pin' });
+  assert.equal((await entrar({ pin: '0000' })).status, 401);
+  assert.ok((await entrar({ pin: '4321' })).json.token);
+  // Root vê quem tem senha (sem a senha) e troca.
+  const lista = (await api('GET', '/api/usuarios?lista=senhas', ADMIN)).json;
+  const pe = lista.find((x) => x.nome === 'Penha Pin');
+  assert.equal(pe.temSenha, true);
+  assert.ok(!JSON.stringify(lista).includes('scrypt'));
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'pin', pessoaId: pe.pessoaId, senha: '12a4' })).status, 400);
+  assert.equal((await api('POST', '/api/usuarios', USER, { acao: 'pin', pessoaId: pe.pessoaId, senha: '5555' })).status, 403);
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'pin', pessoaId: pe.pessoaId, senha: '55556666' })).status, 200);
+  assert.equal((await entrar({ pin: '4321' })).status, 401);
+  assert.ok((await entrar({ pin: '55556666' })).json.token);
+});
+
+test('alunos da CPJ: turmas 09 a 11, fora da corrente; admin oferendas cadastra alunos mas não a corrente', async () => {
+  const A = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json;
+  assert.deepEqual(A.turmas.map((t) => t.nome), ['Turma 09', 'Turma 10', 'Turma 11']);
+  assert.equal((await api('GET', '/api/pessoas?lista=alunos', USER)).status, 403);
+  const t10 = A.turmas.find((t) => t.nome === 'Turma 10').id;
+  const r = (await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluno Um, Aluno Dois', turmaId: t10 })).json;
+  assert.equal(r.criadas, 2);
+  assert.ok(r.alunos.every((a) => a.turmaId === t10));
+  // Não entram na corrente.
+  assert.ok(!(await api('GET', '/api/pessoas', ADMIN)).json.some((p) => p.nome === 'Aluno Um'));
+  const t12 = (await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', nome: 'Turma 12' })).json.turmas.find((t) => t.nome === 'Turma 12');
+  assert.ok(t12);
+  assert.equal((await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', nome: 'turma 12' })).status, 400);
+  // Admin oferendas: alunos sim, corrente não.
+  const of = (await api('POST', '/api/auth/entrar', null, { email: 'of@corrente.org', senha: 'senha-forte-9' })).json.token;
+  const me = (await api('GET', '/api/auth/me', of)).json;
+  assert.ok(me.permissoes.includes('alunos:editar') && !me.permissoes.includes('pessoas:ver'));
+  const um = r.alunos.find((a) => a.nome === 'Aluno Um');
+  assert.equal((await api('POST', '/api/pessoas', of, { acao: 'aluno', id: um.id, turmaId: t12.id })).status, 200);
+  assert.equal((await api('POST', '/api/pessoas', of, { nome: 'Corrente Nova', funcao: 'medium' })).status, 403);
+  const fim = (await api('POST', '/api/pessoas', of, { acao: 'excluirAluno', id: um.id })).json;
+  assert.ok(!fim.alunos.some((a) => a.id === um.id));
 });

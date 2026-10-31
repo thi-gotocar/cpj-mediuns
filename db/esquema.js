@@ -6,7 +6,9 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 34;  // v34: admin vê o perfil (orixás e guias) de todos
+export const VERSAO = 35;  // v35: perfis no banco, alunos e turmas, senha (PIN) da corrente
+
+import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
 export const MIGRACOES = [
   // ---------------------------------------------------------------- sistema
@@ -671,7 +673,7 @@ export const MIGRACOES = [
 
   // ================================================== v14: perfis admin_oferendas e admin_ervas
   `alter table usuarios drop constraint if exists usuarios_papel_check`,
-  `alter table usuarios add constraint usuarios_papel_check check (papel in ('root', 'admin', 'usuario', 'admin_oferendas', 'admin_ervas'))`,
+  // (v35: os perfis passaram para a tabela perfis; o check fixo saiu)
 
   // ================================================== v15: acesso da corrente ligado à pessoa cadastrada
   // Passa para a chave da pessoa ("p:<id>") o que foi preenchido com chaves antigas ("n:<nome>").
@@ -845,5 +847,170 @@ export const MIGRACOES = [
      select coalesce(jsonb_agg(jsonb_build_object('pessoaId', id, 'nome', nome, 'funcao', funcao, 'perfil', perfil)
                                order by lower(nome)), '[]'::jsonb)
      from pessoas
+   $$`,
+
+  // ================================================== v35: perfis no banco (o root cria e edita)
+  `create table if not exists perfis (
+     chave      text primary key check (chave ~ '^[a-z0-9_]{2,40}$'),
+     nome       text not null check (length(btrim(nome)) between 1 and 40),
+     abas       jsonb not null default '{}'::jsonb,
+     ordem      integer not null default 50,
+     criado_em  timestamptz not null default now()
+   )`,
+  `create unique index if not exists perfis_nome_unico on perfis (lower(btrim(nome)))`,
+  ...PERFIS_PADRAO.map((p) => `insert into perfis (chave, nome, abas, ordem)
+     values ('${p.chave}', '${p.nome}', '${JSON.stringify(p.abas)}'::jsonb, ${p.ordem}) on conflict do nothing`),
+  `alter table usuarios drop constraint if exists usuarios_papel_check`,
+  `alter table usuarios drop constraint if exists usuarios_papel_fk`,
+  `alter table usuarios add constraint usuarios_papel_fk foreign key (papel) references perfis (chave)`,
+  // O usuário leva junto as abas do perfil (o backend calcula as permissões).
+  `create or replace function usuario_json(u usuarios)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', u.id, 'nome', coalesce((select nome from pessoas where id = u.pessoa_id), u.nome),
+                               'pessoaId', u.pessoa_id, 'email', u.email, 'papel', u.papel,
+                               'papelNome', (select nome from perfis where chave = u.papel),
+                               'abas', (select abas from perfis where chave = u.papel),
+                               'sessaoVersao', u.sessao_versao, 'criadoEm', u.criado_em);
+   $$`,
+  `create or replace function perfis_config(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('chave', f.chave, 'nome', f.nome, 'abas', f.abas,
+                     'usuarios', (select count(*) from usuarios u where u.papel = f.chave)) order by f.ordem, lower(f.nome)), '[]'::jsonb)
+     from perfis f
+   $$`,
+  `create or replace function perfil_config_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if coalesce(p ->> 'chave', '') = '' then
+       insert into perfis (chave, nome, abas, ordem)
+       values ('p_' || substr(md5(random()::text || clock_timestamp()::text), 1, 10), btrim(p ->> 'nome'), coalesce(p -> 'abas', '{}'::jsonb), 50);
+     else
+       update perfis set
+         nome = case when p ? 'nome' then btrim(p ->> 'nome') else nome end,
+         abas = case when p ? 'abas' then p -> 'abas' else abas end
+       where chave = p ->> 'chave';
+       if not found then raise exception 'Perfil não encontrado.'; end if;
+     end if;
+     return perfis_config();
+   exception when unique_violation then
+     raise exception 'Já existe um perfil com esse nome.';
+   end;
+   $$`,
+  `create or replace function perfil_config_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if exists (select 1 from usuarios where papel = p ->> 'chave') then
+       raise exception 'Ainda há usuários com esse perfil. Troque o perfil deles antes.';
+     end if;
+     delete from perfis where chave = p ->> 'chave';
+     if not found then raise exception 'Perfil não encontrado.'; end if;
+     return perfis_config();
+   end;
+   $$`,
+
+  // ================================================== v35: senha (PIN) de quem entra pelo acesso da corrente
+  `alter table pessoas add column if not exists pin_hash text`,
+  `alter table pessoas add column if not exists pin_versao integer not null default 0`,
+  // Confere a sessão da corrente: a versão muda quando a senha é criada ou alterada.
+  `create or replace function corrente_sessao(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('nome', pe.nome, 'pinVersao', pe.pin_versao, 'temSenha', pe.pin_hash is not null,
+                               'abas', (select abas from perfis where chave = 'corrente'),
+                               'papelNome', (select nome from perfis where chave = 'corrente'))
+     from pessoas pe where pe.id = (p ->> 'pessoaId')::uuid
+   $$`,
+  `create or replace function pessoa_pin(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('pinHash', pe.pin_hash, 'pinVersao', pe.pin_versao,
+                               'bloqueadoAte', (select bloqueado_ate from login_falhas where email = 'pin:' || pe.id::text and bloqueado_ate > now()))
+     from pessoas pe where pe.id = (p ->> 'pessoaId')::uuid
+   $$`,
+  // p = { pessoaId, pinHash, soSeVazio }: cria (só se ainda não tiver) ou troca a senha.
+  `create or replace function pin_definir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_versao int;
+   begin
+     if coalesce((p ->> 'soSeVazio')::boolean, false)
+        and exists (select 1 from pessoas where id = (p ->> 'pessoaId')::uuid and pin_hash is not null) then
+       raise exception 'Você já tem senha.';
+     end if;
+     update pessoas set pin_hash = nullif(p ->> 'pinHash', ''), pin_versao = pin_versao + 1
+     where id = (p ->> 'pessoaId')::uuid returning pin_versao into v_versao;
+     if not found then raise exception 'Pessoa não encontrada.'; end if;
+     delete from login_falhas where email = 'pin:' || (p ->> 'pessoaId');
+     return jsonb_build_object('pinVersao', v_versao);
+   end;
+   $$`,
+  `create or replace function senhas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('pessoaId', id, 'nome', nome, 'temSenha', pin_hash is not null)
+                               order by lower(nome)), '[]'::jsonb)
+     from pessoas
+   $$`,
+
+  // ================================================== v35: alunos da CPJ (fora da corrente: só o cadastro por turma)
+  `create table if not exists turmas_alunos (
+     id         uuid primary key default gen_random_uuid(),
+     nome       text not null check (length(btrim(nome)) between 1 and 40),
+     criado_em  timestamptz not null default now()
+   )`,
+  `create unique index if not exists turmas_alunos_nome_unico on turmas_alunos (lower(btrim(nome)))`,
+  `insert into turmas_alunos (nome) values ('Turma 09'), ('Turma 10'), ('Turma 11') on conflict do nothing`,
+  `create table if not exists alunos (
+     id         uuid primary key default gen_random_uuid(),
+     nome       text not null check (length(btrim(nome)) between 1 and 80),
+     turma_id   uuid references turmas_alunos (id) on delete set null,
+     criado_em  timestamptz not null default now()
+   )`,
+  `create unique index if not exists alunos_nome_unico on alunos (lower(btrim(nome)))`,
+  `create or replace function alunos_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'turmas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome) order by lower(nome)) from turmas_alunos), '[]'::jsonb),
+       'alunos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'turmaId', turma_id) order by lower(nome)) from alunos), '[]'::jsonb))
+   $$`,
+  `create or replace function alunos_criar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_n int;
+   begin
+     with novos as (
+       select distinct on (lower(btrim(n))) btrim(n) as nome
+       from jsonb_array_elements_text(coalesce(p -> 'nomes', '[]'::jsonb)) n where btrim(n) <> ''
+     ), ins as (
+       insert into alunos (nome, turma_id) select nome, nullif(p ->> 'turmaId', '')::uuid from novos
+       on conflict do nothing returning 1
+     )
+     select count(*) into v_n from ins;
+     return alunos_estado() || jsonb_build_object('criadas', v_n);
+   end;
+   $$`,
+  `create or replace function aluno_atualizar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update alunos set
+       nome     = case when p ? 'nome' then btrim(p ->> 'nome') else nome end,
+       turma_id = case when p ? 'turmaId' then nullif(p ->> 'turmaId', '')::uuid else turma_id end
+     where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     return alunos_estado();
+   exception when unique_violation then
+     raise exception 'Já existe um aluno com esse nome.';
+   end;
+   $$`,
+  `create or replace function aluno_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from alunos where id = (p ->> 'id')::uuid;
+     return alunos_estado();
+   end;
+   $$`,
+  `create or replace function turma_aluno_criar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into turmas_alunos (nome) values (btrim(p ->> 'nome'));
+     return alunos_estado();
+   exception when unique_violation then
+     raise exception 'Essa turma já existe.';
+   end;
    $$`,
 ];

@@ -464,3 +464,37 @@ body.deslogado .rodape{display:none}
 .pf-grupo{padding:8px 0;border-top:1px solid var(--line)}
 .pf-grupo:first-of-type{border-top:0}
 .pf-gt{font-weight:700;display:flex;justify-content:space-between}
+.saud-extra:empty{display:none}
+.saud-extra{margin-top:6px}
+/* aba Usuários: perfis e senhas */
+.pa-tab{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pa-th,.pa-tr{display:grid;grid-template-columns:1fr 58px 58px;align-items:center;gap:6px;padding:8px 10px}
+.pa-th{background:var(--bg);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+.pa-th span:not(:first-child){text-align:center}
+.pa-tr{border-top:1px solid var(--line)}
+.pa-aba{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pa-aba small{font-size:.76rem;line-height:1.35}
+.pa-ck{display:flex;justify-content:center;cursor:pointer;padding:6px 0}
+.pa-ck input{width:20px;height:20px;accent-color:var(--accent)}
+.sn-lista{display:flex;flex-direction:column}
+.sn-l{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 0;border-top:1px solid var(--line)}
+.sn-l:first-child{border-top:0}
+.sn-nome{flex:1 1 180px;min-width:0}
+.sn-bts{display:flex;gap:6px;flex-wrap:wrap}
+.sn-form{flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap}
+.sn-form input{flex:1 1 180px;min-width:0}
+.badge.sn-com{background:#e3f4e8;color:#1d7a3c}
+.badge.sn-sem{background:var(--bg);color:var(--muted)}
+/* aba Pessoas: alunos */
+.add-turma{flex:0 1 200px}
+.turma-sel{display:flex;gap:6px}
+.turma-sel select{flex:1;min-width:0}
+.turma-sel .btn{padding-inline:12px;font-weight:700}
+.al-grupos{display:flex;flex-direction:column;gap:8px}
+.al-grupo{border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+.al-gh h3{margin:0;font-size:1rem}
+.al-lista{display:flex;flex-direction:column;margin-top:4px}
+.al-l{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.al-l:first-child{border-top:0}
+.al-l select{max-width:130px}
+@media (max-width:420px){.al-l{grid-template-columns:minmax(0,1fr) auto}.al-l select{grid-column:1;max-width:none}}

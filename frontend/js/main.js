@@ -1,10 +1,10 @@
 // Ponto de entrada do frontend: login, abas, renderização e eventos.
 
-import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha } from './auth.js';
+import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
 import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor } from './estado.js';
 import { esc, toast } from './util.js';
-import { ROTULOS, ehAcessoCorrente } from '/shared/permissoes.js';
+import { ehAcessoCorrente, PIN_VALIDO } from '/shared/permissoes.js';
 import * as gira from './telas/gira.js';
 import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
@@ -19,22 +19,26 @@ const tabs = document.getElementById('tabs');
 const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
+const saudExtra = document.getElementById('saud-extra');
 const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, perfil, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
 let digitadoLogin = '';       // o nome como a pessoa digitou (para juntar o que ela preencheu antes)
+let pinLogin = null;          // acesso da corrente: a pessoa tem senha → { nome } (pede a senha)
 let instalado = true;
 
 // ---------- render ----------
 // Topo: "Seja bem-vindo, Nome!" e o Sair à direita. No fim da página: o perfil e o Trocar senha.
 function renderConta() {
-  if (!estado.me) { conta.innerHTML = ''; rodape.innerHTML = ''; rodape.hidden = true; saudNome.textContent = ''; return; }
+  if (!estado.me) { conta.innerHTML = ''; rodape.innerHTML = ''; rodape.hidden = true; saudNome.textContent = ''; saudExtra.innerHTML = ''; return; }
   saudNome.textContent = estado.me.nome;
+  // Acesso da corrente sem senha: pode criar uma (depois disso o botão some).
+  saudExtra.innerHTML = estado.me.corrente && !estado.me.temSenha ? '<button class="btn small" data-conta="criarsenha">🔒 Criar senha</button>' : '';
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : ''}</span>` : ''}
     <button class="btn small" data-conta="sair">Sair</button>`;
   rodape.hidden = false;
-  rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${estado.me.papel}">${ROTULOS[estado.me.papel] || estado.me.papel}</span>
+  rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${esc(estado.me.papel)}">${esc(estado.me.papelNome || estado.me.papel)}</span>
     ${estado.me.corrente ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
 }
 
@@ -45,21 +49,18 @@ function render() {
     tabs.hidden = true;
     renderConta();
     if (!logado()) {
-      main.innerHTML = instalado ? login.render(erroLogin, emailLogin, candidatosLogin) : login.renderInstalacao(erroLogin);
-      if (instalado && ehAcessoCorrente(emailLogin)) login.ajustarCampoSenha(true);
+      main.innerHTML = instalado ? (pinLogin ? login.renderPin(erroLogin, pinLogin.nome) : login.render(erroLogin, emailLogin, candidatosLogin)) : login.renderInstalacao(erroLogin);
+      if (instalado && !pinLogin && ehAcessoCorrente(emailLogin)) login.ajustarCampoSenha(true);
+      if (pinLogin) document.getElementById('l-pin')?.focus();
     }
     return;
   }
-  if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
-  if (prefs.tab === 'ervas' && !pode('ervas:escolher')) prefs.tab = 'gira';
-  if (prefs.tab === 'oferendas' && !pode('oferendas:doar')) prefs.tab = 'gira';
-  if ((prefs.tab === 'pessoas' || prefs.tab === 'hist') && !pode('escala:completa')) prefs.tab = 'gira';
+  // Abas que o perfil pode ver (a Gira sempre aparece).
+  const VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
+    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), gira: true };
+  if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
-  tabs.querySelector('[data-tab="usuarios"]').hidden = !pode('usuarios:gerenciar');
-  tabs.querySelector('[data-tab="ervas"]').hidden = !pode('ervas:escolher');
-  tabs.querySelector('[data-tab="oferendas"]').hidden = !pode('oferendas:doar');
-  tabs.querySelector('[data-tab="pessoas"]').hidden = !pode('escala:completa');
-  tabs.querySelector('[data-tab="hist"]').hidden = !pode('escala:completa');
+  Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();
 
@@ -123,7 +124,8 @@ tabs.addEventListener('click', (e) => {
   if (!b) return;
   prefs.tab = b.dataset.tab;
   estado.confirm = null;
-  if (b.dataset.tab === 'usuarios') estado.usuarios = null;
+  // Usuários: busca de novo; o bloco Senhas volta minimizado.
+  if (b.dataset.tab === 'usuarios') { estado.usuarios = null; estado.senhasAberto = false; estado.senhaEdit = null; }
   if (b.dataset.tab === 'ervas') estado.ervas = null;
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
@@ -137,7 +139,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, perfil: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, perfil: null, alunos: null, perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {
@@ -147,13 +149,28 @@ async function cliqueConta(e) {
     if (nova === null) return;
     if (nova.length < 8) { toast('A senha precisa ter pelo menos 8 caracteres.'); return; }
     try { await trocarSenha(atual, nova); toast('Senha alterada. Outras sessões abertas foram encerradas.'); } catch (err) { toast(err.message); }
+  } else if (b.dataset.conta === 'criarsenha') {
+    const s1 = prompt('Crie a sua senha: de 4 a 8 números.\nDepois disso, ela será pedida sempre que você entrar.');
+    if (s1 === null) return;
+    if (!PIN_VALIDO.test(s1.trim())) { toast('A senha precisa ter de 4 a 8 números.'); return; }
+    const s2 = prompt('Digite a senha de novo, para confirmar:');
+    if (s2 === null) return;
+    if (s1.trim() !== s2.trim()) { toast('As senhas não conferem. Tente de novo.'); return; }
+    try {
+      await criarSenhaCorrente(s1.trim());
+      estado.me = { ...estado.me, temSenha: true };
+      renderConta();
+      toast('Senha criada. Ela será pedida quando você entrar.');
+    } catch (err) { toast(err.message); }
   }
 }
 conta.addEventListener('click', cliqueConta);
+saudExtra.addEventListener('click', cliqueConta);
 rodape.addEventListener('click', cliqueConta);
 
 main.addEventListener('click', async (e) => {
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }
+  if (e.target.closest('[data-conta="voltarlogin"]')) { pinLogin = null; erroLogin = ''; render(); return; }
   // Acesso da corrente: a pessoa confirma qual nome cadastrado é o dela.
   const eu = e.target.closest('[data-soueu]');
   if (eu) {
@@ -163,6 +180,7 @@ main.addEventListener('click', async (e) => {
       const r = await entrar(emailLogin, eu.dataset.soueu, digitadoLogin);
       erroLogin = '';
       if (r.candidatos) { candidatosLogin = r.candidatos; render(); return; }
+      if (r.precisaSenha) { pinLogin = { nome: r.nome }; render(); return; }
       await iniciar();
     } catch (err) { erroLogin = err.message; render(); }
     return;
@@ -192,6 +210,7 @@ main.addEventListener('change', (e) => {
 main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoCorrente(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
+  if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
 });
 
 main.addEventListener('submit', async (e) => {
@@ -207,11 +226,22 @@ main.addEventListener('submit', async (e) => {
       const r = await entrar(emailLogin, digitadoLogin);
       erroLogin = '';
       if (r.candidatos) { candidatosLogin = r.candidatos; render(); return; }
+      if (r.precisaSenha) { pinLogin = { nome: r.nome }; render(); return; }
       await iniciar();
     } catch (err) {
       erroLogin = err.message;
       render();
     }
+  } else if (id === 'f-pin') {
+    const btn = document.getElementById('l-btn');
+    btn.disabled = true;
+    btn.textContent = 'Entrando…';
+    try {
+      await entrar(emailLogin, pinLogin.nome, digitadoLogin, document.getElementById('l-pin').value.trim());
+      erroLogin = '';
+      pinLogin = null;
+      await iniciar();
+    } catch (err) { erroLogin = err.message; render(); }
   } else if (id === 'f-instalar') {
     const v = (x) => document.getElementById(x).value;
     if (v('i-senha') !== v('i-senha2')) { erroLogin = 'As senhas não conferem.'; render(); return; }
@@ -242,6 +272,12 @@ main.addEventListener('submit', async (e) => {
     await pessoas.enviarCurimba();
   } else if (id === 'f-uren') {
     await usuarios.renomear(e.target);
+  } else if (id === 'f-perfilnovo') {
+    await usuarios.criarPerfil();
+  } else if (id === 'f-perfilnome') {
+    await usuarios.renomearPerfil(e.target);
+  } else if (id === 'f-sn') {
+    await usuarios.confirmarSenha(e.target);
   } else if (id === 'f-user') {
     await usuarios.enviarFormulario();
   } else if (id === 'f-of' || e.target.dataset.form) {

@@ -9,7 +9,7 @@ import { esc } from '../util.js';
 const GUIA_LABEL = Object.fromEntries(GUIAS);
 const ROT_ORIXA = { frente: 'frente', ancestral: 'ancestral', adjunto: 'adjunto' };
 const U = () => estado.pfUi;
-const admin = () => pode('pessoas:editar') && Array.isArray(estado.perfil?.todos);
+const admin = () => pode('perfil:corrente') && Array.isArray(estado.perfil?.todos);
 
 // Cabeçalho do card. Para o admin, toca para minimizar/expandir.
 function cab(k, titulo, count, aberto) {

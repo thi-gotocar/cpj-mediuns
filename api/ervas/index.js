@@ -29,7 +29,7 @@ function resposta(estado, eu) {
   // Todos veem o andamento geral (consolidado por erva). Quem não é admin recebe os
   // pedidos dos outros sem nome, só para calcular a própria parte.
   base.pedidos = calcularPedidos(base.ervas, estado.escolhas, base.frete);
-  if (!pode(eu.papel, 'ervas:gerenciar')) {
+  if (!pode(eu, 'ervas:gerenciar')) {
     base.pedidos.pessoas = base.pedidos.pessoas.map((p, i) => (p.chave === chave ? p : { ...p, chave: 'outro:' + i, nome: '' }));
   }
   return base;
@@ -57,7 +57,7 @@ export default rota({
       return { ervaId: validarId(i?.ervaId, 'Erva'), quantidade: q };
     });
     if (b.para) {
-      if (!pode(eu.papel, 'ervas:gerenciar')) throw new HttpError(403, 'Só um admin pode fazer o pedido de outra pessoa.');
+      if (!pode(eu, 'ervas:gerenciar')) throw new HttpError(403, 'Só um admin pode fazer o pedido de outra pessoa.');
       const nome = String(b.para.nome || '').replace(/\s+/g, ' ').trim();
       const atual = await db.rpc('ervas_estado');
       const existente = typeof b.para.chave === 'string' && atual.escolhas.find((s) => s.chave === b.para.chave);

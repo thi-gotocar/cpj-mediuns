@@ -38,9 +38,11 @@ export const token = () => tok;
 export const estadoDoApp = () => chamar('GET', 'estado');
 
 // Acesso da corrente com nome em dúvida: devolve { candidatos } e não entra.
-export async function entrar(email, senha, digitado) {
-  const r = await chamar('POST', 'entrar', { email, senha, ...(digitado ? { digitado } : {}) });
+// Pessoa com senha (PIN) e sem "pin": devolve { precisaSenha, nome } e não entra.
+export async function entrar(email, senha, digitado, pin) {
+  const r = await chamar('POST', 'entrar', { email, senha, ...(digitado ? { digitado } : {}), ...(pin ? { pin } : {}) });
   if (r.confirmar) return { candidatos: r.candidatos || [] };
+  if (r.precisaSenha) return { precisaSenha: true, nome: r.nome };
   guardar(r.token);
   return {};
 }
@@ -52,6 +54,12 @@ export async function instalar(dados) {
 
 export async function trocarSenha(atual, nova) {
   const r = await chamar('POST', 'senha', { atual, nova }, true);
+  guardar(r.token);
+}
+
+// Acesso da corrente: cria a própria senha (PIN). A sessão é renovada (as outras são encerradas).
+export async function criarSenhaCorrente(senha) {
+  const r = await chamar('POST', 'criarSenha', { senha }, true);
   guardar(r.token);
 }
 

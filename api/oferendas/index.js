@@ -27,7 +27,7 @@ function resposta(oferendas, eu) {
   });
   return {
     // Quem não administra: vê as publicadas e as bloqueadas (estas sem a lista de itens).
-    oferendas: pode(eu.papel, 'oferendas:gerenciar') ? oferendas : oferendas
+    oferendas: pode(eu, 'oferendas:gerenciar') ? oferendas : oferendas
       .filter((o) => o.status === 'publicado' || o.status === 'rascunho')
       .map((o) => (o.status === 'rascunho' ? soMeus(o) : o)),
     eu: { chave, nome: eu.nome },
@@ -60,7 +60,7 @@ export default rota({
       });
       return resposta(estado, eu);
     }
-    if (!pode(eu.papel, 'oferendas:gerenciar')) throw new HttpError(403, 'Só um admin pode alterar as oferendas.');
+    if (!pode(eu, 'oferendas:gerenciar')) throw new HttpError(403, 'Só um admin pode alterar as oferendas.');
     let estado;
     switch (b.acao) {
       case 'salvar': {

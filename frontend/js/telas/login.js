@@ -24,6 +24,19 @@ export function render(erro, email = '', candidatos = null) {
   </div>`;
 }
 
+// Acesso da corrente de quem criou senha: pede a senha (4 a 8 números).
+export function renderPin(erro, nome) {
+  return `${LOGO}<div class="card login">
+    <h2>Olá, ${esc(nome)}!</h2>
+    ${erro ? `<div class="erro" role="alert">${esc(erro)}</div>` : ''}
+    <form id="f-pin" autocomplete="off">
+      <label class="field">Sua senha<input type="password" id="l-pin" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="current-password" required placeholder="4 a 8 números"></label>
+      <button class="btn primary" type="submit" id="l-btn">Entrar</button>
+    </form>
+    <button class="btn link" data-conta="voltarlogin">Não sou eu · voltar</button>
+  </div>`;
+}
+
 export function renderInstalacao(erro) {
   return `${LOGO}<div class="card login">
     <h2>Instalar o app</h2>

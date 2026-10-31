@@ -25,6 +25,9 @@ export const estado = {
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
   pfUi: { abertos: {}, faltam: false },
+  perfisCfg: null,     // aba Usuários: perfis e as abas de cada um
+  senhas: null,        // aba Usuários: quem tem senha (PIN) no acesso da corrente
+  alunos: null,        // aba Pessoas: { turmas, alunos }
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
@@ -250,8 +253,34 @@ export async function excluirPessoa(id) {
 
 // ---------- usuários (admin) ----------
 export async function carregarUsuarios() {
-  try { estado.usuarios = await api('GET', '/usuarios'); } catch (e) { toast(e.message); estado.usuarios = []; }
+  try {
+    const [u, f, s] = await Promise.all([api('GET', '/usuarios'), api('GET', '/usuarios?lista=perfis'), api('GET', '/usuarios?lista=senhas')]);
+    Object.assign(estado, { usuarios: u, perfisCfg: f, senhas: s });
+  } catch (e) { toast(e.message); Object.assign(estado, { usuarios: estado.usuarios || [], perfisCfg: estado.perfisCfg || [], senhas: estado.senhas || [] }); }
   avisar();
+}
+// Perfis (acao 'perfil' / 'excluirPerfil') e senha da corrente (acao 'pin').
+export async function acaoUsuarios(acao, dados = {}) {
+  try {
+    const r = await api('POST', '/usuarios', { acao, ...dados });
+    if (acao === 'pin') estado.senhas = r; else estado.perfisCfg = r;
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
+// ---------- alunos da CPJ (aba Pessoas) ----------
+export async function carregarAlunos() {
+  try { estado.alunos = await api('GET', '/pessoas?lista=alunos'); } catch (e) { toast(e.message); estado.alunos = estado.alunos || { turmas: [], alunos: [] }; }
+  avisar();
+}
+export async function acaoAlunos(acao, dados = {}) {
+  try {
+    const r = await api('POST', '/pessoas', { acao, ...dados });
+    estado.alunos = { turmas: r.turmas, alunos: r.alunos };
+    avisar();
+    return r;
+  } catch (e) { toast(e.message); avisar(); return null; }
 }
 export async function criarUsuario(dados) {
   estado.usuarios = await api('POST', '/usuarios', dados);

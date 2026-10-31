@@ -1,24 +1,77 @@
 // Tela "Usuários" (só admin): quem acessa o app e com qual perfil.
 
-import { PERMISSOES, PAPEIS, SEM_CADASTRO } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, avisar } from '../estado.js';
+import { SEM_CADASTRO, ABAS, PERFIS_SISTEMA, PIN_VALIDO, normalizarAbas } from '/shared/permissoes.js';
+import { estado, pessoasOrd, carregarUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, avisar } from '../estado.js';
 import { esc, toast } from '../util.js';
 
-const DESCRICAO = {
-  'pessoas:ler': 'Ver a corrente',
-  'pessoas:editar': 'Cadastrar e editar pessoas',
-  'giras:ler': 'Ver escalas, histórico e exportar',
-  'giras:editar': 'Marcar presença, entidade e ajustar duplas',
-  'giras:sortear': 'Sortear e remanejar faltas',
-  'giras:excluir': 'Excluir giras',
-  'usuarios:gerenciar': 'Gerenciar usuários',
-  'dados:importar': 'Backup e restauração',
-  'escala:completa': 'Ver presença, pessoas e histórico',
-  'ervas:escolher': 'Escolher ervas',
-  'ervas:gerenciar': 'Administrar a aba Ervas: ervas, preços, frete, pedidos e cobrança',
-  'oferendas:doar': 'Escolher o que doar nas oferendas',
-  'oferendas:gerenciar': 'Administrar a aba Oferendas: oferendas, itens e entregas',
-};
+
+// Perfis que podem ser dados a um usuário com e-mail (o "Corrente" é só do acesso pelo nome).
+const papeis = () => (estado.perfisCfg || []).filter((f) => f.chave !== 'corrente');
+const opcoesPapel = (atual) => papeis().map((f) => `<option value="${esc(f.chave)}" ${f.chave === atual ? 'selected' : ''}>${esc(f.nome)}</option>`).join('');
+
+// ---------- perfis: o que cada um vê e edita, por aba ----------
+function cardPerfis() {
+  const lista = estado.perfisCfg || [];
+  const aberto = estado.perfisAberto ?? true;
+  let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarperfis" aria-expanded="${aberto}"><h2>Perfis e acessos</h2><span class="count">${lista.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  if (!aberto) return h + '</div>';
+  const sel = lista.find((f) => f.chave === estado.perfilSel) || lista.find((f) => f.chave === 'admin') || lista[0];
+  h += `<p class="muted" style="margin:0;font-size:.85rem">Escolha o perfil e marque, em cada aba, se ele pode <b>Ver</b> e/ou <b>Editar</b>. Vale na hora para todos os usuários desse perfil (eles veem a mudança ao abrir o app de novo). A aba Usuários é sempre só do Admin root.</p>
+    <div class="row" style="gap:6px;align-items:flex-end">
+      <label class="field grow">Perfil<select data-act="perfilsel">${lista.map((f) => `<option value="${esc(f.chave)}" ${f === sel ? 'selected' : ''}>${esc(f.nome)}${f.usuarios ? ` (${f.usuarios})` : ''}</option>`).join('')}</select></label>
+      <button class="btn small" data-act="novoperfil">＋ Novo perfil</button>
+    </div>`;
+  if (estado.novoPerfil) {
+    h += `<form id="f-perfilnovo" class="row" autocomplete="off" style="gap:6px;align-items:flex-end">
+      <label class="field grow">Nome do novo perfil<input type="text" id="pn-nome" maxlength="40" required placeholder="Ex.: Admin giras"></label>
+      <button class="btn small primary" type="submit">Criar</button><button class="btn small" type="button" data-act="cancelanovoperfil">Cancelar</button></form>`;
+  }
+  if (!sel) return h + '</div>';
+  if (sel.chave === 'root') return h + `<p class="leitura" style="margin:0">O Admin root pode tudo, inclusive a aba Usuários, e não precisa estar no cadastro da corrente.</p></div>`;
+  const a = normalizarAbas(sel.abas);
+  const fixo = sel.chave === 'corrente';
+  h += `${fixo ? '<p class="muted" style="margin:0;font-size:.85rem">Este é o acesso de quem entra com a palavra-chave da corrente e o próprio nome.</p>' : `<form id="f-perfilnome" class="row" data-chave="${esc(sel.chave)}" autocomplete="off" style="gap:6px;align-items:flex-end">
+      <label class="field grow">Nome<input type="text" id="pf-nomecfg" maxlength="40" value="${esc(sel.nome)}"></label>
+      <button class="btn small" type="submit">Renomear</button></form>`}
+    <div class="pa-tab" role="table" aria-label="Acessos do perfil ${esc(sel.nome)}">
+      <div class="pa-th" role="row"><span>Aba</span><span>Ver</span><span>Editar</span></div>
+      ${ABAS.map((x) => `<div class="pa-tr" role="row">
+        <span class="pa-aba"><b>${x.nome}</b><small class="muted">Ver: ${x.ver}<br>Editar: ${x.editar}</small></span>
+        <label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(sel.chave)}" data-k="${x.k}" data-t="ver" ${a[x.k].ver ? 'checked' : ''} aria-label="${sel.nome}: ver ${x.nome}"></label>
+        <label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(sel.chave)}" data-k="${x.k}" data-t="editar" ${a[x.k].editar ? 'checked' : ''} aria-label="${sel.nome}: editar ${x.nome}"></label>
+      </div>`).join('')}
+    </div>`;
+  if (!PERFIS_SISTEMA.includes(sel.chave)) {
+    const conf = estado.confirm === 'pf:' + sel.chave;
+    h += `<div class="row" style="justify-content:flex-end">${conf ? `<button class="btn small danger" data-act="delperfil" data-chave="${esc(sel.chave)}">Confirmar exclusão</button>` : `<button class="btn small" data-act="askdel" data-k="pf:${esc(sel.chave)}">Excluir perfil</button>`}</div>`;
+  }
+  return h + '</div>';
+}
+
+// ---------- senhas: sempre começa minimizado ----------
+function cardSenhas() {
+  const aberto = !!estado.senhasAberto;
+  const S = estado.senhas || [];
+  const com = S.filter((x) => x.temSenha).length;
+  let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarsenhas" aria-expanded="${aberto}"><h2>🔒 Senhas</h2><span class="count">${com} com senha <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  if (!aberto) return h + '</div>';
+  const busca = (estado.senhaBusca || '').trim().toLowerCase();
+  const usuarioDe = (pid) => (estado.usuarios || []).find((u) => u.pessoaId === pid);
+  const linhas = S.filter((x) => !busca || x.nome.toLowerCase().includes(busca));
+  const ed = estado.senhaEdit;
+  const form = (tipo, id, nome) => `<form id="f-sn" class="sn-form" data-tipo="${tipo}" data-id="${id}" autocomplete="off">
+      <input type="password" id="sn-in" ${tipo === 'pin' ? 'inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Nova senha (4 a 8 números)"' : 'minlength="8" placeholder="Nova senha do e-mail (mín. 8)"'} autocomplete="new-password" required aria-label="Nova senha de ${esc(nome)}">
+      <button class="btn small danger" type="submit">Confirmar alteração</button><button class="btn small" type="button" data-act="snfechar">Cancelar</button></form>`;
+  h += `<p class="muted" style="margin:0;font-size:.85rem">As senhas ficam guardadas embaralhadas: nem o app consegue mostrá-las. Aqui você define uma nova senha para a pessoa (ela passa a valer na hora e encerra as sessões abertas). <b>Senha da corrente</b>: a de quem entra com a palavra-chave e o nome. <b>Senha do e-mail</b>: a de quem tem usuário.</p>
+    <input type="text" id="sn-busca" placeholder="Procurar pelo nome…" value="${esc(estado.senhaBusca || '')}" autocomplete="off">
+    <div class="sn-lista">${linhas.map((x) => {
+      const u = usuarioDe(x.pessoaId);
+      return `<div class="sn-l"><div class="sn-nome"><b>${esc(x.nome)}</b> <span class="badge ${x.temSenha ? 'sn-com' : 'sn-sem'}">${x.temSenha ? 'com senha' : 'sem senha'}</span>${u ? ` <span class="muted" style="font-size:.8rem">· ${esc(u.email)}</span>` : ''}</div>
+        <div class="sn-bts"><button class="btn small" data-act="snabrir" data-tipo="pin" data-id="${x.pessoaId}">Senha da corrente</button>${u ? `<button class="btn small" data-act="snabrir" data-tipo="email" data-id="${u.id}">Senha do e-mail</button>` : ''}</div>
+        ${ed && ((ed.tipo === 'pin' && ed.id === x.pessoaId) || (ed.tipo === 'email' && u && ed.id === u.id)) ? form(ed.tipo, ed.id, x.nome) : ''}</div>`;
+    }).join('') || '<p class="muted" style="margin:0">Ninguém com esse nome.</p>'}</div>`;
+  return h + '</div>';
+}
 
 // Nome do usuário: sempre o do cadastro de pessoas (o root sem cadastro tem nome próprio).
 const nomeDe = (u) => (u.pessoaId && estado.pessoas.find((p) => p.id === u.pessoaId)?.nome) || u.nome;
@@ -53,7 +106,7 @@ export function render() {
   let h = `<section class="panel">
   <div class="card"><h2>Novo usuário</h2>
     <form id="f-user" class="row" autocomplete="off">
-      <label class="field" style="flex:0 1 170px">Perfil<select id="u-papel" data-act="papelnovo">${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${k === 'usuario' ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+      <label class="field" style="flex:0 1 170px">Perfil<select id="u-papel" data-act="papelnovo">${opcoesPapel('usuario')}</select></label>
       <label class="field grow" id="u-pessoa-campo"><span id="u-pessoa-rotulo">Pessoa da corrente</span><select id="u-pessoa"><option value="">— escolha a pessoa —</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
       <label class="field grow" id="u-nome-campo" hidden>Nome<input type="text" id="u-nome" maxlength="80"></label>
       <label class="field grow">E-mail<input type="email" id="u-email" required></label>
@@ -87,14 +140,11 @@ export function render() {
         ${faltaCadastro ? '<span class="badge lic">sem cadastro na corrente: ligue a uma pessoa</span>' : ''}`;
     }
     h += `<div class="us"><div style="min-width:0">${nomeHtml}<div class="em">${esc(u.email)}</div></div>
-      <select data-act="papel" data-id="${u.id}" aria-label="Perfil de ${esc(nome)}" ${eu ? 'disabled title="Você não pode mudar o seu próprio perfil"' : ''}>${Object.entries(PAPEIS).map(([k, v]) => `<option value="${k}" ${k === u.papel ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <select data-act="papel" data-id="${u.id}" aria-label="Perfil de ${esc(nome)}" ${eu ? 'disabled title="Você não pode mudar o seu próprio perfil"' : ''}>${opcoesPapel(u.papel)}</select>
       <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
       ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
   });
-  h += `</div></div>${cardEntrada()}
-  <div class="card"><h2>O que cada perfil pode fazer</h2><div class="perm">
-    ${Object.entries(PAPEIS).map(([k, v]) => `<div><h3>${v}</h3>${k === 'root' ? '<p class="muted" style="margin:0;font-size:.85rem">Igual ao Admin, e é o único que vê a aba Usuários. Não precisa ter cadastro na corrente.</p>' : ''}<ul>${PERMISSOES[k].map((p) => `<li>${DESCRICAO[p] || p}</li>`).join('')}</ul></div>`).join('')}
-  </div></div></section>`;
+  h += `</div></div>${cardPerfis()}${cardEntrada()}${cardSenhas()}</section>`;
   return h;
 }
 
@@ -117,7 +167,52 @@ export const cliques = {
   cancelauren() { estado.renomearUsuario = null; avisar(); },
   dobrarentrada() { estado.entradaAberta = !estado.entradaAberta; avisar(); },
   limparentrada(el) { atualizarPessoa(el.dataset.id, { entrada: null }); },
+  dobrarperfis() { estado.perfisAberto = !(estado.perfisAberto ?? true); avisar(); },
+  novoperfil() { estado.novoPerfil = true; avisar(); document.getElementById('pn-nome')?.focus(); },
+  cancelanovoperfil() { estado.novoPerfil = false; avisar(); },
+  async delperfil(el) {
+    estado.confirm = null;
+    if (await acaoUsuarios('excluirPerfil', { chave: el.dataset.chave })) { estado.perfilSel = 'admin'; toast('Perfil excluído.'); }
+  },
+  dobrarsenhas() { estado.senhasAberto = !estado.senhasAberto; estado.senhaEdit = null; avisar(); },
+  snabrir(el) {
+    estado.senhaEdit = { tipo: el.dataset.tipo, id: el.dataset.id };
+    avisar();
+    document.getElementById('sn-in')?.focus();
+  },
+  snfechar() { estado.senhaEdit = null; avisar(); },
 };
+
+// Cria um perfil novo (sem nenhuma aba marcada) e já deixa selecionado.
+export async function criarPerfil() {
+  const nome = document.getElementById('pn-nome').value.replace(/\s+/g, ' ').trim();
+  if (!nome) { toast('Digite o nome do perfil.'); return; }
+  const antes = new Set((estado.perfisCfg || []).map((f) => f.chave));
+  if (await acaoUsuarios('perfil', { nome, abas: {} })) {
+    estado.novoPerfil = false;
+    estado.perfilSel = (estado.perfisCfg.find((f) => !antes.has(f.chave)) || {}).chave || estado.perfilSel;
+    toast(`Perfil ${nome} criado. Marque as abas que ele pode ver e editar.`);
+    avisar();
+  }
+}
+export async function renomearPerfil(form) {
+  const nome = document.getElementById('pf-nomecfg').value.replace(/\s+/g, ' ').trim();
+  if (!nome) { toast('Digite o nome do perfil.'); return; }
+  if (await acaoUsuarios('perfil', { chave: form.dataset.chave, nome })) toast('Perfil renomeado.');
+}
+// Root troca a senha de alguém (depois de tocar em "Confirmar alteração").
+export async function confirmarSenha(form) {
+  const v = document.getElementById('sn-in').value.trim();
+  const { tipo, id } = form.dataset;
+  if (tipo === 'pin') {
+    if (!PIN_VALIDO.test(v)) { toast('A senha precisa ter de 4 a 8 números.'); return; }
+    if (await acaoUsuarios('pin', { pessoaId: id, senha: v })) { estado.senhaEdit = null; toast('Senha da corrente alterada.'); avisar(); }
+  } else {
+    if (v.length < 8) { toast('A senha do e-mail precisa ter pelo menos 8 caracteres.'); return; }
+    estado.senhaEdit = null;
+    await atualizarUsuario(id, { senha: v });
+  }
+}
 
 // Salva o nome (root sem cadastro) ou a pessoa da corrente ligada ao usuário.
 export async function renomear(form) {
@@ -139,6 +234,18 @@ export async function renomear(form) {
 }
 
 export const mudancas = {
+  perfilsel(t) { estado.perfilSel = t.value; estado.confirm = null; avisar(); },
+  // Editar inclui ver; tirar o ver tira o editar.
+  pfaba(t) {
+    const f = (estado.perfisCfg || []).find((x) => x.chave === t.dataset.chave);
+    if (!f) return;
+    const a = normalizarAbas(f.abas);
+    const x = a[t.dataset.k];
+    if (t.dataset.t === 'editar') { x.editar = t.checked; if (t.checked) x.ver = true; } else { x.ver = t.checked; if (!t.checked) x.editar = false; }
+    f.abas = a;
+    avisar();
+    acaoUsuarios('perfil', { chave: f.chave, abas: a });
+  },
   entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
   papel(t) { atualizarUsuario(t.dataset.id, { papel: t.value }); },
   // Novo usuário: root pode ter só um nome; os outros escolhem a pessoa da corrente.

@@ -36,7 +36,7 @@ export default rota({
     }
     if ('limpeza' in b) p.limpeza = validarTurma(b.limpeza);
     if ('entrada' in b) {
-      if (!pode(eu.papel, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root altera a entrada na corrente.');
+      if (!pode(eu, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root altera a entrada na corrente.');
       p.entrada = b.entrada ? validarData(String(b.entrada)) : null;
     }
     return db.rpc('pessoas_atualizar', p);

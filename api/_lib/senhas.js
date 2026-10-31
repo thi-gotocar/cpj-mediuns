@@ -51,8 +51,9 @@ export async function emitirToken(usuario) {
 }
 
 // Sessão de quem entra com o acesso da corrente: sem conta, ligada à pessoa cadastrada.
-export async function emitirTokenCorrente(nome, pessoaId) {
-  const corpo = b64url(JSON.stringify({ c: nome, p: pessoaId, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
+// "v" é a versão da senha (PIN) da pessoa: criar ou trocar a senha encerra as outras sessões.
+export async function emitirTokenCorrente(nome, pessoaId, versao = 0) {
+  const corpo = b64url(JSON.stringify({ c: nome, p: pessoaId, v: versao, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
   return corpo + '.' + assinar(corpo, await obterSegredo());
 }
 
@@ -66,7 +67,7 @@ export async function lerToken(token) {
   try {
     const d = JSON.parse(Buffer.from(corpo, 'base64url').toString('utf8'));
     if (!d.exp || d.exp < Date.now() / 1000) return null;
-    if (typeof d.c === 'string' && d.c.trim()) return { corrente: true, nome: d.c, pessoaId: typeof d.p === 'string' ? d.p : null };
+    if (typeof d.c === 'string' && d.c.trim()) return { corrente: true, nome: d.c, pessoaId: typeof d.p === 'string' ? d.p : null, versao: Number(d.v) || 0 };
     if (!d.u) return null;
     return { id: d.u, versao: d.v };
   } catch {
