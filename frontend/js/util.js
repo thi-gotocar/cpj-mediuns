@@ -36,3 +36,12 @@ export function baixar(blobOuUrl, nome) {
   a.remove();
   if (typeof blobOuUrl !== 'string') setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
+
+// Telefone enquanto digita: (11) 98765-4321.
+export function mascaraTel(el) {
+  const d = el.value.replace(/\D/g, '').slice(0, 11);
+  if (!d) { el.value = ''; return; }
+  const resto = d.slice(2);
+  const corte = d.length === 11 ? 5 : 4;
+  el.value = d.length <= 2 ? `(${d}` : `(${d.slice(0, 2)}) ${resto.length > corte ? `${resto.slice(0, corte)}-${resto.slice(corte)}` : resto}`;
+}

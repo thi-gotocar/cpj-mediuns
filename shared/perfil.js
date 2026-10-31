@@ -3,7 +3,8 @@
 //   {
 //     orixas: { frente: { nome, oferenda }, ancestral: {...}, adjunto: {...} },
 //     guias:  { chefe: { linha, oferenda }, frente: { linha, oferenda } },
-//     outros: { 'preto-velho': 'Pai Joaquim', ... }   // nome do guia em cada linha
+//     outros: { 'preto-velho': 'Pai Joaquim', ... },  // nome do guia em cada linha
+//     info:   { nome, nascimento: 'AAAA-MM-DD', celular, contatoNome, contatoTelefone }  // telefones só com os números
 //   }
 
 import { ORIXAS, LINHAS } from './regras.js';
@@ -19,6 +20,27 @@ export const NOME_GUIA_MAX = 60;
 // A pessoa já respondeu: escolheu algum orixá ou guia, ou escreveu algum nome.
 export const respondeu = (p) => !!p && (Object.values(p.orixas || {}).some((x) => x.nome)
   || Object.values(p.guias || {}).some((x) => x.linha) || Object.keys(p.outros || {}).length > 0);
+
+// "31/10/1990" → '1990-10-31' (ou '' se não for uma data de nascimento válida).
+export function lerNascimento(s) {
+  const m = String(s || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return '';
+  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const x = new Date(Date.UTC(a, mes - 1, d));
+  if (x.getUTCFullYear() !== a || x.getUTCMonth() !== mes - 1 || x.getUTCDate() !== d || a < 1900) return '';
+  const iso = x.toISOString().slice(0, 10);
+  return iso <= new Date().toISOString().slice(0, 10) ? iso : '';
+}
+export const nascimentoBR = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '');
+// Telefone: só os números (DDD + número, 10 ou 11 dígitos).
+export const soNumeros = (v) => String(v || '').replace(/\D/g, '').slice(0, 11);
+export function telefoneBR(n) {
+  const d = soNumeros(n);
+  if (d.length <= 2) return d ? `(${d}` : '';
+  const resto = d.slice(2);
+  const corte = d.length === 11 ? 5 : 4;
+  return `(${d.slice(0, 2)}) ${resto.length > corte ? `${resto.slice(0, corte)}-${resto.slice(corte)}` : resto}`;
+}
 
 const txt = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -42,5 +64,14 @@ export function normalizarPerfil(p) {
     const n = txt((o.outros || {})[k], NOME_GUIA_MAX);
     if (n) outros[k] = n;
   }
-  return { orixas, guias, outros };
+  const i = o.info && typeof o.info === 'object' ? o.info : {};
+  const tel = (v) => { const d = soNumeros(v); return d.length >= 10 ? d : ''; };
+  const info = {
+    nome: txt(i.nome, 80),
+    nascimento: /^\d{4}-\d{2}-\d{2}$/.test(i.nascimento || '') ? lerNascimento(nascimentoBR(i.nascimento)) : '',
+    celular: tel(i.celular),
+    contatoNome: txt(i.contatoNome, 80),
+    contatoTelefone: tel(i.contatoTelefone),
+  };
+  return { orixas, guias, outros, info };
 }

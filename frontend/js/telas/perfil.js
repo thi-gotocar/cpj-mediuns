@@ -1,26 +1,39 @@
-// Tela "Perfil": cada pessoa registra os seus orixás, guias e outros guias.
+// Tela "Perfil": cada pessoa registra as suas informações, os seus orixás, guias e outros guias.
 // O admin também acompanha a corrente: quem já respondeu, os guias de todos e as oferendas pendentes.
 
 import { ORIXAS } from '/shared/regras.js';
-import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu } from '/shared/perfil.js';
+import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros } from '/shared/perfil.js';
 import { estado, pode, avisar, carregarPerfil, mudarPerfil } from '../estado.js';
-import { esc } from '../util.js';
+import { esc, toast } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
 const ROT_ORIXA = { frente: 'frente', ancestral: 'ancestral', adjunto: 'adjunto' };
 const U = () => estado.pfUi;
 const admin = () => pode('perfil:corrente') && Array.isArray(estado.perfil?.todos);
 
-// Cabeçalho do card. Para o admin, toca para minimizar/expandir.
-function cab(k, titulo, count, aberto) {
-  if (!admin()) return `<div class="grp-h"><h2>${titulo}</h2><span class="count">${count}</span></div>`;
+// Cabeçalho do card: toca para minimizar/expandir (os da corrente só para o admin; os meus, para todos).
+function cab(k, titulo, count, aberto, dobra) {
+  if (!dobra) return `<div class="grp-h"><h2>${titulo}</h2><span class="count">${count}</span></div>`;
   return `<button class="grp-h dobra" data-act="pfdobra" data-k="${k}" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'}">
     <h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
 }
-const aberto = (k, padrao) => !admin() || (U().abertos[k] ?? padrao);
-function card(k, titulo, count, padrao, corpo) {
-  const ab = aberto(k, padrao);
-  return `<div class="card">${cab(k, titulo, count, ab)}${ab ? corpo() : ''}</div>`;
+function card(k, titulo, count, padrao, corpo, dobra = admin()) {
+  const ab = !dobra || (U().abertos[k] ?? padrao);
+  return `<div class="card">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
+}
+
+// Primeiro bloco: informações da pessoa (salva ao sair de cada campo).
+function cardInfo(eu) {
+  const I = eu.perfil.info || {};
+  const campo = (k, rotulo, attrs, valor) => `<label class="field pf-info-c">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
+  return `<div class="card"><div class="grp-h"><h2>Informações</h2></div>
+    <div class="pf-info">
+      ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome)}
+      ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
+      ${campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321" autocomplete="tel"', telefoneBR(I.celular))}
+      ${campo('contatoNome', 'Nome para contato', 'type="text" maxlength="80" placeholder="Quem chamar se precisar"', I.contatoNome)}
+      ${campo('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.contatoTelefone))}
+    </div></div>`;
 }
 
 // Uma linha: rótulo, combo e "Oferenda realizada" ao lado.
@@ -40,20 +53,19 @@ function linhaEscolha({ grupo, k, rotulo, valor, opcoes, oferenda }) {
 // ---------- meu perfil ----------
 function meusCards(eu) {
   const P = eu.perfil;
-  // Admin: os meus cards começam minimizados se eu já tinha respondido (decide uma vez, ao abrir).
-  if (U().meuPadrao === undefined) U().meuPadrao = !respondeu(P);
-  const padrao = U().meuPadrao;
+  // Orixás, guias e outros guias começam minimizados (para todos); tocar no título expande.
+  const padrao = false;
   const orixas = ORIXAS.map((o) => [o, o]);
-  return card('orixas', 'Orixás', esc(eu.nome), padrao, () =>
-    POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: orixas, oferenda: P.orixas[k].oferenda })).join(''))
+  return cardInfo(eu) + card('orixas', 'Orixás', '', padrao, () =>
+    POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: orixas, oferenda: P.orixas[k].oferenda })).join(''), true)
   + card('guias', 'Guias', '', padrao, () =>
-    POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''))
+    POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''), true)
   + card('outros', 'Outros guias', '', padrao, () => `
     <p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>
     ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">
       <label class="pf-rot" for="pf-outro-${k}">${esc(label)}</label>
       <input id="pf-outro-${k}" type="text" maxlength="${NOME_GUIA_MAX}" placeholder="Nome do guia" autocomplete="off" data-act="pfnome" data-k="${k}" value="${esc(P.outros[k] || '')}">
-    </div>`).join('')}`);
+    </div>`).join('')}`, true);
 }
 
 // ---------- admin: a corrente ----------
@@ -129,6 +141,19 @@ export const mudancas = {
   pfof(el) {
     const { g, k } = el.dataset;
     mudarPerfil((P) => { P[g][k].oferenda = el.checked; });
+  },
+  pfinfo(el) {
+    const k = el.dataset.k;
+    let v = el.value.replace(/\s+/g, ' ').trim();
+    if (k === 'nascimento' && v) {
+      v = lerNascimento(v);
+      if (!v) { toast('Data de nascimento inválida. Use dia/mês/ano, por exemplo 31/10/1990.'); return; }
+    }
+    if ((k === 'celular' || k === 'contatoTelefone') && v) {
+      v = soNumeros(v);
+      if (v.length < 10) { toast('Telefone incompleto: coloque o DDD e o número.'); return; }
+    }
+    mudarPerfil((P) => { P.info = { ...(P.info || {}), [k]: v }; });
   },
   pfnome(el) {
     const v = el.value.replace(/\s+/g, ' ').trim();

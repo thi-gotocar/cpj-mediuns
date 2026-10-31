@@ -3,7 +3,7 @@
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
 import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor } from './estado.js';
-import { esc, toast } from './util.js';
+import { esc, toast, mascaraTel } from './util.js';
 import { ehAcessoCorrente, PIN_VALIDO } from '/shared/permissoes.js';
 import * as gira from './telas/gira.js';
 import * as pessoas from './telas/pessoas.js';
@@ -213,6 +213,7 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
   if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
+  if (e.target.dataset.mascara === 'tel' && !String(e.inputType || '').startsWith('delete')) mascaraTel(e.target);
 });
 
 main.addEventListener('submit', async (e) => {

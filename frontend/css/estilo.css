@@ -38,7 +38,7 @@ section.panel{display:grid;gap:18px}
 .row>*{min-width:0}
 .grow{flex:1 1 180px}
 label.field{display:grid;gap:4px;font-size:.85rem;font-weight:700;color:var(--muted)}
-input[type=text],input[type=date],input[type=number],select,textarea{font:inherit;font-size:1rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;box-sizing:border-box}
+input[type=text],input[type=tel],input[type=date],input[type=number],select,textarea{font:inherit;font-size:1rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%;box-sizing:border-box}
 textarea{font-family:var(--f-mono);font-size:.82rem;line-height:1.5;min-height:220px;resize:vertical}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn{font:700 .95rem var(--f-body);border-radius:8px;padding:10px 14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap}
@@ -549,3 +549,6 @@ body.deslogado .rodape{display:none}
 .evs-tipo.gira{background:#e6ecfb;color:#2c4ea3;border-color:#cdd8f5}
 .evs-tipo.amaci{background:#e3f4e8;color:#1d7a3c;border-color:#c6e7d1}
 .evs-tipo.aviso{background:#fbefc4;color:#7a5600;border-color:#f0dd9a}
+/* aba Perfil: informações */
+.pf-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.pf-info-c input{width:100%}
