@@ -31,7 +31,7 @@ function cardAjustes(todos) {
   const CAMPOS = [['espiritual', 'Orixás e guias'], ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
   if (!CAMPOS.some(([k]) => k === A.campo)) A.campo = '';
   const x = todos.find((t) => t.pessoaId === A.pessoa);
-  return card('ajustes', '⚙️ Ajustes', '', true, () => {
+  return card('ajustes', '⚙️ Ajustes', '', false, () => {
     let h = `<div class="aj-sel">
       <label class="field">Pessoa<select data-act="ajpessoa" aria-label="Pessoa"><option value="">— escolha a pessoa —</option>${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === A.pessoa ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
       <label class="field">O que ver, incluir ou alterar<select data-act="ajcampo" aria-label="O que alterar" ${x ? '' : 'disabled'}><option value="">— escolha —</option>${CAMPOS.map(([k, l]) => `<option value="${k}" ${k === A.campo ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
@@ -79,9 +79,9 @@ function formInfoAdmin(x) {
   return `<form id="f-ajinfo" class="aj-info" autocomplete="off" data-id="${x.pessoaId}">
     ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
     ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
-    ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.celular))}
+    ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.celular))}
     ${c('contatoNome', 'Nome para contato', 'type="text" maxlength="80"', I.contatoNome)}
-    ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.contatoTelefone))}
+    ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.contatoTelefone))}
     <div class="aj-bts"><button class="btn primary" type="submit">Salvar</button></div></form>`;
 }
 
@@ -100,28 +100,31 @@ function cardInfo(eu) {
   const I = eu.perfil.info || {};
   const campo = (k, rotulo, attrs, valor) => `<label class="field pf-info-c">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
   const sv = estado.perfilSalvo;
-  return `<div class="card"><div class="grp-h"><h2>Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
+  return `<div class="card pf-info-card"><div class="grp-h"><h2>Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
     ${seletor}
     <div class="pf-info">
       ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome)}
       ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
-      ${campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321" autocomplete="tel"', telefoneBR(I.celular))}
-      ${campo('contatoNome', 'Nome para contato', 'type="text" maxlength="80" placeholder="Quem chamar se precisar"', I.contatoNome)}
-      ${campo('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.contatoTelefone))}
+      ${campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher" autocomplete="tel"', telefoneBR(I.celular))}
+      ${campo('contatoNome', 'Nome para contato', 'type="text" maxlength="80" placeholder="Quem chamar"', I.contatoNome)}
+      ${campo('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.contatoTelefone))}
     </div></div>`;
 }
 
+// Selo ao lado do título: "não preenchido" (amarelo) ou "preenchido" (verde).
+const selo = (ok) => `<span class="selo-preench ${ok ? 'ok' : ''}">${ok ? 'preenchido' : 'não preenchido'}</span>`;
+
 // Blocos de afinidade com as entidades (logo abaixo de Informações), conforme a função da pessoa.
 const AFIN = {
-  extra: { titulo: 'Médium de atendimento extra', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento extra.', funcao: 'atendimento extra' },
-  passe: { titulo: 'Médium de passe', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento Passe.', funcao: 'passe' },
+  extra: { titulo: 'Atendimento extra', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento extra.', funcao: 'atendimento extra' },
+  passe: { titulo: 'Passe', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento Passe.', funcao: 'passe' },
 };
 function cardsAfinidade(eu) {
   return blocosAfinidade(eu.funcao).map(({ tipo, campo }) => {
     const A = AFIN[tipo];
     const ls = (campo === 'linhas' ? eu.linhas : campo === 'extra' ? eu.afinidadeExtra : eu.afinidadePasse) || [];
     // Começa minimizado; tocar no título expande.
-    return card('afin-' + tipo, A.titulo, ls.length ? `${ls.length} marcada${ls.length > 1 ? 's' : ''}` : '', false, () => `
+    return card('afin-' + tipo, A.titulo, selo(ls.length > 0), false, () => `
       <p class="muted" style="margin:0;font-size:.9rem">${A.texto}</p>
       ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Sem nenhuma marcada, atua como ${A.funcao} em todas.</p>` : ''}
       ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
@@ -149,11 +152,15 @@ function meusCards(eu) {
   // Orixás, guias e outros guias começam minimizados (para todos); tocar no título expande.
   const padrao = false;
   const orixas = ORIXAS.map((o) => [o, o]);
-  return cardInfo(eu) + cardsAfinidade(eu) + card('orixas', 'Orixás', '', padrao, () =>
+  // Preenchido: os 3 orixás, os 2 guias e pelo menos um nome em Outros guias.
+  const okOrixas = POSICOES_ORIXA.every(([k]) => P.orixas[k].nome);
+  const okGuias = POSICOES_GUIA.every(([k]) => P.guias[k].linha);
+  const okOutros = Object.keys(P.outros || {}).length > 0;
+  return cardInfo(eu) + cardsAfinidade(eu) + card('orixas', 'Orixás', selo(okOrixas), padrao, () =>
     POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: orixas, oferenda: P.orixas[k].oferenda })).join(''), true)
-  + card('guias', 'Guias', '', padrao, () =>
+  + card('guias', 'Guias', selo(okGuias), padrao, () =>
     POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''), true)
-  + card('outros', 'Outros guias', '', padrao, () => `
+  + card('outros', 'Outros guias', selo(okOutros), padrao, () => `
     <p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>
     ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">
       <label class="pf-rot" for="pf-outro-${k}">${esc(label)}</label>
@@ -166,7 +173,7 @@ function cardRespostas(todos) {
   const sim = todos.filter((x) => respondeu(x.perfil));
   const nao = todos.filter((x) => !respondeu(x.perfil));
   const pct = todos.length ? Math.round((sim.length / todos.length) * 100) : 0;
-  return card('respostas', 'Respostas', `${sim.length} de ${todos.length}`, true, () => `
+  return card('respostas', 'Respostas', `${sim.length} de ${todos.length}`, false, () => `
     <div class="pf-resp"><b>${pct}%</b><span>${sim.length} ${sim.length === 1 ? 'pessoa respondeu' : 'pessoas responderam'} · ${nao.length} ${nao.length === 1 ? 'falta' : 'faltam'}</span></div>
     <div class="pf-barra" role="img" aria-label="${pct}% responderam"><span style="width:${pct}%"></span></div>
     ${nao.length ? `<button class="btn link small pf-mais" data-act="pffaltam">${U().faltam ? '− Esconder' : `＋ Ver quem ainda não respondeu (${nao.length})`}</button>
@@ -195,7 +202,7 @@ function cardOferendas(todos) {
   }).filter((x) => x.falta.length);
   const grupos = [['Orixás', orixas]];
   const total = new Set(grupos.flatMap(([, l]) => l.map((x) => x.nome))).size;
-  return card('corrente-oferendas', 'Oferendas pendentes', total, true, () => (resp.length ? `
+  return card('corrente-oferendas', 'Oferendas pendentes', total, false, () => (resp.length ? `
     ${grupos.map(([t, l]) => `<div class="pf-grupo"><div class="pf-gt">${t} <span class="count">${l.length}</span></div>
       ${l.length ? `<ul class="pf-lista">${l.map((x) => `<li><b>${esc(x.nome)}</b> <span class="muted">— ${x.falta.map(esc).join(', ')}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:2px 0 0">Ninguém pendente.</p>'}
     </div>`).join('')}

@@ -603,3 +603,12 @@ body.deslogado .rodape{display:none}
 .aj-of{font-size:.75rem;font-weight:700;border-radius:20px;padding:1px 8px;background:var(--off-soft);color:var(--off)}
 .aj-of.ok{background:#e3f4e8;color:#1d7a3c}
 .pf-info-pessoa{margin-bottom:2px}
+/* Perfil: Informações mais compacto (2 colunas, campos menores) */
+.pf-info-card{gap:10px;padding:14px}
+.pf-info{grid-template-columns:1fr 1fr;gap:8px 10px}
+.pf-info .pf-info-c{font-size:.8rem;gap:3px;min-width:0}
+.pf-info .pf-info-c:first-child{grid-column:1/-1}
+.pf-info input{padding:7px 10px;font-size:.95rem;min-width:0}
+/* selo "não preenchido" / "preenchido" ao lado do título */
+.selo-preench{display:inline-block;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 9px;border:1.5px solid #d4a017;color:#8a6500;background:#fff7d6;vertical-align:middle;font-family:var(--f-body)}
+.selo-preench.ok{border-color:#2e9b55;color:#1d7a3c;background:#e3f4e8}
