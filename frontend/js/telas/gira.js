@@ -237,7 +237,7 @@ function resultado(g) {
   return h + `${botaoDobrar(true)}</div>`;
 }
 
-// Topo da aba Gira (só data e nome): gira e evento dos próximos 30 dias, aviso todos os futuros, amaci só da semana.
+// Topo da aba Gira (só data e nome): gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.
 function cardSemana() {
   const hj = hoje();
   const evs = eventosDoTopo(estado.eventos, hj);

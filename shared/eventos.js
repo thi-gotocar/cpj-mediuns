@@ -35,12 +35,11 @@ export const eventosDaSemana = (eventos, hoje) => {
   const fim = somaDias(hoje, 7);
   return (eventos || []).filter((e) => e.data >= hoje && e.data <= fim).sort(porData);
 };
-// Bloco "Eventos" da aba Gira: gira e evento dos próximos 30 dias; aviso, todos os futuros;
+// Bloco "Eventos" da aba Gira: gira dos próximos 30 dias; evento e aviso, todos os futuros;
 // amaci só os da semana (hoje + 7 dias). O que já passou não aparece.
 export function eventosDoTopo(eventos, hoje) {
-  const ate = { amaci: somaDias(hoje, 7), aviso: '9999-12-31' };
-  const fim30 = somaDias(hoje, 30);
-  return (eventos || []).filter((e) => e.data >= hoje && e.data <= (ate[e.tipo || 'evento'] || fim30)).sort(porData);
+  const ate = { gira: somaDias(hoje, 30), amaci: somaDias(hoje, 7) };
+  return (eventos || []).filter((e) => e.data >= hoje && e.data <= (ate[e.tipo || 'evento'] || '9999-12-31')).sort(porData);
 }
 
 export const dataCurta = (isoData) => `${isoData.slice(8, 10)}/${isoData.slice(5, 7)}`;
