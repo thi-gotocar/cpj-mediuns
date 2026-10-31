@@ -28,7 +28,7 @@ function cardAjustes(todos) {
   const A = (estado.ajUi ||= { pessoa: '', campo: '' });
   const root = pode('usuarios:gerenciar');
   if (root && estado.usuarios === null) { estado.usuarios = undefined; carregarUsuarios(); }
-  const CAMPOS = [['info', 'Informações'], ['espiritual', 'Orixás e guias'], ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
+  const CAMPOS = [['espiritual', 'Orixás e guias'], ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
   if (!CAMPOS.some(([k]) => k === A.campo)) A.campo = '';
   const x = todos.find((t) => t.pessoaId === A.pessoa);
   return card('ajustes', '⚙️ Ajustes', '', true, () => {
@@ -37,18 +37,7 @@ function cardAjustes(todos) {
       <label class="field">O que ver, incluir ou alterar<select data-act="ajcampo" aria-label="O que alterar" ${x ? '' : 'disabled'}><option value="">— escolha —</option>${CAMPOS.map(([k, l]) => `<option value="${k}" ${k === A.campo ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>`;
     if (!x || !A.campo) return h;
-    if (A.campo === 'info') {
-      // Informações da pessoa: o admin vê e altera; só grava ao tocar em Salvar.
-      const I = x.perfil.info || {};
-      const c = (k, rot, attrs, v) => `<label class="field">${rot}<input name="${k}" ${attrs} value="${esc(v || '')}"></label>`;
-      h += `<form id="f-ajinfo" class="aj-info" autocomplete="off" data-id="${x.pessoaId}">
-        ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
-        ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
-        ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.celular))}
-        ${c('contatoNome', 'Nome para contato', 'type="text" maxlength="80"', I.contatoNome)}
-        ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.contatoTelefone))}
-        <div class="aj-bts"><button class="btn primary" type="submit">Salvar</button></div></form>`;
-    } else if (A.campo === 'espiritual') {
+    if (A.campo === 'espiritual') {
       // Orixás e guias da pessoa (só para ver).
       const Pf = x.perfil;
       const linha = (rot, val, of) => `<div class="aj-v"><span class="muted">${rot}</span><b>${val ? esc(val) : '<span class="muted">—</span>'}</b>${val ? `<span class="aj-of ${of ? 'ok' : ''}">${of ? '✓ oferenda' : 'sem oferenda'}</span>` : ''}</div>`;
@@ -83,11 +72,36 @@ function cardAjustes(todos) {
 }
 
 // Primeiro bloco: informações da pessoa (salva ao sair de cada campo).
+// Informações de outra pessoa (admin): altera e grava ao tocar em Salvar.
+function formInfoAdmin(x) {
+  const I = x.perfil.info || {};
+  const c = (k, rot, attrs, v) => `<label class="field">${rot}<input name="${k}" ${attrs} value="${esc(v || '')}"></label>`;
+  return `<form id="f-ajinfo" class="aj-info" autocomplete="off" data-id="${x.pessoaId}">
+    ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
+    ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
+    ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.celular))}
+    ${c('contatoNome', 'Nome para contato', 'type="text" maxlength="80"', I.contatoNome)}
+    ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 98765-4321"', telefoneBR(I.contatoTelefone))}
+    <div class="aj-bts"><button class="btn primary" type="submit">Salvar</button></div></form>`;
+}
+
+// Bloco Informações. O admin escolhe no topo de quem quer ver/alterar (começa com ele mesmo).
 function cardInfo(eu) {
+  const todos = admin() ? estado.perfil.todos : null;
+  const sel = (todos && estado.infoPessoa) || eu?.pessoaId || '';
+  const seletor = todos ? `<label class="field pf-info-pessoa">Pessoa<select data-act="infopessoa" aria-label="De quem são as informações">
+      ${eu ? '' : '<option value="">— escolha a pessoa —</option>'}
+      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === sel ? 'selected' : ''}>${esc(t.nome)}${eu && t.pessoaId === eu.pessoaId ? ' (você)' : ''}</option>`).join('')}</select></label>` : '';
+  if (!eu || sel !== eu.pessoaId) {
+    const x = todos && todos.find((t) => t.pessoaId === sel);
+    return `<div class="card${todos ? ' adm' : ''}"><div class="grp-h"><h2>Informações</h2></div>${seletor}
+      ${x ? formInfoAdmin(x) : '<p class="muted" style="margin:0">Escolha a pessoa para ver e alterar as informações.</p>'}</div>`;
+  }
   const I = eu.perfil.info || {};
   const campo = (k, rotulo, attrs, valor) => `<label class="field pf-info-c">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
   const sv = estado.perfilSalvo;
   return `<div class="card"><div class="grp-h"><h2>Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
+    ${seletor}
     <div class="pf-info">
       ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome)}
       ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
@@ -177,7 +191,8 @@ export function render() {
   let h = '';
   if (admin()) h += cardAjustes(todos) + cardRespostas(todos);
   if (eu) h += meusCards(eu);
-  else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
+  else if (admin()) h += cardInfo(null);
+  else h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
   h += cardGuiasCorrente(estado.perfil.guias || []);
   if (admin()) h += cardOferendas(todos);
   return h;
@@ -233,6 +248,7 @@ export function digitando(el) {
 }
 
 export const mudancas = {
+  infopessoa(t) { estado.infoPessoa = t.value; avisar(); },
   ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
   ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
   entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
