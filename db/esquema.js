@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 43;  // v43: guias de atendimento (nome do guia por linha) na lista de pessoas, para o Você nesta gira
+export const VERSAO = 44;  // v44: oferenda por pessoa escolhendo os grupos (funções da corrente e alunos)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1311,5 +1311,94 @@ export const MIGRACOES = [
               coalesce(p.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento"
        from pessoas p
      ) x;
+   $$`,
+
+  // ================================================== v44: oferenda "uma linha por pessoa" com os grupos escolhidos
+  // grupos: funções da corrente ('medium', 'extra', 'passe', 'cambone', 'senha', 'curimba') e/ou 'alunos'. Nulo = toda a corrente (as antigas).
+  `alter table oferendas add column if not exists grupos text[]`,
+  `create table if not exists oferenda_alunos (
+     oferenda_id    uuid not null references oferendas (id) on delete cascade,
+     aluno_id       uuid not null references alunos (id) on delete cascade,
+     pagamento      text not null default 'nao_pago' check (pagamento in ('pago', 'nao_pago')),
+     entrega        text not null default 'pendente' check (entrega in ('pendente', 'entregue')),
+     excluido       boolean not null default false,
+     atualizado_em  timestamptz not null default now(),
+     primary key (oferenda_id, aluno_id)
+   )`,
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
+       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
+       'porMedium', o.por_medium,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'grupos', to_jsonb(o.grupos),
+       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
+           select pe.nome, jsonb_build_object('pessoaId', pe.id::text, 'nome', pe.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
+           from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
+           where om.oferenda_id = o.id and not om.excluido
+           union all
+           select al.nome, jsonb_build_object('pessoaId', 'a:' || al.id::text, 'nome', al.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
+           from oferenda_alunos oa join alunos al on al.id = oa.aluno_id
+           where oa.oferenda_id = o.id and not oa.excluido) x), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, al.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
+                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  // Inclui quem é dos grupos escolhidos (e ainda não está); com grupos novos, tira quem não é mais de nenhum.
+  `create or replace function oferenda_mediuns_atualizar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_g text[];
+   begin
+     if p ? 'grupos' then
+       update oferendas set por_medium = true, grupos = array(select jsonb_array_elements_text(p -> 'grupos')) where id = v_id;
+     else
+       update oferendas set por_medium = true where id = v_id;
+     end if;
+     if not found then raise exception 'Oferenda não encontrada.'; end if;
+     select grupos into v_g from oferendas where id = v_id;
+     if p ? 'grupos' then
+       delete from oferenda_mediuns om using pessoas pe
+       where om.oferenda_id = v_id and pe.id = om.pessoa_id and not (pe.funcao = any(v_g));
+       if not ('alunos' = any(v_g)) then delete from oferenda_alunos where oferenda_id = v_id; end if;
+     end if;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id)
+     select v_id, id from pessoas where v_g is null or funcao = any(v_g)
+     on conflict do nothing;
+     if v_g is not null and 'alunos' = any(v_g) then
+       insert into oferenda_alunos (oferenda_id, aluno_id) select v_id, id from alunos on conflict do nothing;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_aluno_status(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferenda_alunos set
+       pagamento = case when p ? 'pagamento' then p ->> 'pagamento' else pagamento end,
+       entrega   = case when p ? 'entrega' then p ->> 'entrega' else entrega end,
+       atualizado_em = now()
+     where oferenda_id = (p ->> 'oferendaId')::uuid and aluno_id = (p ->> 'alunoId')::uuid;
+     if not found then raise exception 'Aluno não está nesta oferenda.'; end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_aluno_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferenda_alunos set excluido = true, atualizado_em = now()
+     where oferenda_id = (p ->> 'oferendaId')::uuid and aluno_id = (p ->> 'alunoId')::uuid;
+     if not found then raise exception 'Aluno não está nesta oferenda.'; end if;
+     return oferendas_estado();
+   end;
    $$`,
 ];

@@ -1,7 +1,7 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, contagemMediuns, percentualDoado, travadaPara, fechaEm } from '/shared/oferendas.js';
-import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, avisar } from '../estado.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, contagemMediuns, percentualDoado, travadaPara, fechaEm, GRUPOS_OFERENDA } from '/shared/oferendas.js';
+import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 
@@ -46,10 +46,14 @@ function doadoresAdmin(i, s) {
   if (!i.doacoes.length) h += `<div class="muted of-sub">Ninguém se prontificou ainda.</div>`;
   if (s.falta) {
     const ja = new Set(i.doacoes.map((d) => d.chave));
+    // Qualquer pessoa cadastrada: a corrente (com a curimba) e os alunos.
     const livres = pessoasOrd().filter((p) => !ja.has('p:' + p.id));
-    if (livres.length) {
+    const alunosLivres = (estado.alunos?.alunos || []).filter((a) => !ja.has('a:' + a.id));
+    if (livres.length || alunosLivres.length) {
       h += `<form class="of-por" data-form="porpessoa" data-item="${i.id}" autocomplete="off">
-        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
+        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>
+          ${livres.length ? `<optgroup label="Corrente">${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</optgroup>` : ''}
+          ${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}</select>
         <input type="number" name="qtd" min="1" max="${s.falta}" value="1" inputmode="numeric" aria-label="Quantidade">
         <button class="btn small primary" type="submit">Adicionar</button></form>`;
     }
@@ -111,7 +115,7 @@ function blocoMediuns(of, admin) {
     <div class="of-med-cont"><span class="muted">Pagamento:</span>${PAGAMENTO.map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>
     <div class="of-med-cont"><span class="muted">Entrega:</span>${ENTREGA.map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>`;
   if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Ninguém na lista.</p></div>`;
-  h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${medConferido(m) ? 'ok' : m.pagamento === 'pago' || m.entrega === 'entregue' ? 'meio' : 'pend'}"><span class="nm">${esc(m.nome)}</span>
+  h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${medConferido(m) ? 'ok' : m.pagamento === 'pago' || m.entrega === 'entregue' ? 'meio' : 'pend'}"><span class="nm">${esc(m.nome)}${m.aluno ? ' <span class="tag of-aluno">aluno</span>' : ''}</span>
     ${admin ? `<span class="of-med-acts">${comboMed(of, m, 'pagamento', PAGAMENTO, 'Pagamento')}${comboMed(of, m, 'entrega', ENTREGA, 'Entrega')}
       ${estado.confirm === 'om:' + of.id + ':' + m.pessoaId
         ? `<button class="btn small danger" data-act="delmedium" data-of="${of.id}" data-p="${m.pessoaId}">Tirar</button>`
@@ -233,6 +237,8 @@ function podeCompartilhar(img) {
 
 export function render() {
   if (estado.oferendas === null) { carregarOferendas(); return `<div class="loading">Carregando oferendas…</div>`; }
+  // Alunos (para "doação por alguém"): só quem administra e pode ver os alunos.
+  if (pode('oferendas:gerenciar') && pode('alunos:ver') && estado.alunos === null) { estado.alunos = undefined; carregarAlunos(); }
   const admin = pode('oferendas:gerenciar');
   const lista = estado.oferendas.oferendas;
   const hj = hoje();
@@ -247,7 +253,9 @@ export function render() {
       <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
       <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
-      <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" style="margin-top:3px"><span>Uma linha para cada pessoa<br><span class="muted" style="font-size:.85rem">Todos os cadastrados (corrente e curimba). Em cada linha o admin confere o pagamento (Pago / Não pago) e a entrega (Pendente / Entregue), e pode tirar quem não participa.</span></span></label>
+      <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" data-act="pormedium" style="margin-top:3px" ${U().novaPorMedium ? 'checked' : ''}><span>Uma linha para cada pessoa<br><span class="muted" style="font-size:.85rem">Em cada linha o admin confere o pagamento (Pago / Não pago) e a entrega (Pendente / Entregue), e pode tirar quem não participa.</span></span></label>
+      <div class="of-grupos" id="of-grupos" ${U().novaPorMedium ? '' : 'hidden'}><span class="muted" style="font-size:.85rem;flex-basis:100%">De quais grupos vêm as pessoas:</span>
+        ${GRUPOS_OFERENDA.map(([k, l]) => `<label class="chip"><input type="checkbox" name="grupo" data-act="grupoof" value="${k}" ${(U().novaGrupos || GRUPOS_OFERENDA.map(([x]) => x).filter((x) => x !== 'alunos')).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
       <button class="btn primary" type="submit">Criar</button></form>`;
     h += `</div>`;
   }
@@ -371,6 +379,9 @@ async function porAlguem(el, delta) {
 }
 
 export const mudancas = {
+  // "Uma linha para cada pessoa": mostra os grupos (sem redesenhar, para não perder o que foi digitado).
+  pormedium(t) { U().novaPorMedium = t.checked; const g = document.getElementById('of-grupos'); if (g) g.hidden = !t.checked; },
+  grupoof(t) { U().novaGrupos = [...t.form.querySelectorAll('input[name=grupo]:checked')].map((x) => x.value); },
   async ofmedium(t) {
     t.className = 'sel-med ' + t.value;
     if (!(await acaoOferendas('medium', { oferendaId: t.dataset.of, pessoaId: t.dataset.p, [t.dataset.campo]: t.value }))) avisar();
@@ -390,9 +401,12 @@ export async function enviar(form) {
     const titulo = document.getElementById('of-titulo').value, data = document.getElementById('of-data').value;
     const responsavelId = document.getElementById('of-resp').value;
     const porMedium = document.getElementById('of-pormedium').checked;
+    const grupos = [...form.querySelectorAll('input[name=grupo]:checked')].map((x) => x.value);
     if (!data) { toast('Escolha a data.'); return; }
     if (!responsavelId) { toast('Escolha o responsável.'); return; }
-    if (await acaoOferendas('salvar', { titulo, data, responsavelId, porMedium })) {
+    if (porMedium && !grupos.length) { toast('Escolha pelo menos um grupo (corrente ou alunos).'); return; }
+    if (await acaoOferendas('salvar', { titulo, data, responsavelId, porMedium, ...(porMedium ? { grupos } : {}) })) {
+      U().novaPorMedium = false; U().novaGrupos = null;
       toast(porMedium ? 'Oferenda criada com uma linha para cada pessoa. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
       if (porMedium) {
         const nova = estado.oferendas.oferendas.filter((o) => o.porMedium && o.titulo === titulo.replace(/\s+/g, ' ').trim() && o.data === data).pop();
@@ -411,7 +425,8 @@ export async function enviar(form) {
     const qtd = Number(v('qtd'));
     if (!pessoa) { toast('Escolha a pessoa.'); return; }
     if (!Number.isInteger(qtd) || qtd < 1) { toast('Informe a quantidade.'); return; }
-    const nome = estado.pessoas.find((p) => p.id === pessoa)?.nome || '';
+    const nome = pessoa.startsWith('a:') ? (estado.alunos?.alunos || []).find((a) => 'a:' + a.id === pessoa)?.nome || ''
+      : estado.pessoas.find((p) => p.id === pessoa)?.nome || '';
     if (await acaoOferendas('doarPor', { itemId: form.dataset.item, pessoaId: pessoa, quantidade: qtd })) toast(`Doação de ${nome} registrada.`);
     return;
   }

@@ -1,5 +1,9 @@
 // Oferendas: situação de cada item e texto para compartilhar.
 
+// Grupos de onde sai a lista "uma linha por pessoa": funções da corrente e alunos da CPJ.
+export const GRUPOS_OFERENDA = [['medium', 'Médiuns'], ['extra', 'Extras'], ['passe', 'Passe'], ['cambone', 'Cambones'], ['senha', 'Senha'], ['curimba', 'Curimba'], ['alunos', 'Alunos']];
+export const GRUPOS_OFERENDA_KEYS = GRUPOS_OFERENDA.map(([k]) => k);
+
 // Oferenda com uma linha por pessoa: duas conferências separadas, o pagamento e a entrega.
 export const PAGAMENTO = [['nao_pago', 'Não pago', '🔴'], ['pago', 'Pago', '🔵']];
 export const ENTREGA = [['pendente', 'Pendente', '🟡'], ['entregue', 'Entregue', '🟢']];

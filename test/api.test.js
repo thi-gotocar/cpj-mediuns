@@ -961,3 +961,35 @@ test('escala: o sorteio só aparece para todos depois de publicado', async () =>
   assert.deepEqual((await api('GET', '/api/giras/' + d, ana)).json.pares, []);
   await api('DELETE', '/api/giras/' + d, ADMIN);
 });
+
+test('oferenda por pessoa: escolhe os grupos (funções e alunos); doação por aluno', async () => {
+  const of = (b) => api('POST', '/api/oferendas', ADMIN, b);
+  const A = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json;
+  if (!A.alunos.length) await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluna Oferenda', turmaId: A.turmas[0].id });
+  const alunos = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json.alunos;
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  assert.equal((await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Grupos', data: '2029-05-05', porMedium: true, grupos: ['xyz'] })).status, 400);
+  let r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Grupos', data: '2029-05-05', porMedium: true, grupos: ['cambone', 'alunos'] })).json;
+  let o = r.oferendas.find((x) => x.titulo === 'Grupos');
+  const cambones = ps.filter((p) => p.funcao === 'cambone');
+  assert.deepEqual(o.grupos, ['cambone', 'alunos']);
+  assert.equal(o.mediuns.filter((m) => !m.aluno).length, cambones.length, 'só os cambones da corrente');
+  assert.equal(o.mediuns.filter((m) => m.aluno).length, alunos.length, 'e todos os alunos');
+  const la = o.mediuns.find((m) => m.aluno);
+  assert.ok(la.pessoaId.startsWith('a:'));
+  r = (await of({ acao: 'medium', oferendaId: o.id, pessoaId: la.pessoaId, pagamento: 'pago' })).json;
+  assert.equal(r.oferendas.find((x) => x.id === o.id).mediuns.find((m) => m.pessoaId === la.pessoaId).pagamento, 'pago');
+  // "Incluir novos cadastrados" respeita os grupos.
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Médium Fora do Grupo', funcao: 'medium' });
+  r = (await of({ acao: 'atualizarMediuns', id: o.id })).json;
+  assert.ok(!r.oferendas.find((x) => x.id === o.id).mediuns.some((m) => m.nome === 'Médium Fora do Grupo'));
+  r = (await of({ acao: 'excluirMedium', oferendaId: o.id, pessoaId: la.pessoaId })).json;
+  assert.ok(!r.oferendas.find((x) => x.id === o.id).mediuns.some((m) => m.pessoaId === la.pessoaId));
+  // Doação por alguém: um aluno.
+  r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Velas', quantidade: 2, entrega: '' })).json;
+  const item = r.oferendas.find((x) => x.id === o.id).itens[0];
+  r = (await of({ acao: 'doarPor', itemId: item.id, pessoaId: 'a:' + alunos[0].id, quantidade: 1 })).json;
+  const d = r.oferendas.find((x) => x.id === o.id).itens[0].doacoes[0];
+  assert.deepEqual([d.chave, d.nome], ['a:' + alunos[0].id, alunos[0].nome]);
+  await of({ acao: 'excluir', id: o.id });
+});

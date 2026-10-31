@@ -14,7 +14,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { PAGAMENTO_KEYS, ENTREGA_KEYS } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS, GRUPOS_OFERENDA_KEYS } from '../../shared/oferendas.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 function resposta(oferendas, eu) {
@@ -67,7 +67,17 @@ export default rota({
         // Responsável: uma pessoa da corrente (obrigatório).
         const resp = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável'));
         if (!resp) throw new HttpError(400, 'Escolha o responsável (uma pessoa da corrente).');
-        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id, porMedium: !b.id && b.porMedium === true });
+        const porMedium = !b.id && b.porMedium === true;
+        let grupos = null;
+        if (porMedium && b.grupos !== undefined) {
+          if (!Array.isArray(b.grupos) || !b.grupos.length || b.grupos.some((g) => !GRUPOS_OFERENDA_KEYS.includes(g))) throw new HttpError(400, 'Escolha de quais grupos vêm as pessoas.');
+          grupos = [...new Set(b.grupos)];
+        }
+        const antes = grupos ? new Set((await db.rpc('oferendas_estado')).map((o) => o.id)) : null;
+        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id, porMedium });
+        // Uma linha por pessoa só dos grupos escolhidos (funções da corrente e/ou alunos).
+        const nova = grupos && estado.find((o) => !antes.has(o.id));
+        if (nova) estado = await db.rpc('oferenda_mediuns_atualizar', { id: nova.id, grupos });
         break;
       }
       case 'excluir':
@@ -90,7 +100,13 @@ export default rota({
         const itemId = validarId(b.itemId, 'Item');
         const quantidade = inteiro(b.quantidade, 'Quantidade', 0, 10000);
         let chave, nome;
-        if (b.pessoaId) {
+        if (typeof b.pessoaId === 'string' && b.pessoaId.startsWith('a:')) {
+          // Aluno da CPJ
+          const aluno = (await db.rpc('alunos_estado')).alunos.find((a) => a.id === validarId(b.pessoaId.slice(2), 'Aluno'));
+          if (!aluno) throw new HttpError(400, 'Aluno não encontrado.');
+          chave = 'a:' + aluno.id;
+          nome = aluno.nome;
+        } else if (b.pessoaId) {
           const pessoa = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.pessoaId, 'Pessoa'));
           if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
           chave = 'p:' + pessoa.id;
@@ -106,7 +122,10 @@ export default rota({
         break;
       }
       case 'medium': {
-        const p = { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') };
+        // Linha de aluno vem como "a:<id>".
+        const aluno = typeof b.pessoaId === 'string' && b.pessoaId.startsWith('a:');
+        const p = aluno ? { oferendaId: validarId(b.oferendaId, 'Oferenda'), alunoId: validarId(b.pessoaId.slice(2), 'Aluno') }
+          : { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') };
         if ('pagamento' in b) {
           if (!PAGAMENTO_KEYS.includes(b.pagamento)) throw new HttpError(400, 'Pagamento inválido.');
           p.pagamento = b.pagamento;
@@ -116,11 +135,15 @@ export default rota({
           p.entrega = b.entrega;
         }
         if (!p.pagamento && !p.entrega) throw new HttpError(400, 'Informe o pagamento ou a entrega.');
-        estado = await db.rpc('oferenda_medium_status', p);
+        estado = await db.rpc(aluno ? 'oferenda_aluno_status' : 'oferenda_medium_status', p);
         break;
       }
       case 'excluirMedium':
-        estado = await db.rpc('oferenda_medium_excluir', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') });
+        if (typeof b.pessoaId === 'string' && b.pessoaId.startsWith('a:')) {
+          estado = await db.rpc('oferenda_aluno_excluir', { oferendaId: validarId(b.oferendaId, 'Oferenda'), alunoId: validarId(b.pessoaId.slice(2), 'Aluno') });
+        } else {
+          estado = await db.rpc('oferenda_medium_excluir', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') });
+        }
         break;
       case 'atualizarMediuns':
         estado = await db.rpc('oferenda_mediuns_atualizar', { id: validarId(b.id, 'Oferenda') });
