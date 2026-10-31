@@ -434,6 +434,14 @@ export function mudarPerfil(fn, { silencioso = false } = {}) {
   // Admin: os blocos da corrente já mostram a mudança.
   const meu = (estado.perfil.todos || []).find((x) => x.pessoaId === P.pessoaId);
   if (meu) meu.perfil = JSON.parse(JSON.stringify(P.perfil));
+  // Guias da corrente: atualiza a minha linha.
+  if (Array.isArray(estado.perfil.guias)) {
+    const g = P.perfil.guias || {};
+    const outros = estado.perfil.guias.filter((x) => x.pessoaId !== P.pessoaId);
+    estado.perfil.guias = g.chefe?.linha || g.frente?.linha
+      ? [...outros, { pessoaId: P.pessoaId, nome: P.nome, chefe: g.chefe?.linha || '', frente: g.frente?.linha || '' }].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+      : outros;
+  }
   perfilPendente = JSON.parse(JSON.stringify(P.perfil));
   avisoPerfil('salvando');
   if (!silencioso) avisar();

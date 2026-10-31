@@ -141,16 +141,16 @@ function cardRespostas(todos) {
       ${U().faltam ? `<ul class="pf-lista">${nao.map((x) => `<li>${esc(x.nome)}</li>`).join('')}</ul>` : ''}` : '<p class="muted" style="margin:6px 0 0">Todo mundo já respondeu. 🙌</p>'}`, true, true);
 }
 
-function cardGuiasCorrente(todos) {
-  const com = todos.filter((x) => POSICOES_GUIA.some(([k]) => x.perfil.guias[k].linha));
-  return card('corrente-guias', 'Guias da corrente', com.length, true, () => (com.length ? `
+// Guias da corrente: todos veem (só guia chefe e de frente de cada um); começa minimizado.
+function cardGuiasCorrente(lista) {
+  return card('corrente-guias', 'Guias da corrente', lista.length, false, () => (lista.length ? `
     <div class="pf-tab">
       <div class="pf-th"><span>Nome</span><span>Guia chefe</span><span>Guia de frente</span></div>
-      ${com.map((x) => `<div class="pf-tr"><span class="pf-nome">${esc(x.nome)}</span>${POSICOES_GUIA.map(([k]) => {
-        const l = x.perfil.guias[k].linha;
+      ${lista.map((x) => `<div class="pf-tr"><span class="pf-nome">${esc(x.nome)}</span>${['chefe', 'frente'].map((k) => {
+        const l = x[k];
         return `<span>${l ? esc(GUIA_LABEL[l]) : '<span class="muted">—</span>'}</span>`;
       }).join('')}</div>`).join('')}
-    </div>` : '<p class="muted" style="margin:0">Ninguém informou os guias ainda.</p>'), true, true);
+    </div>` : '<p class="muted" style="margin:0">Ninguém informou os guias ainda.</p>'), true);
 }
 
 // Oferendas que faltam, só de quem já respondeu (quem não respondeu está no bloco Respostas).
@@ -161,9 +161,7 @@ function cardOferendas(todos) {
       .map(([k]) => (x.perfil.orixas[k].nome ? `${x.perfil.orixas[k].nome} (${ROT_ORIXA[k]})` : `${ROT_ORIXA[k]}: não informado`));
     return { nome: x.nome, falta };
   }).filter((x) => x.falta.length);
-  const guia = (k) => resp.filter((x) => !x.perfil.guias[k].oferenda)
-    .map((x) => ({ nome: x.nome, falta: [x.perfil.guias[k].linha ? GUIA_LABEL[x.perfil.guias[k].linha] : 'não informado'] }));
-  const grupos = [['Orixás', orixas], ['Guia de frente', guia('frente')], ['Guia chefe', guia('chefe')]];
+  const grupos = [['Orixás', orixas]];
   const total = new Set(grupos.flatMap(([, l]) => l.map((x) => x.nome))).size;
   return card('corrente-oferendas', 'Oferendas pendentes', total, true, () => (resp.length ? `
     ${grupos.map(([t, l]) => `<div class="pf-grupo"><div class="pf-gt">${t} <span class="count">${l.length}</span></div>
@@ -180,7 +178,8 @@ export function render() {
   if (admin()) h += cardAjustes(todos) + cardRespostas(todos);
   if (eu) h += meusCards(eu);
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
-  if (admin()) h += cardGuiasCorrente(todos) + cardOferendas(todos);
+  h += cardGuiasCorrente(estado.perfil.guias || []);
+  if (admin()) h += cardOferendas(todos);
   return h;
 }
 

@@ -103,6 +103,10 @@ test('perfil: cada um vê e salva só o seu; root sem cadastro não tem', async 
   assert.deepEqual(lido.orixas.frente, { nome: 'Oxum', oferenda: true });
   assert.deepEqual(lido.guias.chefe, { linha: 'exu', oferenda: false });
   assert.deepEqual(lido.outros, { caboclo: 'Sete Flechas' });
+  // Guias da corrente: todos veem só o guia chefe e o de frente de cada um.
+  const gs = (await api('GET', '/api/auth/perfil', USER)).json.guias;
+  assert.deepEqual(gs.find((x) => x.nome === 'Zé'), { pessoaId: vazio.eu.pessoaId, nome: 'Zé', chefe: 'exu', frente: '' });
+  assert.ok(!JSON.stringify(gs).includes('Sete Flechas'));
   // O perfil não aparece na lista de pessoas (é só de quem é).
   assert.ok(!('perfil' in (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Zé')));
 });

@@ -45,7 +45,11 @@ const acoes = {
     if (req.method === 'GET') {
       const r = { eu: eu.pessoaId ? limpo(await db.rpc('perfil_ler', { pessoaId: eu.pessoaId })) : null };
       // Admin: o perfil de todos, para acompanhar respostas, guias e oferendas.
-      if (pode(eu, 'perfil:corrente')) r.todos = (await db.rpc('perfis_listar')).map(limpo);
+      // Todos: só os guias chefe e de frente de cada um (bloco "Guias da corrente").
+      const todos = (await db.rpc('perfis_listar')).map(limpo);
+      if (pode(eu, 'perfil:corrente')) r.todos = todos;
+      r.guias = todos.filter((x) => x.perfil.guias.chefe.linha || x.perfil.guias.frente.linha)
+        .map((x) => ({ pessoaId: x.pessoaId, nome: x.nome, chefe: x.perfil.guias.chefe.linha, frente: x.perfil.guias.frente.linha }));
       return r;
     }
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
