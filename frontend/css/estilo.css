@@ -637,3 +637,7 @@ body.deslogado .rodape{display:none}
 .lock.falta-bt{color:var(--off);border-color:color-mix(in srgb,var(--off) 45%,transparent)}
 .med .falta-bt{margin-left:8px}
 .falta-conf{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;background:var(--off-soft);border:1px solid color-mix(in srgb,var(--off) 40%,transparent);border-radius:10px;padding:8px 10px;font-size:.9rem;margin:4px 0}
+.lic-lista{border-top:1px solid var(--line);padding-top:10px}
+.lic-l{gap:10px}
+.selo-lic{border-color:var(--off);color:var(--off);background:var(--off-soft)}
+.sup-lista{display:flex;flex-direction:column;gap:6px}.sup-l{display:flex;align-items:center;gap:10px}

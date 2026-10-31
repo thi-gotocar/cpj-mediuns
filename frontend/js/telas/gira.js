@@ -107,9 +107,9 @@ function confirmaFalta(id) {
 function blocosFora(ps, g) {
   return [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
-    // Quem não edita a gira: só o nome, com a etiqueta "em licença" ao lado.
-    if (st === 'lic' && quem.length && !pode('giras:editar')) {
-      return `<div class="grp fora lic-lista">${quem.map((p) => `<div class="lic-l"><span>${esc(p.nome)}</span><span class="selo-lic">em licença</span></div>`).join('')}</div>`;
+    // Licença: linha divisória, sem título; cruz vermelha, o nome e a etiqueta "em licença".
+    if (st === 'lic' && quem.length) {
+      return `<div class="grp fora lic-lista">${quem.map((p) => `<div class="lic-l"><span class="cruz-vermelha" aria-hidden="true">✚</span><span>${esc(p.nome)}</span><span class="selo-lic">em licença</span></div>`).join('')}</div>`;
     }
     return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
   }).join('');
@@ -485,21 +485,14 @@ function renderGira() {
     h += `</div>`;
   }
   const sup = ps.filter((p) => status(p, g) === 'sup');
-  if (sup.length) h += `<div class="grp"><div class="grp-h"><h3>Suporte</h3><span class="count">${sup.length}</span></div><p style="margin:0">${sup.map((p) => esc(p.nome)).join(', ')}</p></div>`;
+  // Suporte: cada pessoa com o botão Falta também (admin).
+  if (sup.length) {
+    h += `<div class="grp"><div class="grp-h"><h3>Suporte</h3><span class="count">${sup.length}</span></div>${editar && !passada && !manual
+      ? `<div class="sup-lista">${sup.map((p) => `<div class="sup-l"><span>${esc(p.nome)}</span>${botaoFalta(p.id)}</div>${confirmaFalta(p.id)}`).join('')}</div>`
+      : `<p style="margin:0">${sup.map((p) => esc(p.nome)).join(', ')}</p>`}</div>`;
+  }
   h += blocosFora(ps, g);
-  h += `<details><summary class="muted" style="cursor:pointer;font-size:.9rem">Como o sorteio decide</summary>
-    <ul class="rule">
-      <li>Médiuns e extras recebem cambone.</li>
-      <li>Quem está como “Não atende” entra no sorteio como cambone, junto com os cambones presentes.</li>
-      <li>Quem está em Suporte fica fora do sorteio.</li>
-      <li><b>Remanejar faltas</b> não mexe nas duplas que continuam válidas. Só realoca quem foi afetado por uma falta: médium sem cambone recebe um cambone livre; se não houver, sai um cambone de um médium que tem dois; depois alguém do Suporte; por último, um cambone passa a acompanhar dois médiuns. Cambones que sobram vão para médiuns com um só cambone (máximo de dois por médium) e o excedente vai para o Suporte.</li>
-      <li>Médiuns de passe não recebem cambone: cada um é sorteado para ficar com um médium marcado como “pode ter passe junto”, com o mesmo rodízio.</li>
-      <li>Dupla que nunca trabalhou junta tem prioridade.</li>
-      <li>A dupla da última gira do médium é evitada sempre que houver outra opção.</li>
-      <li>Duplas antigas pesam menos que recentes; quanto mais vezes juntas, menor a chance.</li>
-      <li>Os cambones são divididos por igual. Se faltar cambone, alguns acompanham dois médiuns; se sobrar, alguns médiuns ganham dois.</li>
-      <li>Duplas fixadas ficam como estão. Entre opções empatadas, a escolha é aleatória.</li>
-    </ul></details>${manual ? '' : botaoDobrar(true)}</div>`;
+  h += `${manual ? '' : botaoDobrar(true)}</div>`;
   }
 
   // exportação
