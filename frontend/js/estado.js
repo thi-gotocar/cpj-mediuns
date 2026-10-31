@@ -146,14 +146,14 @@ async function descarregar(data) {
   await fila[data];
 }
 
-async function acaoDaGira(rota) {
+async function acaoDaGira(rota, mensagem = null) {
   const data = prefs.data;
   await descarregar(data);
   estado.salvando++;
   try {
     const r = await api('POST', `/giras/${data}/${rota}`);
     estado.giras[data] = r.gira;
-    toast(r.mensagem);
+    toast(mensagem || r.mensagem);
   } catch (e) {
     toast(e.message);
   } finally {
@@ -185,7 +185,7 @@ export const reiniciarGira = () => situacaoDaGira('reiniciar');
 export const declararAusencia = () => situacaoDaGira('ausencia');
 export const publicarEscala = (publicada = true) => situacaoDaGira('publicar', { publicada });
 export const sortear = () => acaoDaGira('sortear');
-export const remanejar = () => acaoDaGira('remanejar');
+export const remanejar = (mensagem) => acaoDaGira('remanejar', mensagem);
 
 // Gira antiga (só registro): data, entidade, presença e atendidos, já encerrada e sem escala.
 export async function cadastrarGiraAntiga(data, dados) {

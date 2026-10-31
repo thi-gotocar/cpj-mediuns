@@ -96,6 +96,14 @@ function contagemPresentes(ps, g, pct = null) {
 }
 
 // Faltas, ausentes e licenças: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
+// Sorteio (admin): botão "Falta" de cada pessoa da escala e a confirmação logo abaixo.
+const botaoFalta = (id) => `<button class="lock falta-bt" data-act="faltaask" data-id="${id}" title="Marcar falta e refazer a escala">Falta</button>`;
+function confirmaFalta(id) {
+  if (estado.faltaConf !== id) return '';
+  return `<div class="falta-conf"><span>Marcar <b>falta</b> de <b>${esc(nome(id))}</b>? A lista de presença muda para Falta e a escala é refeita como no Remanejar faltas.</span>
+    <span class="row" style="gap:6px"><button class="btn small danger" data-act="faltaok" data-id="${id}">Confirmar falta</button><button class="btn small" data-act="faltacancel">Cancelar</button></span></div>`;
+}
+
 function blocosFora(ps, g) {
   return [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
@@ -425,10 +433,9 @@ function renderGira() {
     const quem = editar
       ? `<select id="sel-${k}-${idx}" data-act="troca" data-k="${k}" data-i="${idx}" aria-label="Trocar">${opts.map((c) => `<option value="${c.id}" ${c.id === p.c ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}${k === 'pares' ? grupoSup(doSuporte, (c) => `<option value="${c.id}">${esc(c.nome)}</option>`) : ''}</select>`
       : `<span class="nmc">${esc(nome(p.c))}</span>`;
-    const fixar = editar && !passada
-      ? `<button class="lock" data-act="fixo" data-k="${k}" data-i="${idx}" aria-pressed="${!!p.fixo}" title="Manter no próximo sorteio">${p.fixo ? 'Fixada' : 'Fixar'}</button>`
-      : p.fixo ? '<span class="badge rep">fixada</span>' : '';
-    return `<div class="camrow">${rotulo ? `<span class="tag ${rotulo === 'Cambone' ? 'cam' : ''}">${rotulo}</span>` : ''}${quem}${selo(mp[p.m + '|' + p.c])}${p.remanejado ? '<span class="badge re">remanejado</span>' : ''}${fixar}</div>`;
+    // "Falta": marca falta na presença e refaz a escala (como Remanejar faltas), depois de confirmar.
+    const falta = editar && !passada && !manual ? botaoFalta(p.c) : '';
+    return `<div class="camrow">${rotulo ? `<span class="tag ${rotulo === 'Cambone' ? 'cam' : ''}">${rotulo}</span>` : ''}${quem}${selo(mp[p.m + '|' + p.c])}${p.remanejado ? '<span class="badge re">remanejado</span>' : ''}${falta}</div>${editar ? confirmaFalta(p.c) : ''}`;
   };
   const temDuplas = validos.length || passesV.length;
   // Ajuste manual: em gira passada fica sempre ligado (registrar como foi);
@@ -468,7 +475,7 @@ function renderGira() {
     const tirar = (k, i) => (manual ? `<button class="lock rm" data-act="remover" data-k="${k}" data-i="${i}" title="Tirar deste médium" aria-label="Tirar">✕</button>` : '');
     h += `<div class="pairs">`;
     lista.forEach((x) => {
-      h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span><span class="muted" style="font-size:.85rem">${x.cams.length} cambone${x.cams.length === 1 ? '' : 's'}</span><div class="cams">`;
+      h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}${editar && !passada && !manual ? botaoFalta(x.m.id) : ''}</span><span class="muted" style="font-size:.85rem">${x.cams.length} cambone${x.cams.length === 1 ? '' : 's'}</span>${editar ? confirmaFalta(x.m.id) : ''}<div class="cams">`;
       x.cams.forEach((p) => { const i = (g.pares || []).indexOf(p); h += linha('pares', p, i, camsPres, map, 'Cambone').replace(/<\/div>$/, tirar('pares', i) + '</div>'); });
       if (!x.cams.length) h += `<span class="muted">Sem cambone.${manual ? '' : sortearOk ? ' Sorteie de novo.' : ''}</span>`;
       x.passes.forEach((p) => { const i = (g.passes || []).indexOf(p); h += linha('passes', p, i, passPres, mapP, 'Passe').replace(/<\/div>$/, tirar('passes', i) + '</div>'); });
@@ -597,6 +604,16 @@ export const cliques = {
     avisar();
   },
   remanejar: () => { duplasAbertas.add(giraAtual().data); remanejar(); },
+  faltaask(el) { estado.faltaConf = el.dataset.id; avisar(); },
+  faltacancel() { estado.faltaConf = null; avisar(); },
+  // Confirmou: presença vira Falta e a escala é refeita (Remanejar faltas).
+  async faltaok(el) {
+    const id = el.dataset.id;
+    estado.faltaConf = null;
+    const g = giraAtual();
+    editarGira({ presenca: { ...(g.presenca || {}), [id]: 'f' } });
+    await remanejar(`Falta de ${nome(id)} marcada. Escala refeita.`);
+  },
   fixo(el) {
     const k = el.dataset.k;
     const g = giraAtual();
