@@ -521,6 +521,7 @@ function renderGira() {
       ${editar && temDuplas ? (g.publicada
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
         : `<button class="btn btn-grande pub-bt" data-act="publicar">📢 Publicar escala</button><p class="muted" style="margin:0;font-size:.85rem">Só os admins veem o sorteio até publicar.</p>`) : ''}
+      ${botaoWhats()}
       ${editar && !passada && (temDuplas || manual) ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
@@ -557,14 +558,25 @@ function renderGira() {
   h += `${manual ? '' : botaoDobrar(true)}</div>`;
   }
 
+  // WhatsApp: abre pelo botão do bloco Sorteio, logo abaixo dele.
+  if (abertos.has('wa')) h += painelWhats(g);
   if (editar) h += blocoSugestao(ps, g);
+  setTimeout(atualizarJanela, 0);
+  return h + '</section>';
+}
 
-  // exportação
+// Ícone do WhatsApp (balão com o telefone).
+const ICONE_WHATS = '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#25D366" d="M12 2.2a9.8 9.8 0 0 0-8.4 14.9L2.3 21.8l4.8-1.3A9.8 9.8 0 1 0 12 2.2z"/><path fill="#fff" d="M8.6 7.2c.2-.4.5-.4.7-.4h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .6l-.4.6c-.1.2-.2.3 0 .6.4.7 1 1.4 1.6 1.9.7.6 1.3.8 1.6 1 .2.1.4.1.5-.1l.7-.8c.2-.2.3-.2.6-.1l1.8.9c.3.1.4.2.5.3 0 .2 0 .8-.3 1.4-.3.6-1.5 1.2-2 1.2-.6.1-1.1.3-3.7-.8-3.1-1.3-5-4.4-5.2-4.6-.1-.2-1.2-1.6-1.2-3.1 0-1.4.7-2.1 1-2.4z"/></svg>';
+// Botão do WhatsApp no bloco Sorteio (mesmo tamanho do Publicar escala); abre o painel logo abaixo.
+const botaoWhats = () => { const ab = abertos.has('wa');
+  return `<button class="btn btn-grande wa-bt" data-act="dobrarcard" data-k="wa" aria-expanded="${ab}"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></button>`; };
+
+// Painel do WhatsApp: texto para copiar e a imagem da escala.
+function painelWhats(g) {
   const txt = textoWhats(estado.pessoas, g, prefs.fmt, girasLista());
   const imgOk = estado.img && estado.img.data === g.data && estado.img.key === chaveImg();
-  h += `<div class="card">${cabDobra('wa', 'WhatsApp')}`;
-  if (!abertos.has('wa')) { h += `</div>`; setTimeout(atualizarJanela, 0); return h + '</section>'; }
-  h += `<div class="row" style="justify-content:flex-end">
+  let h = `<div class="card wa-painel"><div class="grp-h"><h2><span class="wa-ico wa-ico-tit" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</h2></div>
+    <div class="row" style="justify-content:flex-end">
     <div class="seg" role="group" aria-label="Formato"><button data-act="fmt" data-v="lista" aria-pressed="${prefs.fmt === 'lista'}">Lista</button><button data-act="fmt" data-v="tabela" aria-pressed="${prefs.fmt === 'tabela'}">Tabela</button></div></div>
     <textarea id="f-txt" readonly aria-label="Texto para o WhatsApp">${esc(txt)}</textarea>
     <div class="row"><button class="btn primary" data-act="copiar">Copiar texto</button>
@@ -580,8 +592,7 @@ function renderGira() {
       <p class="muted" style="margin:0;font-size:.88rem">No celular, também dá para tocar e segurar a imagem para salvar.</p>`;
   }
   h += `</div></div>`;
-  setTimeout(atualizarJanela, 0);
-  return h + '</section>';
+  return h;
 }
 
 // ---------- ações ----------

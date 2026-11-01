@@ -682,3 +682,11 @@ section.panel.pf-tela{gap:14px}
 .card:has(> .pf-linha){row-gap:0}
 .card:has(> .pf-linha) > .grp-h{margin-bottom:12px}
 .card:has(> .pf-linha) > p{margin-bottom:6px !important}
+/* Botão do WhatsApp no bloco Sorteio (mesmo tamanho do Publicar escala) */
+.wa-bt{border:2px solid #25D366;color:#128C4A;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
+.wa-bt .seta{font-size:.8rem;color:var(--muted)}
+.wa-ico{display:inline-flex;line-height:0}
+.wa-ico-tit svg{width:24px;height:24px;vertical-align:-4px}
+.wa-painel h2{display:flex;align-items:center;gap:8px}
+:root[data-theme="dark"] .wa-bt{color:#4ade80}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .wa-bt{color:#4ade80}}
