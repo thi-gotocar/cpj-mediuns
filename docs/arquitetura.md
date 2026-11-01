@@ -1,0 +1,78 @@
+# Arquitetura
+
+Visão geral e decisões. Detalhes (arquivos, colunas, funções SQL) ficam no código — este doc diz onde procurar.
+
+## Stack e por quê
+
+| Camada | Tecnologia |
+|---|---|
+| Frontend | HTML + CSS + **ES modules sem framework e sem bundler**. PWA. |
+| Backend | **Funções serverless da Vercel** (Node ≥ 20, ESM) em `api/`. |
+| Banco | **Postgres da Vercel (Neon)**, SQL via HTTP. A lógica de dados fica em **funções SQL `jsonb`** chamadas por `db.rpc(nome, params)`. |
+| Regras | `shared/` — o mesmo código roda no navegador e no backend. |
+| npm | **Zero dependências.** Não adicionar pacotes. |
+
+Tudo isso para caber no plano gratuito (Vercel Hobby + Neon) e não ter dependência para manter.
+
+### Limites do plano
+
+- **Vercel Hobby: máximo 12 funções, e já estamos no limite.** Cada arquivo em `api/` fora de `_lib/` é uma função. Nunca criar arquivo novo ali; funcionalidade nova entra como `acao` / `?lista=` num arquivo existente.
+- Logs de runtime da Vercel guardam só ~1 hora.
+
+## Onde fica cada coisa
+
+| Pasta | Papel |
+|---|---|
+| `frontend/js/telas/` | Uma tela por aba (ver padrão em [como-trabalhamos.md](como-trabalhamos.md)) |
+| `frontend/js/` | `main.js` (boot, abas, roteamento de eventos), `estado.js` (estado + chamadas à API), exportação para WhatsApp (texto e PNG) |
+| `api/` | Endpoints; `api/_lib/` tem banco, sessão/permissão, senhas, HTTP e `escala.js` (esconde escala não publicada) |
+| `db/esquema.js` | `VERSAO` + lista `MIGRACOES`: todas as tabelas e funções SQL |
+| `shared/` | Regras de negócio: `regras.js` (sorteio, remanejar, encerrar, trocas do dia, sugestões), `permissoes.js`, `perfil.js`, eventos, oferendas, ervas, resumos |
+| `scripts/` | Servidor local (`npm run dev`) e build |
+| `test/` | Testes com Postgres local |
+
+## Fluxo de dados
+
+```mermaid
+flowchart LR
+    subgraph Navegador
+      UI[telas/*.js render + data-act] --> ST[estado.js]
+      ST --> AP[api.js fetch + token]
+      SH1[shared/*.js] --- UI
+    end
+    AP -->|HTTPS JSON| VF
+    subgraph Vercel
+      VF[funções api/*] --> SE[_lib/sessao.js exigir permissão]
+      SE --> RG[shared/regras.js sorteio, remanejar, encerrar]
+      VF --> ES[_lib/escala.js ocultarSorteio]
+      VF --> DB[_lib/db.js rpc + migração]
+    end
+    DB -->|SQL via HTTP| PG[(Neon Postgres funções jsonb)]
+    PG -->|jsonb| DB
+    VF -->|JSON| AP
+```
+
+## Entidades
+
+Só as relações. Colunas: `db/esquema.js`. O significado dos campos de negócio (`linhas`, `experiente`, `papeis`, status de presença) está em [regras.md](regras.md).
+
+```mermaid
+erDiagram
+    USUARIOS }o--|| PERFIS : papel
+    USUARIOS |o--o| PESSOAS : pessoa_id
+    PESSOAS ||--o{ LICENCAS : tem
+    PESSOAS ||--o{ PRESENCAS : marca
+    GIRAS ||--o{ PRESENCAS : registra
+    GIRAS ||--o{ DUPLAS : escala
+    PESSOAS ||--o{ DUPLAS : "medium_id / pessoa_id"
+    TURMAS_ALUNOS ||--o{ ALUNOS : agrupa
+    OFERENDAS ||--o{ OFERENDA_ITENS : itens
+    OFERENDA_ITENS ||--o{ OFERENDA_DOACOES : doacoes
+    OFERENDAS ||--o{ OFERENDA_MEDIUNS : por_medium
+    PESSOAS ||--o{ OFERENDA_MEDIUNS : participa
+    OFERENDAS ||--o{ OFERENDA_ALUNOS : por_aluno
+    ALUNOS ||--o{ OFERENDA_ALUNOS : participa
+    ERVAS ||--o{ ERVAS_ESCOLHAS : pedidos
+```
+
+Outras tabelas: `sistema` (chave/valor: segredo de sessão, marcadores de migração), `login_falhas`, `eventos`.
