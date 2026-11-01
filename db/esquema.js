@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 45;  // v45: lista de pessoas com afinidades e aniversário (dia/mês)
+export const VERSAO = 46;  // v46: o admin altera as afinidades (passe / atendimento extra) na aba Pessoas
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1415,5 +1415,32 @@ export const MIGRACOES = [
                    then substring(p.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario
        from pessoas p
      ) x;
+   $$`,
+
+  // ================================================== v46: na aba Pessoas, o admin também altera as afinidades
+  `create or replace function pessoas_atualizar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := (p ->> 'id')::uuid;
+   begin
+     update pessoas set
+       nome       = case when p ? 'nome'       then btrim(p ->> 'nome')            else nome end,
+       funcao     = case when p ? 'funcao'     then p ->> 'funcao'                 else funcao end,
+       experiente = case when p ? 'experiente' then (p ->> 'experiente')::boolean else experiente end,
+       linhas     = case when p ? 'linhas'
+                         then array(select distinct jsonb_array_elements_text(p -> 'linhas') order by 1)
+                         else linhas end,
+       afinidade_extra = case when p ? 'afinidadeExtra'
+                         then array(select distinct jsonb_array_elements_text(p -> 'afinidadeExtra') order by 1)
+                         else afinidade_extra end,
+       afinidade_passe = case when p ? 'afinidadePasse'
+                         then array(select distinct jsonb_array_elements_text(p -> 'afinidadePasse') order by 1)
+                         else afinidade_passe end,
+       limpeza    = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else limpeza end,
+       entrada    = case when p ? 'entrada' then nullif(p ->> 'entrada', '')::date else entrada end
+     where id = v_id;
+     if not found then raise exception 'Pessoa não encontrada.'; end if;
+     return (select to_jsonb(x) from (select id, nome, funcao, experiente, linhas, limpeza, entrada,
+                                             afinidade_extra as "afinidadeExtra", afinidade_passe as "afinidadePasse" from pessoas where id = v_id) x);
+   end;
    $$`,
 ];

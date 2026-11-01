@@ -693,3 +693,32 @@ section.panel.pf-tela{gap:14px}
 /* Publicar escala: o aviso fica dentro do botão, sem mudar a altura */
 .btn-grande.pub-bt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding-block:5px;height:54px;line-height:1.15}
 .pub-bt .pub-sub{font-size:.72rem;font-weight:500;opacity:.85}
+/* Pessoas: card CORRENTE CPJ com as licenças em mini blocos */
+.estrela-ouro{color:var(--gold)}
+.lic-lista{display:grid;gap:8px}
+.lic-mini{border:1px solid color-mix(in srgb,var(--off) 35%,var(--line));border-left:4px solid var(--off);border-radius:10px;padding:8px 10px;display:grid;gap:4px;background:color-mix(in srgb,var(--off) 4%,var(--surface))}
+.lic-l1{display:flex;align-items:center;gap:8px;min-width:0}
+.lic-l1 .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lic-datas{font-size:.82rem;color:var(--muted);white-space:nowrap;margin-left:auto}
+.lic-mot{font-size:.85rem;padding-left:22px;overflow-wrap:anywhere}
+.lic-mini.lic-ed{gap:8px}
+/* Pessoas: linha 1 = nome + Editar/Excluir; linha 2 = função, turma e + médium de passe */
+.pp.pp2{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:10px 0}
+.pp-form{display:grid;gap:6px;margin:0}
+.pp-l1{display:flex;align-items:center;gap:8px;min-width:0}
+.pp-l1 .nm{flex:1 1 auto;min-width:0;font-weight:600}
+.pp-l1 input{flex:1 1 auto;min-width:0;padding:6px 9px}
+.pp-bts{display:flex;gap:6px;flex:none;margin-left:auto}
+.btn.pp-bt{min-width:84px;justify-content:center;text-align:center}
+.pp-l2{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.pp-l2 select{width:auto}
+.pp-limp{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:var(--bg);white-space:nowrap}
+.pp-limp.ed{color:var(--ink);padding:2px 4px 2px 9px}
+.pp-exp{white-space:nowrap}
+.pp2 .linhas{margin:0}
+.lic-l1 .nm,.pp-l1 .nm{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;flex:1 1 auto}
+.lic-datas{margin-left:0;flex:none}
+.lic-l1 .btn{flex:none}
+.btn.pp-bt{min-width:76px}
+.lic-txt{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px}
+.lic-txt .nm{flex:0 1 auto}

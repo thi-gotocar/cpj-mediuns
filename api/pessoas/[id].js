@@ -1,4 +1,4 @@
-// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente?, linhas?, limpeza? (1 a 7 ou null), entrada? ('AAAA-MM-DD' ou null; só o admin root) }
+// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente?, linhas?, afinidadeExtra?, afinidadePasse?, limpeza? (1 a 7 ou null), entrada? ('AAAA-MM-DD' ou null; só o admin root) }
 // DELETE /api/pessoas/:id
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { pode } from '../../shared/permissoes.js';
@@ -33,6 +33,12 @@ export default rota({
     if ('linhas' in b) {
       if (!Array.isArray(b.linhas) || b.linhas.some((l) => !LINHA_KEYS.includes(l))) throw new HttpError(400, 'Linha inválida.');
       p.linhas = [...new Set(b.linhas)];
+    }
+    // Afinidades (o que a pessoa marca no Perfil): o admin também altera aqui.
+    for (const k of ['afinidadeExtra', 'afinidadePasse']) {
+      if (!(k in b)) continue;
+      if (!Array.isArray(b[k]) || b[k].some((l) => !LINHA_KEYS.includes(l))) throw new HttpError(400, 'Entidade inválida.');
+      p[k] = [...new Set(b[k])];
     }
     if ('limpeza' in b) p.limpeza = validarTurma(b.limpeza);
     if ('entrada' in b) {
