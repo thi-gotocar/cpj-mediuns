@@ -57,16 +57,17 @@ const nomeFuncao = (p) => (p.funcao === 'extra' ? 'at. extra' : 'médium de pass
 const CAMPOS_LINHAS = { extra: ['linhas', 'afinidadePasse'], passe: ['linhas', 'afinidadeExtra'], cambone: ['afinidadePasse'] };
 const NOME_CAMPO = { afinidadePasse: 'médium de passe', afinidadeExtra: 'atendimento extra' };
 const camposDe = (p) => CAMPOS_LINHAS[p.funcao] || [];
-// "Todas": nas linhas do cadastro é nenhuma marcada (= em todas as giras); nas afinidades, todas as entidades marcadas.
-const todasMarcadas = (c, ls) => (c === 'linhas' ? !ls.length : LINHA_KEYS.every((k) => ls.includes(k)));
+// "Todas" = todas as entidades marcadas. Nenhuma marcada = não está apto a nenhuma.
+const todasMarcadas = (c, ls) => LINHA_KEYS.every((k) => ls.includes(k));
 const rotLinhas = (ls) => (LINHA_KEYS.every((k) => ls.includes(k)) ? 'todas as giras' : ls.map((l) => LINHA_LABEL[l] || l).join(', '));
 
 function resumoLinhas(p) {
   return camposDe(p).map((c) => {
     const ls = p[c] || [];
     const t = c === 'linhas'
-      ? (ls.length ? `Como ${nomeFuncao(p)} em: ${rotLinhas(ls)}. Nas outras giras, cambona.` : `Como ${nomeFuncao(p)} em todas as giras.`)
-      : (ls.length ? `Confiante como ${NOME_CAMPO[c]} em: ${rotLinhas(ls)}.` : `Como ${NOME_CAMPO[c]}: nenhuma entidade marcada.`);
+      ? (!ls.length ? `⚠️ Nenhuma marcada: não atua como ${nomeFuncao(p)} em nenhuma gira (cambona).`
+        : todasMarcadas(c, ls) ? `Como ${nomeFuncao(p)} em todas as giras.` : `Como ${nomeFuncao(p)} em: ${rotLinhas(ls)}. Nas outras giras, cambona.`)
+      : (ls.length ? `Confiante como ${NOME_CAMPO[c]} em: ${rotLinhas(ls)}.` : `Como ${NOME_CAMPO[c]}: nenhuma marcada (não apto).`);
     return `<span class="muted" style="font-size:.82rem">${t}</span>`;
   }).join('');
 }
@@ -75,10 +76,11 @@ function editorLinhas(p, c) {
   const ls = p[c] || [];
   const chave = p.id + ':' + c;
   const resumo = c === 'linhas'
-    ? (ls.length ? `Como ${nomeFuncao(p)} em ${ls.length} linha${ls.length > 1 ? 's' : ''}: ${rotLinhas(ls)}` : `Como ${nomeFuncao(p)} em todas as giras · escolher linhas`)
-    : (ls.length ? `Confiante como ${NOME_CAMPO[c]} em: ${rotLinhas(ls)}` : `Como ${NOME_CAMPO[c]}: nenhuma marcada · escolher`);
+    ? (!ls.length ? `⚠️ Como ${nomeFuncao(p)}: nenhuma marcada (não apto) · escolher`
+      : todasMarcadas(c, ls) ? `Como ${nomeFuncao(p)} em todas as giras` : `Como ${nomeFuncao(p)} em ${ls.length} linha${ls.length > 1 ? 's' : ''}: ${rotLinhas(ls)}`)
+    : (ls.length ? `Confiante como ${NOME_CAMPO[c]} em: ${rotLinhas(ls)}` : `Como ${NOME_CAMPO[c]}: nenhuma marcada (não apto) · escolher`);
   const texto = c === 'linhas'
-    ? `Marque as linhas em que atua como ${nomeFuncao(p)}. Nas giras das outras linhas, entra no sorteio como cambone. Marcando “Todas”, atua como ${nomeFuncao(p)} em todas as giras.`
+    ? `Marque as linhas em que atua como ${nomeFuncao(p)}. Nas giras das outras linhas, entra no sorteio como cambone. Marque “Todas” para atuar em todas as giras. Sem nenhuma marcada, não está apto a nenhuma: cambona em todas.`
     : `Marque as entidades em que tem 100% de afinidade e segurança como ${NOME_CAMPO[c]} (o mesmo que a pessoa marca no Perfil). Vale para a Sugestão Mi/Mãe Vê.`;
   return `<details class="linhas"${estadoAberto.has(chave) ? ' open' : ''} data-id="${chave}">
     <summary>${resumo}</summary>
@@ -162,11 +164,11 @@ function cardAdicionar(ps) {
       <label class="field grow">Nome<input type="text" id="f-nome" placeholder="Um nome, ou vários separados por vírgula" autocomplete="off" maxlength="4000" value="${esc(estado.addRascunho || '')}"></label>
       <button class="btn primary" type="submit">Adicionar</button></form>`;
   } else if (modo === 'licenca') {
-    h += `<form id="f-lic" class="row" autocomplete="off">
-      <label class="field grow">Pessoa<select id="lic-p"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
-      <label class="field" style="flex:1 1 140px">Início<input type="date" id="lic-i" value="${hoje()}"></label>
-      <label class="field" style="flex:1 1 140px">Fim<input type="date" id="lic-f"></label>
-      <label class="field" style="flex:2 1 220px">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…"></label>
+    h += `<form id="f-lic" class="lic-form" autocomplete="off">
+      <label class="field">Pessoa<select id="lic-p"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <div class="lic-datas-f"><label class="field">Início<input type="date" id="lic-i" value="${hoje()}"></label>
+      <label class="field">Fim<input type="date" id="lic-f"></label></div>
+      <label class="field">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…"></label>
       <button class="btn primary" type="submit">Adicionar</button></form>
       <p class="muted" style="margin:0;font-size:.85rem">Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p>`;
   } else {
@@ -183,7 +185,7 @@ function cardAlunos() {
   const A = estado.alunos;
   if (!A) return `<div class="card"><h2>🎓 Alunos</h2><div class="loading">Carregando alunos…</div></div>`;
   const ed = pode('alunos:editar');
-  const aberto = estado.alunosAberto ?? true;
+  const aberto = estado.alunosAberto ?? false;   // começa minimizado
   let h = `<div class="card">${cabDobra('dobraralunos', '🎓 Alunos', A.alunos.length, aberto)}`;
   if (!aberto) return h + '</div>';
   const grupos = [...A.turmas.map((t) => ({ id: t.id, nome: t.nome, lista: A.alunos.filter((a) => a.turmaId === t.id) })),
@@ -196,9 +198,17 @@ function cardAlunos() {
       ${fechado ? '' : g.lista.length ? `<div class="al-lista">${g.lista.map((a) => {
         if (!ed) return `<div class="al-l"><span class="nm">${esc(a.nome)}</span></div>`;
         const conf = estado.confirm === 'al:' + a.id;
-        return `<div class="al-l"><span class="nmline"><span class="nm">${esc(a.nome)}</span><button class="btn link small" data-act="renaluno" data-id="${a.id}" aria-label="Editar nome de ${esc(a.nome)}">✎ editar</button></span>
-          <select data-act="turmaaluno" data-id="${a.id}" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${A.turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select>
-          ${conf ? `<button class="btn small danger" data-act="delaluno" data-id="${a.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="al:${a.id}">Excluir</button>`}</div>`;
+        // Editar: o nome e a turma ficam editáveis (Salvar / Cancelar).
+        if (estado.editAluno === a.id) {
+          return `<form id="f-aluno" class="al-l al-ed" data-id="${a.id}" autocomplete="off">
+            <div class="pp-l1"><input type="text" id="al-nome" value="${esc(a.nome)}" maxlength="80" aria-label="Nome de ${esc(a.nome)}">
+              <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelaluno">Cancelar</button></span></div>
+            <label class="al-turma">Turma <select id="al-turma" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${A.turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label></form>`;
+        }
+        return `<div class="al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
+          <span class="pp-bts"><button class="btn small pp-bt" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}">Editar</button>${conf
+            ? `<button class="btn small danger pp-bt" data-act="delaluno" data-id="${a.id}">Confirmar</button>`
+            : `<button class="btn small pp-bt" data-act="askdel" data-k="al:${a.id}">Excluir</button>`}</span></div></div>`;
       }).join('')}</div>` : '<p class="muted" style="margin:4px 0 0;font-size:.9rem">Nenhum aluno nesta turma.</p>'}</div>`;
   }).join('')}</div>`;
   return h + '</div>';
@@ -248,7 +258,8 @@ export function render() {
 export const cliques = {
   dobraradd() { estado.addAberto = !(estado.addAberto ?? !pessoasOrd().some((p) => !ehCurimba(p))); avisar(); },
   dobrarcurimba() { estado.curimbaAberta = !estado.curimbaAberta; avisar(); },
-  addmodo(el) { estado.addModo = el.dataset.v; avisar(); document.querySelector('#f-nome, #lic-p, #cur-nome')?.focus(); },
+  // Troca o que adicionar sem abrir nenhum campo sozinho (o combo de pessoas só abre ao tocar nele).
+  addmodo(el) { estado.addModo = el.dataset.v; avisar(); },
   // Minimiza / expande o bloco de uma função (lembra no aparelho).
   dobrar(el) {
     const k = el.dataset.f;
@@ -276,7 +287,7 @@ export const cliques = {
     if (inp) { inp.focus(); inp.select(); }
   },
   cancelren() { estado.renomear = null; avisar(); },
-  dobraralunos() { estado.alunosAberto = !(estado.alunosAberto ?? true); avisar(); },
+  dobraralunos() { estado.alunosAberto = !(estado.alunosAberto ?? false); avisar(); },
   dobrarturma(el) {
     const set = new Set(prefs.turmasFechadas || []);
     if (set.has(el.dataset.t)) set.delete(el.dataset.t); else set.add(el.dataset.t);
@@ -295,15 +306,8 @@ export const cliques = {
     const t = r && r.turmas.find((x) => x.nome.toLowerCase() === n.toLowerCase());
     if (t) { estado.turmaSel = t.id; toast(`${t.nome} criada.`); avisar(); }
   },
-  async renaluno(el) {
-    const a = (estado.alunos?.alunos || []).find((x) => x.id === el.dataset.id);
-    if (!a) return;
-    const nome = prompt('Nome do aluno:', a.nome);
-    if (nome === null) return;
-    const n = nome.replace(/\s+/g, ' ').trim();
-    if (!n || n === a.nome) return;
-    if (await acaoAlunos('aluno', { id: a.id, nome: n })) toast('Nome alterado.');
-  },
+  editaluno(el) { estado.editAluno = el.dataset.id; avisar(); document.getElementById('al-nome')?.focus(); },
+  cancelaluno() { estado.editAluno = null; avisar(); },
   delaluno(el) { estado.confirm = null; acaoAlunos('excluirAluno', { id: el.dataset.id }); },
 };
 
@@ -339,7 +343,6 @@ export const mudancas = {
     if (campo) campo.hidden = t.value !== ALUNO;
   },
   turmasel(t) { estado.turmaSel = t.value; },
-  turmaaluno(t) { acaoAlunos('aluno', { id: t.dataset.id, turmaId: t.value }); },
   exp(t) { atualizarPessoa(t.dataset.id, { experiente: t.checked }); },
   func(t) { atualizarPessoa(t.dataset.id, { funcao: t.value }); },
   limpeza(t) { atualizarPessoa(t.dataset.id, { limpeza: t.value ? Number(t.value) : null }); },
@@ -347,8 +350,6 @@ export const mudancas = {
     const p = estado.pessoas.find((x) => x.id === t.dataset.id);
     if (!p) return;
     const c = t.dataset.c;
-    // Linhas do cadastro: "Todas" = nenhuma marcada (desmarcar sem escolher nenhuma continua em todas).
-    if (c === 'linhas') { if (t.checked) atualizarPessoa(p.id, { linhas: [] }); else avisar(); return; }
     atualizarPessoa(p.id, { [c]: t.checked ? [...LINHA_KEYS].sort() : [] });
   },
   linha(t) {
@@ -409,4 +410,19 @@ export async function enviarFormulario() {
     const novo = document.getElementById('f-nome');
     if (novo) { novo.value = ''; novo.focus(); }
   } catch (e) { toast(e.message); avisar(); }
+}
+
+// Aluno em Editar: salva o nome e a turma.
+export async function salvarAluno(form) {
+  const id = form.dataset.id;
+  const a = (estado.alunos?.alunos || []).find((x) => x.id === id);
+  const nome = document.getElementById('al-nome').value.replace(/\s+/g, ' ').trim();
+  const turmaId = document.getElementById('al-turma').value;
+  if (!nome) { toast('Digite o nome.'); return; }
+  const patch = {};
+  if (!a || nome !== a.nome) patch.nome = nome;
+  if (!a || turmaId !== (a.turmaId || '')) patch.turmaId = turmaId;
+  estado.editAluno = null;
+  if (!Object.keys(patch).length) { avisar(); return; }
+  if (await acaoAlunos('aluno', { id, ...patch })) toast('Aluno alterado.');
 }

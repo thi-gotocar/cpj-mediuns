@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 46;  // v46: o admin altera as afinidades (passe / atendimento extra) na aba Pessoas
+export const VERSAO = 47;  // v47: linhas do Extra/Passe sem nenhuma marcada = não apto; quem estava assim passa a ter Todas
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1443,4 +1443,15 @@ export const MIGRACOES = [
                                              afinidade_extra as "afinidadeExtra", afinidade_passe as "afinidadePasse" from pessoas where id = v_id) x);
    end;
    $$`,
+
+  // ================================================== v47: Extra/Passe sem nenhuma linha marcada passa a ser "não apto a nenhuma".
+  // Quem estava assim (antes valia "em todas as giras") ganha todas as linhas marcadas, uma vez só (marca em sistema).
+  `do $$
+   begin
+     if not exists (select 1 from sistema where chave = 'v47_linhas_todas') then
+       update pessoas set linhas = '{preto-velho,malandro,baiano,cigano,marinheiro,boiadeiro,eres,caboclo,mista,exu,pomba-gira,exu-mirim,exus-pombagira}'::text[]
+        where funcao in ('extra', 'passe') and coalesce(array_length(linhas, 1), 0) = 0;
+       insert into sistema (chave, valor) values ('v47_linhas_todas', 'ok');
+     end if;
+   end $$`,
 ];

@@ -25,7 +25,9 @@ test('extra e passe atuam só nas linhas marcadas; nas outras, cambonam', () => 
   assert.equal(funcaoNaGira(extra, g('Preto Velho')), 'cambone');
   assert.equal(funcaoNaGira(passe, g('Pretos Velhos')), 'passe');
   assert.equal(funcaoNaGira(passe, g('Exu')), 'cambone');
-  assert.equal(funcaoNaGira(semLinhas, g('Exu')), 'extra', 'sem linhas marcadas: sempre a própria função');
+  assert.equal(funcaoNaGira(semLinhas, g('Exu')), 'cambone', 'sem linhas marcadas: não apto a nenhuma, cambona');
+  assert.equal(funcaoNaGira(semLinhas, g('')), 'extra', 'gira sem entidade: não converte');
+  assert.equal(funcaoNaGira({ ...semLinhas, linhas: undefined }, g('Exu')), 'extra', 'sem o campo linhas: não converte');
   assert.equal(funcaoNaGira(medium, g('Baiano')), 'medium', 'linhas só valem para extra e passe');
   assert.equal(funcaoNaGira(extra, g('')), 'extra', 'gira sem entidade: ninguém é convertido');
   const lista = pessoasDaGira([extra, passe], g('Baiano'));
@@ -322,11 +324,13 @@ test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async ()
     { id: '4', nome: 'Duda', funcao: 'extra', linhas: ['baiano'] },
     { id: '5', nome: 'Eva', funcao: 'cambone', afinidadePasse: ['caboclo'] },
     { id: '6', nome: 'Fábio', funcao: 'extra', linhas: [] },
+    { id: '7', nome: 'Gil', funcao: 'extra', linhas: ['baiano', 'caboclo', 'exu'] },
   ];
   const g = { data: '2030-01-01', entidade: 'Caboclo', presenca: { 5: 'a' } };
   const r = sugestoesDaGira(ps, g);
-  // Passe: cambone que marcou (Ana) + extra que não marcou (Duda); Bia (já é Passe) e Caio (extra que marcou) não.
-  assert.deepEqual(r.passe.map((x) => x.nome), ['Ana', 'Duda']);
+  // Passe: cambone que marcou (Ana) + extras que não marcaram (Duda; Fábio, sem nenhuma = não apto);
+  // Bia (já é Passe), Caio e Gil (extras que marcaram) não.
+  assert.deepEqual(r.passe.map((x) => x.nome), ['Ana', 'Duda', 'Fábio']);
   assert.deepEqual(r.extra.map((x) => x.nome), ['Bia']);
   assert.equal(r.extra[0].entidade, 'Pena Branca');
   assert.equal(r.passe[0].entidade, 'Caboclo');

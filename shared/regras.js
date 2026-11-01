@@ -105,9 +105,9 @@ export function nomeGira(entidade) {
   return e ? ESPECIAL_LABEL[e] : String(entidade || '');
 }
 
-// Extra e Passe podem ter as linhas em que atuam nessa função. Nas outras giras, cambonam.
-// Sem nenhuma linha marcada, a pessoa atua sempre na própria função.
-export const usaLinhas = (p) => (p.funcao === 'extra' || p.funcao === 'passe') && Array.isArray(p.linhas) && p.linhas.length > 0;
+// Extra e Passe marcam as linhas em que atuam nessa função ("Todas" = todas marcadas). Nas outras giras, cambonam.
+// Nenhuma linha marcada = não está apto a nenhuma: cambona em toda gira de linha.
+export const usaLinhas = (p) => (p.funcao === 'extra' || p.funcao === 'passe') && Array.isArray(p.linhas);
 
 // Extra/Passe numa gira de linha que não marcou no cadastro.
 export function foraDaLinha(p, g) {
@@ -541,19 +541,17 @@ export function reabrir(pessoas, g) {
 // Sugestão de Passe / Atendimento extra para a gira (aba Gira, admin), pelo que cada um marcou no Perfil
 // ("100% de afinidade e segurança") para a linha da gira. Quem já é Passe no cadastro não entra no Passe.
 // PASSE: Cambone que marcou a linha no bloco Passe; At. Extra que NÃO marcou a linha no Atendimento extra
-// (sem nenhuma marcada = "Como extra em todas as giras": conta como todas marcadas, então não entra).
+// (quem marcou "Todas" não entra; quem não marcou nenhuma entra).
 // ATENDIMENTO EXTRA: Passe que marcou a linha no bloco Atendimento extra. Cada um vem com o nome da entidade.
 export function sugestoesDaGira(pessoas, g) {
   const l = linhaDaEntidade(g?.entidade);
   if (!l) return null;
   const alvo = [l, ...(JUNTAS[l] || [])];
   const tem = (arr) => (arr || []).some((x) => alvo.includes(x));
-  // Linhas do cadastro (Extra/Passe) sem nenhuma marcada = "em todas as giras": conta como todas marcadas.
-  const temLinha = (arr) => !(arr || []).length || tem(arr);
   const fora = (p) => !naCorrenteEm(p, g.data) || ['lic', 'f', 'a'].includes(presencaDe(p, g));
   const item = (p) => ({ id: p.id, nome: p.nome, funcao: p.funcao, entidade: guiaNaGira(p, g) || LINHA_LABEL[l] });
   const ord = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
-  const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'cambone' && tem(p.afinidadePasse)) || (p.funcao === 'extra' && !temLinha(p.linhas)))).map(item).sort(ord);
+  const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'cambone' && tem(p.afinidadePasse)) || (p.funcao === 'extra' && !tem(p.linhas)))).map(item).sort(ord);
   const extra = pessoas.filter((p) => !fora(p) && p.funcao === 'passe' && tem(p.afinidadeExtra)).map(item).sort(ord);
   return { linha: l, passe, extra };
 }

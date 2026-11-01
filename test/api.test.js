@@ -1,6 +1,7 @@
 // Testes de integração do backend: rotas reais + Postgres local.
 // Rodar: npm test   (precisa de Postgres local; veja test/apoio.js)
 
+import { LINHA_KEYS } from '../shared/regras.js';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { prepararBanco, usarBancoLocal, sql } from './apoio.js';
@@ -139,7 +140,7 @@ test('admin cadastra a corrente; usuário só lê', async () => {
   assert.equal((await api('PATCH', '/api/pessoas/' + julia.id, ADMIN, { linhas: ['oxossi'] })).status, 400);
   assert.equal((await api('PATCH', '/api/pessoas/' + julia.id, USER, { linhas: [] })).status, 403);
   assert.deepEqual((await api('GET', '/api/pessoas', USER)).json.find((p) => p.nome === 'Júlia').linhas, ['caboclo', 'exu']);
-  await api('PATCH', '/api/pessoas/' + julia.id, ADMIN, { linhas: [] }); // volta ao normal para os próximos testes
+  await api('PATCH', '/api/pessoas/' + julia.id, ADMIN, { linhas: LINHA_KEYS }); // Todas: atua em todas as giras nos próximos testes
 });
 
 test('sorteio, rodízio e permissões da gira', async () => {

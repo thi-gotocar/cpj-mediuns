@@ -134,8 +134,8 @@ function cardsAfinidade(eu) {
     // Começa minimizado; tocar no título expande.
     return card('afin-' + tipo, A.titulo, selo(ls.length > 0), false, () => `
       <p class="muted" style="margin:0;font-size:.9rem">${A.texto}</p>
-      ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Marcando “Todas”, atua como ${A.funcao} em todas as giras.</p>` : ''}
-      <label class="chip chip-todas"><input type="checkbox" id="af-${tipo}-todas" data-act="afintodas" data-tipo="${tipo}" ${(campo === 'linhas' ? !ls.length : LINHA_KEYS.every((k) => ls.includes(k))) ? 'checked' : ''}> Todas</label>
+      ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Marque “Todas” para atuar em todas. Sem nenhuma marcada, você não está apto a nenhuma e cambona.</p>` : ''}
+      <label class="chip chip-todas"><input type="checkbox" id="af-${tipo}-todas" data-act="afintodas" data-tipo="${tipo}" ${LINHA_KEYS.every((k) => ls.includes(k)) ? 'checked' : ''}> Todas</label>
       ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
         `<label class="chip"><input type="checkbox" id="af-${tipo}-${k}" data-act="afin" data-tipo="${tipo}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}`, true);
   }).join('');
@@ -293,12 +293,11 @@ export const mudancas = {
     if (t.checked) atual.add(t.dataset.l); else atual.delete(t.dataset.l);
     salvarAfinidade(bloco.tipo, [...atual].sort());
   },
-  // "Todas": nas da própria função (valem no sorteio) é nenhuma marcada = em todas as giras; nas outras, todas marcadas.
+  // "Todas": marca (ou desmarca) todas as entidades. Nenhuma marcada = não está apto a nenhuma.
   afintodas(t) {
     const eu = estado.perfil.eu;
     const bloco = blocosAfinidade(eu.funcao).find((x) => x.tipo === t.dataset.tipo);
     if (!bloco) return;
-    if (bloco.campo === 'linhas') { if (t.checked) salvarAfinidade(bloco.tipo, []); else avisar(); return; }
     salvarAfinidade(bloco.tipo, t.checked ? [...LINHA_KEYS].sort() : []);
   },
   infopessoa(t) { estado.infoPessoa = t.value; avisar(); },
