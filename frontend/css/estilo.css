@@ -613,10 +613,10 @@ body.deslogado .rodape{display:none}
 .selo-preench{display:inline-block;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 9px;border:1.5px solid #d4a017;color:#8a6500;background:#fff7d6;vertical-align:middle;font-family:var(--f-body)}
 .selo-preench.ok{border-color:#2e9b55;color:#1d7a3c;background:#e3f4e8}
 /* Gira: sorteio ainda não feito */
-.card.sorteio-pend{border:2px solid var(--off);background:color-mix(in srgb,var(--off) 5%,var(--surface))}
-.sorteio-pend .sp-icone{font-size:1.8rem;line-height:1}
-.sorteio-pend h2{color:var(--off)}
-.sorteio-pend p{margin:0}
+.sorteio-pend{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;border:2px solid var(--off);border-radius:12px;padding:12px;background:color-mix(in srgb,var(--off) 5%,var(--surface))}
+.sorteio-pend .sp-icone{font-size:1.6rem;line-height:1}
+.sorteio-pend .sp-tit{color:var(--off);font-size:1rem}
+.sorteio-pend .sp-prev{font-size:.88rem}
 .eu-poss{font-size:.88rem}
 .selo-preench.oferenda{border-color:var(--orange);color:var(--orange);background:color-mix(in srgb,var(--orange) 10%,transparent)}
 .selo-preench.andamento{border-color:#2c4ea3;color:#2c4ea3;background:#e6ecfb}
@@ -643,7 +643,7 @@ body.deslogado .rodape{display:none}
 .sup-lista{display:flex;flex-direction:column;gap:6px}.sup-l{display:flex;align-items:center;gap:10px}
 /* Presença: quem está fora da função do cadastro nesta gira */
 .nm-mudou{display:inline-block;color:#8a6500;background:#fff7d6;border:1.5px solid #d4a017;border-radius:8px;padding:0 7px;line-height:1.5}
-.pres select.st.papel-dia.pas{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
+.pres select.st.papel-dia.ext,.pres select.st.papel-dia.sen,.pres select.st.papel-dia.pas{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft)}
 .pres .nm .nm-mudou{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 /* Sorteio (admin): botões Falta alinhados à direita; linha entre os médiuns mais grossa */
 .pair{border-bottom-width:2px;padding-bottom:10px}
@@ -659,3 +659,12 @@ body.deslogado .rodape{display:none}
 .of-grupos{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 26px}
 .of-grupos[hidden]{display:none}
 .of-aluno{font-size:.65rem}
+
+/* Sugestão Mi/Mãe Vê: 5 nomes à vista, o resto com rolagem */
+.sugestao .sug-grp{gap:6px}
+.sug-lista{display:flex;flex-direction:column;max-height:calc(5 * 2.3rem + 4px);overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+.sug-l{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:2.3rem;padding:4px 10px;border-bottom:1px solid var(--line);font-size:.92rem}
+.sug-l:last-child{border-bottom:0}
+.sug-nome{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.sug-ent{color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere}
+.evs-niver{white-space:nowrap}

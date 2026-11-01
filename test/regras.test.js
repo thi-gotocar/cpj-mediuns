@@ -293,3 +293,40 @@ test('guia de atendimento na gira: pela linha da entidade (e gira junta)', async
   assert.equal(guiaNaGira(p, { entidade: 'Caboclo' }), '');
   assert.equal(guiaNaGira(p, { entidade: '' }), '');
 });
+
+test('função do dia: Cambone como Passe/Senha, Passe como At. Extra, Senha como Cambone/Passe', async () => {
+  const { funcaoNaGira, papelDe, cambonaHoje, pessoasDaGira, status } = await import('../shared/regras.js');
+  const c = { id: 'c', nome: 'Ca', funcao: 'cambone' };
+  const pa = { id: 'p', nome: 'Pa', funcao: 'passe', linhas: [] };
+  const s = { id: 's', nome: 'Se', funcao: 'senha' };
+  const g = (papeis) => ({ data: '2030-01-01', entidade: 'Caboclo', presenca: { c: 'p', p: 'p', s: 'p' }, papeis });
+  assert.equal(funcaoNaGira(c, g({ c: 'pas' })), 'passe');
+  assert.equal(papelDe(c, g({ c: 'pas' })), 'pas');
+  assert.equal(status(c, g({ c: 'pas' })), 'p');
+  assert.ok(!cambonaHoje(c, g({ c: 'pas' })), 'cambone de passe não cambona');
+  assert.equal(funcaoNaGira(c, g({ c: 'sen' })), 'senha');
+  assert.ok(!cambonaHoje(c, g({ c: 'sen' })));
+  assert.equal(funcaoNaGira(pa, g({ p: 'ext' })), 'extra');
+  assert.equal(pessoasDaGira([pa], g({ p: 'ext' }))[0].funcao, 'extra');
+  assert.ok(cambonaHoje(s, g({ s: 'na' })), 'senha como cambone cambona');
+  assert.equal(funcaoNaGira(s, g({ s: 'pas' })), 'passe');
+  assert.equal(papelDe({ ...s, funcao: 'medium' }, g({ s: 'sen' })), 'cad', "'sen' só vale para Cambone");
+});
+
+test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async () => {
+  const { sugestoesDaGira } = await import('../shared/regras.js');
+  const ps = [
+    { id: '1', nome: 'Bia', funcao: 'passe', linhas: ['caboclo'], afinidadeExtra: ['caboclo'], guiasAtendimento: { caboclo: 'Pena Branca' } },
+    { id: '2', nome: 'Ana', funcao: 'cambone', afinidadePasse: ['caboclo'] },
+    { id: '3', nome: 'Caio', funcao: 'extra', linhas: ['caboclo'] },
+    { id: '4', nome: 'Duda', funcao: 'extra', linhas: ['baiano'] },
+    { id: '5', nome: 'Eva', funcao: 'cambone', afinidadePasse: ['caboclo'] },
+  ];
+  const g = { data: '2030-01-01', entidade: 'Caboclo', presenca: { 5: 'a' } };
+  const r = sugestoesDaGira(ps, g);
+  assert.deepEqual(r.passe.map((x) => x.nome), ['Ana', 'Bia']);
+  assert.deepEqual(r.extra.map((x) => x.nome), ['Bia', 'Caio']);
+  assert.equal(r.passe[1].entidade, 'Pena Branca');
+  assert.equal(r.passe[0].entidade, 'Caboclo');
+  assert.equal(sugestoesDaGira(ps, { data: '2030-01-01', entidade: '' }), null);
+});

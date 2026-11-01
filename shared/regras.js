@@ -117,9 +117,14 @@ export function foraDaLinha(p, g) {
   // Gira junta (ex.: Exus & Pombagira): vale quem marcou a própria gira junta ou qualquer uma das linhas dela.
   return ![linha, ...(JUNTAS[linha] || [])].some((l) => p.linhas.includes(l));
 }
+// Trocas de função só nesta gira (2º combo da presença): 'pas' → Passe (Extra, Cambone, Senha),
+// 'ext' → At. Extra (Passe), 'sen' → Senha (Cambone). 'na' (Cambone / Não atende) cambona.
+export const TROCAS_DIA = { pas: ['passe', ['extra', 'cambone', 'senha']], ext: ['extra', ['passe']], sen: ['senha', ['cambone']] };
 export function funcaoNaGira(p, g) {
-  // Extra escolhido como Passe nesta gira (papeis[id] = 'pas').
-  if ((g.papeis || {})[p.id] === 'pas' && p.funcao === 'extra') return 'passe';
+  // Já convertida (pessoasDaGira): não converte de novo.
+  if (p.funcaoCadastro) return p.funcao;
+  const r = (g.papeis || {})[p.id];
+  if (TROCAS_DIA[r] && TROCAS_DIA[r][1].includes(p.funcao)) return TROCAS_DIA[r][0];
   // O admin pode manter a função do cadastro mesmo fora da linha (papeis[id] = 'cad').
   if ((g.papeis || {})[p.id] === 'cad') return p.funcao;
   return foraDaLinha(p, g) ? 'cambone' : p.funcao;
@@ -171,7 +176,7 @@ export function presencaDe(p, g) {
 export function papelDe(p, g) {
   const r = (g.papeis || {})[p.id];
   if (r === 'sup' || r === 'na' || r === 'cad') return r;
-  if (r === 'pas' && p.funcao === 'extra') return 'pas';
+  if (TROCAS_DIA[r] && TROCAS_DIA[r][1].includes(p.funcao)) return r;
   const v = (g.presenca || {})[p.id];
   if (v === 'sup' || v === 'na') return v;
   // Extra/Passe fora das linhas que marcou: entra como "Não atende" (está na gira e cambona).
@@ -182,7 +187,7 @@ export function status(p, g) {
   const pr = presencaDe(p, g);
   if (pr === 'lic' || pr === 'f' || pr === 'a') return pr;
   const papel = papelDe(p, g);
-  return papel === 'cad' || papel === 'pas' ? pr : papel;
+  return papel === 'cad' || TROCAS_DIA[papel] ? pr : papel;
 }
 // Pendente (presença ainda não confirmada) conta como presente na escala e no sorteio.
 export const presente = (p, g) => { const s = status(p, g); return s === 'p' || s === 'pend'; };
@@ -231,7 +236,7 @@ export function limpezaDaGira(todas, g, giras) {
 }
 export const cambonaHoje = (p, g) => {
   const s = status(p, g);
-  return ((s === 'p' || s === 'pend') && p.funcao === 'cambone') || s === 'na';
+  return ((s === 'p' || s === 'pend') && funcaoNaGira(p, g) === 'cambone') || s === 'na';
 };
 export const recebe = (p) => p.funcao === 'medium' || p.funcao === 'extra';
 export const ehCambone = (p) => p.funcao === 'cambone';
@@ -521,7 +526,7 @@ export function reabrir(pessoas, g) {
   const nomes = [];
   for (const [id, antes] of Object.entries(g.suporteAuto || {})) {
     if (papeis[id] === 'sup') {
-      if (antes === 'na' || antes === 'pas') papeis[id] = antes; else delete papeis[id];
+      if (antes === 'na' || TROCAS_DIA[antes]) papeis[id] = antes; else delete papeis[id];
     } else if (presenca[id] === 'sup') {
       presenca[id] = antes === 'cad' ? 'p' : antes;   // formato antigo
     } else continue;
@@ -531,4 +536,20 @@ export function reabrir(pessoas, g) {
   nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const mensagem = 'Gira reaberta.' + (nomes.length ? ` ${nomes.length === 1 ? 'Voltou' : 'Voltaram'} do Suporte: ${nomes.join(', ')}.` : '');
   return { patch: { presenca, papeis, encerrada: false, suporteAuto: {} }, mensagem };
+}
+
+// Sugestão de Passe / Atendimento extra para a gira (aba Gira, admin): quem marcou no Perfil
+// que se sente confiante na linha da gira. Passe: os de passe (linhas) e os cambones (afinidadePasse).
+// Atendimento extra: os extras (linhas) e os de passe (afinidadeExtra). Cada um vem com o nome da entidade.
+export function sugestoesDaGira(pessoas, g) {
+  const l = linhaDaEntidade(g?.entidade);
+  if (!l) return null;
+  const alvo = [l, ...(JUNTAS[l] || [])];
+  const tem = (arr) => (arr || []).some((x) => alvo.includes(x));
+  const fora = (p) => !naCorrenteEm(p, g.data) || ['lic', 'f', 'a'].includes(presencaDe(p, g));
+  const item = (p) => ({ id: p.id, nome: p.nome, funcao: p.funcao, entidade: guiaNaGira(p, g) || LINHA_LABEL[l] });
+  const ord = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+  const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'passe' && tem(p.linhas)) || (p.funcao === 'cambone' && tem(p.afinidadePasse)))).map(item).sort(ord);
+  const extra = pessoas.filter((p) => !fora(p) && ((p.funcao === 'extra' && tem(p.linhas)) || (p.funcao === 'passe' && tem(p.afinidadeExtra)))).map(item).sort(ord);
+  return { linha: l, passe, extra };
 }

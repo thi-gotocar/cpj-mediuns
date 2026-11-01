@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira } from '/shared/regras.js';
+import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, publicarEscala, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -105,11 +105,14 @@ function confirmaFalta(id) {
 }
 
 // 2º combo da presença (função nesta gira), conforme o cadastro:
-// Passe → Passe / Cambone / Suporte · Extra → At. Extra / Passe / Suporte / Não atende · demais → função / Suporte / Não atende.
+// Cambone → Cambone / Passe / Senha / Suporte · Passe → Passe / Cambone / At. Extra / Suporte
+// Senha → Senha / Cambone / Passe / Suporte · Extra → At. Extra / Passe / Suporte / Não atende · demais → função / Suporte / Não atende.
 const NOME_FUNCAO = { medium: 'Médium', cambone: 'Cambone', passe: 'Passe', extra: 'At. Extra', senha: 'Senha' };
 function opcoesPapel(p) {
   const cad = ['cad', NOME_FUNCAO[p.funcao] || p.funcao];
-  if (p.funcao === 'passe') return [cad, ['na', 'Cambone'], ['sup', 'Suporte']];
+  if (p.funcao === 'cambone') return [cad, ['pas', 'Passe'], ['sen', 'Senha'], ['sup', 'Suporte']];
+  if (p.funcao === 'passe') return [cad, ['na', 'Cambone'], ['ext', 'At. Extra'], ['sup', 'Suporte']];
+  if (p.funcao === 'senha') return [cad, ['na', 'Cambone'], ['pas', 'Passe'], ['sup', 'Suporte']];
   if (p.funcao === 'extra') return [cad, ['pas', 'Passe'], ['sup', 'Suporte'], ['na', 'Não atende']];
   return [cad, ['sup', 'Suporte'], ['na', 'Não atende']];
 }
@@ -189,7 +192,7 @@ function blocoEu(g) {
   else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
   else if (curimba) lin('Função', 'Curimba');
   else if (funcao === 'senha') lin('Função', 'Senha');
-  else if (!sorteado) aviso('A escala desta gira ainda não foi sorteada.');
+  else if (!sorteado) { /* o aviso de sorteio pendente vai no fim do bloco */ }
   else if (funcao === 'medium' || funcao === 'extra') {
     const cs = camsDe(p.id);
     if (!cs.length) aviso('Você ainda está sem cambone.');
@@ -213,6 +216,8 @@ function blocoEu(g) {
       camsDe(m).forEach((c) => lin('Cambone do médium', esc(nome(c))));
     });
   }
+  // Gira em aberto ainda sem sorteio: o aviso "Sorteio de escala pendente" fica dentro deste bloco.
+  if (!sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push(caixaPendente(g));
   const pr = presencaDe(p, g);
   // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
   if (sorteado) { /* nada */ } else if (!curimba && estado.me?.corrente) {
@@ -258,13 +263,19 @@ const cabDobra = (k, titulo, extra = '') => {
   return `<button class="grp-h dobra" data-act="dobrarcard" data-k="${k}" aria-expanded="${ab}"><h2>${titulo}</h2><span class="count">${extra} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
 };
 
+// Aviso de sorteio pendente (só para gira em aberto).
+const caixaPendente = (g) => `<div class="sorteio-pend"><span class="sp-icone" aria-hidden="true">⚠️</span><b class="sp-tit">Sorteio de escala pendente da Michelle</b>
+  <span class="muted sp-prev">Previsão: <b>${esc(dLong(g.data))}</b> (${esc(dDM(g.data))})</span></div>`;
+// Quem está logado tem o bloco "Você nesta gira" (lá vai o aviso de pendente).
+const temBlocoEu = () => !!(estado.me?.pessoaId && estado.pessoas.some((x) => x.id === estado.me.pessoaId));
+
 // Só o resultado do sorteio (acesso da corrente).
 function resultado(g) {
   const { lista, semPasse } = paresPorMedium(estado.pessoas, g);
   const comDuplas = lista.some((x) => x.cams.length || x.passes.length);
   if (!comDuplas) {
-    return `<div class="card empty sorteio-pend"><span class="sp-icone" aria-hidden="true">⚠️</span><h2>Sorteio de escala pendente da Michelle</h2>
-      <p class="muted">Previsão: <b>${esc(dLong(g.data))}</b> (${esc(dDM(g.data))})</p></div>`;
+    if (g.encerrada) return '<div class="card empty"><p class="muted" style="margin:0">Nenhuma escala registrada nesta gira.</p></div>';
+    return temBlocoEu() ? '' : `<div class="card">${caixaPendente(g)}</div>`;
   }
   const aberto = duplasAbertas.has(g.data);
   let h = `<div class="card"><div class="grp-h">${tituloSorteio()}</div>`;
@@ -285,14 +296,35 @@ function resultado(g) {
   return h + `${botaoDobrar(true)}</div>`;
 }
 
+// Admin: "Sugestão Mi/Mãe Vê" — quem marcou no Perfil que se sente confiante na entidade da gira,
+// em dois blocos (Passe e Atendimento extra), 5 nomes à vista e o resto com rolagem.
+function blocoSugestao(ps, g) {
+  const sug = sugestoesDaGira(ps, g);
+  const corpo = !sug
+    ? '<p class="muted" style="margin:0;font-size:.88rem">Escolha a entidade da gira para ver as sugestões.</p>'
+    : [['PASSE', sug.passe], ['ATENDIMENTO EXTRA', sug.extra]].map(([t, lista]) => `<div class="grp sug-grp"><div class="grp-h"><h3>${t}</h3><span class="count">${lista.length}</span></div>
+      ${lista.length ? `<div class="sug-lista">${lista.map((x) => `<div class="sug-l"><span class="sug-nome">${esc(x.nome)}</span><span class="sug-ent">${esc(x.entidade)}</span></div>`).join('')}</div>`
+        : '<p class="muted" style="margin:0;font-size:.85rem">Ninguém marcou esta entidade.</p>'}</div>`).join('');
+  return `<div class="card adm sugestao"><div class="grp-h"><h2>Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="count">${esc(LINHA_LABEL[sug.linha] || '')}</span>` : ''}</div>${corpo}</div>`;
+}
+
 // Topo da aba Gira (só data e nome): gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.
 function cardSemana() {
   const hj = hoje();
-  const evs = eventosDoTopo(estado.eventos, hj);
+  // Aniversariantes da semana (domingo a sábado): dia/mês do Perfil, com 🎈🎂 antes do nome.
+  const evs = [...eventosDoTopo(estado.eventos, hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || (a.niver ? 1 : 0) - (b.niver ? 1 : 0));
   const dia = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()) + ' ' + dataCurta(d));
   return `<div class="card ev-semana"><div class="grp-h"><span class="eyebrow">📅 Eventos</span>${evs.length ? `<span class="count">${evs.length}</span>` : ''}</div>
-    ${evs.length ? `<div class="evs-lista">${evs.map((e) => `<div class="evs-l${e.data === hj ? ' hoje' : ''}"><span class="evs-dia">${dia(e.data)}</span><span class="evs-sep">-</span><span class="evs-nome">${esc(e.nome)}</span></div>`).join('')}</div>`
+    ${evs.length ? `<div class="evs-lista">${evs.map((e) => `<div class="evs-l${e.data === hj ? ' hoje' : ''}"><span class="evs-dia">${dia(e.data)}</span><span class="evs-sep">-</span><span class="evs-nome">${e.niver ? '<span class="evs-niver" aria-label="Aniversário">🎈🎂</span> ' : ''}${esc(e.nome)}</span></div>`).join('')}</div>`
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum evento nos próximos 30 dias.</p>'}</div>`;
+}
+
+function aniversariosDaSemana(hj) {
+  const d0 = pd(hj); d0.setDate(d0.getDate() - d0.getDay());
+  const dias = Array.from({ length: 7 }, (_, i) => { const d = new Date(d0); d.setDate(d0.getDate() + i); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  const out = [];
+  dias.forEach((d) => estado.pessoas.filter((p) => p.aniversario === d.slice(5)).forEach((p) => out.push({ data: d, nome: p.nome, niver: true })));
+  return out.sort((a, b) => a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 // Fim da aba Gira: a presença de quem está logado no ano (giras até hoje; licença e pendente não contam).
@@ -406,6 +438,8 @@ function renderGira() {
     if (pa === 'sup') return 'suporte';
     if (pa === 'na') return 'cambone';
     if (pa === 'pas') return 'passe';
+    if (pa === 'ext') return 'extra';
+    if (pa === 'sen') return 'senha';
     return p.funcao;
   };
   [...FUNCOES, { k: 'suporte', pl: 'Suporte' }].forEach((f) => {
@@ -522,6 +556,8 @@ function renderGira() {
   h += blocosFora(ps, g);
   h += `${manual ? '' : botaoDobrar(true)}</div>`;
   }
+
+  if (editar) h += blocoSugestao(ps, g);
 
   // exportação
   const txt = textoWhats(estado.pessoas, g, prefs.fmt, girasLista());
