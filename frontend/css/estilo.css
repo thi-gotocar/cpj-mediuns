@@ -733,3 +733,8 @@ section.panel.pf-tela{gap:14px}
 .lic-datas-f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;min-width:0}
 .lic-form .field,.lic-datas-f .field{min-width:0}
 .lic-form input[type=date]{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+/* Pessoas fora do Editar: só leitura */
+.pp-fn{display:inline-flex;align-items:center;font-size:.85rem;font-weight:600;border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:var(--surface)}
+.pp-exp-on{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
+.pp-res{display:grid;gap:2px}
+.pp-editando{background:color-mix(in srgb,var(--accent) 4%,transparent);border-radius:10px;padding:10px;margin:4px -6px}

@@ -85,33 +85,36 @@ function editorLinhas(p, c) {
   return `<details class="linhas"${estadoAberto.has(chave) ? ' open' : ''} data-id="${chave}">
     <summary>${resumo}</summary>
     <p class="muted" style="margin:6px 0;font-size:.82rem">${texto}</p>
-    <label class="chip chip-todas"><input type="checkbox" id="ln-${p.id}-${c}-todas" data-act="linhatodas" data-id="${p.id}" data-c="${c}" ${todasMarcadas(c, ls) ? 'checked' : ''}> Todas</label>
+    <label class="chip chip-todas"><input type="checkbox" id="ln-${p.id}-${c}-todas" data-act="lnedit" data-c="${c}" data-todas="1" ${todasMarcadas(c, ls) ? 'checked' : ''}> Todas</label>
     ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
-      `<label class="chip"><input type="checkbox" id="ln-${p.id}-${c}-${k}" data-act="linha" data-id="${p.id}" data-c="${c}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}
+      `<label class="chip"><input type="checkbox" id="ln-${p.id}-${c}-${k}" data-act="lnedit" data-c="${c}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}
   </details>`;
 }
 
 // Uma pessoa (quem edita): linha 1 = nome, Editar e Excluir; linha 2 = função, 🧹 turma e "+ médium de passe";
-// depois as escolhas de entidades. Em Editar: nome e turma da limpeza ficam editáveis (Salvar / Cancelar).
+// depois o resumo das entidades. Nada muda fora do Editar: em Editar, nome, função, turma, "+ médium de passe"
+// e as entidades ficam editáveis e só são gravados no Salvar (Cancelar descarta).
 function linhaPessoa(p, { funcao = true } = {}) {
   const conf = estado.confirm === 'p:' + p.id;
   const ed = estado.renomear === p.id;
-  const turma = ed
-    ? `<label class="pp-limp ed">🧹 <select class="limp-sel" id="ren-limp" aria-label="Turma da limpeza de ${esc(p.nome)}"><option value="">—</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`
-    : `<span class="pp-limp" title="Turma da limpeza (altere em Editar)">🧹 ${p.limpeza || '—'}</span>`;
-  const l1 = ed
-    ? `<div class="pp-l1"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Nome de ${esc(p.nome)}">
-        <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelren">Cancelar</button></span></div>`
-    : `<div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
+  if (!ed) {
+    return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
         <span class="pp-bts"><button class="btn small pp-bt" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">Editar</button>${conf
           ? `<button class="btn small danger pp-bt" data-act="delpessoa" data-id="${p.id}">Confirmar</button>`
-          : `<button class="btn small pp-bt" data-act="askdel" data-k="p:${p.id}">Excluir</button>`}</span></div>`;
-  const l2 = `<div class="pp-l2">${funcao ? `<select id="fn-${p.id}" data-act="func" data-id="${p.id}" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>` : ''}
-      ${turma}
-      ${p.funcao === 'medium' ? `<label class="check small pp-exp"><input type="checkbox" id="exp-${p.id}" data-act="exp" data-id="${p.id}" ${p.experiente ? 'checked' : ''}> + médium de passe</label>` : ''}</div>`;
-  const corpo = l1 + l2;
-  return `<div class="pp pp2">${ed ? `<form id="f-ren" class="pp-form" data-id="${p.id}" autocomplete="off">${corpo}</form>` : corpo}
-    ${camposDe(p).map((c) => editorLinhas(p, c)).join('')}</div>`;
+          : `<button class="btn small pp-bt" data-act="askdel" data-k="p:${p.id}">Excluir</button>`}</span></div>
+      <div class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
+        <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span>
+        ${p.funcao === 'medium' && p.experiente ? '<span class="pp-fn pp-exp-on">+ médium de passe</span>' : ''}</div>
+      ${camposDe(p).length ? `<div class="pp-res">${resumoLinhas(p)}</div>` : ''}</div>`;
+  }
+  return `<div class="pp pp2 pp-editando"><form id="f-ren" class="pp-form" data-id="${p.id}" autocomplete="off">
+      <div class="pp-l1"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Nome de ${esc(p.nome)}">
+        <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelren">Cancelar</button></span></div>
+      <div class="pp-l2">${funcao ? `<select id="ren-func" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>` : ''}
+        <label class="pp-limp ed">🧹 <select class="limp-sel" id="ren-limp" aria-label="Turma da limpeza de ${esc(p.nome)}"><option value="">—</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        ${p.funcao === 'medium' ? `<label class="check small pp-exp"><input type="checkbox" id="ren-exp" ${p.experiente ? 'checked' : ''}> + médium de passe</label>` : ''}</div>
+      ${camposDe(p).map((c) => editorLinhas(p, c)).join('')}
+    </form></div>`;
 }
 
 // Lembra quais editores de linhas estão abertos entre redesenhos.
@@ -283,8 +286,6 @@ export const cliques = {
   ren(el) {
     estado.renomear = el.dataset.id;
     avisar();
-    const inp = document.getElementById('ren-in');
-    if (inp) { inp.focus(); inp.select(); }
   },
   cancelren() { estado.renomear = null; avisar(); },
   dobraralunos() { estado.alunosAberto = !(estado.alunosAberto ?? false); avisar(); },
@@ -316,19 +317,26 @@ export async function renomear(form) {
   const id = form.dataset.id;
   const novo = document.getElementById('ren-in').value.trim().replace(/\s+/g, ' ');
   const sel = document.getElementById('ren-limp');
+  const fn = document.getElementById('ren-func');
+  const exp = document.getElementById('ren-exp');
   const p = estado.pessoas.find((x) => x.id === id);
   if (!novo) { toast('Digite o nome.'); return; }
-  estado.renomear = null;
-  if (!p) { avisar(); return; }
+  if (!p) { estado.renomear = null; avisar(); return; }
   const patch = {};
   if (novo !== p.nome) {
-    if (estado.pessoas.some((x) => x.id !== id && x.nome.toLowerCase() === novo.toLowerCase())) {
-      estado.renomear = id; toast('Já existe um cadastro com esse nome.'); return;
-    }
+    if (estado.pessoas.some((x) => x.id !== id && x.nome.toLowerCase() === novo.toLowerCase())) { toast('Já existe um cadastro com esse nome.'); return; }
     patch.nome = novo;
   }
   const turma = sel && sel.value ? Number(sel.value) : null;
   if (sel && turma !== (p.limpeza ? Number(p.limpeza) : null)) patch.limpeza = turma;
+  if (fn && fn.value !== p.funcao) patch.funcao = fn.value;
+  if (exp && exp.checked !== !!p.experiente) patch.experiente = exp.checked;
+  // Entidades marcadas em cada escolha (Todas / linhas).
+  camposDe(p).forEach((c) => {
+    const ls = [...form.querySelectorAll(`input[data-act="lnedit"][data-c="${c}"][data-l]:checked`)].map((i) => i.dataset.l).sort();
+    if (ls.join() !== [...(p[c] || [])].sort().join()) patch[c] = ls;
+  });
+  estado.renomear = null;
   if (!Object.keys(patch).length) { avisar(); return; }
   await atualizarPessoa(id, patch);
   toast('Alterações salvas.');
@@ -346,6 +354,15 @@ export const mudancas = {
   exp(t) { atualizarPessoa(t.dataset.id, { experiente: t.checked }); },
   func(t) { atualizarPessoa(t.dataset.id, { funcao: t.value }); },
   limpeza(t) { atualizarPessoa(t.dataset.id, { limpeza: t.value ? Number(t.value) : null }); },
+  // Em Editar: marca/desmarca na tela (grava só no Salvar). "Todas" marca ou desmarca todas da mesma escolha.
+  lnedit(t) {
+    const box = t.closest('details');
+    if (!box) return;
+    const itens = [...box.querySelectorAll(`input[data-act="lnedit"][data-c="${t.dataset.c}"][data-l]`)];
+    const todas = box.querySelector(`input[data-act="lnedit"][data-c="${t.dataset.c}"][data-todas]`);
+    if (t.dataset.todas) itens.forEach((i) => { i.checked = t.checked; });
+    else if (todas) todas.checked = itens.every((i) => i.checked);
+  },
   linhatodas(t) {
     const p = estado.pessoas.find((x) => x.id === t.dataset.id);
     if (!p) return;
