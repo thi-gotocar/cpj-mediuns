@@ -361,7 +361,7 @@ function aniversariosDaSemana(hj) {
   return out.sort((a, b) => a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
-// Fim da aba Gira: a presença de quem está logado no ano (giras até hoje; licença e pendente não contam).
+// A presença de quem está logado no ano, logo depois de "Você nesta gira" (giras até hoje; licença e pendente não contam).
 function cardMinhaPresenca() {
   const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p || !contaNaPresenca(p)) return '';
@@ -388,9 +388,7 @@ function cardMinhaPresenca() {
 }
 
 export function render() {
-  const h = renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
-  const fim = h.lastIndexOf('</section>');
-  return fim < 0 ? h + cardMinhaPresenca() : h.slice(0, fim) + cardMinhaPresenca() + h.slice(fim);
+  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
 }
 
 function renderGira() {
@@ -406,12 +404,14 @@ function renderGira() {
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return `<section class="panel"><div class="card card-novo adm">
+    return `<section class="panel">${cardMinhaPresenca()}<div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       <div class="row">${navegarGiras(g)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button></div></section>`;
   }
-  let h = `<section class="panel">
+  const eu = existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
+  // Ordem: Eventos, Você nesta gira, Sua presença e só depois a gira (próximo evento).
+  let h = `<section class="panel">${eu}${cardMinhaPresenca()}
   <div class="card card-gira">
     ${editar && existe ? (estado.confirm === 'rei:' + g.data
       ? `<div class="infobox rei"><span><b>Reiniciar a gira?</b> Volta tudo ao início: todos ficam Pendente e saem a gira, o orixá, a turma da limpeza e o sorteio. Só a data fica.</span>
@@ -443,7 +443,6 @@ function renderGira() {
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
     ${!encerrada && (existe || editar) ? contagemPresentes(ps, g) : ''}
   </div>`;
-  if (existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data))) h += blocoEu(g);
 
   if (!ps.length) {
     return h + `<div class="card empty"><h2>Nenhuma pessoa cadastrada</h2><p class="muted">${pode('pessoas:editar') ? 'Cadastre a corrente na aba Pessoas.' : 'Um admin precisa cadastrar a corrente.'}</p>
