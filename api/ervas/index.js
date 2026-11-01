@@ -3,7 +3,7 @@
 //                     e todos os pedidos calculados (andamento geral)
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
-//   POST /api/ervas   { acao, ... }  — só admin:
+//   POST /api/ervas   { acao, ... }  — só admin (com a lista fechada, só config { aberta } e novaCompra):
 //        salvarErva { id?, nome, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
 //        salvarCompra { gira, data, frete, itens: [{ id, quantidade, preco }] }  — bloco Compra (preço da porção; vazio = a definir)
 //        reatribuir { chave, pessoaId }  — passa o pedido para uma pessoa da corrente
@@ -42,6 +42,8 @@ function valor(v, oque) {
   return Math.round(n * 100) / 100;
 }
 
+const FECHADA = 'A lista de ervas está fechada. Reabra a lista para alterar.';
+
 const precoOuNulo = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : valor(v, 'Preço'));
 
 // Nome da gira e data do evento do pedido.
@@ -70,6 +72,7 @@ export default rota({
       if (!pode(eu, 'ervas:gerenciar')) throw new HttpError(403, 'Só um admin pode fazer o pedido de outra pessoa.');
       const nome = String(b.para.nome || '').replace(/\s+/g, ' ').trim();
       const atual = await db.rpc('ervas_estado');
+      if (atual.aberta === false) throw new HttpError(400, FECHADA);
       const existente = typeof b.para.chave === 'string' && atual.escolhas.find((s) => s.chave === b.para.chave);
       if (!existente && !b.para.pessoaId && (nome.length < 2 || nome.length > 60)) throw new HttpError(400, 'Informe o nome da pessoa (2 a 60 letras).');
       // Quem está na lista da corrente fica no cadastro da pessoa (o mesmo de quando ela entra pelo cpj).
@@ -80,7 +83,7 @@ export default rota({
       if (b.para.pessoaId && !existente && !pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
       if (pessoa) await db.rpc('corrente_vincular', { chave: 'p:' + pessoa.id, nome: pessoa.nome, antigas: ['n:' + normalizarNome(pessoa.nome), ...(nome ? ['n:' + normalizarNome(nome)] : [])] });
       const chave = existente ? existente.chave : pessoa ? 'p:' + pessoa.id : 'n:' + normalizarNome(nome);
-      const estado = await db.rpc('ervas_escolher', { chave, nome: existente ? existente.nome : pessoa ? pessoa.nome : nome, itens, forcar: true });
+      const estado = await db.rpc('ervas_escolher', { chave, nome: existente ? existente.nome : pessoa ? pessoa.nome : nome, itens });
       return resposta(estado, eu);
     }
     const estado = await db.rpc('ervas_escolher', { chave: chavePessoa(eu), nome: eu.nome, itens });
@@ -90,6 +93,9 @@ export default rota({
   POST: async (req) => {
     const eu = await exigir(req, 'ervas:gerenciar');
     const b = corpo(req);
+    // Lista fechada: ninguém altera nada (pedidos, Compra, cadastro); só reabrir ou começar nova compra.
+    const soAbrir = (b.acao === 'config' && !['frete', 'gira', 'data'].some((k) => k in b)) || b.acao === 'novaCompra';
+    if (!soAbrir && (await db.rpc('ervas_estado')).aberta === false) throw new HttpError(400, FECHADA);
     let estado;
     switch (b.acao) {
       case 'salvarErva': {

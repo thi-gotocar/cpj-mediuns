@@ -195,6 +195,10 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .preco-compra{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);font-weight:700}
 .preco-compra input{width:100px;padding:5px 8px}
 .preco-compra input.falta{border-color:var(--warn);background:var(--warn-soft)}
+/* Botões do mesmo tamanho, lado a lado (Editar/Salvar/Fechar lista; Pedido ao fornecedor/Cobrança). */
+.bt-iguais{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;align-items:stretch}
+.bt-iguais .btn{display:flex;align-items:center;justify-content:center;gap:6px;white-space:normal;text-align:center;padding:10px 8px;line-height:1.2}
+.compra-tab td,.compra-tab th{font-variant-numeric:tabular-nums}
 .grp.exp{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg)}
 .grp.exp textarea{min-height:180px}
 

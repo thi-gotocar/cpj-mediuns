@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 50;  // v50: ervas: quantidade e preço da porção no bloco Compra; pessoas por porção no cadastro
+export const VERSAO = 51;  // v51: ervas: frete padrão de R$ 60,00
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1564,4 +1564,10 @@ export const MIGRACOES = [
      return ervas_estado();
    end;
    $$`,
+
+  // ================================================== v51: ervas: frete padrão de R$ 60,00
+  // Só uma vez (marcador ervas_frete_padrao): quem ainda estava com frete 0 passa a 60; depois o admin muda à vontade.
+  `update sistema set valor = '60.00' where chave = 'ervas_frete' and valor::numeric = 0
+     and not exists (select 1 from sistema where chave = 'ervas_frete_padrao')`,
+  `insert into sistema (chave, valor) values ('ervas_frete_padrao', '60') on conflict (chave) do nothing`,
 ];

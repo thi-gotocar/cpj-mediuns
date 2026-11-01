@@ -499,6 +499,17 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   const fechado = await api('PUT', '/api/ervas', maria, { itens: [] });
   assert.equal(fechado.status, 400);
   assert.match(fechado.json.erro, /fechada/);
+  // Lista fechada: nem o admin altera pedidos, Compra ou cadastro; só reabre (ou começa nova compra).
+  const admFechado = [
+    await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 1 }] }),
+    await api('POST', '/api/ervas', ADMIN, { acao: 'salvarCompra', gira: '', data: '', frete: '12', itens: [] }),
+    await api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', id: arruda.id, nome: 'Arruda' }),
+    await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: guine.id }),
+    await api('POST', '/api/ervas', ADMIN, { acao: 'config', frete: '1' }),
+  ];
+  assert.deepEqual(admFechado.map((x) => x.status), [400, 400, 400, 400, 400]);
+  assert.match(admFechado[0].json.erro, /fechada/);
+  assert.equal((await api('POST', '/api/ervas', ADMIN, { acao: 'config', aberta: true })).json.aberta, true);
 
   // Pedido escolhendo a pessoa cadastrada (combo): fica no cadastro dela.
   const bru = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Bruno');
@@ -506,7 +517,7 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.ok(e.pedidos.pessoas.some((p) => p.chave === 'p:' + bru.id && p.nome === 'Bruno'));
   e = (await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'p:' + bru.id }, itens: [] })).json;
   assert.ok(!e.pedidos.pessoas.some((p) => p.nome === 'Bruno'));
-  // Admin faz o pedido de outra pessoa, mesmo com a lista fechada; o mesmo nome da corrente é a mesma pessoa.
+  // Admin faz o pedido de outra pessoa; o mesmo nome da corrente é a mesma pessoa.
   assert.equal((await api('PUT', '/api/ervas', USER, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 1 }] })).status, 403);
   e = (await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 3 }] })).json;
   assert.deepEqual(e.pedidos.pessoas.map((p) => p.nome), ['Dona Rosa', 'José Carlos', 'Maria']);
