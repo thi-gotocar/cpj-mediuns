@@ -33,7 +33,8 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Topo: **Eventos** (gira 30 dias, evento/aviso futuros, amaci 7 dias) + **aniversariantes da semana** (dom–sáb) com 🎈🎂.
 - **Você nesta gira**: função, duplas, guia de atendimento; "Sorteio de escala pendente da Michelle" dentro do bloco quando a gira está aberta e sem sorteio.
 - Admin: **Sugestão Mi/Mãe Vê** — PASSE: cambones com afinidade de passe na entidade + At. Extra que **não** marcou a entidade; AT. EXTRA: passes com afinidade de extra. Exclui licença/falta/ausente. 5 nomes + rolagem.
-- Botão **WhatsApp** (abaixo de Publicar) abre o painel de texto/imagem.
+- Botão **WhatsApp** (abaixo de Publicar) abre o painel de texto/imagem; fica desabilitado enquanto não houver sorteio.
+- Fim da aba: **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde acima de 90%, amarelo de 50% a 90%, vermelho abaixo de 50%.
 
 ## Perfil
 

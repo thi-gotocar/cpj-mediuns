@@ -559,10 +559,13 @@ body.deslogado .rodape{display:none}
 .mp-pct{display:flex;align-items:baseline;gap:8px;margin-top:2px}
 .mp-pct b{font:700 1.8rem var(--f-display)}
 .mp-pct span{color:var(--muted);font-size:.92rem}
-.mp-pct.ok b{color:#1d7a3c}.mp-pct.bom b{color:var(--accent)}.mp-pct.medio b{color:var(--warn)}.mp-pct.baixo b{color:var(--off)}
+.mp-pct.ok b{color:var(--ok)}.mp-pct.medio b{color:var(--warn)}.mp-pct.baixo b{color:var(--off)}
+/* borda grossa na cor da faixa de presença */
+.card.mp{border-width:3px}
+.card.mp.ok{border-color:var(--ok)}.card.mp.medio{border-color:var(--warn)}.card.mp.baixo{border-color:var(--off)}
 .mp-barra{height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin:4px 0 6px}
 .mp-barra span{display:block;height:100%;border-radius:6px;background:var(--accent)}
-.mp-barra.ok span{background:#2e9b55}.mp-barra.medio span{background:var(--warn)}.mp-barra.baixo span{background:var(--off)}
+.mp-barra.ok span{background:var(--ok)}.mp-barra.medio span{background:var(--warn)}.mp-barra.baixo span{background:var(--off)}
 .mp-lista{display:flex;flex-direction:column}
 .mp-l{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:.95rem}
 .mp-dia{flex:none;min-width:3.2em;font-weight:700}

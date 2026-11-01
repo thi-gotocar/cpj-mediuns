@@ -357,8 +357,9 @@ function cardMinhaPresenca() {
   if (!base) return '';
   faltas.sort(([a], [b]) => b.data.localeCompare(a.data));
   const pct = Math.round((pres / base) * 100);
-  const cor = pct === 100 ? 'ok' : pct >= 80 ? 'bom' : pct >= 60 ? 'medio' : 'baixo';
-  return `<div class="card mp"><div class="grp-h"><span class="eyebrow">Sua presença em ${ano}</span><span class="count">${pres} de ${base} gira${base > 1 ? 's' : ''}</span></div>
+  // Verde acima de 90%, amarelo de 50% a 90%, vermelho abaixo de 50%.
+  const cor = pct > 90 ? 'ok' : pct >= 50 ? 'medio' : 'baixo';
+  return `<div class="card mp ${cor}"><div class="grp-h"><span class="eyebrow">Sua presença em ${ano}</span><span class="count">${pres} de ${base} gira${base > 1 ? 's' : ''}</span></div>
     <div class="mp-pct ${cor}"><b>${pct}%</b><span>${pct === 100 ? 'de presença · veio em todas! 🙌' : 'de presença'}</span></div>
     <div class="mp-barra ${cor}"><span style="width:${pct}%"></span></div>
     ${faltas.length ? `<div class="mp-lista">${faltas.map(([g, st]) => `<div class="mp-l"><span class="mp-dia">${dDM(g.data)}</span><span class="mp-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span><span class="mp-st ${st}">${st === 'f' ? 'Falta' : 'Ausência'}</span></div>`).join('')}</div>` : ''}</div>`;
@@ -531,7 +532,7 @@ function renderGira() {
       ${editar && temDuplas ? (g.publicada
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
         : `<button class="btn btn-grande pub-bt" data-act="publicar"><span class="pub-tit">📢 Publicar escala</span><span class="pub-sub">Só os admins veem o sorteio até publicar</span></button>`) : ''}
-      ${botaoWhats()}
+      ${botaoWhats(temDuplas)}
       ${!temDuplas && manual && !passada ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="true">Concluir ajuste</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
@@ -569,7 +570,7 @@ function renderGira() {
   }
 
   // WhatsApp: abre pelo botão do bloco Sorteio, logo abaixo dele.
-  if (abertos.has('wa')) h += painelWhats(g);
+  if (temDuplas && abertos.has('wa')) h += painelWhats(g);
   if (editar) h += blocoSugestao(ps, g);
   setTimeout(atualizarJanela, 0);
   return h + '</section>';
@@ -578,7 +579,9 @@ function renderGira() {
 // Ícone do WhatsApp (balão com o telefone).
 const ICONE_WHATS = '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#25D366" d="M12 2.2a9.8 9.8 0 0 0-8.4 14.9L2.3 21.8l4.8-1.3A9.8 9.8 0 1 0 12 2.2z"/><path fill="#fff" d="M8.6 7.2c.2-.4.5-.4.7-.4h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .6l-.4.6c-.1.2-.2.3 0 .6.4.7 1 1.4 1.6 1.9.7.6 1.3.8 1.6 1 .2.1.4.1.5-.1l.7-.8c.2-.2.3-.2.6-.1l1.8.9c.3.1.4.2.5.3 0 .2 0 .8-.3 1.4-.3.6-1.5 1.2-2 1.2-.6.1-1.1.3-3.7-.8-3.1-1.3-5-4.4-5.2-4.6-.1-.2-1.2-1.6-1.2-3.1 0-1.4.7-2.1 1-2.4z"/></svg>';
 // Botão do WhatsApp no bloco Sorteio (mesmo tamanho do Publicar escala); abre o painel logo abaixo.
-const botaoWhats = () => { const ab = abertos.has('wa');
+// Sem sorteio feito fica desabilitado (não há escala para mandar).
+const botaoWhats = (ok) => { const ab = ok && abertos.has('wa');
+  if (!ok) return `<button class="btn btn-grande wa-bt" disabled title="Faça o sorteio primeiro"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</button>`;
   return `<button class="btn btn-grande wa-bt" data-act="dobrarcard" data-k="wa" aria-expanded="${ab}"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></button>`; };
 
 // Painel do WhatsApp: texto para copiar e a imagem da escala.
