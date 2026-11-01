@@ -106,6 +106,15 @@ export default rota({
   POST: async (req) => {
     const b = corpo(req);
     if (b.acao === 'ausencia') return declararAusencia(req);
+    // Admin root (Histórico → estatísticas): corrige a presença de uma pessoa, mesmo em gira encerrada.
+    if (b.acao === 'corrigirPresenca') {
+      await exigir(req, 'usuarios:gerenciar');
+      const data = validarData(req.query.data);
+      if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');
+      const pessoaId = validarId(b.pessoaId, 'Pessoa');
+      if (!['p', 'f', 'a'].includes(b.status)) throw new HttpError(400, 'Status inválido.');
+      return { gira: await db.rpc('presenca_marcar', { data, pessoaId, status: b.status }), mensagem: 'Presença corrigida.' };
+    }
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const { acao, atendimentos } = b;

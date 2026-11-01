@@ -745,3 +745,8 @@ section.panel.pf-tela{gap:14px}
 .btn.bt-amarelo[aria-pressed="true"]{background:var(--warn);color:#fff}
 .rem-conf{display:grid;gap:8px}
 .sort-acoes .bt-amarelo{font-size:.95rem;padding-inline:8px;line-height:1.2}
+/* Histórico → estatísticas: o root edita a presença gira a gira */
+.st-det-p .st-l-ed{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.st-det-p .st-l-ed .btn.link{padding:0 2px;font-size:.78rem;flex:none}
+.st-ed{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 0}
+.st-ed select{width:auto;padding:4px 8px;font-size:.85rem}

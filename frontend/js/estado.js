@@ -184,6 +184,15 @@ export const reiniciarGira = () => situacaoDaGira('reiniciar');
 // Acesso da corrente: a própria pessoa declara que não vai (Pendente → Ausente).
 export const declararAusencia = () => situacaoDaGira('ausencia');
 export const publicarEscala = (publicada = true) => situacaoDaGira('publicar', { publicada });
+// Admin root: corrige a presença de uma pessoa em qualquer gira (Histórico → estatísticas).
+export async function corrigirPresenca(data, pessoaId, status) {
+  try {
+    const r = await api('POST', '/giras/' + data, { acao: 'corrigirPresenca', pessoaId, status });
+    estado.giras[data] = r.gira;
+    toast(r.mensagem);
+    return true;
+  } catch (e) { toast(e.message); return false; } finally { avisar(); }
+}
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = (mensagem) => acaoDaGira('remanejar', mensagem);
 

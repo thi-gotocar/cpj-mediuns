@@ -1,7 +1,7 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
 import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -135,13 +135,25 @@ function cardEstatisticas(todas, ps) {
     return { p, pres, aus, f, base };
   });
   // Tocar no nome mostra gira a gira o que contou para a pessoa (para conferir uma falta, por exemplo).
-  const ROT = { p: '✅ presente', f: '🚫 falta', a: '❌ ausente' };
+  const ROT = { p: '✅ presente', na: '✅ presente', sup: '✅ presente (suporte)', f: '🚫 falta', a: '❌ ausente' };
   const detalhe = (p) => {
     const linhas = gs.filter((g) => naCorrenteEm(p, g.data)).map((g) => [g, presencaDe(p, g)])
       .filter(([, st]) => st !== 'lic' && st !== 'pend')
       .sort(([a], [b]) => b.data.localeCompare(a.data));
     const fora = gs.filter((g) => !naCorrenteEm(p, g.data)).length;
-    return `<div class="st-det-p">${linhas.map(([g, st]) => `<span class="${st === 'p' ? '' : 'ruim'}">${dShort(g.data).slice(0, 5)} ${esc(nomeGira(g.entidade) || 'Gira')}: <b>${ROT[st] || st}</b></span>`).join('')}
+    // Admin root: Editar em cada gira (Presente / Falta / Ausente).
+    const root = pode('usuarios:gerenciar');
+    const linhaDet = ([g, st]) => {
+      const k = g.data + '|' + p.id;
+      const txt = `${dShort(g.data).slice(0, 5)} ${esc(nomeGira(g.entidade) || 'Gira')}: `;
+      if (root && estado.stEdit === k) {
+        const atual = ['p', 'f', 'a'].includes(st) ? st : 'p';
+        return `<span class="st-ed">${txt}<select id="st-ed-sel" aria-label="Presença de ${esc(p.nome)} em ${dShort(g.data)}">${[['p', 'Presente'], ['f', 'Falta'], ['a', 'Ausente']].map(([v, l]) => `<option value="${v}" ${v === atual ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <button class="btn small primary" data-act="stedok" data-d="${g.data}" data-id="${p.id}">Salvar</button><button class="btn small" data-act="stedcancel">Cancelar</button></span>`;
+      }
+      return `<span class="${st === 'p' ? '' : 'ruim'}${root ? ' st-l-ed' : ''}"><span>${txt}<b>${ROT[st] || st}</b></span>${root ? `<button class="btn link small" data-act="stedit" data-k="${k}" aria-label="Editar presença em ${dShort(g.data)}">✎ Editar</button>` : ''}</span>`;
+    };
+    return `<div class="st-det-p">${linhas.map(linhaDet).join('')}
       ${fora ? `<span class="muted">${fora} gira${fora > 1 ? 's' : ''} antes da entrada (${dShort(p.entrada)}) não conta${fora > 1 ? 'm' : ''}.</span>` : ''}</div>`;
   };
   const ranking = (k, titulo, cor, lista, linha) => {
@@ -275,6 +287,14 @@ export function render() {
 export const cliques = {
   ...cliquesResumo,
   ...cliquesEventos,
+  stedit(el) { estado.stEdit = el.dataset.k; avisar(); },
+  stedcancel() { estado.stEdit = null; avisar(); },
+  async stedok(el) {
+    const v = document.getElementById('st-ed-sel')?.value;
+    if (!v) return;
+    estado.stEdit = null;
+    await corrigirPresenca(el.dataset.d, el.dataset.id, v);
+  },
   dobrarcamb() { estado.cambAberto = !estado.cambAberto; avisar(); },
   gaabrir() {
     estado.giraAntiga = { data: '', entidade: '', orixa: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
