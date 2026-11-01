@@ -713,6 +713,8 @@ body.deslogado .rodape{display:none}
 .sug-l:last-child{border-bottom:0}
 .sug-nome{font-weight:600;min-width:0;overflow-wrap:anywhere}
 .sug-ent{color:var(--muted);text-align:right;min-width:0;overflow-wrap:anywhere}
+.sug-ent{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:4px 6px}
+.badge.guia{background:var(--accent-soft);color:var(--accent);font-size:.7rem;padding:1px 7px}
 .evs-niver{white-space:nowrap}
 
 /* Aba Perfil: espaço entre os blocos e a moldura dourada só do admin */

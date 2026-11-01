@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 51;  // v51: ervas: frete padrão de R$ 60,00
+export const VERSAO = 52;  // v52: pessoas com o guia chefe e o de frente (rótulo na sugestão Mi/Mãe Vê)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1570,4 +1570,21 @@ export const MIGRACOES = [
   `update sistema set valor = '60.00' where chave = 'ervas_frete' and valor::numeric = 0
      and not exists (select 1 from sistema where chave = 'ervas_frete_padrao')`,
   `insert into sistema (chave, valor) values ('ervas_frete_padrao', '60') on conflict (chave) do nothing`,
+
+  // ================================================== v52: pessoas com o guia chefe e o de frente do Perfil (rótulo na sugestão Mi/Mãe Vê)
+  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
+       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza, p.entrada,
+              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
+                        from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas,
+              coalesce(p.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento",
+              nullif(p.perfil -> 'guias' -> 'chefe' ->> 'linha', '') as "guiaChefe",
+              nullif(p.perfil -> 'guias' -> 'frente' ->> 'linha', '') as "guiaFrente",
+              p.afinidade_extra as "afinidadeExtra", p.afinidade_passe as "afinidadePasse",
+              case when (p.perfil -> 'info' ->> 'nascimento') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                   then substring(p.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario
+       from pessoas p
+     ) x;
+   $$`,
 ];

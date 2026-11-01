@@ -97,6 +97,7 @@ presenca = bloco(
     '<b>PASSE:</b> cambones com afinidade de passe nessa entidade e At. Extra que <b>não</b> marcaram essa entidade.',
     '<b>ATENDIMENTO EXTRA:</b> médiuns de passe com afinidade de atendimento extra nessa entidade.',
     'Não entra quem está de licença, faltou ou está ausente.',
+    'Os rótulos <b>Guia chefe</b> e <b>Guia de frente</b> (do Perfil) marcam quem tem o guia na linha da gira: dê preferência a essas pessoas.',
   ]),
   caixa('dica', 'Use a sugestão para decidir as trocas do dia (segundo campo da presença) <b>antes de sortear</b>.'),
 )

@@ -343,7 +343,7 @@ function blocoSugestao(ps, g) {
   const corpo = !sug
     ? '<p class="muted" style="margin:0;font-size:.88rem">Escolha a entidade da gira para ver as sugestões.</p>'
     : [['PASSE', sug.passe], ['ATENDIMENTO EXTRA', sug.extra]].map(([t, lista]) => `<div class="grp sug-grp"><div class="grp-h"><h3>${t}</h3><span class="count">${lista.length}</span></div>
-      ${lista.length ? `<div class="sug-lista">${lista.map((x) => `<div class="sug-l"><span class="sug-nome">${esc(x.nome)}</span><span class="sug-ent">${esc(x.entidade)}</span></div>`).join('')}</div>`
+      ${lista.length ? `<div class="sug-lista">${lista.map((x) => `<div class="sug-l"><span class="sug-nome">${esc(x.nome)}</span><span class="sug-ent">${x.guias.map((t) => `<span class="badge guia">${t}</span>`).join('')}<span>${esc(x.entidade)}</span></span></div>`).join('')}</div>`
         : '<p class="muted" style="margin:0;font-size:.85rem">Ninguém marcou esta entidade.</p>'}</div>`).join('');
   return `<div class="card adm sugestao"><div class="grp-h"><h2>Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="count">${esc(LINHA_LABEL[sug.linha] || '')}</span>` : ''}</div>${corpo}</div>`;
 }

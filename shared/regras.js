@@ -549,7 +549,9 @@ export function sugestoesDaGira(pessoas, g) {
   const alvo = [l, ...(JUNTAS[l] || [])];
   const tem = (arr) => (arr || []).some((x) => alvo.includes(x));
   const fora = (p) => !naCorrenteEm(p, g.data) || ['lic', 'f', 'a'].includes(presencaDe(p, g));
-  const item = (p) => ({ id: p.id, nome: p.nome, funcao: p.funcao, entidade: guiaNaGira(p, g) || LINHA_LABEL[l] });
+  // guias: rótulos "Guia chefe" / "Guia de frente" quando o guia do Perfil é da linha da gira (só informa; não muda quem aparece).
+  const guias = (p) => [alvo.includes(p.guiaChefe) && 'Guia chefe', alvo.includes(p.guiaFrente) && 'Guia de frente'].filter(Boolean);
+  const item = (p) => ({ id: p.id, nome: p.nome, funcao: p.funcao, entidade: guiaNaGira(p, g) || LINHA_LABEL[l], guias: guias(p) });
   const ord = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
   const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'cambone' && tem(p.afinidadePasse)) || (p.funcao === 'extra' && !tem(p.linhas)))).map(item).sort(ord);
   const extra = pessoas.filter((p) => !fora(p) && p.funcao === 'passe' && tem(p.afinidadeExtra)).map(item).sort(ord);

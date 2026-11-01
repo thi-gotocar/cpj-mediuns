@@ -318,10 +318,10 @@ test('função do dia: Cambone como Passe/Senha, Passe como At. Extra, Senha com
 test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async () => {
   const { sugestoesDaGira } = await import('../shared/regras.js');
   const ps = [
-    { id: '1', nome: 'Bia', funcao: 'passe', linhas: ['caboclo'], afinidadeExtra: ['caboclo'], guiasAtendimento: { caboclo: 'Pena Branca' } },
-    { id: '2', nome: 'Ana', funcao: 'cambone', afinidadePasse: ['caboclo'] },
+    { id: '1', nome: 'Bia', funcao: 'passe', linhas: ['caboclo'], afinidadeExtra: ['caboclo'], guiasAtendimento: { caboclo: 'Pena Branca' }, guiaChefe: 'caboclo', guiaFrente: 'caboclo' },
+    { id: '2', nome: 'Ana', funcao: 'cambone', afinidadePasse: ['caboclo'], guiaFrente: 'caboclo' },
     { id: '3', nome: 'Caio', funcao: 'extra', linhas: ['caboclo'] },
-    { id: '4', nome: 'Duda', funcao: 'extra', linhas: ['baiano'] },
+    { id: '4', nome: 'Duda', funcao: 'extra', linhas: ['baiano'], guiaChefe: 'baiano' },
     { id: '5', nome: 'Eva', funcao: 'cambone', afinidadePasse: ['caboclo'] },
     { id: '6', nome: 'Fábio', funcao: 'extra', linhas: [] },
     { id: '7', nome: 'Gil', funcao: 'extra', linhas: ['baiano', 'caboclo', 'exu'] },
@@ -334,5 +334,8 @@ test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async ()
   assert.deepEqual(r.extra.map((x) => x.nome), ['Bia']);
   assert.equal(r.extra[0].entidade, 'Pena Branca');
   assert.equal(r.passe[0].entidade, 'Caboclo');
+  // Rótulo do guia chefe / de frente só quando é da linha da gira (Duda tem guia chefe Baiano: sem rótulo).
+  assert.deepEqual(r.passe.map((x) => x.guias), [['Guia de frente'], [], []]);
+  assert.deepEqual(r.extra[0].guias, ['Guia chefe', 'Guia de frente']);
   assert.equal(sugestoesDaGira(ps, { data: '2030-01-01', entidade: '' }), null);
 });
