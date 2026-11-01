@@ -499,7 +499,7 @@ function renderGira() {
     const np = gp.filter((p) => presencaDe(p, g) === 'p').length;   // presença confirmada
     h += `<div class="grp"><div class="grp-h"><h3>${f.pl}</h3><span class="count">${np}/${gp.length}
       ${editar && !antesDoDia && f.k !== 'suporte' ? `<button class="btn link" data-act="todos" data-f="${f.k}" data-v="${np === gp.length ? 'a' : 'p'}">${np === gp.length ? 'marcar ausentes' : 'todos presentes'}</button>` : ''}</span></div>
-      <div class="plist">${gp.map((p) => {
+      <div class="plist um">${gp.map((p) => {
         const s = status(p, g);
         const xp = p.experiente && p.funcao === 'medium' ? ' <span class="xp" title="Pode ter médium de passe junto" aria-label="Pode ter médium de passe junto">★</span>' : '';
         const hoje = '';

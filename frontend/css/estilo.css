@@ -54,6 +54,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .grp-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .grp-h .count{font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px}
+.plist.um{grid-template-columns:minmax(0,1fr)}   /* Presença da gira: uma pessoa por linha, também na tela larga */
 .pres{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:6px 6px 6px 10px;background:var(--bg);font:500 .95rem var(--f-body);color:var(--ink);text-align:left;min-width:0}
 .pres select.st{width:auto;border:0;cursor:pointer;appearance:auto;font-family:var(--f-body);text-transform:none;letter-spacing:0;font-size:.8rem;padding:4px 6px;border-radius:6px}
 .pres .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
