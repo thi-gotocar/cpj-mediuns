@@ -30,6 +30,13 @@ Os docs guardam só o que o código não mostra (o porquê, as regras da casa, a
 - [arquitetura.md](arquitetura.md) se mudou uma decisão de arquitetura ou a relação entre tabelas;
 - [visao.md](visao.md) se fechou ou abriu uma pendência do roadmap.
 
+**Guias em PDF** (`manuais/`): o Guia da Corrente e o Guia do Administrador, para distribuir às pessoas. O texto fica nos scripts `manual_corrente.py` e `manual_admin.py` (visual em `manual_base.py`). Quando uma tela mudar de um jeito que a pessoa percebe, ajuste o script e gere de novo (precisa de Python com `reportlab` e das fontes Segoe UI do Windows; não entram no deploy):
+
+```bash
+python manuais/manual_corrente.py "manuais/Guia da Corrente.pdf"
+python manuais/manual_admin.py "manuais/Guia do Administrador.pdf"
+```
+
 ## Segurança
 
 - Nunca imprimir segredos, nunca decifrar variáveis da Vercel, nunca acessar o banco de produção direto: **mudança de dados só por migração no código**.
