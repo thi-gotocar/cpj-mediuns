@@ -116,6 +116,24 @@ function opcoesPapel(p) {
   if (p.funcao === 'extra') return [cad, ['pas', 'Passe'], ['sup', 'Suporte'], ['na', 'Não atende']];
   return [cad, ['sup', 'Suporte'], ['na', 'Não atende']];
 }
+const htmlPapel = (p, papel) => opcoesPapel(p).map(([k, t]) => `<option value="${k}" ${k === papel ? 'selected' : ''}>${t}</option>`).join('');
+// 1º combo da presença: Pendente, Presente, Falta, Ausente. Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
+function htmlStatus(g, sel, s, antesDoDia) {
+  const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a'];
+  const bloqueada = (k) => antesDoDia && (k === 'p' || k === 'f') && k !== sel;
+  return ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''} ${bloqueada(k) ? 'disabled' : ''}>${STATUS[k]}${bloqueada(k) ? ' (no dia)' : ''}</option>`).join('');
+}
+
+// Admin, no topo da presença (caixa amarela): escolhe a pessoa, o status e a função; grava no OK, depois de confirmar.
+function presencaRapida(ps, g, antesDoDia) {
+  const r = estado.presRapida?.data === g.data ? estado.presRapida : null;
+  const p = r && ps.find((x) => x.id === r.id);
+  return `<div class="warnbox pres-rap"><select class="pr-pessoa" data-act="rappessoa" aria-label="Pessoa para dar presença">
+      <option value="">&lt;escolha a pessoa&gt;</option>${ps.filter((x) => !licencaEm(x, g.data)).map((x) => `<option value="${x.id}" ${x.id === p?.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select>
+    ${p ? `<span class="pr-ctl"><select data-act="rapst" aria-label="Status de ${esc(p.nome)}">${htmlStatus(g, r.st, status(p, g), antesDoDia)}</select>
+      <select data-act="rappapel" aria-label="Função de ${esc(p.nome)} nesta gira">${htmlPapel(p, r.papel)}</select>
+      <button class="btn small bt-ok" data-act="rapok">OK</button></span>` : ''}</div>`;
+}
 
 function blocosFora(ps, g) {
   return [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
@@ -233,6 +251,10 @@ function blocoEu(g) {
     L.push(`<label class="eu-aus"><span class="muted">Seu status:</span>
       <select id="eu-aus" class="st-${pr}" data-act="ausencia" aria-label="Seu status nesta gira" ${declara ? '' : 'disabled'}>${opts.map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
       ${declara ? '' : `<span class="muted eu-trava">🔒 ${motivo}</span>`}</label>`);
+  } else if (!curimba && pode('giras:editar') && estado.giras[g.data] && !g.encerrada && st !== 'lic') {
+    // Admin ligado a uma pessoa: muda o próprio status aqui, com as mesmas opções da lista de presença.
+    L.push(`<label class="eu-aus"><span class="muted">Seu status:</span>
+      <select id="eu-aus" class="st-${pr}" data-act="status" data-id="${p.id}" aria-label="Seu status nesta gira">${htmlStatus(g, pr, st, g.pendentePadrao && g.data > hoje())}</select></label>`);
   } else if (!curimba && pr === 'pend') aviso('Sua presença ainda não foi confirmada.');
   // Turma da limpeza
   const Lp = limpezaDaGira(estado.pessoas, g, girasLista());
@@ -442,7 +464,7 @@ function renderGira() {
     .filter(([n], i) => n || i === 1).map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`).join(' · ');
   h += `<div class="card">${cabDobra('pres', 'Presença', partes)}`;
   if (abertos.has('pres')) {
-  if (editar && antesDoDia) h += `<div class="warnbox">Antes do dia da gira todos ficam <b>Pendente</b>; dá para marcar só <b>Ausente</b> (quem avisou antes). Presente e Falta são marcados no dia.</div>`;
+  if (editar) h += presencaRapida(ps, g, antesDoDia);
   // Cada pessoa aparece no bloco da função que exerce nesta gira: Passe que vai cambonar → Cambones;
   // Extra que vai de Passe → Passe; Suporte → Suporte. O nome fica em amarelo para sinalizar a troca.
   const grupoDe = (p) => {
@@ -471,13 +493,9 @@ function renderGira() {
           : editar
           ? (() => {
             // 1º combo: Pendente, Presente, Falta, Ausente. 2º combo: a função do cadastro, Suporte ou Não atende.
-            const sel = presencaDe(p, g);
-            const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a'];
             const papel = papelDe(p, g);
-            // Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
-            const bloqueada = (k) => antesDoDia && (k === 'p' || k === 'f') && k !== sel;
-            return `<span class="st-ctl"><select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''} ${bloqueada(k) ? 'disabled' : ''}>${STATUS[k]}${bloqueada(k) ? ' (no dia)' : ''}</option>`).join('')}</select>
-              <select class="st papel-dia ${papel}" id="pp-${p.id}" data-act="papel" data-id="${p.id}" aria-label="Como ${esc(p.nome)} trabalha nesta gira">${opcoesPapel(p).map(([k, t]) => `<option value="${k}" ${k === papel ? 'selected' : ''}>${t}</option>`).join('')}</select></span>`;
+            return `<span class="st-ctl"><select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${htmlStatus(g, presencaDe(p, g), s, antesDoDia)}</select>
+              <select class="st papel-dia ${papel}" id="pp-${p.id}" data-act="papel" data-id="${p.id}" aria-label="Como ${esc(p.nome)} trabalha nesta gira">${htmlPapel(p, papel)}</select></span>`;
           })()
           : `<span class="st-txt">${STATUS[s]}</span>`;
         const mudou = grupoDe(p) !== p.funcao;
@@ -631,7 +649,17 @@ export const cliques = {
     avisar();
   },
   // Suporte liga/desliga (desligado volta para Presente).
-  presok() { const c = estado.confPres; estado.confPres = null; atualizarJanela(); if (c) gravarPresenca(c.id, c.valor); },
+  presok() {
+    const c = estado.confPres; estado.confPres = null; atualizarJanela();
+    if (c?.rapida) gravarRapida(c); else if (c) gravarPresenca(c.id, c.valor);
+  },
+  // Presença pela caixa amarela: OK abre a janela de confirmação.
+  rapok() {
+    const r = estado.presRapida;
+    if (!r || r.data !== giraAtual().data) return;
+    estado.confPres = { id: r.id, valor: r.st, papel: r.papel, rapida: true };
+    atualizarJanela();
+  },
   prescancel() { estado.confPres = null; atualizarJanela(); avisar(); },
   sortear: () => { duplasAbertas.add(giraAtual().data); sortear(); },
   dobrarduplas() {
@@ -748,6 +776,25 @@ function gravarPresenca(id, valor) {
   avisar();
 }
 
+// Caixa amarela confirmada: grava status e função de uma vez (só o que mudou) e volta para "<escolha a pessoa>".
+function gravarRapida(c) {
+  const g = giraAtual();
+  const p = estado.pessoas.find((x) => x.id === c.id);
+  estado.presRapida = null;
+  if (!p) { avisar(); return; }
+  const pr = { ...(g.presenca || {}) };
+  const pa = { ...(g.papeis || {}) };
+  if (c.valor !== presencaDe(p, g)) pr[c.id] = c.valor;
+  if (c.papel !== papelDe(p, g)) {
+    if (c.papel === 'cad') { if (foraDaLinha(p, g)) pa[c.id] = 'cad'; else delete pa[c.id]; } else pa[c.id] = c.papel;
+    if (pr[c.id] === 'sup' || pr[c.id] === 'na') pr[c.id] = 'p';   // formato antigo
+  }
+  if (c.valor === 'f' || c.valor === 'a') delete pa[c.id];
+  editarGira({ presenca: pr, papeis: pa });
+  toast(`${p.nome}: ${STATUS[c.valor]}.`);
+  avisar();
+}
+
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
@@ -767,15 +814,18 @@ function atualizarJanela() {
   if (html) raizJanela.querySelector('[data-act=presok]')?.focus();
 }
 
-// Janela para confirmar a troca de quem estava Pendente.
+// Janela para confirmar a troca de quem estava Pendente (ou o OK da caixa amarela: status e função).
 function janelaPresenca() {
   const c = estado.confPres;
   if (!c) return '';
   const p = estado.pessoas.find((x) => x.id === c.id);
   if (!p) return '';
+  const funcao = c.rapida ? (opcoesPapel(p).find(([k]) => k === c.papel) || [])[1] : '';
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="mp-t"><div class="modal">
     <h3 id="mp-t">Confirmar presença</h3>
-    <p style="margin:0"><b>${esc(p.nome)}</b>: de <b>Pendente</b> para <b>${STATUS[c.valor]}</b>?</p>
+    <p style="margin:0">${c.rapida
+      ? `<b>${esc(p.nome)}</b>: <b>${STATUS[c.valor]}</b>${funcao ? ` · função <b>${esc(funcao)}</b>` : ''}?`
+      : `<b>${esc(p.nome)}</b>: de <b>Pendente</b> para <b>${STATUS[c.valor]}</b>?`}</p>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-act="prescancel">Cancelar</button><button class="btn primary" data-act="presok">Confirmar</button></div>
   </div></div>`;
 }
@@ -802,6 +852,15 @@ export const mudancas = {
     editarGira({ papeis: pa, presenca: pr });
     avisar();
   },
+  // Caixa amarela: escolher a pessoa já traz o status e a função atuais dela.
+  rappessoa(t) {
+    const g = giraAtual();
+    const p = t.value && estado.pessoas.find((x) => x.id === t.value);
+    estado.presRapida = p ? { data: g.data, id: p.id, st: presencaDe(p, g), papel: papelDe(p, g) } : null;
+    avisar();
+  },
+  rapst(t) { if (estado.presRapida) estado.presRapida.st = t.value; },
+  rappapel(t) { if (estado.presRapida) estado.presRapida.papel = t.value; },
   limpezagira(t) { editarGira({ limpeza: t.value ? Number(t.value) : null }); avisar(); },
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },
   entidade(t) { editarGira({ entidade: t.value }); avisar(); },
