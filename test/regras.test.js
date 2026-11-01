@@ -321,6 +321,7 @@ test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async ()
     { id: '3', nome: 'Caio', funcao: 'extra', linhas: ['caboclo'] },
     { id: '4', nome: 'Duda', funcao: 'extra', linhas: ['baiano'] },
     { id: '5', nome: 'Eva', funcao: 'cambone', afinidadePasse: ['caboclo'] },
+    { id: '6', nome: 'Fábio', funcao: 'extra', linhas: [] },
   ];
   const g = { data: '2030-01-01', entidade: 'Caboclo', presenca: { 5: 'a' } };
   const r = sugestoesDaGira(ps, g);
