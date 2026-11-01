@@ -51,6 +51,14 @@ function blocoLimpeza(g, admin) {
   </div>`;
 }
 
+// Quem está de licença na data: mesmo padrão da limpeza, em vermelho, logo abaixo dela. Vale para todos verem.
+function blocoLicenca(ps, g) {
+  const quem = ps.filter((p) => licencaEm(p, g.data));
+  if (!quem.length) return '';
+  return `<div class="limpeza licenca"><b><span class="cruz-vermelha" aria-hidden="true">✚</span> De licença · ${quem.length}</b>
+    <span>${quem.map((p) => `${esc(p.nome)} <span class="muted">(até ${dDM(licencaEm(p, g.data).fim)})</span>`).join(', ')}</span></div>`;
+}
+
 // Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
 // A lista de quem cambona por causa da linha só aparece para o admin.
 function avisoEntidade(ps, g, editar, admin) {
@@ -95,7 +103,7 @@ function contagemPresentes(ps, g, pct = null) {
     <div class="presentes">${Object.entries(conta).map(([t, n]) => `<span><span class="muted">${t}</span> <b>${n}</b></span>`).join('')}</div></div>`;
 }
 
-// Faltas, ausentes e licenças: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
+// Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
 // Sorteio (admin): botão "Falta" de cada pessoa da escala e a confirmação logo abaixo.
 const botaoFalta = (id) => `<button class="lock falta-bt" data-act="faltaask" data-id="${id}" title="Marcar falta e refazer a escala">Falta</button>`;
 function confirmaFalta(id) {
@@ -136,12 +144,9 @@ function presencaRapida(ps, g, antesDoDia) {
 }
 
 function blocosFora(ps, g) {
-  return [['f', 'Faltaram'], ['a', 'Ausentes'], ['lic', 'De licença']].map(([st, titulo]) => {
+  // Licença fica no card da gira (blocoLicenca).
+  return [['f', 'Faltaram'], ['a', 'Ausentes']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
-    // Licença: linha divisória, sem título; cruz vermelha, o nome e a etiqueta "em licença".
-    if (st === 'lic' && quem.length) {
-      return `<div class="grp fora lic-lista">${quem.map((p) => `<div class="lic-l"><span class="cruz-vermelha" aria-hidden="true">✚</span><span>${esc(p.nome)}</span><span class="selo-lic">em licença</span></div>`).join('')}</div>`;
-    }
     return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
   }).join('');
 }
@@ -409,6 +414,10 @@ function renderGira() {
       <div class="row">${navegarGiras(g)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button></div></section>`;
   }
+  const { lista, validos, passesV, semPasse, invalidos } = paresPorMedium(estado.pessoas, g);
+  const temDuplas = validos.length || passesV.length;
+  // WhatsApp: logo abaixo do Encerrar gira (desabilitado sem sorteio); o painel abre logo abaixo deste card.
+  const whats = pode('escala:completa') && existe;
   const eu = existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
   // Ordem: Eventos, Você nesta gira, Sua presença e só depois a gira (próximo evento).
   let h = `<section class="panel">${eu}${cardMinhaPresenca()}
@@ -422,12 +431,14 @@ function renderGira() {
     <div class="row">
       ${navegarGiras(g)}
       ${editar && existe ? `<div class="enc-linha">${botaoTopo(g, editar, existe)}</div>` : ''}
+      ${whats ? `<div class="enc-linha">${botaoWhats(temDuplas)}</div>` : ''}
       ${editar ? `<label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>` : ''}
       ${editar && temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
       ${editar && temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
     </div>
     ${editar && existe && estado.confirm === 'enc:' + g.data ? caixaEncerrar(g) : ''}
     ${encerrada ? '' : blocoLimpeza(g, admin)}
+    ${blocoLicenca(ps, g)}
     ${encerrada ? `<div class="infobox"><div class="enc-info"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>
       ${g.atendimentos ? `<span>${textoAtendimentos(g.atendimentos)}</span>` : ''}
       ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}
@@ -443,6 +454,7 @@ function renderGira() {
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
     ${!encerrada && (existe || editar) ? contagemPresentes(ps, g) : ''}
   </div>`;
+  if (whats && temDuplas && abertos.has('wa')) h += painelWhats(g);
 
   if (!ps.length) {
     return h + `<div class="card empty"><h2>Nenhuma pessoa cadastrada</h2><p class="muted">${pode('pessoas:editar') ? 'Cadastre a corrente na aba Pessoas.' : 'Um admin precisa cadastrar a corrente.'}</p>
@@ -461,9 +473,14 @@ function renderGira() {
   const antesDoDia = g.pendentePadrao && g.data > hoje();
   const partes = [[cont('pend'), 'pendente', 'pendentes'], [cont('p'), 'presente', 'presentes'], [cont('f'), 'falta', 'faltas'], [cont('a'), 'ausente', 'ausentes'], [cont('lic'), 'de licença', 'de licença'], [contPapel('sup'), 'no suporte', 'no suporte'], [contPapel('na'), 'não atende', 'não atendem']]
     .filter(([n], i) => n || i === 1).map(([n, um, varios]) => `${n} ${n === 1 ? um : varios}`).join(' · ');
-  h += `<div class="card">${cabDobra('pres', 'Presença', partes)}`;
+  // Admin: moldura dourada, sempre aberto com a escolha da pessoa; a lista inteira abre em "+ Ver lista".
+  if (editar) {
+    const ab = abertos.has('pres');
+    h += `<div class="card adm"><div class="grp-h"><h2>📋 Presença</h2><span class="count">${partes}</span></div>
+      ${presencaRapida(ps, g, antesDoDia)}
+      <button class="btn link small ver-mais" data-act="dobrarcard" data-k="pres" aria-expanded="${ab}">${ab ? '− Esconder lista' : '+ Ver lista'}</button>`;
+  } else h += `<div class="card">${cabDobra('pres', 'Presença', partes)}`;
   if (abertos.has('pres')) {
-  if (editar) h += presencaRapida(ps, g, antesDoDia);
   // Cada pessoa aparece no bloco da função que exerce nesta gira: Passe que vai cambonar → Cambones;
   // Extra que vai de Passe → Passe; Suporte → Suporte. O nome fica em amarelo para sinalizar a troca.
   const grupoDe = (p) => {
@@ -505,7 +522,6 @@ function renderGira() {
   h += `</div>`;
 
   // duplas
-  const { lista, validos, passesV, semPasse, invalidos } = paresPorMedium(estado.pessoas, g);
   const map = custos(girasLista(), g.data, 'pares');
   const mapP = custos(girasLista(), g.data, 'passes');
   const psg = pessoasDaGira(ps, g);
@@ -526,7 +542,6 @@ function renderGira() {
     const falta = editar && !passada && !manual ? botaoFalta(p.c) : '';
     return `<div class="camrow">${rotulo ? `<span class="tag ${rotulo === 'Cambone' ? 'cam' : ''}">${rotulo}</span>` : ''}${quem}${selo(mp[p.m + '|' + p.c])}${p.remanejado ? '<span class="badge re">remanejado</span>' : ''}${falta}</div>${editar ? confirmaFalta(p.c) : ''}`;
   };
-  const temDuplas = validos.length || passesV.length;
   // Ajuste manual: em gira passada fica sempre ligado (registrar como foi);
   // nas outras, o admin liga pelo botão.
   const manual = editar && (passada || estado.manual === g.data);
@@ -549,7 +564,6 @@ function renderGira() {
       ${editar && temDuplas ? (g.publicada
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
         : `<button class="btn btn-grande pub-bt" data-act="publicar"><span class="pub-tit">📢 Publicar escala</span><span class="pub-sub">Só os admins veem o sorteio até publicar</span></button>`) : ''}
-      ${botaoWhats(temDuplas)}
       ${!temDuplas && manual && !passada ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="true">Concluir ajuste</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
@@ -586,8 +600,6 @@ function renderGira() {
   h += `${manual ? '' : botaoDobrar(true)}</div>`;
   }
 
-  // WhatsApp: abre pelo botão do bloco Sorteio, logo abaixo dele.
-  if (temDuplas && abertos.has('wa')) h += painelWhats(g);
   if (editar) h += blocoSugestao(ps, g);
   setTimeout(atualizarJanela, 0);
   return h + '</section>';
@@ -595,7 +607,7 @@ function renderGira() {
 
 // Ícone do WhatsApp (balão com o telefone).
 const ICONE_WHATS = '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#25D366" d="M12 2.2a9.8 9.8 0 0 0-8.4 14.9L2.3 21.8l4.8-1.3A9.8 9.8 0 1 0 12 2.2z"/><path fill="#fff" d="M8.6 7.2c.2-.4.5-.4.7-.4h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .6l-.4.6c-.1.2-.2.3 0 .6.4.7 1 1.4 1.6 1.9.7.6 1.3.8 1.6 1 .2.1.4.1.5-.1l.7-.8c.2-.2.3-.2.6-.1l1.8.9c.3.1.4.2.5.3 0 .2 0 .8-.3 1.4-.3.6-1.5 1.2-2 1.2-.6.1-1.1.3-3.7-.8-3.1-1.3-5-4.4-5.2-4.6-.1-.2-1.2-1.6-1.2-3.1 0-1.4.7-2.1 1-2.4z"/></svg>';
-// Botão do WhatsApp no bloco Sorteio (mesmo tamanho do Publicar escala); abre o painel logo abaixo.
+// Botão do WhatsApp no card da gira, abaixo do Encerrar gira; abre o painel logo abaixo do card.
 // Sem sorteio feito fica desabilitado (não há escala para mandar).
 const botaoWhats = (ok) => { const ab = ok && abertos.has('wa');
   if (!ok) return `<button class="btn btn-grande wa-bt" disabled title="Faça o sorteio primeiro"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</button>`;

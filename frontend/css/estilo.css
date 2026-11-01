@@ -325,6 +325,7 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 
 /* Turma da limpeza */
 .limpeza{display:flex;flex-direction:column;gap:4px;border-left:3px solid var(--orange);background:var(--bg);border-radius:8px;padding:8px 12px;font-size:.92rem}
+.limpeza.licenca{border-left-color:var(--off)}
 .limp-sel{font-size:.85rem;padding:3px 6px;width:auto}
 .turmas{display:flex;flex-direction:column;gap:4px;font-size:.9rem}
 

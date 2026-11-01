@@ -16,7 +16,8 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 `pend` Pendente · `p` Presente · `na` Não atende (cambona) · `sup` Suporte · `f` Falta · `a` Ausente · (`lic` derivado da licença).
 
 - Antes do dia: só Pendente/Ausente. A **corrente** declara a própria ausência até a véspera, se o admin ainda não marcou. O **admin** ligado a uma pessoa muda o próprio status em "Você nesta gira" (mesmas opções da lista, até o sorteio).
-- Topo da Presença (admin, caixa amarela): **<escolha a pessoa>** → status + função do dia → **OK** (verde) → janela Confirmar/Cancelar; grava só o que mudou e volta para "<escolha a pessoa>".
+- Bloco Presença do admin: moldura dourada com 📋, sempre aberto só com a caixa amarela; a lista inteira abre em **+ Ver lista**. Quem só consulta continua com o bloco minimizado.
+- Caixa amarela da Presença (admin): **<escolha a pessoa>** → status + função do dia → **OK** (verde) → janela Confirmar/Cancelar; grava só o que mudou e volta para "<escolha a pessoa>".
 - **Troca do dia** (2º combo da presença, `giras.papeis`): `cad` (função do cadastro), `sup`, `na` (Cambone/Não atende), `pas` → Passe (Extra, Cambone, Senha), `ext` → At. Extra (Passe), `sen` → Senha (Cambone). Ver `TROCAS_DIA`.
 
 ## Sorteio e escala
@@ -34,7 +35,8 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Topo: **Eventos** (gira 30 dias, evento/aviso futuros, amaci 7 dias) + **aniversariantes da semana** (dom–sáb) com 🎈🎂.
 - **Você nesta gira**: função, duplas, guia de atendimento; "Sorteio de escala pendente da Michelle" dentro do bloco quando a gira está aberta e sem sorteio.
 - Admin: **Sugestão Mi/Mãe Vê** — PASSE: cambones com afinidade de passe na entidade + At. Extra que **não** marcou a entidade; AT. EXTRA: passes com afinidade de extra. Exclui licença/falta/ausente. 5 nomes + rolagem.
-- Botão **WhatsApp** (abaixo de Publicar) abre o painel de texto/imagem; fica desabilitado enquanto não houver sorteio.
+- **De licença** (todos veem): no card da gira, logo abaixo da limpeza, no mesmo padrão dela com a borda vermelha; nome e até quando. Saiu dos blocos de faltas/ausentes do sorteio.
+- Botão **WhatsApp** (no card da gira, abaixo de Encerrar gira) abre o painel de texto/imagem logo abaixo desse card; fica desabilitado enquanto não houver sorteio.
 - Ordem (todos, admin também): Eventos → Você nesta gira → Sua presença no ano → a gira (data, navegação) e o resto.
 - **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.
 
