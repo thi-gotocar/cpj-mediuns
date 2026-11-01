@@ -21,14 +21,13 @@ function listaLicencas(ps, editar) {
     .sort((a, b) => a.inicio.localeCompare(b.inicio) || a.pessoa.nome.localeCompare(b.pessoa.nome, 'pt-BR'));
   if (!lics.length) return '';
   return `<div class="lic-lista">${lics.map((l) => {
-    const conf = estado.confirm === 'lic:' + l.id;
     if (editar && estado.editLic === l.id) {
       return `<div class="lic-mini lic-ed"><div class="lic-l1"><span class="cruz-vermelha" aria-hidden="true">✚</span><span class="nm">${esc(l.pessoa.nome)}</span></div>
         <div class="row"><label class="field" style="flex:1 1 130px">Início<input type="date" id="el-i" value="${l.inicio}"></label>
         <label class="field" style="flex:1 1 130px">Fim<input type="date" id="el-f" value="${l.fim}"></label>
         <label class="field" style="flex:2 1 200px">Motivo<input type="text" id="el-m" maxlength="200" value="${esc(l.motivo || '')}"></label></div>
         <div class="row"><button class="btn small primary" data-act="salvarlic" data-id="${l.id}">Salvar</button><button class="btn small" data-act="cancelarlic">Cancelar</button>
-          ${conf ? `<button class="btn small danger" data-act="dellic" data-id="${l.id}">Confirmar remoção</button>` : `<button class="btn small" data-act="askdel" data-k="lic:${l.id}">Remover</button>`}</div></div>`;
+          <button class="btn small" data-act="excluirask" data-tipo="lic" data-id="${l.id}">Remover</button></div></div>`;
     }
     return `<div class="lic-mini"><div class="lic-l1"><span class="cruz-vermelha" aria-hidden="true">✚</span><span class="lic-txt"><span class="nm">${esc(l.pessoa.nome)}</span> <span class="lic-datas">${dBR(l.inicio)} a ${dBR(l.fim)}</span></span>
         ${editar ? `<button class="btn small pp-bt" data-act="editlic" data-id="${l.id}">Editar</button>` : ''}</div>
@@ -95,13 +94,10 @@ function editorLinhas(p, c) {
 // depois o resumo das entidades. Nada muda fora do Editar: em Editar, nome, função, turma, "+ médium de passe"
 // e as entidades ficam editáveis e só são gravados no Salvar (Cancelar descarta).
 function linhaPessoa(p, { funcao = true } = {}) {
-  const conf = estado.confirm === 'p:' + p.id;
   const ed = estado.renomear === p.id;
   if (!ed) {
     return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
-        <span class="pp-bts"><button class="btn small pp-bt" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">Editar</button>${conf
-          ? `<button class="btn small danger pp-bt" data-act="delpessoa" data-id="${p.id}">Confirmar</button>`
-          : `<button class="btn small pp-bt" data-act="askdel" data-k="p:${p.id}">Excluir</button>`}</span></div>
+        <span class="pp-bts"><button class="btn small pp-bt" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">Editar</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="p" data-id="${p.id}">Excluir</button></span></div>
       <div class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
         <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span>
         ${p.funcao === 'medium' && p.experiente ? '<span class="pp-fn pp-exp-on">+ médium de passe</span>' : ''}</div>
@@ -200,7 +196,6 @@ function cardAlunos() {
     return `<div class="al-grupo"><button class="grp-h dobra al-gh" data-act="dobrarturma" data-t="${g.id || 'sem'}" aria-expanded="${!fechado}"><h3>${esc(g.nome)}</h3><span class="count">${g.lista.length} <span class="seta" aria-hidden="true">${fechado ? '▸' : '▾'}</span></span></button>
       ${fechado ? '' : g.lista.length ? `<div class="al-lista">${g.lista.map((a) => {
         if (!ed) return `<div class="al-l"><span class="nm">${esc(a.nome)}</span></div>`;
-        const conf = estado.confirm === 'al:' + a.id;
         // Editar: o nome e a turma ficam editáveis (Salvar / Cancelar).
         if (estado.editAluno === a.id) {
           return `<form id="f-aluno" class="al-l al-ed" data-id="${a.id}" autocomplete="off">
@@ -209,15 +204,42 @@ function cardAlunos() {
             <label class="al-turma">Turma <select id="al-turma" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${A.turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label></form>`;
         }
         return `<div class="al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
-          <span class="pp-bts"><button class="btn small pp-bt" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}">Editar</button>${conf
-            ? `<button class="btn small danger pp-bt" data-act="delaluno" data-id="${a.id}">Confirmar</button>`
-            : `<button class="btn small pp-bt" data-act="askdel" data-k="al:${a.id}">Excluir</button>`}</span></div></div>`;
+          <span class="pp-bts"><button class="btn small pp-bt" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}">Editar</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="al" data-id="${a.id}">Excluir</button></span></div></div>`;
       }).join('')}</div>` : '<p class="muted" style="margin:4px 0 0;font-size:.9rem">Nenhum aluno nesta turma.</p>'}</div>`;
   }).join('')}</div>`;
   return h + '</div>';
 }
 
+// Janela de confirmação para excluir (pessoa, aluno ou licença).
+function janelaExcluir() {
+  const x = estado.excluirPop;
+  if (!x) return '';
+  let titulo = '', texto = '';
+  if (x.tipo === 'p') {
+    const p = estado.pessoas.find((y) => y.id === x.id);
+    if (!p) return '';
+    titulo = 'Excluir pessoa'; texto = `Excluir <b>${esc(p.nome)}</b> da corrente? Essa ação não pode ser desfeita.`;
+  } else if (x.tipo === 'al') {
+    const a = (estado.alunos?.alunos || []).find((y) => y.id === x.id);
+    if (!a) return '';
+    titulo = 'Excluir aluno'; texto = `Excluir o aluno <b>${esc(a.nome)}</b>?`;
+  } else {
+    const p = estado.pessoas.find((y) => (y.licencas || []).some((l) => l.id === x.id));
+    const l = p && p.licencas.find((y) => y.id === x.id);
+    if (!l) return '';
+    titulo = 'Remover licença'; texto = `Remover a licença de <b>${esc(p.nome)}</b> (${dBR(l.inicio)} a ${dBR(l.fim)})?`;
+  }
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ex-t"><div class="modal">
+    <h3 id="ex-t">${titulo}</h3><p style="margin:0">${texto}</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="excluircancel">Cancelar</button><button class="btn danger" data-act="excluirok">Confirmar</button></div>
+  </div></div>`;
+}
+
 export function render() {
+  return renderPessoas().replace(/<\/section>$/, janelaExcluir() + '</section>');
+}
+
+function renderPessoas() {
   const todas = pessoasOrd();
   const ps = todas.filter((p) => !ehCurimba(p));   // a corrente (sem a curimba)
   const editar = pode('pessoas:editar');
@@ -282,6 +304,18 @@ export const cliques = {
     if (await editarLicenca(el.dataset.id, inicio, fim, document.getElementById('el-m').value.trim())) { estado.editLic = null; toast('Licença alterada.'); avisar(); }
   },
   dellic(el) { estado.confirm = null; estado.editLic = null; removerLicenca(el.dataset.id); },
+  // Excluir: abre a janela Confirmar / Cancelar.
+  excluirask(el) { estado.excluirPop = { tipo: el.dataset.tipo, id: el.dataset.id }; avisar(); },
+  excluircancel() { estado.excluirPop = null; avisar(); },
+  async excluirok() {
+    const x = estado.excluirPop;
+    estado.excluirPop = null;
+    avisar();
+    if (!x) return;
+    if (x.tipo === 'p') await excluirPessoa(x.id);
+    else if (x.tipo === 'al') await acaoAlunos('excluirAluno', { id: x.id });
+    else if (x.tipo === 'lic') { estado.editLic = null; await removerLicenca(x.id); }
+  },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
   ren(el) {
     estado.renomear = el.dataset.id;
