@@ -226,7 +226,8 @@ function cardCompra(E, r) {
     </div></div>
     <div class="grp"><h3>Pedido</h3><div id="cp-tabela">${tabelaCompra(E, r)}</div></div>
     <div class="bt-iguais">${E.aberta ? `
-      <button class="btn" data-act="cpeditar" ${C ? 'disabled aria-pressed="true"' : ''}><span aria-hidden="true">✎</span> Editar</button>
+      ${C ? '<button class="btn" data-act="cpcancelar"><span aria-hidden="true">✕</span> Cancelar</button>'
+        : '<button class="btn" data-act="cpeditar"><span aria-hidden="true">✎</span> Editar</button>'}
       <button class="btn ${C ? 'primary' : ''}" data-act="cpsalvar" ${C ? '' : 'disabled'}><span aria-hidden="true">✓</span> Salvar</button>
       <button class="btn" data-act="pedirfechar"><span aria-hidden="true">🔒</span> Fechar lista</button>`
       : '<button class="btn primary" data-act="abrir"><span aria-hidden="true">🔓</span> Reabrir lista</button>'}
@@ -374,6 +375,8 @@ export const cliques = {
     avisar();
     document.getElementById('ev-gira')?.focus();
   },
+  // Cancelar: descarta o que foi mexido e volta a travar (o botão volta a ser Editar).
+  cpcancelar() { estado.ervasCompra = null; avisar(); },
   async cpsalvar() {
     const E = estado.ervas;
     if (!estado.ervasCompra) return;
