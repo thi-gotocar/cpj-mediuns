@@ -38,6 +38,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **De licença** (todos veem): no card da gira, logo abaixo da limpeza, no mesmo padrão dela com a borda vermelha; nome e até quando. Saiu dos blocos de faltas/ausentes do sorteio.
 - Botão **WhatsApp** (no card da gira, abaixo de Encerrar gira) abre o painel de texto/imagem logo abaixo desse card; fica desabilitado enquanto não houver sorteio.
 - Ordem (todos, admin também): Eventos → Você nesta gira → Sua presença no ano → a gira (data, navegação) e o resto.
+- Último bloco: **⚠️ Seus compromissos nas oferendas** — os itens que a pessoa vai doar e ainda não foram entregues (oferendas de hoje em diante, não encerradas), com link para a aba Oferendas. Só aparece quando há algum.
 - **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.
 
 ## Perfil

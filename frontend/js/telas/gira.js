@@ -1,13 +1,14 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, publicarEscala, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, publicarEscala, carregarOferendas, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo } from '/shared/resumoGira.js';
 import { eventosDoTopo, dataCurta } from '/shared/eventos.js';
+import { textoEntrega, dataBR } from '/shared/oferendas.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
@@ -392,8 +393,32 @@ function cardMinhaPresenca() {
     ${faltas.length ? `<div class="mp-lista">${faltas.map(([g, st]) => `<div class="mp-l"><span class="mp-dia">${dDM(g.data)}</span><span class="mp-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span><span class="mp-st ${st}">${st === 'f' ? 'Falta' : 'Ausência'}</span></div>`).join('')}</div>` : ''}</div>`;
 }
 
+// Último bloco da aba Gira: os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues.
+// Só aparece quando há algum.
+let pediuOferendas = false;
+function cardCompromissos() {
+  if (!pode('oferendas:doar')) return '';
+  if (estado.oferendas === null) {
+    if (!pediuOferendas) { pediuOferendas = true; carregarOferendas(); }
+    return '';
+  }
+  const eu = estado.oferendas.eu || {};
+  if (!eu.chave) return '';
+  const hj = hoje();
+  const grupos = (estado.oferendas.oferendas || []).filter((of) => of.status !== 'encerrado' && of.data >= hj)
+    .map((of) => ({ of, itens: of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q && !x.i.entregue) }))
+    .filter((x) => x.itens.length);
+  if (!grupos.length) return '';
+  return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos nas oferendas</h2></div>
+    ${grupos.map(({ of, itens }) => `<div class="comp-of-g"><div><b>${esc(of.titulo)}</b> <span class="muted">· ${dataBR(of.data)}</span></div>
+      <ul>${itens.map(({ i, q }) => `<li>${esc(i.nome)} <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul></div>`).join('')}
+    <button class="btn link small" data-act="goto" data-tab="oferendas">Ver oferendas ›</button></div>`;
+}
+
 export function render() {
-  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
+  const h = renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
+  const fim = h.lastIndexOf('</section>');
+  return fim < 0 ? h + cardCompromissos() : h.slice(0, fim) + cardCompromissos() + h.slice(fim);
 }
 
 function renderGira() {
