@@ -182,9 +182,19 @@ details.linhas summary{cursor:pointer;font-size:.85rem;color:var(--accent);font-
 table.pedidos td,table.pedidos th{white-space:normal}
 table.pedidos td.rh{text-align:left;color:var(--muted)}
 table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--bg)}
-@media (max-width:560px){.pp.ev{grid-template-columns:minmax(0,1fr) 90px}.pp.ev .acts{grid-column:1/-1}}
+@media (max-width:560px){.pp.ev{grid-template-columns:minmax(0,1fr) auto}.pp.ev .acts{grid-column:1/-1}}
+.serve-erva{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);white-space:nowrap}
+.serve-erva input{width:70px}
 
 .pp.ev input.falta{border-color:var(--warn);background:var(--warn-soft)}
+/* Bloco Compra: nome da gira e data lado a lado também no celular; campos travados até "Editar". */
+.row.compra-ev{flex-wrap:nowrap}
+.row.compra-ev>label.field:first-child{flex:1 1 0}
+.row.compra-ev>label.field:last-child{flex:0 0 150px}
+#card-compra input:disabled{color:var(--ink);background:transparent;border-style:dashed;opacity:1;-webkit-text-fill-color:var(--ink)}
+.preco-compra{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);font-weight:700}
+.preco-compra input{width:100px;padding:5px 8px}
+.preco-compra input.falta{border-color:var(--warn);background:var(--warn-soft)}
 .grp.exp{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--bg)}
 .grp.exp textarea{min-height:180px}
 
@@ -259,8 +269,6 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-of-linha{justify-content:space-between;align-items:center;gap:8px}
 .st-of-bts{display:flex;gap:6px;flex-wrap:wrap}
 .st-of-bts .btn.atual{opacity:1;border-color:var(--accent);color:var(--accent)}
-.trocar-ped{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.trocar-ped select{width:auto;min-width:150px;padding:6px 8px}
 .of-item.completo{padding:6px 12px;gap:2px}
 .of-item.completo .of-doadores,.of-item.completo .of-doad-adm{font-size:.85rem}
 .of-ent{font-size:.82rem;text-align:right}

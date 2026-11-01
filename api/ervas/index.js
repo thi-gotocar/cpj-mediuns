@@ -4,7 +4,8 @@
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin:
-//        salvarErva { id?, nome, preco? } (preço vazio = a definir) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
+//        salvarErva { id?, nome, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
+//        salvarCompra { gira, data, frete, itens: [{ id, quantidade, preco }] }  — bloco Compra (preço da porção; vazio = a definir)
 //        reatribuir { chave, pessoaId }  — passa o pedido para uma pessoa da corrente
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
@@ -39,6 +40,15 @@ function valor(v, oque) {
   const n = Number(String(v ?? '').replace(/\s|R\$/g, '').replace(',', '.'));
   if (!Number.isFinite(n) || n < 0 || n > 100000) throw new HttpError(400, oque + ' inválido.');
   return Math.round(n * 100) / 100;
+}
+
+const precoOuNulo = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : valor(v, 'Preço'));
+
+// Nome da gira e data do evento do pedido.
+function evento(b) {
+  const gira = String(b.gira ?? '').replace(/\s+/g, ' ').trim();
+  if (gira.length > 80) throw new HttpError(400, 'Nome da gira muito longo.');
+  return { gira, data: b.data ? validarData(String(b.data)) : '' };
 }
 
 export default rota({
@@ -85,8 +95,25 @@ export default rota({
       case 'salvarErva': {
         const nome = String(b.nome || '').replace(/\s+/g, ' ').trim();
         if (!nome || nome.length > 60) throw new HttpError(400, 'Informe o nome da erva.');
-        const vazio = b.preco === null || b.preco === undefined || String(b.preco).trim() === '';
-        estado = await db.rpc('erva_salvar', { id: b.id ? validarId(b.id, 'Erva') : null, nome, preco: vazio ? null : valor(b.preco, 'Preço') });
+        const p = { id: b.id ? validarId(b.id, 'Erva') : null, nome };
+        if ('preco' in b) p.preco = precoOuNulo(b.preco);
+        if ('pessoasPorcao' in b) {
+          const vazio = b.pessoasPorcao === null || String(b.pessoasPorcao).trim() === '';
+          const n = Number(b.pessoasPorcao);
+          if (!vazio && (!Number.isInteger(n) || n < 1 || n > 999)) throw new HttpError(400, 'Pessoas por porção inválido (de 1 a 999).');
+          p.pessoasPorcao = vazio ? null : n;
+        }
+        estado = await db.rpc('erva_salvar', p);
+        break;
+      }
+      case 'salvarCompra': {
+        if (!Array.isArray(b.itens) || b.itens.length > 500) throw new HttpError(400, 'Lista de ervas inválida.');
+        const itens = b.itens.map((i) => {
+          const q = Number(i?.quantidade);
+          if (!Number.isInteger(q) || q < 0 || q > 999) throw new HttpError(400, 'Quantidade inválida (de 0 a 999).');
+          return { id: validarId(i?.id, 'Erva'), quantidade: q, preco: precoOuNulo(i?.preco) };
+        });
+        estado = await db.rpc('ervas_compra_salvar', { ...evento(b), frete: valor(b.frete, 'Frete'), itens });
         break;
       }
       case 'excluirErva':
@@ -96,11 +123,8 @@ export default rota({
         const p = {};
         if ('frete' in b) p.frete = valor(b.frete, 'Frete');
         if ('aberta' in b) p.aberta = !!b.aberta;
-        if ('gira' in b) {
-          p.gira = String(b.gira ?? '').replace(/\s+/g, ' ').trim();
-          if (p.gira.length > 80) throw new HttpError(400, 'Nome da gira muito longo.');
-        }
-        if ('data' in b) p.data = b.data ? validarData(String(b.data)) : '';
+        if ('gira' in b) p.gira = evento(b).gira;
+        if ('data' in b) p.data = evento(b).data;
         estado = await db.rpc('ervas_config', p);
         break;
       }

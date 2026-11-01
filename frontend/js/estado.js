@@ -14,6 +14,7 @@ export const estado = {
   ervas: null,         // compra de ervas (GET /api/ervas)
   ervasVista: null,
   ervasImg: null,      // imagem gerada do pedido ao fornecedor / cobrança
+  ervasCompra: null,   // admin editando o bloco Compra: { gira, data, frete, itens: { ervaId: { qtd, preco } } } (null = travado)
   ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"

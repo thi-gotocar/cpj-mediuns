@@ -1,7 +1,7 @@
 // Cálculo da compra de ervas (sem banco).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularPedidos, textoPedidos, csvPedidos, chavePessoa, totaisPorErva, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca } from '../shared/ervas.js';
+import { calcularPedidos, textoPedidos, csvPedidos, chavePessoa, totaisPorErva, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca, itensCompra, porcoesErva } from '../shared/ervas.js';
 
 const ervas = [{ id: 'a', nome: 'Arruda', preco: 5 }, { id: 'g', nome: 'Guiné', preco: 7.5 }, { id: 'r', nome: 'Alecrim', preco: 3.33 }];
 
@@ -62,7 +62,7 @@ test('erva sem preço: entra no pedido como "a definir" até o admin fechar o pr
   assert.equal(r2.pessoas[0].total, 500 + 300 + 400);
 });
 
-test('pedido ao fornecedor (sem valores) e cobrança por pessoa', () => {
+test('pedido ao fornecedor (quantidade da compra, sem valores) e cobrança por pessoa', () => {
   const lista = [{ id: 'a', nome: 'Arruda', preco: 5 }, { id: 'g', nome: 'Guiné', preco: null }];
   const escolhas = [
     { chave: '1', nome: 'Ana', ervaId: 'a', quantidade: 2 },
@@ -70,13 +70,17 @@ test('pedido ao fornecedor (sem valores) e cobrança por pessoa', () => {
     { chave: '2', nome: 'Bia', ervaId: 'g', quantidade: 1 },
   ];
   const r = calcularPedidos(lista, escolhas, 10);
-  const forn = textoFornecedor(r, new Date(2026, 10, 1));
-  assert.match(forn, /• Arruda\n/);
-  assert.match(forn, /• Guiné\n/);
-  assert.doesNotMatch(forn, /Arruda: 3|x3/, 'o pedido ao fornecedor não leva a quantidade');
+  // Pedido ao fornecedor: a quantidade da Compra, nunca menos que as porções que os pedidos exigem
+  // (sem "pessoas por porção", 1 porção atende todos); erva sem pedido e sem quantidade fica de fora.
+  const compra = [{ id: 'g', nome: 'Guiné', qtdCompra: 2 }, { id: 'a', nome: 'Arruda', qtdCompra: 0 }, { id: 'r', nome: 'Alecrim', qtdCompra: 0 }];
+  assert.deepEqual(itensCompra(compra, r), [{ nome: 'Arruda', quantidade: 1 }, { nome: 'Guiné', quantidade: 2 }]);
+  const forn = textoFornecedor(compra, r, new Date(2026, 10, 1));
+  assert.match(forn, /• Arruda x1\n/);
+  assert.match(forn, /• Guiné x2\n/);
+  assert.doesNotMatch(forn, /Alecrim/);
   assert.doesNotMatch(forn, /R\$/, 'o pedido ao fornecedor não leva valores');
-  assert.match(textoFornecedor(r, new Date(), { gira: 'Caboclo', data: '2026-11-07' }), /\nGira: Caboclo · 07\/11\/2026\n/);
-  assert.equal(csvFornecedor(r), '\uFEFFErva\r\nArruda\r\nGuiné');
+  assert.match(textoFornecedor(compra, r, new Date(), { gira: 'Caboclo', data: '2026-11-07' }), /\nGira: Caboclo · 07\/11\/2026\n/);
+  assert.equal(csvFornecedor(compra, r), '﻿Erva;Quantidade\r\nArruda;1\r\nGuiné;2');
   lista[1].preco = 7.5;
   const r2 = calcularPedidos(lista, escolhas, 10);
   const cob = textoCobranca(r2);
@@ -93,4 +97,25 @@ test('rateio igual com quantidade 1 e sem perder centavo', () => {
   const r = calcularPedidos(lista, esc, 0);
   assert.deepEqual(r.pessoas.map((p) => p.subtotal), [334, 333, 333]);
   assert.equal(r.totalItens, 1000);
+});
+
+test('porções: quantas pessoas a porção serve aumenta a compra e o custo dividido', () => {
+  // Alecrim R$ 25,00 a porção, serve 6 pessoas.
+  const lista = [{ id: 'r', nome: 'Alecrim', preco: 25, pessoasPorcao: 6, qtdCompra: 0 }];
+  const pedir = (n) => Array.from({ length: n }, (_, k) => ({ chave: 'p' + k, nome: 'P' + String(k).padStart(2, '0'), ervaId: 'r', quantidade: 1 }));
+  assert.equal(porcoesErva(lista[0], 0), 0);
+  assert.equal(porcoesErva(lista[0], 6), 1);
+  assert.equal(porcoesErva(lista[0], 7), 2);
+  assert.equal(porcoesErva({ qtdCompra: 3, pessoasPorcao: 6 }, 7), 3, 'o admin pode pedir mais');
+  assert.equal(porcoesErva({ qtdCompra: 0 }, 40), 1, 'sem pessoas por porção, uma porção atende todos');
+  let r = calcularPedidos(lista, pedir(6), 0);
+  assert.equal(r.totalItens, 2500);
+  r = calcularPedidos(lista, pedir(7), 0);
+  assert.equal(r.totalItens, 5000, 'sete pessoas: duas porções');
+  assert.deepEqual(r.pessoas.map((p) => p.subtotal), [715, 715, 714, 714, 714, 714, 714]);
+  assert.equal(r.pessoas[0].itens[0].porcoes, 2);
+  assert.deepEqual(itensCompra(lista, r), [{ nome: 'Alecrim', quantidade: 2 }]);
+  // Quem pede quantidade 2 conta como duas pessoas.
+  r = calcularPedidos(lista, [...pedir(5), { chave: 'x', nome: 'Xavier', ervaId: 'r', quantidade: 2 }], 0);
+  assert.equal(r.totalItens, 5000);
 });

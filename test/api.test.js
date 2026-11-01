@@ -453,6 +453,23 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   let e = (await api('POST', '/api/ervas', ADMIN, { acao: 'config', frete: '12' })).json;
   assert.equal(e.frete, 12);
   const [arruda, guine] = ['Arruda', 'Guiné'].map((n) => e.ervas.find((x) => x.nome === n));
+  // Bloco Compra: quantidade e preço de cada erva de uma vez; o cadastro sem preço mantém o preço.
+  const compra = (b, tok = ADMIN) => api('POST', '/api/ervas', tok, { acao: 'salvarCompra', gira: 'Gira de Caboclo', data: '2026-11-07', frete: '12', ...b });
+  assert.equal((await compra({ itens: [] }, USER)).status, 403);
+  assert.equal((await compra({ itens: [{ id: arruda.id, quantidade: -1, preco: '' }] })).status, 400);
+  e = (await compra({ itens: [{ id: arruda.id, quantidade: 4, preco: '5,00' }, { id: guine.id, quantidade: 0, preco: 7.5 }] })).json;
+  assert.deepEqual([arruda.id, guine.id].map((id) => e.ervas.find((x) => x.id === id)).map((x) => [x.qtdCompra, x.preco]), [[4, 5], [0, 7.5]]);
+  e = (await api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', id: arruda.id, nome: 'Arruda' })).json;
+  assert.equal(e.ervas.find((x) => x.id === arruda.id).preco, 5);
+  // Pessoas por porção (vazio = uma porção atende todos); sem o campo, o cadastro mantém.
+  const serve = (v) => api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', id: arruda.id, nome: 'Arruda', pessoasPorcao: v });
+  assert.equal((await serve(0)).status, 400);
+  assert.equal((await serve('6')).json.ervas.find((x) => x.id === arruda.id).pessoasPorcao, 6);
+  assert.equal(e.ervas.find((x) => x.id === arruda.id).pessoasPorcao ?? null, null);
+  assert.equal((await api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', id: arruda.id, nome: 'Arruda' })).json.ervas.find((x) => x.id === arruda.id).pessoasPorcao, 6);
+  assert.equal((await serve('')).json.ervas.find((x) => x.id === arruda.id).pessoasPorcao, null);
+  // Volta a quantidade para 0: daqui em diante cada erva custa uma porção.
+  e = (await compra({ itens: [{ id: arruda.id, quantidade: 0, preco: '5,00' }, { id: guine.id, quantidade: 0, preco: 7.5 }] })).json;
 
   const maria = (await api('POST', '/api/auth/entrar', null, { email: 'corrente-cpj', senha: 'Maria' })).json.token;
   const r1 = await api('PUT', '/api/ervas', maria, { itens: [{ ervaId: arruda.id, quantidade: 2 }] });
@@ -508,6 +525,7 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.equal(e.aberta, true);
   assert.equal(e.pedidos.pessoas.length, 0);
   assert.equal(e.ervas.length, 1);
+  assert.equal(e.ervas[0].qtdCompra, 0, 'nova compra zera as quantidades da compra');
 });
 
 test('oferendas: admin cria itens, todos doam até o limite, admin marca entregue', async () => {

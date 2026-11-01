@@ -163,7 +163,7 @@ ervas = bloco(
   ]),
   h3('Como o valor é dividido'),
   lista([
-    'O preço de cada erva é dividido entre quem escolheu aquela erva, na proporção da quantidade.',
+    'O custo de cada erva é dividido entre quem escolheu aquela erva, na proporção da quantidade. Se muita gente pedir, a casa compra mais porções e o custo sobe.',
     'O frete é dividido entre todos que pedirem.',
     'Por isso os valores mudam conforme mais pessoas pedem. O sinal <b>≈</b> quer dizer “aproximado”.',
     '<b>“preço a definir”</b>: a erva ainda está sem preço. O valor final sai quando a administração fechar os preços.',

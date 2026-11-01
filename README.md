@@ -59,7 +59,7 @@ No login, quem digita **`corrente-cpj`** no campo de e-mail entra sem senha: o c
 ### Ervas (compra coletiva)
 
 - **Todos** (admin, usuário e corrente) escolhem as ervas e a quantidade na aba **Ervas**. Quem tem conta aparece sempre com o nome cadastrado.
-- **Admin** cadastra ervas e preços (o preço é opcional: pode ficar "a definir" e ser preenchido no fim, para fechar o valor de cada um), define o **frete** (dividido por igual entre quem pediu), fecha/reabre a lista, vê os pedidos e tem dois botões de exportação (texto, WhatsApp e planilha `.csv`): **Pedido ao fornecedor** (cada erva com a quantidade total, sem valores) e **Cobrança** (quanto cada pessoa paga, liberada quando todas as ervas pedidas têm preço). **Nova compra** apaga os pedidos e reabre a lista.
+- **Admin** cadastra as ervas e monta a **Compra**: nome da gira e data, as porções e o preço da porção de cada erva (o preço é opcional: pode ficar "a definir" e ser preenchido no fim). No cadastro, cada erva pode ter "porção serve N pessoas": com mais pedidos, as porções (e o custo dividido) sobem sozinhas e o **frete** (dividido por igual entre quem pediu). Os campos ficam travados; **Editar** libera e vira **Salvar alterações** quando algo muda. Na Compra também ficam **Fechar/Reabrir lista**, os dois botões de exportação (texto, WhatsApp e planilha `.csv`) — **Pedido ao fornecedor** (as ervas com as porções da Compra, sem valores) e **Cobrança** (quanto cada pessoa paga, liberada quando todas as ervas pedidas têm preço) — e **Nova compra** (apaga os pedidos, zera as quantidades da Compra e reabre a lista). Em **Pedidos da corrente** o admin vê e corrige o pedido de cada pessoa.
 
 ## Como colocar no ar
 

@@ -131,7 +131,7 @@ tabs.addEventListener('click', (e) => {
   estado.confirm = null;
   // Usuários: busca de novo; o bloco Senhas volta minimizado.
   if (b.dataset.tab === 'usuarios') { estado.usuarios = null; estado.senhasAberto = false; estado.senhaEdit = null; }
-  if (b.dataset.tab === 'ervas') estado.ervas = null;
+  if (b.dataset.tab === 'ervas') { estado.ervas = null; estado.ervasCompra = null; }
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
   if (b.dataset.tab === 'perfil') estado.perfil = null;
@@ -145,7 +145,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, perfil: null, alunos: null, perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {
@@ -222,6 +222,7 @@ main.addEventListener('input', (e) => {
   if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
   if (e.target.dataset.mascara === 'tel' && !String(e.inputType || '').startsWith('delete')) mascaraTel(e.target);
   if (prefs.tab === 'perfil' && (e.target.dataset.act === 'pfinfo' || e.target.dataset.act === 'pfnome')) perfil.digitando(e.target);
+  if (prefs.tab === 'ervas' && e.target.dataset.compra) ervas.digitando(e.target);
 });
 
 main.addEventListener('submit', async (e) => {

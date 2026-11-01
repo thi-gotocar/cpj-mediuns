@@ -203,10 +203,10 @@ oferendas = bloco(
 ervas_eventos = bloco(
   h3('Ervas'),
   tabela(['Bloco', 'Para que serve'], [
-    ['<b>Ervas e preços</b>', 'Cadastrar as ervas e o preço total de cada uma (pode ficar “a definir”).'],
-    ['<b>Compra</b>', f'Nome da gira e data do pedido, frete, {B("Fechar lista")} / {B("Reabrir lista")} e {B("Nova compra")} (apaga os pedidos; pede confirmação).'],
+    ['<b>Compra</b>', f'Nome da gira e data do pedido, as porções e o preço da porção de cada erva (o preço pode ficar “a definir”; as porções sobem sozinhas quando os pedidos passam do que a porção serve) e o frete. Toque em {B("Editar")} para liberar os campos e em {B("Salvar alterações")} para gravar. Também ficam aqui {B("Fechar lista")} / {B("Reabrir lista")}, <b>Pedido ao fornecedor</b> e <b>Cobrança</b> (texto, planilha e imagem; a Cobrança libera quando todas as ervas pedidas têm preço) e {B("Nova compra")} (apaga os pedidos e zera as quantidades; pede confirmação).'],
+    ['<b>Cadastro de ervas</b>', 'Cadastrar, renomear e excluir as ervas, e dizer quantas pessoas uma porção serve (em branco, uma porção atende todos).'],
     ['<b>Pedido para outra pessoa</b>', 'Para quem não usa o app, ou para corrigir um pedido.'],
-    ['<b>Pedidos</b>', '“Para comprar” (total por erva), <b>Pedido ao fornecedor</b> e <b>Cobrança</b> (texto, planilha e imagem). A Cobrança libera quando todas as ervas têm preço.'],
+    ['<b>Pedidos da corrente</b>', 'O pedido de cada pessoa (editar, excluir) e o total por erva.'],
   ], [0.3, 0.7], C),
   h3('Eventos'),
   passos([

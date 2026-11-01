@@ -50,13 +50,23 @@ export function chavePessoa(quem) {
 
 export const temPreco = (erva) => erva && erva.preco !== null && erva.preco !== undefined && erva.preco !== '';
 
-// ervas:    [{ id, nome, preco }]   preco = valor TOTAL pago pela erva (null = a definir)
+// Quantas porções da erva vão no pedido ao fornecedor. Com "pessoasPorcao" (quantas pessoas
+// uma porção serve), o mínimo é o que atende os pedidos: 7 pedidos de uma erva que serve 6 = 2 porções.
+// Sem ele, uma porção atende todos. O admin pode pedir mais (qtdCompra), nunca menos.
+// pedidos = soma das quantidades escolhidas daquela erva.
+export function porcoesErva(erva, pedidos) {
+  const serve = Number(erva.pessoasPorcao) || 0;
+  const minimo = !pedidos ? 0 : serve ? Math.ceil(pedidos / serve) : 1;
+  return Math.max(Number(erva.qtdCompra) || 0, minimo);
+}
+
+// ervas:    [{ id, nome, preco, pessoasPorcao?, qtdCompra? }]   preco = valor de UMA porção (null = a definir)
 // escolhas: [{ chave, nome, ervaId, quantidade }]
 // frete:    em reais
 //
 // Rateio:
-// - o preço de cada erva é dividido entre quem escolheu aquela erva, na proporção da
-//   quantidade (com quantidade 1 para todos, fica igual para cada um);
+// - o custo de cada erva (preço da porção × porções compradas) é dividido entre quem escolheu
+//   aquela erva, na proporção da quantidade (com quantidade 1 para todos, fica igual para cada um);
 // - o frete é dividido por igual entre quem escolheu pelo menos uma erva.
 // Os centavos que sobram de cada divisão vão para quem ficou mais perto de receber
 // o centavo (e, no empate, para os primeiros da lista), para fechar o valor exato.
@@ -79,7 +89,8 @@ export function calcularPedidos(ervas, escolhas, frete) {
   const lista = [...pessoas.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const ordem = new Map(lista.map((p, i) => [p.chave, i]));
   for (const itens of porErva.values()) {
-    itens.forEach((i) => { i.pessoas = itens.length; });
+    const porcoes = porcoesErva(porId.get(itens[0].ervaId), itens.reduce((a, i) => a + i.quantidade, 0));
+    itens.forEach((i) => { i.pessoas = itens.length; i.porcoes = porcoes; i.preco *= porcoes; });
     if (itens[0].semPreco) continue;
     const pesos = itens.map((i) => i.quantidade);
     dividir(itens[0].preco, pesos, itens.map((i) => ordem.get(i.dono.chave))).forEach((v, k) => { itens[k].valor = v; });
@@ -175,20 +186,34 @@ export function linhaEvento(evento) {
   return partes.join(' · ');
 }
 
-// ---------- Pedido ao fornecedor: só as ervas que serão pedidas (sem quantidade nem valores) ----------
-export function textoFornecedor(resumo, data = new Date(), evento = null) {
-  const tot = totaisPorErva(resumo);
+// Soma das quantidades pedidas pela corrente, por erva: { ervaId: n }.
+export function pedidosPorErva(resumo) {
+  const m = {};
+  (resumo?.pessoas || []).forEach((p) => p.itens.forEach((i) => { m[i.ervaId] = (m[i.ervaId] || 0) + i.quantidade; }));
+  return m;
+}
+
+// ---------- Pedido ao fornecedor: as ervas da compra com as porções, sem valores ----------
+// ervas: [{ id, nome, qtdCompra, pessoasPorcao }]; resumo: calcularPedidos (para as porções que os pedidos exigem).
+export function itensCompra(ervas, resumo) {
+  const ped = pedidosPorErva(resumo);
+  return ervas.map((e) => ({ nome: e.nome, quantidade: porcoesErva(e, ped[e.id] || 0) })).filter((t) => t.quantidade > 0)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+export function textoFornecedor(ervas, resumo, data = new Date(), evento = null) {
+  const itens = itensCompra(ervas, resumo);
   const ev = linhaEvento(evento);
   const L = ['*PEDIDO DE ERVAS · ' + data.toLocaleDateString('pt-BR') + '*', ...(ev ? [ev] : []), ''];
-  tot.forEach((t) => L.push(`• ${t.nome}`));
+  itens.forEach((t) => L.push(`• ${t.nome} x${t.quantidade}`));
   L.push('');
-  L.push(`Total: ${tot.length} erva${tot.length === 1 ? '' : 's'}`);
+  L.push(`Total: ${itens.length} erva${itens.length === 1 ? '' : 's'}`);
   return L.join('\n');
 }
 
-export function csvFornecedor(resumo) {
-  const linhas = [['Erva']];
-  totaisPorErva(resumo).forEach((t) => linhas.push([t.nome]));
+export function csvFornecedor(ervas, resumo) {
+  const linhas = [['Erva', 'Quantidade']];
+  itensCompra(ervas, resumo).forEach((t) => linhas.push([t.nome, t.quantidade]));
   return '\uFEFF' + linhas.map((l) => l.map(celCsv).join(';')).join('\r\n');
 }
 

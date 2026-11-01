@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 49;  // v49: oferenda por pessoa: acrescentar uma pessoa do cadastro na lista
+export const VERSAO = 50;  // v50: ervas: quantidade e preço da porção no bloco Compra; pessoas por porção no cadastro
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1495,6 +1495,73 @@ export const MIGRACOES = [
        on conflict (oferenda_id, pessoa_id) do update set excluido = false, atualizado_em = now();
      end if;
      return oferendas_estado();
+   end;
+   $$`,
+
+  // ================================================== v50: ervas: quantidade da compra (o admin monta o pedido no bloco Compra)
+  // e quantas pessoas uma porção serve (vazio = uma porção atende todos). O preço passa a ser o de uma porção.
+  `alter table ervas add column if not exists qtd_compra integer not null default 0 check (qtd_compra between 0 and 999)`,
+  `alter table ervas add column if not exists pessoas_porcao integer check (pessoas_porcao between 1 and 999)`,
+  `create or replace function ervas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'frete', coalesce((select valor::numeric from sistema where chave = 'ervas_frete'), 0),
+       'aberta', coalesce((select valor = 'true' from sistema where chave = 'ervas_aberta'), true),
+       'gira', coalesce((select valor from sistema where chave = 'ervas_gira'), ''),
+       'data', coalesce((select valor from sistema where chave = 'ervas_data'), ''),
+       'ervas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'preco', e.preco, 'qtdCompra', e.qtd_compra,
+                                                     'pessoasPorcao', e.pessoas_porcao) order by lower(e.nome))
+                          from ervas e), '[]'::jsonb),
+       -- Quem tem conta aparece sempre com o nome cadastrado atual.
+       'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave,
+                                                                 'nome', coalesce(u.nome, pe.nome, x.pessoa_nome),
+                                                                 'ervaId', x.erva_id, 'quantidade', x.quantidade)
+                                              order by lower(coalesce(u.nome, pe.nome, x.pessoa_nome)))
+                             from ervas_escolhas x
+                             left join usuarios u on x.pessoa_chave = 'u:' || u.id::text
+                             left join pessoas pe on x.pessoa_chave = 'p:' || pe.id::text), '[]'::jsonb)
+     );
+   $$`,
+  // O preço agora é preenchido no bloco Compra: sem "preco", o cadastro só muda o nome e as pessoas por porção.
+  `create or replace function erva_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into ervas (nome, preco, pessoas_porcao)
+       values (btrim(p ->> 'nome'), (p ->> 'preco')::numeric, (p ->> 'pessoasPorcao')::integer);
+     else
+       update ervas set nome = btrim(p ->> 'nome'),
+                        preco = case when p ? 'preco' then (p ->> 'preco')::numeric else preco end,
+                        pessoas_porcao = case when p ? 'pessoasPorcao' then (p ->> 'pessoasPorcao')::integer else pessoas_porcao end
+        where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Erva não encontrada.'; end if;
+     end if;
+     return ervas_estado();
+   exception when unique_violation then
+     raise exception 'Já existe uma erva com esse nome.';
+   end;
+   $$`,
+  // Salva o bloco Compra de uma vez: gira, data, frete e a quantidade/preço de cada erva.
+  `create or replace function ervas_compra_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare i jsonb;
+   begin
+     perform ervas_config(p - 'itens' - 'aberta');
+     for i in select * from jsonb_array_elements(coalesce(p -> 'itens', '[]'::jsonb)) loop
+       update ervas set qtd_compra = (i ->> 'quantidade')::integer, preco = (i ->> 'preco')::numeric
+        where id = (i ->> 'id')::uuid;
+     end loop;
+     return ervas_estado();
+   end;
+   $$`,
+  // Nova compra: apaga as escolhas, zera as quantidades da compra e reabre a lista (o catálogo, os preços e o frete ficam).
+  `create or replace function ervas_nova_compra(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from ervas_escolhas;
+     update ervas set qtd_compra = 0 where qtd_compra <> 0;
+     update sistema set valor = 'true' where chave = 'ervas_aberta';
+     return ervas_estado();
    end;
    $$`,
 ];
