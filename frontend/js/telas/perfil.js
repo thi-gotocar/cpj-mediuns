@@ -17,9 +17,10 @@ function cab(k, titulo, count, aberto, dobra) {
   return `<button class="grp-h dobra" data-act="pfdobra" data-k="${k}" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'}">
     <h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
 }
+// adm: o card fica dentro da moldura dourada "ADMIN" (no topo da aba), sem borda própria.
 function card(k, titulo, count, padrao, corpo, dobra = admin(), adm = false) {
   const ab = !dobra || (U().abertos[k] ?? padrao);
-  return `<div class="card${adm ? ' adm' : ''}">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
+  return `<div class="card${adm ? ' pf-adm-card' : ''}">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
 }
 
 // ---------- admin: Ajustes (escolhe a pessoa e o que alterar) ----------
@@ -85,23 +86,22 @@ function formInfoAdmin(x) {
     <div class="aj-bts"><button class="btn primary" type="submit">Salvar</button></div></form>`;
 }
 
-// Bloco Informações. O admin escolhe no topo de quem quer ver/alterar (começa com ele mesmo).
+// Admin: informações de qualquer pessoa da corrente (escolhe no combo, altera e toca em Salvar).
+function cardInfoAdmin(todos) {
+  const sel = estado.infoPessoa || '';
+  const x = todos.find((t) => t.pessoaId === sel);
+  return card('info-corrente', 'Informações da corrente', '', false, () => `<label class="field">Pessoa<select data-act="infopessoa" aria-label="De quem são as informações">
+      <option value="">— escolha a pessoa —</option>
+      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === sel ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
+    ${x ? formInfoAdmin(x) : '<p class="muted" style="margin:0;font-size:.88rem">Escolha a pessoa para ver e alterar as informações.</p>'}`, true, true);
+}
+
+// Bloco Informações (o próprio perfil; salva enquanto digita).
 function cardInfo(eu) {
-  const todos = admin() ? estado.perfil.todos : null;
-  const sel = (todos && estado.infoPessoa) || eu?.pessoaId || '';
-  const seletor = todos ? `<label class="field pf-info-pessoa">Pessoa<select data-act="infopessoa" aria-label="De quem são as informações">
-      ${eu ? '' : '<option value="">— escolha a pessoa —</option>'}
-      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === sel ? 'selected' : ''}>${esc(t.nome)}${eu && t.pessoaId === eu.pessoaId ? ' (você)' : ''}</option>`).join('')}</select></label>` : '';
-  if (!eu || sel !== eu.pessoaId) {
-    const x = todos && todos.find((t) => t.pessoaId === sel);
-    return `<div class="card${todos ? ' adm' : ''}"><div class="grp-h"><h2>Informações</h2></div>${seletor}
-      ${x ? formInfoAdmin(x) : '<p class="muted" style="margin:0">Escolha a pessoa para ver e alterar as informações.</p>'}</div>`;
-  }
   const I = eu.perfil.info || {};
   const campo = (k, rotulo, attrs, valor) => `<label class="field pf-info-c">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
   const sv = estado.perfilSalvo;
   return `<div class="card pf-info-card"><div class="grp-h"><h2>Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
-    ${seletor}
     <div class="pf-info">
       ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome)}
       ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
@@ -223,13 +223,15 @@ export function render() {
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;
   let h = '';
-  if (admin()) h += cardAjustes(todos) + cardRespostas(todos);
+  // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".
+  if (admin()) {
+    h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
+      ${cardAjustes(todos)}${cardInfoAdmin(todos)}${cardRespostas(todos)}${cardOferendas(todos)}</div>`;
+  }
   if (eu) h += meusCards(eu);
-  else if (admin()) h += cardInfo(null);
-  else h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
+  else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
   h += cardGuiasCorrente(estado.perfil.guias || []);
-  if (admin()) h += cardOferendas(todos);
-  return h;
+  return `<section class="panel pf-tela">${h}</section>`;
 }
 
 export const cliques = {
