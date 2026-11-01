@@ -393,7 +393,7 @@ function cardMinhaPresenca() {
     ${faltas.length ? `<div class="mp-lista">${faltas.map(([g, st]) => `<div class="mp-l"><span class="mp-dia">${dDM(g.data)}</span><span class="mp-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span><span class="mp-st ${st}">${st === 'f' ? 'Falta' : 'Ausência'}</span></div>`).join('')}</div>` : ''}</div>`;
 }
 
-// Último bloco da aba Gira: os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
+// Logo depois de "Você nesta gira": os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
 // e, na oferenda com uma linha por pessoa, o pagamento ou a entrega que faltam. Só aparece quando há algum.
 let pediuOferendas = false;
 function cardCompromissos() {
@@ -421,9 +421,7 @@ function cardCompromissos() {
 }
 
 export function render() {
-  const h = renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
-  const fim = h.lastIndexOf('</section>');
-  return fim < 0 ? h + cardCompromissos() : h.slice(0, fim) + cardCompromissos() + h.slice(fim);
+  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
 }
 
 function renderGira() {
@@ -439,7 +437,7 @@ function renderGira() {
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return `<section class="panel">${cardMinhaPresenca()}<div class="card card-novo adm">
+    return `<section class="panel">${cardCompromissos()}${cardMinhaPresenca()}<div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       <div class="row">${navegarGiras(g)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button></div></section>`;
@@ -449,8 +447,8 @@ function renderGira() {
   // WhatsApp: logo abaixo do Encerrar gira (desabilitado sem sorteio); o painel abre logo abaixo deste card.
   const whats = pode('escala:completa') && existe;
   const eu = existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
-  // Ordem: Eventos, Você nesta gira, Sua presença e só depois a gira (próximo evento).
-  let h = `<section class="panel">${eu}${cardMinhaPresenca()}
+  // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Sua presença e só depois a gira (próximo evento).
+  let h = `<section class="panel">${eu}${cardCompromissos()}${cardMinhaPresenca()}
   <div class="card card-gira">
     ${editar && existe ? (estado.confirm === 'rei:' + g.data
       ? `<div class="infobox rei"><span><b>Reiniciar a gira?</b> Volta tudo ao início: todos ficam Pendente e saem a gira, o orixá, a turma da limpeza e o sorteio. Só a data fica.</span>
@@ -589,7 +587,8 @@ function renderGira() {
     </div>`;
   };
   const aberto = manual || duplasAbertas.has(g.data);
-  h += `<div class="card"><div class="grp-h">${temDuplas ? tituloSorteio() : '<h2>Sorteio</h2>'}</div>
+  // Moldura dourada de admin para quem pode mexer na gira.
+  h += `<div class="card${admin ? ' adm' : ''}"><div class="grp-h">${temDuplas ? tituloSorteio() : '<h2>Sorteio</h2>'}</div>
       ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual) : sortearOk ? '<button class="btn primary btn-grande" data-act="sortear">🎲 Sortear</button>' : ''}
       ${editar && temDuplas ? (g.publicada
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
