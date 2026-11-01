@@ -8,7 +8,7 @@ import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo } from '/shared/resumoGira.js';
 import { eventosDoTopo, dataCurta } from '/shared/eventos.js';
-import { textoEntrega, dataBR } from '/shared/oferendas.js';
+import { textoEntrega, dataBR, ROTULO_MEDIUM } from '/shared/oferendas.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
@@ -393,8 +393,8 @@ function cardMinhaPresenca() {
     ${faltas.length ? `<div class="mp-lista">${faltas.map(([g, st]) => `<div class="mp-l"><span class="mp-dia">${dDM(g.data)}</span><span class="mp-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span><span class="mp-st ${st}">${st === 'f' ? 'Falta' : 'Ausência'}</span></div>`).join('')}</div>` : ''}</div>`;
 }
 
-// Último bloco da aba Gira: os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues.
-// Só aparece quando há algum.
+// Último bloco da aba Gira: os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
+// e, na oferenda com uma linha por pessoa, o pagamento ou a entrega que faltam. Só aparece quando há algum.
 let pediuOferendas = false;
 function cardCompromissos() {
   if (!pode('oferendas:doar')) return '';
@@ -405,13 +405,18 @@ function cardCompromissos() {
   const eu = estado.oferendas.eu || {};
   if (!eu.chave) return '';
   const hj = hoje();
-  const grupos = (estado.oferendas.oferendas || []).filter((of) => of.status !== 'encerrado' && of.data >= hj)
-    .map((of) => ({ of, itens: of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q && !x.i.entregue) }))
-    .filter((x) => x.itens.length);
+  // Itens: só das oferendas de hoje em diante. Lista por pessoa: enquanto não estiver encerrada (o pagamento pode ficar para depois).
+  const grupos = (estado.oferendas.oferendas || []).filter((of) => of.status !== 'encerrado').map((of) => {
+    const itens = of.data >= hj ? of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q && !x.i.entregue) : [];
+    const m = of.porMedium ? (of.mediuns || []).find((x) => 'p:' + x.pessoaId === eu.chave) : null;
+    return { of, itens, linha: m && (m.pagamento !== 'pago' || m.entrega !== 'entregue') ? m : null };
+  }).filter((x) => x.itens.length || x.linha);
   if (!grupos.length) return '';
+  const etq = (k) => `<span class="st-med ${k}">${ROTULO_MEDIUM[k] || k}</span>`;
   return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos nas oferendas</h2></div>
-    ${grupos.map(({ of, itens }) => `<div class="comp-of-g"><div><b>${esc(of.titulo)}</b> <span class="muted">· ${dataBR(of.data)}</span></div>
-      <ul>${itens.map(({ i, q }) => `<li>${esc(i.nome)} <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul></div>`).join('')}
+    ${grupos.map(({ of, itens, linha }) => `<div class="comp-of-g"><div><b>${esc(of.titulo)}</b> <span class="muted">· ${dataBR(of.data)}</span></div>
+      ${linha ? `<div class="comp-of-med"><span><span class="muted">Pagamento:</span> ${etq(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etq(linha.entrega)}</span></div>` : ''}
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li>${esc(i.nome)} <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('')}
     <button class="btn link small" data-act="goto" data-tab="oferendas">Ver oferendas ›</button></div>`;
 }
 
