@@ -520,7 +520,7 @@ function renderGira() {
         : '<button class="btn primary btn-grande" data-act="sortear">🎲 Sortear</button>') : ''}
       ${editar && temDuplas ? (g.publicada
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
-        : `<button class="btn btn-grande pub-bt" data-act="publicar">📢 Publicar escala</button><p class="muted" style="margin:0;font-size:.85rem">Só os admins veem o sorteio até publicar.</p>`) : ''}
+        : `<button class="btn btn-grande pub-bt" data-act="publicar"><span class="pub-tit">📢 Publicar escala</span><span class="pub-sub">Só os admins veem o sorteio até publicar</span></button>`) : ''}
       ${botaoWhats()}
       ${editar && !passada && (temDuplas || manual) ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
