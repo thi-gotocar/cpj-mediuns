@@ -171,23 +171,23 @@ function porcoes(e, qtdEscolhida, nPed) {
   return { n, minimo: porcoesErva({ ...e, qtdCompra: 0 }, n), qtd: porcoesErva({ ...e, qtdCompra: qtdEscolhida }, n) };
 }
 
-// Tabela do pedido (Erva / Qtd. / Valor unitário / Valor) com o frete e o total. Usa o rascunho durante a edição.
+// Tabela do pedido (Erva / Qtd. corrente / Qtd. pedido / Valor unitário / Valor) com o frete e o total. Usa o rascunho durante a edição.
 function tabelaCompra(E, r) {
   const v = rascunho(E) || compraSalva(E);
   const nPed = pedidosPorErva(r);
   const linhas = E.ervas.map((e) => {
-    const { qtd } = porcoes(e, v.itens[e.id].qtd, nPed);
+    const { qtd, n } = porcoes(e, v.itens[e.id].qtd, nPed);
     const preco = campoCentavos(v.itens[e.id].preco);
-    return { nome: e.nome, qtd, preco, valor: preco === null ? null : preco * qtd };
+    return { nome: e.nome, n, qtd, preco, valor: preco === null ? null : preco * qtd };
   }).filter((l) => l.qtd > 0);
   if (!linhas.length) return `<p class="muted" style="margin:0">Nenhuma erva no pedido ainda.</p>`;
   const frete = campoCentavos(v.frete) || 0;
   const soma = linhas.reduce((a, l) => a + (l.valor || 0), 0) + frete;
   const falta = linhas.some((l) => l.valor === null);
-  return `<div class="matrix"><table class="pedidos compra-tab"><thead><tr><th class="rh">Erva</th><th>Qtd.</th><th>Valor unit.</th><th>Valor</th></tr></thead><tbody>
-    ${linhas.map((l) => `<tr><th class="rh">${esc(l.nome)}</th><td>${l.qtd}</td><td>${l.preco === null ? '<span class="muted">a definir</span>' : reais(l.preco)}</td><td>${l.valor === null ? '<span class="muted">a definir</span>' : reais(l.valor)}</td></tr>`).join('')}
-    ${frete ? `<tr><th class="rh">Frete</th><td></td><td></td><td>${reais(frete)}</td></tr>` : ''}
-    </tbody><tfoot><tr><th class="rh">Total</th><td>${linhas.reduce((a, l) => a + l.qtd, 0)}</td><td></td><td><b>${reais(soma)}${falta ? ' + a definir' : ''}</b></td></tr></tfoot></table></div>`;
+  return `<div class="matrix"><table class="pedidos compra-tab"><thead><tr><th class="rh">Erva</th><th>Qtd. corrente</th><th>Qtd. pedido</th><th>Valor unit.</th><th>Valor</th></tr></thead><tbody>
+    ${linhas.map((l) => `<tr><th class="rh">${esc(l.nome)}</th><td>${l.n}</td><td>${l.qtd}</td><td>${l.preco === null ? '<span class="muted">a definir</span>' : reais(l.preco)}</td><td>${l.valor === null ? '<span class="muted">a definir</span>' : reais(l.valor)}</td></tr>`).join('')}
+    ${frete ? `<tr><th class="rh">Frete</th><td></td><td></td><td></td><td>${reais(frete)}</td></tr>` : ''}
+    </tbody><tfoot><tr><th class="rh">Total</th><td>${linhas.reduce((a, l) => a + l.n, 0)}</td><td>${linhas.reduce((a, l) => a + l.qtd, 0)}</td><td></td><td><b>${reais(soma)}${falta ? ' + a definir' : ''}</b></td></tr></tfoot></table></div>`;
 }
 
 function cardCompra(E, r) {
