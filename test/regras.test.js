@@ -227,6 +227,19 @@ test('perfil: só orixás e guias válidos; oferenda só com algo escolhido', as
   assert.deepEqual(p.outros, { 'preto-velho': 'Pai Joaquim' });
   assert.ok(!GUIAS.some(([k]) => k === 'mista'));
   assert.deepEqual(normalizarPerfil(null).outros, {});
+  // Estatísticas: guia chefe, guia de frente e orixá de frente mais comuns (valor inválido não conta).
+  const { contagemPerfis } = await import('../shared/perfil.js');
+  const c = contagemPerfis([
+    { perfil: { guias: { chefe: { linha: 'caboclo' }, frente: { linha: 'exu' } }, orixas: { frente: { nome: 'Oxum' } } } },
+    { perfil: { guias: { chefe: { linha: 'caboclo' } }, orixas: { frente: { nome: 'Ogum' } } } },
+    { perfil: { guias: { chefe: { linha: 'baiano' } }, orixas: { frente: { nome: 'Oxum' } } } },
+    { perfil: { guias: { chefe: { linha: 'xx' } } } },
+    { perfil: null },
+  ]);
+  assert.equal(c.total, 5);
+  assert.deepEqual(c.chefe, [{ nome: 'Caboclo', qtd: 2 }, { nome: 'Baiano', qtd: 1 }]);
+  assert.deepEqual(c.frente, [{ nome: 'Exu', qtd: 1 }]);
+  assert.deepEqual(c.orixa, [{ nome: 'Oxum', qtd: 2 }, { nome: 'Ogum', qtd: 1 }]);
 });
 
 test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)', async () => {

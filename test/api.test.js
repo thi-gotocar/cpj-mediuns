@@ -110,6 +110,13 @@ test('perfil: cada um vê e salva só o seu; root sem cadastro não tem', async 
   assert.ok(!JSON.stringify(gs).includes('Sete Flechas'));
   // O perfil não aparece na lista de pessoas (é só de quem é).
   assert.ok(!('perfil' in (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Zé')));
+  // Estatísticas do Histórico: só contagens do Perfil (sem nomes).
+  const est = await api('GET', '/api/pessoas?lista=perfis', USER);
+  assert.equal(est.status, 200);
+  assert.ok(est.json.total >= 1);
+  assert.ok(est.json.chefe.some((x) => x.nome === 'Exu' && x.qtd >= 1));
+  assert.ok(est.json.orixa.some((x) => x.nome === 'Oxum' && x.qtd >= 1));
+  assert.ok(!JSON.stringify(est.json).includes('Zé'));
 });
 
 test('admin cadastra a corrente; usuário só lê', async () => {

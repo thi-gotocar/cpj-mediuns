@@ -31,6 +31,7 @@ export const estado = {
   perfisCfg: null,     // aba Usuários: perfis e as abas de cada um
   senhas: null,        // aba Usuários: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
+  stPerfis: null,      // Histórico → Estatísticas: contagens do Perfil { total, chefe, frente, orixa } (undefined = carregando)
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
@@ -298,6 +299,12 @@ export async function acaoEventos(acao, dados = {}) {
 }
 
 // ---------- alunos da CPJ (aba Pessoas) ----------
+// Histórico → Estatísticas: guias e orixás mais comuns no cadastro (só contagens).
+export async function carregarStPerfis() {
+  estado.stPerfis = undefined;
+  try { estado.stPerfis = await api('GET', '/pessoas?lista=perfis'); } catch (e) { estado.stPerfis = { erro: e.message }; }
+  avisar();
+}
 export async function carregarAlunos() {
   try { estado.alunos = await api('GET', '/pessoas?lista=alunos'); } catch (e) { toast(e.message); estado.alunos = estado.alunos || { turmas: [], alunos: [] }; }
   avisar();

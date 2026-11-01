@@ -29,6 +29,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **Publicar escala**: até publicar, só quem edita vê o sorteio (`ocultarSorteio`).
 - Encerrar exige ninguém pendente + atendimentos (preferencial/normal/passe); quem sobrou vai para o Suporte. Reabrir desfaz.
 - Root corrige presença de qualquer gira (mesmo encerrada) em Histórico → Estatísticas (`acao: 'corrigirPresenca'`).
+- Estatísticas também mostram o top 3 de guia chefe, guia de frente e orixá de frente do Perfil, com o % sobre todo o cadastro (não depende do ano). O servidor manda só as contagens (`GET /api/pessoas?lista=perfis`), nunca o perfil de cada pessoa — o orixá de cada um continua visível só para o admin.
 
 ## Aba Gira (visão)
 

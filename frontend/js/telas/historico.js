@@ -1,7 +1,7 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
 import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar, carregarStPerfis } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -201,7 +201,26 @@ function cardEstatisticas(todas, ps) {
       <div class="st-bloco"><h3>Giras que mais tivemos</h3>
         ${tipos.length ? `<ol class="st-lista">${tipos.map(([n, q], i) => `<li>${pos(i)}<span class="st-nome">${esc(n)}</span>${barra(q, maxTipo, 'or')}<span class="st-num"><b>${q}</b> gira${q > 1 ? 's' : ''}</span></li>`).join('')}</ol>`
           : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma gira com nome definido.</p>'}</div>
+      ${blocosPerfis()}
     </div></div>`;
+}
+
+// Guia chefe, guia de frente e orixá de frente com mais pessoas (top 3), do cadastro (aba Perfil):
+// não depende do ano; o percentual é sobre todas as pessoas do cadastro.
+function blocosPerfis() {
+  const S = estado.stPerfis;
+  if (S === null) carregarStPerfis();
+  if (!S || S.erro) return S?.erro ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(S.erro)}</p>` : '';
+  const bloco = (titulo, lista, cor) => {
+    const top = lista.slice(0, 3);
+    const preencheram = lista.reduce((a, x) => a + x.qtd, 0);
+    return `<div class="st-bloco"><h3>${titulo}</h3>
+      ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b> pessoa${x.qtd > 1 ? 's' : ''}</span></li>`).join('')}</ol>`
+        : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém preencheu ainda.</p>'}
+      <p class="muted" style="margin:0;font-size:.8rem">Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
+  };
+  return bloco('Guia chefe com mais pessoas', S.chefe, 'acc') + bloco('Guia de frente com mais pessoas', S.frente, 'acc')
+    + bloco('Orixá de frente com mais pessoas', S.orixa, 'or');
 }
 
 // Listas que mostram só os primeiros N itens e rolam o resto ([data-rolar="N"]):

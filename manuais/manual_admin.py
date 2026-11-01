@@ -222,7 +222,7 @@ historico = bloco(
   lista([
     '<b>Giras salvas:</b> todas as giras, para consultar.',
     f'{B("+ Cadastrar gira antiga")}: cole a mensagem “RESUMO DO EVENTO” e o app preenche a data, as ausências e as faltas. Serve para giras que já passaram.',
-    '<b>Estatísticas:</b> presença, giras com mais atendimentos, giras que mais tivemos.',
+    '<b>Estatísticas:</b> presença, giras com mais atendimentos, giras que mais tivemos e, do Perfil, o guia chefe, o guia de frente e o orixá de frente com mais pessoas (top 3, com o percentual do cadastro).',
     '<b>Quem já cambonou quem.</b>',
     '<b>Backup:</b> salva uma cópia dos dados em arquivo e restaura quando precisar.',
     '<b>Admin root:</b> corrige a presença de qualquer gira (mesmo encerrada) em Estatísticas.',

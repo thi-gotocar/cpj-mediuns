@@ -52,6 +52,24 @@ export function blocosAfinidade(funcao) {
   return [];
 }
 
+// Estatísticas do cadastro (Histórico): quantas pessoas têm cada guia chefe, guia de frente e orixá de frente.
+// Só contagens (sem nomes), para não expor o perfil de cada um. perfis: [{ perfil }] (perfis_listar).
+// → { total, chefe: [{ nome, qtd }], frente: [...], orixa: [...] }, do maior para o menor (empate: nome).
+export function contagemPerfis(perfis) {
+  const nomeGuia = Object.fromEntries(GUIAS);
+  const contar = (valor) => {
+    const m = {};
+    perfis.forEach((x) => { const v = valor(normalizarPerfil(x.perfil)); if (v) m[v] = (m[v] || 0) + 1; });
+    return Object.entries(m).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd || a.nome.localeCompare(b.nome, 'pt-BR'));
+  };
+  return {
+    total: perfis.length,
+    chefe: contar((pf) => nomeGuia[pf.guias.chefe.linha]),
+    frente: contar((pf) => nomeGuia[pf.guias.frente.linha]),
+    orixa: contar((pf) => pf.orixas.frente.nome),
+  };
+}
+
 const txt = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // Limpa o que veio da tela (ou do banco): só campos conhecidos e valores válidos.

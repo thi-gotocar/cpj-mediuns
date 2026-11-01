@@ -3,12 +3,14 @@
 //                              { acao: 'licenca', pessoaId, inicio, fim, motivo? } · { acao: 'editarLicenca', id, inicio, fim, motivo? }
 //                              { acao: 'removerLicenca', id }  → lista da corrente
 // GET  /api/pessoas?lista=alunos  { turmas, alunos }  (alunos da CPJ: fora da corrente)
+// GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa }  (Histórico → Estatísticas: só contagens do Perfil)
 // POST /api/pessoas            { acao: 'alunos', nome: "A, B", turmaId } · { acao: 'aluno', id, nome?, turmaId? }
 //                              { acao: 'excluirAluno', id } · { acao: 'turma', nome }  → { turmas, alunos }
 import { rota, corpo, HttpError, validarData, validarId } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { FUNCAO_KEYS } from '../../shared/regras.js';
+import { contagemPerfis } from '../../shared/perfil.js';
 
 const ACOES_ALUNOS = ['alunos', 'aluno', 'excluirAluno', 'turma'];
 const limpar = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max + 1);
@@ -43,6 +45,10 @@ export default rota({
     if (req.query.lista === 'alunos') {
       await exigir(req, 'alunos:ver');
       return db.rpc('alunos_estado');
+    }
+    if (req.query.lista === 'perfis') {
+      await exigir(req, 'historico:ver');
+      return contagemPerfis(await db.rpc('perfis_listar'));
     }
     await exigir(req, 'pessoas:ler');
     return db.rpc('pessoas_listar');
