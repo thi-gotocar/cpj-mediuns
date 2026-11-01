@@ -16,7 +16,7 @@ Processo, ambiente e convenções. O que o projeto **é** está em [visao.md](vi
 
 1. Alterar direto na pasta de trabalho e rodar os testes (ver abaixo).
 2. Atualizar os docs da área (ver "Docs").
-3. Quando o usuário pedir o commit: criar uma branch se estiver em `main`, mensagem em português, curta, com o rodapé:
+3. Quando o usuário pedir o commit: commitar direto na `main` (não criar branches), mensagem em português, curta, com o rodapé:
    ```
    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
    ```
