@@ -750,3 +750,9 @@ section.panel.pf-tela{gap:14px}
 .st-det-p .st-l-ed .btn.link{padding:0 2px;font-size:.78rem;flex:none}
 .st-ed{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 0}
 .st-ed select{width:auto;padding:4px 8px;font-size:.85rem}
+/* Adicionar → Licença: histórico da pessoa escolhida */
+.lic-hist{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+.lic-hist h3{margin:0;font-size:1rem}
+.lic-h-l{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.lic-h-l.lic-ed{display:grid;gap:8px}
+.lic-h-t{min-width:0;font-size:.9rem;overflow-wrap:anywhere}

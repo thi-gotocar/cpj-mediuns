@@ -35,6 +35,32 @@ function listaLicencas(ps, editar) {
   }).join('')}</div>`;
 }
 
+// Adicionar → Licença: ao escolher a pessoa, o histórico de todas as licenças dela (uma por linha), com Editar.
+function historicoLicencas(p) {
+  if (!p) return '';
+  const lics = [...(p.licencas || [])].sort((a, b) => b.inicio.localeCompare(a.inicio));
+  const hj = hoje();
+  return `<div class="lic-hist"><div class="grp-h"><h3>Histórico de licenças · ${esc(p.nome)}</h3><span class="count">${lics.length}</span></div>
+    ${lics.length ? lics.map((l) => {
+      if (estado.editLicH === l.id) {
+        return `<div class="lic-h-l lic-ed"><div class="lic-datas-f"><label class="field">Início<input type="date" id="elh-i" value="${l.inicio}"></label>
+          <label class="field">Fim<input type="date" id="elh-f" value="${l.fim}"></label></div>
+          <label class="field">Motivo<input type="text" id="elh-m" maxlength="200" value="${esc(l.motivo || '')}"></label>
+          <div class="row"><button class="btn small primary" type="button" data-act="salvarlich" data-id="${l.id}">Salvar</button><button class="btn small" type="button" data-act="cancelarlich">Cancelar</button>
+            <button class="btn small" type="button" data-act="excluirask" data-tipo="lic" data-id="${l.id}">Remover</button></div></div>`;
+      }
+      const sit = l.fim < hj ? '' : l.inicio <= hj ? ' <span class="badge lic">em andamento</span>' : ' <span class="badge rep">futura</span>';
+      return `<div class="lic-h-l"><span class="lic-h-t"><b>${dBR(l.inicio)} a ${dBR(l.fim)}</b>${sit}${l.motivo ? `<span class="muted"> · ${esc(l.motivo)}</span>` : ''}</span>
+        <button class="btn small pp-bt" type="button" data-act="editlich" data-id="${l.id}">Editar</button></div>`;
+    }).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma licença registrada.</p>'}</div>`;
+}
+
+// Guarda o que já foi digitado no cadastro de licença antes de redesenhar.
+function guardarRascunhoLic() {
+  const i = document.getElementById('lic-i');
+  if (i) estado.licRasc = { i: i.value, f: document.getElementById('lic-f')?.value || '', m: document.getElementById('lic-m')?.value || '' };
+}
+
 // Quem é de cada turma da limpeza (para conferir de uma vez).
 function cardTurmas(ps) {
   const com = ps.filter((p) => p.limpeza);
@@ -163,12 +189,15 @@ function cardAdicionar(ps) {
       <label class="field grow">Nome<input type="text" id="f-nome" placeholder="Um nome, ou vários separados por vírgula" autocomplete="off" maxlength="4000" value="${esc(estado.addRascunho || '')}"></label>
       <button class="btn primary" type="submit">Adicionar</button></form>`;
   } else if (modo === 'licenca') {
+    const R = estado.licRasc || {};
+    const sel = estado.licPessoa || '';
     h += `<form id="f-lic" class="lic-form" autocomplete="off">
-      <label class="field">Pessoa<select id="lic-p"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
-      <div class="lic-datas-f"><label class="field">Início<input type="date" id="lic-i" value="${hoje()}"></label>
-      <label class="field">Fim<input type="date" id="lic-f"></label></div>
-      <label class="field">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…"></label>
+      <label class="field">Pessoa<select id="lic-p" data-act="licpessoa"><option value="">— escolha —</option>${ps.map((p) => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>
+      <div class="lic-datas-f"><label class="field">Início<input type="date" id="lic-i" value="${esc(R.i ?? hoje())}"></label>
+      <label class="field">Fim<input type="date" id="lic-f" value="${esc(R.f || '')}"></label></div>
+      <label class="field">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…" value="${esc(R.m || '')}"></label>
       <button class="btn primary" type="submit">Adicionar</button></form>
+      ${historicoLicencas(ps.find((p) => p.id === sel))}
       <p class="muted" style="margin:0;font-size:.85rem">Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p>`;
   } else {
     h += `<form id="f-curimba" class="row" autocomplete="off">
@@ -294,6 +323,16 @@ export const cliques = {
     salvarPrefs();
     avisar();
   },
+  editlich(el) { guardarRascunhoLic(); estado.editLicH = el.dataset.id; avisar(); },
+  cancelarlich() { guardarRascunhoLic(); estado.editLicH = null; avisar(); },
+  async salvarlich(el) {
+    guardarRascunhoLic();
+    const inicio = document.getElementById('elh-i').value;
+    const fim = document.getElementById('elh-f').value;
+    if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
+    if (fim < inicio) { toast('A data final é antes do início.'); return; }
+    if (await editarLicenca(el.dataset.id, inicio, fim, document.getElementById('elh-m').value.trim())) { estado.editLicH = null; toast('Licença alterada.'); avisar(); }
+  },
   editlic(el) { estado.editLic = el.dataset.id; avisar(); },
   cancelarlic() { estado.editLic = null; avisar(); },
   async salvarlic(el) {
@@ -305,7 +344,8 @@ export const cliques = {
   },
   dellic(el) { estado.confirm = null; estado.editLic = null; removerLicenca(el.dataset.id); },
   // Excluir: abre a janela Confirmar / Cancelar.
-  excluirask(el) { estado.excluirPop = { tipo: el.dataset.tipo, id: el.dataset.id }; avisar(); },
+  excluirask(el) { guardarRascunhoLic(); this._excluirask(el); },
+  _excluirask(el) { estado.excluirPop = { tipo: el.dataset.tipo, id: el.dataset.id }; avisar(); },
   excluircancel() { estado.excluirPop = null; avisar(); },
   async excluirok() {
     const x = estado.excluirPop;
@@ -314,7 +354,7 @@ export const cliques = {
     if (!x) return;
     if (x.tipo === 'p') await excluirPessoa(x.id);
     else if (x.tipo === 'al') await acaoAlunos('excluirAluno', { id: x.id });
-    else if (x.tipo === 'lic') { estado.editLic = null; await removerLicenca(x.id); }
+    else if (x.tipo === 'lic') { estado.editLic = null; estado.editLicH = null; await removerLicenca(x.id); }
   },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
   ren(el) {
@@ -385,6 +425,7 @@ export const mudancas = {
     if (campo) campo.hidden = t.value !== ALUNO;
   },
   turmasel(t) { estado.turmaSel = t.value; },
+  licpessoa(t) { guardarRascunhoLic(); estado.licPessoa = t.value; estado.editLicH = null; avisar(); },
   exp(t) { atualizarPessoa(t.dataset.id, { experiente: t.checked }); },
   func(t) { atualizarPessoa(t.dataset.id, { funcao: t.value }); },
   limpeza(t) { atualizarPessoa(t.dataset.id, { limpeza: t.value ? Number(t.value) : null }); },
@@ -420,7 +461,9 @@ export async function enviarLicenca() {
   if (!pessoa) { toast('Escolha a pessoa.'); return; }
   if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
   if (fim < inicio) { toast('A data final é antes do início.'); return; }
-  if (await salvarLicenca(pessoa, inicio, fim, document.getElementById('lic-m').value.trim())) toast('Licença cadastrada.');
+  guardarRascunhoLic();
+  estado.licPessoa = pessoa;
+  if (await salvarLicenca(pessoa, inicio, fim, document.getElementById('lic-m').value.trim())) { estado.licRasc = null; toast('Licença cadastrada.'); avisar(); }
 }
 
 export async function enviarCurimba() {
