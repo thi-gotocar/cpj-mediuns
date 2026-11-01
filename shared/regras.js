@@ -538,9 +538,10 @@ export function reabrir(pessoas, g) {
   return { patch: { presenca, papeis, encerrada: false, suporteAuto: {} }, mensagem };
 }
 
-// Sugestão de Passe / Atendimento extra para a gira (aba Gira, admin): quem marcou no Perfil
-// que se sente confiante na linha da gira. Passe: os de passe (linhas) e os cambones (afinidadePasse).
-// Atendimento extra: os extras (linhas) e os de passe (afinidadeExtra). Cada um vem com o nome da entidade.
+// Sugestão de Passe / Atendimento extra para a gira (aba Gira, admin), pelo que cada um marcou no Perfil
+// ("100% de afinidade e segurança") para a linha da gira. Quem já é Passe no cadastro não entra no Passe.
+// PASSE: Cambone que marcou a linha no bloco Passe; At. Extra que NÃO marcou a linha no Atendimento extra.
+// ATENDIMENTO EXTRA: Passe que marcou a linha no bloco Atendimento extra. Cada um vem com o nome da entidade.
 export function sugestoesDaGira(pessoas, g) {
   const l = linhaDaEntidade(g?.entidade);
   if (!l) return null;
@@ -549,7 +550,7 @@ export function sugestoesDaGira(pessoas, g) {
   const fora = (p) => !naCorrenteEm(p, g.data) || ['lic', 'f', 'a'].includes(presencaDe(p, g));
   const item = (p) => ({ id: p.id, nome: p.nome, funcao: p.funcao, entidade: guiaNaGira(p, g) || LINHA_LABEL[l] });
   const ord = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
-  const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'passe' && tem(p.linhas)) || (p.funcao === 'cambone' && tem(p.afinidadePasse)))).map(item).sort(ord);
-  const extra = pessoas.filter((p) => !fora(p) && ((p.funcao === 'extra' && tem(p.linhas)) || (p.funcao === 'passe' && tem(p.afinidadeExtra)))).map(item).sort(ord);
+  const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'cambone' && tem(p.afinidadePasse)) || (p.funcao === 'extra' && !tem(p.linhas)))).map(item).sort(ord);
+  const extra = pessoas.filter((p) => !fora(p) && p.funcao === 'passe' && tem(p.afinidadeExtra)).map(item).sort(ord);
   return { linha: l, passe, extra };
 }

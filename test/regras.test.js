@@ -324,9 +324,10 @@ test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async ()
   ];
   const g = { data: '2030-01-01', entidade: 'Caboclo', presenca: { 5: 'a' } };
   const r = sugestoesDaGira(ps, g);
-  assert.deepEqual(r.passe.map((x) => x.nome), ['Ana', 'Bia']);
-  assert.deepEqual(r.extra.map((x) => x.nome), ['Bia', 'Caio']);
-  assert.equal(r.passe[1].entidade, 'Pena Branca');
+  // Passe: cambone que marcou (Ana) + extra que não marcou (Duda); Bia (já é Passe) e Caio (extra que marcou) não.
+  assert.deepEqual(r.passe.map((x) => x.nome), ['Ana', 'Duda']);
+  assert.deepEqual(r.extra.map((x) => x.nome), ['Bia']);
+  assert.equal(r.extra[0].entidade, 'Pena Branca');
   assert.equal(r.passe[0].entidade, 'Caboclo');
   assert.equal(sugestoesDaGira(ps, { data: '2030-01-01', entidade: '' }), null);
 });
