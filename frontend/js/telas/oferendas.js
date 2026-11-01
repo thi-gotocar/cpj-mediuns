@@ -147,11 +147,15 @@ function meusCompromissos(of) {
   const eu = estado.oferendas.eu;
   const meus = of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q);
   const minhaLinha = of.porMedium ? (of.mediuns || []).find((m) => 'p:' + m.pessoaId === eu.chave) : null;
+  // Lista por pessoa: a situação de quem está logado, com o nome de cada conferência.
+  const linhaMed = !of.porMedium ? ''
+    : minhaLinha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(minhaLinha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(minhaLinha.entrega)}</span></div>`
+    : `<p class="muted" style="margin:0;font-size:.88rem">Você não está na lista de pessoas desta oferenda.</p>`;
   return `<div class="of-meus"><div class="of-meus-h"><span class="eyebrow">Seus compromissos</span><b>${esc(eu.nome || '')}</b></div>
-    ${minhaLinha ? `<p style="margin:0;font-size:.92rem">Sua oferenda: ${etqsMed(minhaLinha)}</p>` : ''}
+    ${linhaMed}
     ${meus.length
       ? `<ul>${meus.map(({ i, q }) => `<li><span class="of-meus-nome">${esc(i.nome)}</span> <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}${i.entregue ? ' · ✓ entregue' : ''}</span></li>`).join('')}</ul>`
-      : minhaLinha && !of.itens.length ? '' : `<p class="muted" style="margin:0;font-size:.88rem">${of.status === 'publicado' ? 'Você ainda não escolheu nada para doar. Toque em + no item que quiser doar.' : 'Você ainda não tem compromissos nesta oferenda.'}</p>`}
+      : of.porMedium && !of.itens.length ? '' : `<p class="muted" style="margin:0;font-size:.88rem">${of.status === 'publicado' ? 'Você ainda não escolheu nada para doar. Toque em + no item que quiser doar.' : 'Você ainda não tem compromissos nesta oferenda.'}</p>`}
   </div>`;
 }
 
