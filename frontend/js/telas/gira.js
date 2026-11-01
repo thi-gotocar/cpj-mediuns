@@ -575,7 +575,7 @@ const botaoWhats = () => { const ab = abertos.has('wa');
 function painelWhats(g) {
   const txt = textoWhats(estado.pessoas, g, prefs.fmt, girasLista());
   const imgOk = estado.img && estado.img.data === g.data && estado.img.key === chaveImg();
-  let h = `<div class="card wa-painel"><div class="grp-h"><h2><span class="wa-ico wa-ico-tit" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</h2></div>
+  let h = `<div class="card wa-painel"><button class="grp-h dobra" data-act="dobrarcard" data-k="wa" aria-expanded="true" aria-label="Recolher o WhatsApp"><h2><span class="wa-ico wa-ico-tit" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</h2><span class="count"><span class="seta" aria-hidden="true">▾</span></span></button>
     <div class="row" style="justify-content:flex-end">
     <div class="seg" role="group" aria-label="Formato"><button data-act="fmt" data-v="lista" aria-pressed="${prefs.fmt === 'lista'}">Lista</button><button data-act="fmt" data-v="tabela" aria-pressed="${prefs.fmt === 'tabela'}">Tabela</button></div></div>
     <textarea id="f-txt" readonly aria-label="Texto para o WhatsApp">${esc(txt)}</textarea>
