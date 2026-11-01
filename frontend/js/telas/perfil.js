@@ -1,7 +1,7 @@
 // Tela "Perfil": cada pessoa registra as suas informações, os seus orixás, guias e outros guias.
 // O admin também acompanha a corrente: quem já respondeu, os guias de todos e as oferendas pendentes.
 
-import { ORIXAS, LINHAS_CADASTRO } from '/shared/regras.js';
+import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade } from '/shared/perfil.js';
 import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa } from '../estado.js';
 import { esc, toast } from '../util.js';
@@ -134,7 +134,8 @@ function cardsAfinidade(eu) {
     // Começa minimizado; tocar no título expande.
     return card('afin-' + tipo, A.titulo, selo(ls.length > 0), false, () => `
       <p class="muted" style="margin:0;font-size:.9rem">${A.texto}</p>
-      ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Sem nenhuma marcada, atua como ${A.funcao} em todas.</p>` : ''}
+      ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Marcando “Todas”, atua como ${A.funcao} em todas as giras.</p>` : ''}
+      <label class="chip chip-todas"><input type="checkbox" id="af-${tipo}-todas" data-act="afintodas" data-tipo="${tipo}" ${(campo === 'linhas' ? !ls.length : LINHA_KEYS.every((k) => ls.includes(k))) ? 'checked' : ''}> Todas</label>
       ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
         `<label class="chip"><input type="checkbox" id="af-${tipo}-${k}" data-act="afin" data-tipo="${tipo}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}`, true);
   }).join('');
@@ -291,6 +292,14 @@ export const mudancas = {
     const atual = new Set((bloco.campo === 'linhas' ? eu.linhas : bloco.campo === 'extra' ? eu.afinidadeExtra : eu.afinidadePasse) || []);
     if (t.checked) atual.add(t.dataset.l); else atual.delete(t.dataset.l);
     salvarAfinidade(bloco.tipo, [...atual].sort());
+  },
+  // "Todas": nas da própria função (valem no sorteio) é nenhuma marcada = em todas as giras; nas outras, todas marcadas.
+  afintodas(t) {
+    const eu = estado.perfil.eu;
+    const bloco = blocosAfinidade(eu.funcao).find((x) => x.tipo === t.dataset.tipo);
+    if (!bloco) return;
+    if (bloco.campo === 'linhas') { if (t.checked) salvarAfinidade(bloco.tipo, []); else avisar(); return; }
+    salvarAfinidade(bloco.tipo, t.checked ? [...LINHA_KEYS].sort() : []);
   },
   infopessoa(t) { estado.infoPessoa = t.value; avisar(); },
   ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },

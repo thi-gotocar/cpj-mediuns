@@ -1,6 +1,6 @@
 // Tela "Pessoas": cadastro da corrente e dos alunos da CPJ (por turma).
 
-import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
+import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
@@ -49,7 +49,7 @@ function cardTurmas(ps) {
     ${ps.length > com.length ? `<div class="muted">Sem turma: ${ps.length - com.length}</div>` : ''}</div></details></div>`;
 }
 
-const nomeFuncao = (p) => (p.funcao === 'extra' ? 'extra' : 'médium de passe');
+const nomeFuncao = (p) => (p.funcao === 'extra' ? 'at. extra' : 'médium de passe');
 
 // Escolhas de entidades de cada função, nesta ordem:
 // "linhas": as do cadastro (valem no sorteio; nenhuma marcada = em todas as giras).
@@ -57,7 +57,9 @@ const nomeFuncao = (p) => (p.funcao === 'extra' ? 'extra' : 'médium de passe');
 const CAMPOS_LINHAS = { extra: ['linhas', 'afinidadePasse'], passe: ['linhas', 'afinidadeExtra'], cambone: ['afinidadePasse'] };
 const NOME_CAMPO = { afinidadePasse: 'médium de passe', afinidadeExtra: 'atendimento extra' };
 const camposDe = (p) => CAMPOS_LINHAS[p.funcao] || [];
-const rotLinhas = (ls) => ls.map((l) => LINHA_LABEL[l] || l).join(', ');
+// "Todas": nas linhas do cadastro é nenhuma marcada (= em todas as giras); nas afinidades, todas as entidades marcadas.
+const todasMarcadas = (c, ls) => (c === 'linhas' ? !ls.length : LINHA_KEYS.every((k) => ls.includes(k)));
+const rotLinhas = (ls) => (LINHA_KEYS.every((k) => ls.includes(k)) ? 'todas as giras' : ls.map((l) => LINHA_LABEL[l] || l).join(', '));
 
 function resumoLinhas(p) {
   return camposDe(p).map((c) => {
@@ -76,11 +78,12 @@ function editorLinhas(p, c) {
     ? (ls.length ? `Como ${nomeFuncao(p)} em ${ls.length} linha${ls.length > 1 ? 's' : ''}: ${rotLinhas(ls)}` : `Como ${nomeFuncao(p)} em todas as giras · escolher linhas`)
     : (ls.length ? `Confiante como ${NOME_CAMPO[c]} em: ${rotLinhas(ls)}` : `Como ${NOME_CAMPO[c]}: nenhuma marcada · escolher`);
   const texto = c === 'linhas'
-    ? `Marque as linhas em que atua como ${nomeFuncao(p)}. Nas giras das outras linhas, entra no sorteio como cambone. Sem nenhuma marcada, atua como ${nomeFuncao(p)} em todas.`
+    ? `Marque as linhas em que atua como ${nomeFuncao(p)}. Nas giras das outras linhas, entra no sorteio como cambone. Marcando “Todas”, atua como ${nomeFuncao(p)} em todas as giras.`
     : `Marque as entidades em que tem 100% de afinidade e segurança como ${NOME_CAMPO[c]} (o mesmo que a pessoa marca no Perfil). Vale para a Sugestão Mi/Mãe Vê.`;
   return `<details class="linhas"${estadoAberto.has(chave) ? ' open' : ''} data-id="${chave}">
     <summary>${resumo}</summary>
     <p class="muted" style="margin:6px 0;font-size:.82rem">${texto}</p>
+    <label class="chip chip-todas"><input type="checkbox" id="ln-${p.id}-${c}-todas" data-act="linhatodas" data-id="${p.id}" data-c="${c}" ${todasMarcadas(c, ls) ? 'checked' : ''}> Todas</label>
     ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
       `<label class="chip"><input type="checkbox" id="ln-${p.id}-${c}-${k}" data-act="linha" data-id="${p.id}" data-c="${c}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}
   </details>`;
@@ -340,6 +343,14 @@ export const mudancas = {
   exp(t) { atualizarPessoa(t.dataset.id, { experiente: t.checked }); },
   func(t) { atualizarPessoa(t.dataset.id, { funcao: t.value }); },
   limpeza(t) { atualizarPessoa(t.dataset.id, { limpeza: t.value ? Number(t.value) : null }); },
+  linhatodas(t) {
+    const p = estado.pessoas.find((x) => x.id === t.dataset.id);
+    if (!p) return;
+    const c = t.dataset.c;
+    // Linhas do cadastro: "Todas" = nenhuma marcada (desmarcar sem escolher nenhuma continua em todas).
+    if (c === 'linhas') { if (t.checked) atualizarPessoa(p.id, { linhas: [] }); else avisar(); return; }
+    atualizarPessoa(p.id, { [c]: t.checked ? [...LINHA_KEYS].sort() : [] });
+  },
   linha(t) {
     const p = estado.pessoas.find((x) => x.id === t.dataset.id);
     if (!p) return;

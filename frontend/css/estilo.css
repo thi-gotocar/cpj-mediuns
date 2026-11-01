@@ -722,3 +722,4 @@ section.panel.pf-tela{gap:14px}
 .btn.pp-bt{min-width:76px}
 .lic-txt{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px}
 .lic-txt .nm{flex:0 1 auto}
+.chip-todas{font-weight:700;margin:2px 0 6px;border-color:var(--accent)}
