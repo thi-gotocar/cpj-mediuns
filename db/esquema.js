@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 47;  // v47: linhas do Extra/Passe sem nenhuma marcada = não apto; quem estava assim passa a ter Todas
+export const VERSAO = 48;  // v48: "Incluir novos cadastrados" da oferenda por pessoa escolhe os grupos
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1454,4 +1454,27 @@ export const MIGRACOES = [
        insert into sistema (chave, valor) values ('v47_linhas_todas', 'ok');
      end if;
    end $$`,
+
+  // ================================================== v48: "Incluir novos cadastrados" com a escolha dos grupos
+  // Só acrescenta (quem foi tirado continua fora); os grupos escolhidos passam a fazer parte da oferenda.
+  `create or replace function oferenda_mediuns_incluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_novos text[] := array(select jsonb_array_elements_text(p -> 'grupos'));
+     v_g text[];
+   begin
+     select coalesce(grupos, array['medium', 'extra', 'passe', 'cambone', 'senha', 'curimba']) into v_g
+       from oferendas where id = v_id and por_medium;
+     if not found then raise exception 'Oferenda não encontrada.'; end if;
+     update oferendas set grupos = v_g || array(select g from unnest(v_novos) g where not (g = any(v_g))) where id = v_id;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id)
+     select v_id, id from pessoas where funcao = any(v_novos)
+     on conflict do nothing;
+     if 'alunos' = any(v_novos) then
+       insert into oferenda_alunos (oferenda_id, aluno_id) select v_id, id from alunos on conflict do nothing;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
 ];

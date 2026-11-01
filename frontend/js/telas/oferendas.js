@@ -107,11 +107,20 @@ const etqMed = (st) => `<span class="st-med ${st}">${ROTULO_MEDIUM[st] || st}</s
 const etqsMed = (m) => `<span class="of-med-etqs">${etqMed(m.pagamento)}${etqMed(m.entrega)}</span>`;
 // Um combo para cada conferência: pagamento e entrega.
 const comboMed = (of, m, campo, opcoes, rotulo) => `<select class="sel-med ${m[campo]}" data-act="ofmedium" data-campo="${campo}" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="${rotulo} de ${esc(m.nome)}">${opcoes.map(([k, l]) => `<option value="${k}" ${k === m[campo] ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+// "Incluir novos cadastrados": de quais listas puxar (começa com os grupos da oferenda) e Confirmar.
+const GRUPOS_CORRENTE = GRUPOS_OFERENDA.map(([k]) => k).filter((k) => k !== 'alunos');
+function painelIncluir(of) {
+  const marcados = U().incluirGrupos || of.grupos || GRUPOS_CORRENTE;
+  return `<div class="of-grupos of-incluir"><span class="muted" style="font-size:.85rem;flex-basis:100%">De quais listas puxar quem ainda não está:</span>
+    ${GRUPOS_OFERENDA.map(([k, l]) => `<label class="chip"><input type="checkbox" name="grupoinc" data-act="grupoinc" value="${k}" ${marcados.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}
+    <div class="row" style="flex-basis:100%"><button class="btn small primary" data-act="atualizarmed" data-id="${of.id}">Confirmar</button><button class="btn small" data-act="incluirmed" data-id="${of.id}">Cancelar</button></div></div>`;
+}
 function blocoMediuns(of, admin) {
   const ms = of.mediuns || [];
   const c = contagemMediuns(of);
   let h = `<div class="of-med"><div class="of-med-h"><b>Pessoas</b> <span class="muted">(${ms.length})</span>
-    ${admin ? `<button class="btn link small" data-act="atualizarmed" data-id="${of.id}" title="Acrescenta quem foi cadastrado depois">↻ Incluir novos cadastrados</button>` : ''}</div>
+    ${admin ? `<button class="btn link small" data-act="incluirmed" data-id="${of.id}" aria-expanded="${U().incluir === of.id}" title="Acrescenta quem foi cadastrado depois">↻ Incluir novos cadastrados</button>` : ''}</div>
+    ${admin && U().incluir === of.id ? painelIncluir(of) : ''}
     <div class="of-med-cont"><span class="muted">Pagamento:</span>${PAGAMENTO.map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>
     <div class="of-med-cont"><span class="muted">Entrega:</span>${ENTREGA.map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>`;
   if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Ninguém na lista.</p></div>`;
@@ -320,11 +329,16 @@ export const cliques = {
     const m = (achar(el.dataset.of).of?.mediuns || []).find((x) => x.pessoaId === el.dataset.p);
     if (await acaoOferendas('excluirMedium', { oferendaId: el.dataset.of, pessoaId: el.dataset.p })) toast(`${m?.nome || 'A pessoa'} saiu da lista desta oferenda.`);
   },
+  incluirmed(el) { U().incluir = U().incluir === el.dataset.id ? null : el.dataset.id; U().incluirGrupos = null; avisar(); },
   async atualizarmed(el) {
+    const grupos = [...el.closest('.of-incluir').querySelectorAll('input[name=grupoinc]:checked')].map((x) => x.value);
+    if (!grupos.length) { toast('Escolha pelo menos uma lista.'); return; }
     const antes = (achar(el.dataset.id).of?.mediuns || []).length;
-    if (await acaoOferendas('atualizarMediuns', { id: el.dataset.id })) {
+    if (await acaoOferendas('atualizarMediuns', { id: el.dataset.id, grupos })) {
+      U().incluir = null; U().incluirGrupos = null;
       const n = (achar(el.dataset.id).of?.mediuns || []).length - antes;
-      toast(n ? `${n} pessoa${n > 1 ? 's' : ''} incluída${n > 1 ? 's' : ''}.` : 'A lista já tem todos os cadastrados.');
+      toast(n ? `${n} pessoa${n > 1 ? 's' : ''} incluída${n > 1 ? 's' : ''}.` : 'Ninguém novo nessas listas.');
+      avisar();
     }
   },
   async delof(el) { estado.confirm = null; if (await acaoOferendas('excluir', { id: el.dataset.id })) toast('Oferenda excluída.'); },
@@ -382,6 +396,7 @@ export const mudancas = {
   // "Uma linha para cada pessoa": mostra os grupos (sem redesenhar, para não perder o que foi digitado).
   pormedium(t) { U().novaPorMedium = t.checked; const g = document.getElementById('of-grupos'); if (g) g.hidden = !t.checked; },
   grupoof(t) { U().novaGrupos = [...t.form.querySelectorAll('input[name=grupo]:checked')].map((x) => x.value); },
+  grupoinc(t) { U().incluirGrupos = [...t.closest('.of-incluir').querySelectorAll('input[name=grupoinc]:checked')].map((x) => x.value); },
   async ofmedium(t) {
     t.className = 'sel-med ' + t.value;
     if (!(await acaoOferendas('medium', { oferendaId: t.dataset.of, pessoaId: t.dataset.p, [t.dataset.campo]: t.value }))) avisar();

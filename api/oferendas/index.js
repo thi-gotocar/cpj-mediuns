@@ -3,7 +3,7 @@
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
 //        admin:  salvar { id?, titulo, data, responsavelId, porMedium? (só ao criar) } · excluir { id }
-//                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · atualizarMediuns { id }  (oferenda com uma linha por médium)
+//                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
@@ -44,6 +44,10 @@ function texto(v, oque, max) {
   if (!s || s.length > max) throw new HttpError(400, `Informe ${oque}.`);
   return s;
 }
+function validarGrupos(v) {
+  if (!Array.isArray(v) || !v.length || v.some((g) => !GRUPOS_OFERENDA_KEYS.includes(g))) throw new HttpError(400, 'Escolha de quais grupos vêm as pessoas.');
+  return [...new Set(v)];
+}
 
 export default rota({
   GET: async (req) => {
@@ -68,11 +72,7 @@ export default rota({
         const resp = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável'));
         if (!resp) throw new HttpError(400, 'Escolha o responsável (uma pessoa da corrente).');
         const porMedium = !b.id && b.porMedium === true;
-        let grupos = null;
-        if (porMedium && b.grupos !== undefined) {
-          if (!Array.isArray(b.grupos) || !b.grupos.length || b.grupos.some((g) => !GRUPOS_OFERENDA_KEYS.includes(g))) throw new HttpError(400, 'Escolha de quais grupos vêm as pessoas.');
-          grupos = [...new Set(b.grupos)];
-        }
+        const grupos = porMedium && b.grupos !== undefined ? validarGrupos(b.grupos) : null;
         const antes = grupos ? new Set((await db.rpc('oferendas_estado')).map((o) => o.id)) : null;
         estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id, porMedium });
         // Uma linha por pessoa só dos grupos escolhidos (funções da corrente e/ou alunos).
@@ -146,7 +146,10 @@ export default rota({
         }
         break;
       case 'atualizarMediuns':
-        estado = await db.rpc('oferenda_mediuns_atualizar', { id: validarId(b.id, 'Oferenda') });
+        // Com grupos: só inclui quem é desses grupos (não tira ninguém); sem grupos: os grupos da oferenda.
+        estado = b.grupos !== undefined
+          ? await db.rpc('oferenda_mediuns_incluir', { id: validarId(b.id, 'Oferenda'), grupos: validarGrupos(b.grupos) })
+          : await db.rpc('oferenda_mediuns_atualizar', { id: validarId(b.id, 'Oferenda') });
         break;
       case 'excluirItem':
         estado = await db.rpc('oferenda_item_excluir', { id: validarId(b.id, 'Item') });

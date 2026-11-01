@@ -34,7 +34,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **Você nesta gira**: função, duplas, guia de atendimento; "Sorteio de escala pendente da Michelle" dentro do bloco quando a gira está aberta e sem sorteio.
 - Admin: **Sugestão Mi/Mãe Vê** — PASSE: cambones com afinidade de passe na entidade + At. Extra que **não** marcou a entidade; AT. EXTRA: passes com afinidade de extra. Exclui licença/falta/ausente. 5 nomes + rolagem.
 - Botão **WhatsApp** (abaixo de Publicar) abre o painel de texto/imagem; fica desabilitado enquanto não houver sorteio.
-- Fim da aba: **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde acima de 90%, amarelo de 50% a 90%, vermelho abaixo de 50%.
+- Fim da aba: **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.
 
 ## Perfil
 
@@ -43,6 +43,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 
 ## Outros
 
+- Oferenda com uma linha por pessoa: **↻ Incluir novos cadastrados** pergunta de quais listas puxar (começa com os grupos da oferenda) e só inclui no **Confirmar**; só acrescenta (quem foi tirado continua fora) e as listas escolhidas passam a fazer parte da oferenda.
 - Eventos (gira/amaci/aviso/evento), Oferendas (itens, doações, por médium com pagamento/entrega, grupos incluindo alunos), Ervas (compra coletiva com frete rateado), Histórico (giras, estatísticas, quem cambonou quem, backup).
 - Login: e-mail+senha; **acesso da corrente** com `cpj` + nome (+ PIN de 4–8 dígitos se criado); instalação com `CODIGO_INSTALACAO`.
 

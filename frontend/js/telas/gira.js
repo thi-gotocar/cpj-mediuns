@@ -357,8 +357,8 @@ function cardMinhaPresenca() {
   if (!base) return '';
   faltas.sort(([a], [b]) => b.data.localeCompare(a.data));
   const pct = Math.round((pres / base) * 100);
-  // Verde acima de 90%, amarelo de 50% a 90%, vermelho abaixo de 50%.
-  const cor = pct > 90 ? 'ok' : pct >= 50 ? 'medio' : 'baixo';
+  // Verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.
+  const cor = pct >= 90 ? 'ok' : pct >= 50 ? 'medio' : 'baixo';
   return `<div class="card mp ${cor}"><div class="grp-h"><span class="eyebrow">Sua presença em ${ano}</span><span class="count">${pres} de ${base} gira${base > 1 ? 's' : ''}</span></div>
     <div class="mp-pct ${cor}"><b>${pct}%</b><span>${pct === 100 ? 'de presença · veio em todas! 🙌' : 'de presença'}</span></div>
     <div class="mp-barra ${cor}"><span style="width:${pct}%"></span></div>

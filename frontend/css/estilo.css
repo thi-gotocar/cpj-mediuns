@@ -664,6 +664,7 @@ body.deslogado .rodape{display:none}
 .eu-l.eu-guia{display:block}
 .of-grupos{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 26px}
 .of-grupos[hidden]{display:none}
+.of-incluir{padding:4px 0 8px}
 .of-aluno{font-size:.65rem}
 
 /* Sugestão Mi/Mãe Vê: 5 nomes à vista, o resto com rolagem */
