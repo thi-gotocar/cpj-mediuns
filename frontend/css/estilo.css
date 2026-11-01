@@ -738,3 +738,10 @@ section.panel.pf-tela{gap:14px}
 .pp-exp-on{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
 .pp-res{display:grid;gap:2px}
 .pp-editando{background:color-mix(in srgb,var(--accent) 4%,transparent);border-radius:10px;padding:10px;margin:4px -6px}
+/* Sorteio: Remanejar faltas e Ajuste manual do mesmo tamanho, em amarelo */
+.sort-acoes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.sort-acoes.um{grid-template-columns:minmax(0,1fr)}
+.btn.bt-amarelo{background:var(--warn-soft);color:var(--warn);border:2px solid color-mix(in srgb,var(--warn) 45%,transparent);font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn.bt-amarelo[aria-pressed="true"]{background:var(--warn);color:#fff}
+.rem-conf{display:grid;gap:8px}
+.sort-acoes .bt-amarelo{font-size:.95rem;padding-inline:8px;line-height:1.2}

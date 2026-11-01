@@ -254,6 +254,18 @@ function blocoEu(g) {
 const duplasAbertas = new Set();
 // Quem não edita a gira vê "Ver escala"; o admin, "Ver mais".
 const botaoDobrar = (aberto) => `<button class="btn link small ver-mais" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : pode('giras:editar') ? '▸ Ver mais' : '▸ Ver escala'}</button>`;
+// Depois do sorteio: Remanejar faltas e Ajuste manual, lado a lado, do mesmo tamanho (amarelos).
+// Remanejar pede confirmação antes.
+function acoesSorteio(g, remanejarOk, manualOk, manual) {
+  const bts = [];
+  if (remanejarOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="rem:${g.data}"><span aria-hidden="true">🔄</span> Remanejar faltas</button>`);
+  if (manualOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="manual" aria-pressed="${manual}"><span aria-hidden="true">✋</span> ${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>`);
+  if (!bts.length) return '';
+  const conf = estado.confirm === 'rem:' + g.data
+    ? `<div class="infobox rem-conf"><span><b>Remanejar faltas?</b> Refaz só as duplas de quem faltou ou mudou de status; as outras ficam como estão.</span>
+        <span class="row" style="gap:6px"><button class="btn small primary" data-act="remanejar">Confirmar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>` : '';
+  return `<div class="sort-acoes${bts.length === 1 ? ' um' : ''}">${bts.join('')}</div>${conf}`;
+}
 // Título do bloco do sorteio: para quem não edita, depois de publicado, "Sorteio realizado!".
 const tituloSorteio = () => (pode('giras:editar') ? '<h2>Sorteio</h2>' : '<h2 class="sorteio-ok">🚀 Sorteio realizado! ❤️</h2>');
 // Presença e WhatsApp também começam minimizados (abrem enquanto o app estiver aberto).
@@ -515,17 +527,15 @@ function renderGira() {
   };
   const aberto = manual || duplasAbertas.has(g.data);
   h += `<div class="card"><div class="grp-h">${temDuplas ? tituloSorteio() : '<h2>Sorteio</h2>'}</div>
-      ${sortearOk ? (temDuplas
-        ? '<div class="sort-acoes"><button class="btn primary btn-grande" data-act="remanejar">Remanejar faltas</button><button class="btn" data-act="sortear">Sortear tudo de novo</button></div>'
-        : '<button class="btn primary btn-grande" data-act="sortear">🎲 Sortear</button>') : ''}
+      ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual) : sortearOk ? '<button class="btn primary btn-grande" data-act="sortear">🎲 Sortear</button>' : ''}
       ${editar && temDuplas ? (g.publicada
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
         : `<button class="btn btn-grande pub-bt" data-act="publicar"><span class="pub-tit">📢 Publicar escala</span><span class="pub-sub">Só os admins veem o sorteio até publicar</span></button>`) : ''}
       ${botaoWhats()}
-      ${editar && !passada && (temDuplas || manual) ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="${manual}">${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button></div>` : ''}`;
+      ${!temDuplas && manual && !passada ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="true">Concluir ajuste</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
   if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
-  if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Sorteie de novo.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
+  if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Use o Ajuste manual.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
   if (!temDuplas && !manual) {
     // Ainda não sorteado: sem Ajuste manual e sem "Ver mais"; só o resumo e quem está fora (licença etc.).
     h += `${!lista.length ? '<p class="muted" style="margin:0">Nenhum médium presente.</p>' : sortearOk ? '' : '<p class="muted" style="margin:0">As duplas ainda não foram sorteadas.</p>'}${blocosFora(ps, g)}</div>`;
@@ -540,7 +550,7 @@ function renderGira() {
     lista.forEach((x) => {
       h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span>${editar && !passada && !manual ? botaoFalta(x.m.id) : '<span></span>'}${editar ? confirmaFalta(x.m.id) : ''}<div class="cams">`;
       x.cams.forEach((p) => { const i = (g.pares || []).indexOf(p); h += linha('pares', p, i, camsPres, map, 'Cambone').replace(/<\/div>$/, tirar('pares', i) + '</div>'); });
-      if (!x.cams.length) h += `<span class="muted">Sem cambone.${manual ? '' : sortearOk ? ' Sorteie de novo.' : ''}</span>`;
+      if (!x.cams.length) h += `<span class="muted">Sem cambone.${manual ? '' : sortearOk ? ' Use o Ajuste manual.' : ''}</span>`;
       x.passes.forEach((p) => { const i = (g.passes || []).indexOf(p); h += linha('passes', p, i, passPres, mapP, 'Passe').replace(/<\/div>$/, tirar('passes', i) + '</div>'); });
       if (manual) h += adicionar(x);
       h += `</div></div>`;
@@ -671,7 +681,7 @@ export const cliques = {
     editarGira({ [k]: (g[k] || []).filter((_, i) => i !== +el.dataset.i) });
     avisar();
   },
-  remanejar: () => { duplasAbertas.add(giraAtual().data); remanejar(); },
+  remanejar: () => { estado.confirm = null; duplasAbertas.add(giraAtual().data); remanejar(); },
   faltaask(el) { estado.faltaConf = el.dataset.id; avisar(); },
   faltacancel() { estado.faltaConf = null; avisar(); },
   // Confirmou: presença vira Falta e a escala é refeita (Remanejar faltas).
