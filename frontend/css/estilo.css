@@ -673,6 +673,16 @@ body.deslogado .rodape{display:none}
 .of-grupos{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 26px}
 .of-grupos[hidden]{display:none}
 .of-incluir{padding:4px 0 8px}
+.of-medp{margin:4px 0}
+.of-medp .of-pct-h b{font-size:1.1rem}
+.of-medp.pag .of-pct-h b{color:var(--accent)}.of-medp.pag .of-pct-barra span{background:var(--accent)}
+.of-medp.ent .of-pct-h b{color:var(--ok)}.of-medp.ent .of-pct-barra span{background:var(--ok)}
+.of-olho-bt{margin-left:auto;padding:0 6px;font-size:1.05rem;text-decoration:none}
+.of-olho-bt[aria-expanded="true"]{background:var(--accent-soft);border-radius:6px}
+.of-olho-bt:disabled{opacity:.35}
+.of-olho{margin:6px 0 0;font-size:.88rem;overflow-wrap:anywhere}
+.of-rod{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.of-rod .btn{min-width:0;white-space:normal;line-height:1.15;padding:6px 4px;font-size:.8rem;min-height:44px}
 .of-aluno{font-size:.65rem}
 
 /* Sugestão Mi/Mãe Vê: 5 nomes à vista, o resto com rolagem */

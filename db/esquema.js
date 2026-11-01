@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 48;  // v48: "Incluir novos cadastrados" da oferenda por pessoa escolhe os grupos
+export const VERSAO = 49;  // v49: oferenda por pessoa: acrescentar uma pessoa do cadastro na lista
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1473,6 +1473,26 @@ export const MIGRACOES = [
      on conflict do nothing;
      if 'alunos' = any(v_novos) then
        insert into oferenda_alunos (oferenda_id, aluno_id) select v_id, id from alunos on conflict do nothing;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+
+  // ================================================== v49: oferenda por pessoa: acrescentar uma pessoa do cadastro (ou aluno) na lista
+  `create or replace function oferenda_pessoa_incluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_of uuid := (p ->> 'oferendaId')::uuid;
+   begin
+     if not exists (select 1 from oferendas where id = v_of and por_medium) then raise exception 'Oferenda não encontrada.'; end if;
+     if p ? 'alunoId' then
+       if not exists (select 1 from alunos where id = (p ->> 'alunoId')::uuid) then raise exception 'Aluno não encontrado.'; end if;
+       insert into oferenda_alunos (oferenda_id, aluno_id) values (v_of, (p ->> 'alunoId')::uuid)
+       on conflict (oferenda_id, aluno_id) do update set excluido = false, atualizado_em = now();
+     else
+       if not exists (select 1 from pessoas where id = (p ->> 'pessoaId')::uuid) then raise exception 'Pessoa não encontrada.'; end if;
+       insert into oferenda_mediuns (oferenda_id, pessoa_id) values (v_of, (p ->> 'pessoaId')::uuid)
+       on conflict (oferenda_id, pessoa_id) do update set excluido = false, atualizado_em = now();
      end if;
      return oferendas_estado();
    end;

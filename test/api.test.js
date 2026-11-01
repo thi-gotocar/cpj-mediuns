@@ -993,6 +993,14 @@ test('oferenda por pessoa: escolhe os grupos (funções e alunos); doação por 
   assert.ok(o.mediuns.some((m) => m.nome === 'Médium Fora do Grupo'));
   assert.ok(!o.mediuns.some((m) => m.pessoaId === la.pessoaId));
   assert.deepEqual(o.grupos, ['cambone', 'alunos', 'medium']);
+  // Adicionar uma pessoa do cadastro: quem tinha sido tirado volta para a lista.
+  r = (await of({ acao: 'incluirMedium', oferendaId: o.id, pessoaId: la.pessoaId })).json;
+  assert.ok(r.oferendas.find((x) => x.id === o.id).mediuns.some((m) => m.pessoaId === la.pessoaId));
+  const fora = ps.find((p) => !o.mediuns.some((m) => m.pessoaId === p.id));
+  if (fora) {
+    r = (await of({ acao: 'incluirMedium', oferendaId: o.id, pessoaId: fora.id })).json;
+    assert.ok(r.oferendas.find((x) => x.id === o.id).mediuns.some((m) => m.pessoaId === fora.id));
+  }
   // Doação por alguém: um aluno.
   r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Velas', quantidade: 2, entrega: '' })).json;
   const item = r.oferendas.find((x) => x.id === o.id).itens[0];

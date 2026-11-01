@@ -3,7 +3,7 @@
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
 //        admin:  salvar { id?, titulo, data, responsavelId, porMedium? (só ao criar) } · excluir { id }
-//                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? }  (oferenda com uma linha por médium)
+//                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
@@ -144,6 +144,12 @@ export default rota({
         } else {
           estado = await db.rpc('oferenda_medium_excluir', { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Médium') });
         }
+        break;
+      case 'incluirMedium':
+        // Uma pessoa do cadastro (corrente ou 'a:' + aluno) na lista; quem tinha sido tirado volta.
+        estado = await db.rpc('oferenda_pessoa_incluir', typeof b.pessoaId === 'string' && b.pessoaId.startsWith('a:')
+          ? { oferendaId: validarId(b.oferendaId, 'Oferenda'), alunoId: validarId(b.pessoaId.slice(2), 'Aluno') }
+          : { oferendaId: validarId(b.oferendaId, 'Oferenda'), pessoaId: validarId(b.pessoaId, 'Pessoa') });
         break;
       case 'atualizarMediuns':
         // Com grupos: só inclui quem é desses grupos (não tira ninguém); sem grupos: os grupos da oferenda.

@@ -1,6 +1,6 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, contagemMediuns, percentualDoado, travadaPara, fechaEm, GRUPOS_OFERENDA } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_OFERENDA } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -115,14 +115,24 @@ function painelIncluir(of) {
     ${GRUPOS_OFERENDA.map(([k, l]) => `<label class="chip"><input type="checkbox" name="grupoinc" data-act="grupoinc" value="${k}" ${marcados.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}
     <div class="row" style="flex-basis:100%"><button class="btn small primary" data-act="atualizarmed" data-id="${of.id}">Confirmar</button><button class="btn small" data-act="incluirmed" data-id="${of.id}">Cancelar</button></div></div>`;
 }
+// Admin: acrescenta na lista alguém do cadastro (corrente ou aluno) que ainda não está nela.
+function formAddPessoa(of, ms) {
+  const ja = new Set(ms.map((m) => m.pessoaId));
+  const livres = pessoasOrd().filter((p) => !ja.has(p.id));
+  const alunosLivres = (estado.alunos?.alunos || []).filter((a) => !ja.has('a:' + a.id));
+  if (!livres.length && !alunosLivres.length) return '';
+  return `<form class="of-por" data-form="addmedium" data-of="${of.id}" autocomplete="off">
+    <select name="pessoa" aria-label="Pessoa do cadastro para adicionar na lista"><option value="">+ adicionar pessoa do cadastro…</option>
+      ${livres.length ? `<optgroup label="Corrente">${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</optgroup>` : ''}
+      ${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}</select>
+    <button class="btn small primary" type="submit">Adicionar</button></form>`;
+}
 function blocoMediuns(of, admin) {
   const ms = of.mediuns || [];
-  const c = contagemMediuns(of);
   let h = `<div class="of-med"><div class="of-med-h"><b>Pessoas</b> <span class="muted">(${ms.length})</span>
     ${admin ? `<button class="btn link small" data-act="incluirmed" data-id="${of.id}" aria-expanded="${U().incluir === of.id}" title="Acrescenta quem foi cadastrado depois">↻ Incluir novos cadastrados</button>` : ''}</div>
     ${admin && U().incluir === of.id ? painelIncluir(of) : ''}
-    <div class="of-med-cont"><span class="muted">Pagamento:</span>${PAGAMENTO.map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>
-    <div class="of-med-cont"><span class="muted">Entrega:</span>${ENTREGA.map(([k, l]) => `<span class="st-med ${k}">${l} ${c[k]}</span>`).join('')}</div>`;
+    ${admin ? formAddPessoa(of, ms) : ''}`;
   if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Ninguém na lista.</p></div>`;
   h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${medConferido(m) ? 'ok' : m.pagamento === 'pago' || m.entrega === 'entregue' ? 'meio' : 'pend'}"><span class="nm">${esc(m.nome)}${m.aluno ? ' <span class="tag of-aluno">aluno</span>' : ''}</span>
     ${admin ? `<span class="of-med-acts">${comboMed(of, m, 'pagamento', PAGAMENTO, 'Pagamento')}${comboMed(of, m, 'entrega', ENTREGA, 'Entrega')}
@@ -164,6 +174,33 @@ function barraDoacoes(of) {
     ${aviso ? `<p class="of-pct-aviso">${aviso}</p>` : ''}</div>`;
 }
 
+// Lista por pessoa: Pagamento (pagos) e Entrega (entregues) em barra com a porcentagem; o 👁 mostra quem falta.
+function barrasMediuns(of) {
+  const ms = of.mediuns || [];
+  if (!ms.length) return '';
+  const linha = (k, titulo, campo, ok, rotFalta) => {
+    const n = ms.filter((m) => m[campo] === ok).length;
+    const pct = Math.floor((n / ms.length) * 100);
+    const faltam = ms.filter((m) => m[campo] !== ok);
+    const aberto = U().olho === of.id + ':' + k && faltam.length;
+    return `<div class="of-medp ${k}"><div class="of-pct-h"><span class="muted">${titulo}:</span> <b>${pct}%</b> <span class="muted">${n} de ${ms.length}</span>
+        <button class="btn link small of-olho-bt" data-act="olhomed" data-k="${of.id}:${k}" aria-expanded="${!!aberto}" ${faltam.length ? '' : 'disabled'} aria-label="Ver ${rotFalta}" title="Ver ${rotFalta}">👁</button></div>
+      <div class="of-pct-barra" role="img" aria-label="${titulo}: ${pct}%"><span style="width:${pct}%"></span></div>
+      ${aberto ? `<p class="of-olho"><span class="muted">${rotFalta[0].toUpperCase() + rotFalta.slice(1)} (${faltam.length}):</span> ${faltam.map((m) => esc(m.nome)).join(', ')}</p>` : ''}</div>`;
+  };
+  return linha('pag', 'Pagamento', 'pagamento', 'pago', 'quem não pagou') + linha('ent', 'Entrega', 'entrega', 'entregue', 'entregas pendentes');
+}
+
+// Oferenda minimizada: os itens que ainda faltam doação, 2 à vista; "Ver mais" mostra os outros.
+function previaPendentes(of, admin) {
+  const pend = of.itens.filter((i) => !situacao(i).completo);
+  if (!pend.length) return '';
+  const todos = (U().maisPend || []).includes(of.id);
+  return `<p class="muted legenda"><span class="dot pend"></span> faltam doadores (${pend.length})</p>
+    <div class="of-itens">${(todos ? pend : pend.slice(0, 2)).map((i) => linhaItem(of, i, admin)).join('')}</div>
+    ${pend.length > 2 ? `<button class="btn link small" data-act="maispend" data-id="${of.id}" aria-expanded="${todos}">${todos ? 'Ver menos' : `Ver mais (${pend.length - 2})`}</button>` : ''}`;
+}
+
 function cardOferenda(of, admin) {
   const u = U();
   let h = `<div class="card" id="of-${of.id}">`;
@@ -192,7 +229,8 @@ function cardOferenda(of, admin) {
       ${!admin && (of.status === 'rascunho' || of.responsavel) ? `<div class="of-topo">${of.status === 'rascunho' ? etiqueta('rascunho') : '<span></span>'}${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</div>` : ''}
       <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${admin && of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
       ${barraDoacoes(of)}
-      <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa · ${(of.mediuns || []).length} pessoas${(() => { const c = contagemMediuns(of); return `${c.nao_pago ? ` · ${c.nao_pago} não pago${c.nao_pago > 1 ? 's' : ''}` : ''}${c.pendente ? ` · ${c.pendente} entrega${c.pendente > 1 ? 's' : ''} pendente${c.pendente > 1 ? 's' : ''}` : ''}`; })()}${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
+      ${of.porMedium && !of.bloqueada ? barrasMediuns(of) : ''}
+      <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa · ${(of.mediuns || []).length} pessoas${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   if (u.editar !== of.id) h += meusCompromissos(of);
   // Sempre começa minimizada; abre só enquanto o app estiver aberto.
@@ -200,15 +238,16 @@ function cardOferenda(of, admin) {
   const bloqueada = of.status === 'rascunho' && !admin;
   const temLista = of.itens.length > 0 || (of.porMedium && (of.mediuns || []).length > 0);
   const fechada = bloqueada || (temLista && !(u.abertas || []).includes(of.id));
-  if (u.editar !== of.id && temLista && !bloqueada) {
-    h += `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? (of.porMedium ? '▸ Ver a lista' : '▸ Ver os itens') : '▾ Minimizar'}</button>`;
-  }
-  if (fechada) return h + rodapeOferenda(of, admin) + `</div>`;
+  const dobra = u.editar !== of.id && temLista && !bloqueada
+    ? `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? (of.porMedium ? '▸ Ver a lista' : '▸ Ver todos os itens') : '▾ Minimizar'}</button>` : '';
+  // Minimizada: os itens pendentes à vista e, depois, o link para ver tudo.
+  if (fechada) return h + (bloqueada || u.editar === of.id ? '' : previaPendentes(of, admin)) + dobra + rodapeOferenda(of, admin) + `</div>`;
+  h += dobra;
   // Em aberto primeiro; os completos (verdes) no fim.
   const ordem = [...of.itens].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
   if (of.porMedium) h += blocoMediuns(of, admin);
-  // Cadastrar item fica no topo da lista.
-  if (admin) {
+  // Cadastrar item fica no topo da lista (a oferenda com uma linha por pessoa não tem itens novos).
+  if (admin && !of.porMedium) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
@@ -223,7 +262,8 @@ function rodapeOferenda(of, admin) {
   let h = '';
   if (!admin) return h;   // compartilhar, editar e excluir: só admin
   const aberto = u.compartilhar === of.id;
-  h += `<div class="row"><button class="btn ${aberto ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${aberto}">Compartilhar lista</button>
+  // Os 4 botões lado a lado, do mesmo tamanho.
+  h += `<div class="of-rod"><button class="btn ${aberto ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${aberto}">Compartilhar lista</button>
     <button class="btn" data-act="imgofdireto" data-id="${of.id}">Compartilhar imagem</button>
     ${admin && u.editar !== of.id ? `<button class="btn" data-act="editarof" data-id="${of.id}">Editar</button>
       ${estado.confirm === 'of:' + of.id ? `<button class="btn danger" data-act="delof" data-id="${of.id}">Confirmar exclusão</button>` : `<button class="btn" data-act="askdel" data-k="of:${of.id}">Excluir</button>`}` : ''}</div>`;
@@ -314,6 +354,13 @@ export const cliques = {
   async delitem(el) { estado.confirm = null; if (await acaoOferendas('excluirItem', { id: el.dataset.id })) toast('Item excluído.'); },
   editarof(el) { U().editar = el.dataset.id; avisar(); },
   cancelarof() { U().editar = null; avisar(); },
+  olhomed(el) { U().olho = U().olho === el.dataset.k ? null : el.dataset.k; avisar(); },
+  maispend(el) {
+    const set = new Set(U().maisPend || []);
+    if (set.has(el.dataset.id)) set.delete(el.dataset.id); else set.add(el.dataset.id);
+    U().maisPend = [...set];
+    avisar();
+  },
   dobrarof(el) {
     const set = new Set(U().abertas || []);
     if (set.has(el.dataset.id)) set.delete(el.dataset.id); else set.add(el.dataset.id);
@@ -435,14 +482,21 @@ export async function enviar(form) {
     if (await acaoOferendas('salvar', { id: form.dataset.id, titulo: v('titulo'), data: v('data'), responsavelId: v('resp') })) { U().editar = null; toast('Oferenda salva.'); avisar(); }
     return;
   }
+  // Pessoa da corrente (id) ou aluno ('a:' + id).
+  const nomeDe = (pessoa) => (pessoa.startsWith('a:') ? (estado.alunos?.alunos || []).find((a) => 'a:' + a.id === pessoa)?.nome || ''
+    : estado.pessoas.find((p) => p.id === pessoa)?.nome || '');
   if (form.dataset.form === 'porpessoa') {
     const pessoa = v('pessoa');
     const qtd = Number(v('qtd'));
     if (!pessoa) { toast('Escolha a pessoa.'); return; }
     if (!Number.isInteger(qtd) || qtd < 1) { toast('Informe a quantidade.'); return; }
-    const nome = pessoa.startsWith('a:') ? (estado.alunos?.alunos || []).find((a) => 'a:' + a.id === pessoa)?.nome || ''
-      : estado.pessoas.find((p) => p.id === pessoa)?.nome || '';
-    if (await acaoOferendas('doarPor', { itemId: form.dataset.item, pessoaId: pessoa, quantidade: qtd })) toast(`Doação de ${nome} registrada.`);
+    if (await acaoOferendas('doarPor', { itemId: form.dataset.item, pessoaId: pessoa, quantidade: qtd })) toast(`Doação de ${nomeDe(pessoa)} registrada.`);
+    return;
+  }
+  if (form.dataset.form === 'addmedium') {
+    const pessoa = v('pessoa');
+    if (!pessoa) { toast('Escolha a pessoa.'); return; }
+    if (await acaoOferendas('incluirMedium', { oferendaId: form.dataset.of, pessoaId: pessoa })) toast(`${nomeDe(pessoa)} entrou na lista.`);
     return;
   }
   const entrega = v('modo') === 'data' ? v('entrega') : '';
