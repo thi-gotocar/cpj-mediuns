@@ -213,7 +213,7 @@ ervas_eventos = bloco(
   ], [0.3, 0.7], C),
   h3('Eventos'),
   passos([
-    f'Na aba <b>Histórico</b>, no bloco <b>🗓️ Eventos</b>, toque em {B("+ Cadastrar evento")}.',
+    f'Na aba <b>Gira</b>, logo abaixo do bloco 📅 Eventos, fica o bloco dourado <b>🗓️ Eventos</b> (só o admin vê). Toque em {B("+ Cadastrar evento")}.',
     'Preencha a data (dia/mês), o tipo (<b>Gira</b>, <b>Amaci</b>, <b>Aviso</b> ou <b>Evento</b>) e o nome.',
     f'Toque em {B("Cadastrar")}. Em “Eventos cadastrados” dá para editar e excluir.',
   ], C),

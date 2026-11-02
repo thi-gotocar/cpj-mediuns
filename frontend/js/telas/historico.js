@@ -2,10 +2,9 @@
 
 import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar, carregarStPerfis } from '../estado.js';
-import { esc, dLong, dShort, hoje, toast, baixar } from '../util.js';
+import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
-import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 
 // Resultado da leitura da mensagem. Tudo o que ficou em dúvida aparece em vermelho, com opção de
 // corrigir e um botão Aceitar; só dá para gravar depois de aceitar todos.
@@ -224,23 +223,10 @@ function blocosPerfis() {
     + (S.cabeca ? bloco('Orixá de cabeça com mais pessoas', S.cabeca, 'or', S.cabecaPessoas, 'Frente, ancestral ou adjunto (cada pessoa conta uma vez por orixá) · ') : '');
 }
 
-// Listas que mostram só os primeiros N itens e rolam o resto ([data-rolar="N"]):
-// a altura máxima é medida depois de desenhar, porque cada item tem uma altura.
-function ajustarRolagem() {
-  document.querySelectorAll('[data-rolar]').forEach((el) => {
-    const n = Number(el.dataset.rolar);
-    const kids = el.children;
-    el.style.maxHeight = '';
-    if (kids.length <= n) return;
-    el.style.maxHeight = (kids[n].offsetTop - kids[0].offsetTop) + 'px';
-  });
-}
-
 export function render() {
   setTimeout(ajustarRolagem, 0);
-  // Eventos (antes numa aba própria) ficam no topo do Histórico.
-  // Bloco Eventos: agrupa o Cadastrar evento e os Eventos cadastrados.
-  let h = `<section class="panel">${pode('eventos:ver') ? `<div class="card ev-grupo"><h2><span aria-hidden="true">🗓️</span> Eventos</h2>${blocosEventos()}</div>` : ''}`;
+  // O bloco Eventos (cadastrar e eventos cadastrados) fica na aba Gira.
+  let h = `<section class="panel">`;
   if (!pode('historico:ver')) return h + '</section>';
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
@@ -316,7 +302,6 @@ function blocoGirasSalvas(gs, ps) {
 
 export const cliques = {
   ...cliquesResumo,
-  ...cliquesEventos,
   stedit(el) { estado.stEdit = el.dataset.k; avisar(); },
   stedcancel() { estado.stEdit = null; avisar(); },
   async stedok(el) {

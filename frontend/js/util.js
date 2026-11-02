@@ -37,6 +37,18 @@ export function baixar(blobOuUrl, nome) {
   if (typeof blobOuUrl !== 'string') setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
+// Listas que mostram só os primeiros N itens e rolam o resto ([data-rolar="N"]):
+// a altura máxima é medida depois de desenhar, porque cada item tem uma altura.
+export function ajustarRolagem() {
+  document.querySelectorAll('[data-rolar]').forEach((el) => {
+    const n = Number(el.dataset.rolar);
+    const kids = el.children;
+    el.style.maxHeight = '';
+    if (kids.length <= n) return;
+    el.style.maxHeight = (kids[n].offsetTop - kids[0].offsetTop) + 'px';
+  });
+}
+
 // Telefone enquanto digita: (11) 98765-4321.
 export function mascaraTel(el) {
   const d = el.value.replace(/\D/g, '').slice(0, 11);

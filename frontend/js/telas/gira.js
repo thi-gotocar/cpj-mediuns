@@ -2,7 +2,8 @@
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
+import { esc, dLong, dDM, toast, baixar, hoje, pd, ajustarRolagem } from '../util.js';
+import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -470,8 +471,16 @@ function cardCompromissos() {
     <button class="btn link small" data-act="goto" data-tab="oferendas">Ver oferendas ›</button></div>`;
 }
 
+// Admin: bloco Eventos (cadastrar e eventos cadastrados) logo abaixo do card 📅 Eventos, com a moldura dourada
+// de "só admin vê".
+function cardEventosAdmin() {
+  if (!pode('eventos:ver')) return '';
+  setTimeout(ajustarRolagem, 0);
+  return `<div class="card adm ev-grupo"><h2><span aria-hidden="true">🗓️</span> Eventos</h2>${blocosEventos()}</div>`;
+}
+
 export function render() {
-  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana());
+  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardEventosAdmin());
 }
 
 function renderGira() {
@@ -725,6 +734,7 @@ function painelWhats(g) {
 // ---------- ações ----------
 export const cliques = {
   ...cliquesResumo,
+  ...cliquesEventos,
   dobrarcard(el) { const k = el.dataset.k; if (abertos.has(k)) abertos.delete(k); else abertos.add(k); avisar(); },
   // Gira nova já vem com a próxima turma da limpeza (depois da última gira encerrada, pulando turmas vazias).
   criargira() {

@@ -371,6 +371,7 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .ev-grupo{gap:10px}
 .ev-grupo>.card{padding:12px;background:var(--bg);box-shadow:none}
 .ev-grupo>.card h2{font-size:1.05rem}
+.ev-grupo>.card.adm{border:1px solid var(--line)}   /* a moldura dourada fica só no bloco de fora */
 .limpeza.ausencia{border-left-color:#e8b400;background:var(--warn-soft)}
 .limp-sel{font-size:.85rem;padding:3px 6px;width:auto}
 .turmas{display:flex;flex-direction:column;gap:4px;font-size:.9rem}
