@@ -351,11 +351,11 @@ function resultado(g) {
 
 // Admin: "Sugestão Mi/Mãe Vê" — quem marcou no Perfil que se sente confiante na entidade da gira,
 // em dois blocos (Passe e Atendimento extra): tabela Nome (com rótulos e entidade) | oferendas feitas (orixá de frente,
-// ancestral, adjunto e guia chefe — só para quem vê o perfil de todos) | % de presença no ano | giras da linha,
+// ancestral, adjunto, guia chefe e guia de frente — só para quem vê o perfil de todos) | % de presença no ano | giras da linha,
 // 5 linhas à vista e o resto com rolagem.
-const curto4 = (s) => { const a = Array.from(s); return a.length > 4 ? a.slice(0, 4).join('') + '…' : s; };
 const corPres = (pct) => (pct >= 80 ? 'ok' : pct >= 60 ? 'medio' : 'baixo');
-const OFERENDAS_SUG = [['frente', 'Fr', 'Orixá de frente'], ['ancestral', 'An', 'Orixá ancestral'], ['adjunto', 'Ad', 'Orixá adjunto'], ['chefe', 'Ch', 'Guia chefe']];
+const OFERENDAS_SUG = [['frente', 'Fr', 'Orixá de frente'], ['ancestral', 'An', 'Orixá ancestral'], ['adjunto', 'Ad', 'Orixá adjunto'],
+  ['chefe', 'Ch', 'Guia chefe'], ['guiaFrente', 'Fe', 'Guia de frente']];
 // Perfil de todos ({ pessoaId: perfil }) para as colunas de oferendas; busca uma vez se ainda não veio.
 let pedindoPerfil = false;
 function perfisDaCorrente() {
@@ -368,9 +368,9 @@ function perfisDaCorrente() {
   return Array.isArray(t) ? Object.fromEntries(t.map((x) => [x.pessoaId, x.perfil])) : null;
 }
 function linhaSugestao(x, linha, ano) {
-  // Segunda linha do nome: rótulos Guia chefe / Guia de frente e, ao lado, o nome da entidade.
+  // Segunda linha do nome: rótulos Guia chefe / Guia de frente e, ao lado, o nome da entidade (cortado com "…" se não couber).
   const sub = [...x.guias.map((t) => `<span class="sug-tag${t === 'Guia chefe' ? ' chefe' : ''}">${t}</span>`),
-    x.temNome ? `<span class="sug-ent" title="${esc(x.entidade)}">${esc(curto4(x.entidade))}</span>` : ''].join('');
+    x.temNome ? `<span class="sug-ent" title="${esc(x.entidade)}">${esc(x.entidade)}</span>` : ''].join('');
   const tags = sub ? `<span class="sug-tags">${sub}</span>` : '';
   const pres = x.pct === null ? '<span class="sug-pct vazio" title="Sem giras no ano">—</span>'
     : `<span class="sug-pct ${corPres(x.pct)}" title="${x.pres} de ${x.base} gira${x.base > 1 ? 's' : ''} em ${ano}"><b>${x.pct}%</b><i style="--p:${x.pct}%"></i></span>`;
@@ -395,7 +395,7 @@ function blocoSugestao(ps, g) {
       ${lista.length ? `<div class="sug-lista">${cab}${lista.map((x) => linhaSugestao(x, linha, g.data.slice(0, 4))).join('')}</div>`
         : '<p class="muted sug-vazio">Ninguém marcou esta entidade.</p>'}</div>`).join('');
   return `<div class="card adm sugestao"><div class="grp-h"><h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}</div>${corpo}
-    ${sug ? `<p class="sug-leg">${comOf ? 'Oferendas: Fr = orixá de frente · An = ancestral · Ad = adjunto · Ch = guia chefe<br>' : ''}Pres. = presença em ${g.data.slice(0, 4)} · Giras de ${esc(linha)} = em quantas esteve presente</p>` : ''}</div>`;
+    ${sug ? `<p class="sug-leg">${comOf ? 'Oferendas: Fr = orixá de frente · An = ancestral · Ad = adjunto · Ch = guia chefe · Fe = guia de frente<br>' : ''}Pres. = presença em ${g.data.slice(0, 4)} · Giras de ${esc(linha)} = em quantas esteve presente</p>` : ''}</div>`;
 }
 
 // Topo da aba Gira (só data e nome): gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.

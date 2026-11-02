@@ -544,9 +544,9 @@ export function reabrir(pessoas, g) {
 // (quem marcou "Todas" não entra; quem não marcou nenhuma entra).
 // ATENDIMENTO EXTRA: Passe que marcou a linha no bloco Atendimento extra. Cada um vem com o nome da entidade,
 // a presença no ano (pct) e quantas giras desta linha já foi (nGiras), contando as giras anteriores a esta.
-// perfis ({ [pessoaId]: perfil }, só o admin tem): oferendas feitas do orixá de frente, ancestral, adjunto e
-// do guia chefe (null sem perfis).
-// Ordem: oferenda do orixá de frente; mais oferendas de orixás; oferenda do guia chefe; Guia chefe, Guia de frente,
+// perfis ({ [pessoaId]: perfil }, só o admin tem): oferendas feitas do orixá de frente, ancestral, adjunto,
+// do guia chefe e do guia de frente (null sem perfis).
+// Ordem: oferenda do orixá de frente; mais oferendas de orixás; mais oferendas de guias; Guia chefe, Guia de frente,
 // sem rótulo; quem tem nome da entidade; maior presença; mais giras da linha; nome.
 export function sugestoesDaGira(pessoas, g, giras = [], perfis = null) {
   const l = linhaDaEntidade(g?.entidade);
@@ -562,7 +562,7 @@ export function sugestoesDaGira(pessoas, g, giras = [], perfis = null) {
     if (!perfis) return null;
     const pf = perfis[p.id] || {};
     const o = (k) => !!pf.orixas?.[k]?.oferenda;
-    return { frente: o('frente'), ancestral: o('ancestral'), adjunto: o('adjunto'), chefe: !!pf.guias?.chefe?.oferenda };
+    return { frente: o('frente'), ancestral: o('ancestral'), adjunto: o('adjunto'), chefe: !!pf.guias?.chefe?.oferenda, guiaFrente: !!pf.guias?.frente?.oferenda };
   };
   const item = (p) => {
     const nomeEnt = guiaNaGira(p, g);
@@ -573,7 +573,8 @@ export function sugestoesDaGira(pessoas, g, giras = [], perfis = null) {
   const nivel = (x) => (x.guias.includes('Guia chefe') ? 0 : x.guias.length ? 1 : 2);
   const of = (x, k) => (x.oferendas?.[k] ? 1 : 0);
   const ord = (a, b) => of(b, 'frente') - of(a, 'frente')
-    || (of(b, 'ancestral') + of(b, 'adjunto')) - (of(a, 'ancestral') + of(a, 'adjunto')) || of(b, 'chefe') - of(a, 'chefe')
+    || (of(b, 'ancestral') + of(b, 'adjunto')) - (of(a, 'ancestral') + of(a, 'adjunto'))
+    || (of(b, 'chefe') + of(b, 'guiaFrente')) - (of(a, 'chefe') + of(a, 'guiaFrente'))
     || nivel(a) - nivel(b) || b.temNome - a.temNome || (b.pct ?? -1) - (a.pct ?? -1)
     || b.nGiras - a.nGiras || a.nome.localeCompare(b.nome, 'pt-BR');
   const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'cambone' && tem(p.afinidadePasse)) || (p.funcao === 'extra' && !tem(p.linhas)))).map(item).sort(ord);

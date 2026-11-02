@@ -378,11 +378,12 @@ test('sugestão Mi/Mãe Vê: presença no ano, giras da linha e ordem', async ()
   assert.equal(r.passe.find((x) => x.nome === 'Bia').temNome, true);
   assert.equal(ana.oferendas, null, 'sem perfis: sem oferendas');
 
-  // Oferendas (perfis do admin) vêm antes de tudo: orixá de frente; mais orixás (ancestral, adjunto); guia chefe.
-  const ofs = (frente, ancestral, adjunto, chefe) => ({ orixas: { frente: { oferenda: frente }, ancestral: { oferenda: ancestral }, adjunto: { oferenda: adjunto } }, guias: { chefe: { oferenda: chefe } } });
-  const perfis = { 1: ofs(false, true, true, true), 5: ofs(true, false, false, false), 6: ofs(false, true, false, false), 3: ofs(false, true, false, true) };
+  // Oferendas (perfis do admin) vêm antes de tudo: orixá de frente; mais orixás (ancestral, adjunto); mais guias (chefe, de frente).
+  const ofs = (frente, ancestral, adjunto, chefe, guiaFrente = false) => ({ orixas: { frente: { oferenda: frente }, ancestral: { oferenda: ancestral }, adjunto: { oferenda: adjunto } }, guias: { chefe: { oferenda: chefe }, frente: { oferenda: guiaFrente } } });
+  const perfis = { 1: ofs(false, true, true, true), 5: ofs(true, false, false, false), 6: ofs(false, true, false, true, true), 3: ofs(false, true, false, true) };
   const r2 = sugestoesDaGira(ps, giras[3], giras, perfis);
-  assert.deepEqual(r2.passe.map((x) => x.nome), ['Eva', 'Ana', 'Caio', 'Fábio', 'Duda', 'Bia']);
-  assert.deepEqual(r2.passe[0].oferendas, { frente: true, ancestral: false, adjunto: false, chefe: false });
-  assert.deepEqual(r2.passe.find((x) => x.nome === 'Bia').oferendas, { frente: false, ancestral: false, adjunto: false, chefe: false });
+  // Fábio (2 guias) passa à frente de Caio (1 guia).
+  assert.deepEqual(r2.passe.map((x) => x.nome), ['Eva', 'Ana', 'Fábio', 'Caio', 'Duda', 'Bia']);
+  assert.deepEqual(r2.passe[0].oferendas, { frente: true, ancestral: false, adjunto: false, chefe: false, guiaFrente: false });
+  assert.deepEqual(r2.passe.find((x) => x.nome === 'Bia').oferendas, { frente: false, ancestral: false, adjunto: false, chefe: false, guiaFrente: false });
 });
