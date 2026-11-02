@@ -38,6 +38,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Logo abaixo, com moldura dourada (só quem tem `eventos:ver`, por padrão o admin): o bloco **🗓️ Eventos** com Cadastrar evento e Eventos cadastrados (antes ficava no Histórico).
 - **Você nesta gira**: função, duplas, guia de atendimento; "Sorteio de escala pendente da Michelle" dentro do bloco quando a gira está aberta e sem sorteio.
 - Admin: **Sugestão Mi/Mãe Vê** — PASSE: cambones com afinidade de passe na entidade + At. Extra que **não** marcou a entidade; AT. EXTRA: passes com afinidade de extra. Exclui licença/falta/ausente. Tabela com 5 linhas + rolagem: nome (embaixo, os rótulos de guia e o nome da entidade, cortado com "…" só se não couber), **presença no ano** (giras antes desta; licença e pendente não contam) e **giras da linha** em que esteve presente (todo o histórico). Rótulo **Guia chefe** / **Guia de frente** (do Perfil) em quem tem o guia na linha da gira — não muda quem aparece. Colunas ✓/✕ de **oferenda feita** (do Perfil): orixá de frente, ancestral, adjunto, guia chefe e guia de frente — só para quem vê o perfil de todos (`perfil:corrente`, que já recebe esses dados); sem essa permissão as colunas somem e não entram na ordem. Ordem: oferenda do orixá de frente → mais oferendas de orixás (ancestral, adjunto) → mais oferendas de guias (chefe, de frente) → Guia chefe → Guia de frente → sem rótulo; com nome da entidade antes; maior presença; mais giras da linha; nome.
+- **Mudar a data** (admin, gira em aberto): tocar na data do card da gira → "Quer alterar a data do evento?" → Sim abre o calendário e a data escolhida já salva (Cancelar não faz nada). Leva presença, duplas e o resto (`acao: 'mudarData'`, função `gira_mudar_data`); recusa dia que já tem gira. O botão Reiniciar saiu da tela (a ação continua no backend); refazer o sorteio do zero é pelo ↻.
 - **✖ Ausência** (todos veem): no card da gira, logo acima de "De licença", no mesmo padrão com a borda e o fundo amarelos; quem está Ausente nesta gira, um nome por linha.
 - **De licença** (todos veem): no card da gira, logo abaixo da limpeza, no mesmo padrão dela com a borda vermelha; nome e até quando. Saiu dos blocos de faltas/ausentes do sorteio.
 - Botão **WhatsApp** (no card da gira, abaixo de Encerrar gira) abre o painel de texto/imagem logo abaixo desse card; fica desabilitado enquanto não houver sorteio.
@@ -119,8 +120,8 @@ stateDiagram-v2
     Publicada --> Encerrada: encerrar (sem pendentes + atendimentos)
     Sorteada --> Encerrada: encerrar
     Encerrada --> Sorteada: reabrir
-    Planejamento --> SemGira: reiniciar
-    Sorteada --> Planejamento: reiniciar
+    Sorteada --> Planejamento: cancelar sorteio (↻)
+    Planejamento --> Planejamento: mudar a data
     Encerrada --> [*]: excluir
 ```
 

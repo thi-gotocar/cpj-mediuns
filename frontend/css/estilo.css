@@ -442,8 +442,9 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .prox-gira.enc-bt{border-color:var(--warn);color:var(--warn)}
 /* Reiniciar fica na mesma linha da data (sem abrir espaço no topo do card) */
 .dh-linha{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.rei-bt{flex:none;padding:3px 9px;font-size:.8rem;border-color:var(--off);color:var(--off)}
-.infobox.rei{border-color:var(--off);background:var(--off-soft)}
+/* Data da gira tocável (admin): abre a janela para alterar a data */
+.data-bt{background:none;border:0;padding:2px 0;margin:0;font:inherit;cursor:pointer;text-align:left;color:var(--accent);text-decoration:underline dotted;text-underline-offset:3px}
+.data-bt span{text-decoration:none;display:inline-block;margin-left:2px}
 .add-seg{display:flex;width:100%}
 .add-seg button{flex:1 1 0;padding:8px 10px}
 .pres select.st.papel-dia{background:var(--bg);color:var(--ink);border:1px solid var(--line)}

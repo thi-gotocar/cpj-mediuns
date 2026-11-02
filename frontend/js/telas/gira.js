@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd, ajustarRolagem } from '../util.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -509,12 +509,9 @@ function renderGira() {
   // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Sua presença e só depois a gira (próximo evento).
   let h = `<section class="panel">${eu}${cardCompromissos()}${cardMinhaPresenca()}
   <div class="card card-gira${existe && !encerrada ? ' aberta' : ''}">
-    ${editar && existe ? (estado.confirm === 'rei:' + g.data
-      ? `<div class="infobox rei"><span><b>Reiniciar a gira?</b> Volta tudo ao início: todos ficam Pendente e saem a gira, o orixá, a turma da limpeza e o sorteio. Só a data fica.</span>
-          <span class="row" style="gap:6px"><button class="btn small danger" data-act="reiniciar">Sim, reiniciar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`
-      : '') : ''}
-    <div class="datehead"><div class="dh-linha"><span class="eyebrow">${esc(dLong(g.data))}</span>${editar && existe && estado.confirm !== 'rei:' + g.data
-      ? `<button class="btn small rei-bt" data-act="askdel" data-k="rei:${g.data}" title="Volta a gira ao início (só a data fica)">↺ Reiniciar</button>` : ''}</div><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
+    <div class="datehead"><div class="dh-linha">${editar && existe && !encerrada
+      ? `<button class="eyebrow data-bt" data-act="mudardata" title="Alterar a data da gira">${esc(dLong(g.data))} <span aria-hidden="true">✎</span></button>`
+      : `<span class="eyebrow">${esc(dLong(g.data))}</span>`}</div><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
       ${navegarGiras(g)}
       ${editar && existe ? `<div class="enc-linha">${botaoTopo(g, editar, existe)}</div>` : ''}
@@ -806,7 +803,15 @@ export const cliques = {
   reabrir: () => reabrirGira(),
   cancelenc() { estado.confirm = null; avisar(); },
   cancelrei() { estado.confirm = null; avisar(); },
-  async reiniciar() { estado.confirm = null; duplasAbertas.delete(giraAtual().data); await reiniciarGira(); },
+  // Tocar na data da gira: pergunta se quer alterar; "Sim" abre o calendário; escolher a data salva.
+  mudardata() { estado.mudaData = 'pergunta'; atualizarJanela(); },
+  mdsim() {
+    estado.mudaData = 'calendario';
+    atualizarJanela();
+    const inp = document.getElementById('md-data');
+    try { inp?.showPicker(); } catch { inp?.focus(); }
+  },
+  mdcancel() { estado.mudaData = null; atualizarJanela(); },
   manual() {
     const d = giraAtual().data;
     estado.manual = estado.manual === d ? null : d;
@@ -905,7 +910,7 @@ function gravarRapida(c) {
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
-  const html = prefs.tab === 'gira' ? janelaPresenca() : '';
+  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
@@ -914,11 +919,36 @@ function atualizarJanela() {
     raizJanela.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
-      else if (e.target.classList.contains('modal-fundo')) cliques.prescancel();
+      else if (e.target.classList.contains('modal-fundo')) (estado.mudaData ? cliques.mdcancel : cliques.prescancel)();
+    });
+    // Data nova escolhida no calendário: salva e fecha.
+    raizJanela.addEventListener('change', async (e) => {
+      // Ano incompleto (digitando no computador) ainda não conta.
+      if (e.target.id !== 'md-data' || !/^20\d\d-\d\d-\d\d$/.test(e.target.value)) return;
+      const para = e.target.value;
+      estado.mudaData = null;
+      atualizarJanela();
+      if (para !== giraAtual().data) await mudarDataGira(para);
     });
   }
   if (raizJanela.innerHTML !== html) raizJanela.innerHTML = html;
-  if (html) raizJanela.querySelector('[data-act=presok]')?.focus();
+  if (html) raizJanela.querySelector('[data-act=presok], [data-act=mdsim]')?.focus();
+}
+
+// Janela para trocar a data programada da gira: primeiro pergunta; com "Sim", mostra o calendário.
+function janelaData() {
+  if (!estado.mudaData) return '';
+  const g = giraAtual();
+  const calendario = estado.mudaData === 'calendario';
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="md-t"><div class="modal">
+    <h3 id="md-t">${calendario ? 'Escolha a nova data' : 'Quer alterar a data do evento?'}</h3>
+    ${calendario
+      ? `<label class="field">Nova data<input type="date" id="md-data" value="${esc(g.data)}"></label>
+        <p class="muted" style="margin:0;font-size:.85rem">Presença, sorteio e tudo o que já foi feito vão junto para a nova data.</p>
+        <div class="row" style="justify-content:flex-end"><button class="btn" data-act="mdcancel">Cancelar</button></div>`
+      : `<p style="margin:0">Hoje está marcada para <b>${esc(dLong(g.data))}</b>.</p>
+        <div class="row" style="justify-content:flex-end"><button class="btn" data-act="mdcancel">Cancelar</button><button class="btn primary" data-act="mdsim">Sim</button></div>`}
+  </div></div>`;
 }
 
 // Janela para confirmar a troca de quem estava Pendente (ou o OK da caixa amarela: status e função).

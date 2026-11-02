@@ -58,8 +58,8 @@ criar = bloco(
     '<b>Turma da limpeza:</b> dá para trocar. Quem faltou na turma da gira anterior entra para ajudar.',
   ]),
   caixa('importante', 'Escolha a entidade <b>antes de sortear</b>. É ela que define quem atua como At. Extra ou Passe e quem cambona (pelas entidades marcadas no cadastro de cada um).'),
-  h3('Reiniciar'),
-  P(f'O botão {B("Reiniciar")}, ao lado da data, volta a gira ao início: todos ficam Pendente e saem a entidade, o orixá, a turma da limpeza e o sorteio. Só a data fica. Ele pede confirmação.'),
+  h3('Mudar a data da gira'),
+  P('Toque na data, no alto do card da gira (ela aparece sublinhada, com ✎). O app pergunta <b>Quer alterar a data do evento?</b>: em <b>Sim</b> abre o calendário, e escolher o dia já muda a data; em <b>Cancelar</b> nada acontece. Presença, sorteio e tudo o que já foi feito vão junto. Não dá para mudar para um dia que já tem gira, nem mudar uma gira encerrada.'),
 )
 
 presenca = bloco(
@@ -122,7 +122,7 @@ sorteio = bloco(
   ], [0.3, 0.7], C),
   P('Avisos amarelos mostram duplas com problema (alguém que faltou) ou médiuns de passe sem médium.'),
   caixa('atencao', [
-    'Não existe “sortear tudo de novo”. Para recomeçar do zero, use <b>Reiniciar</b> (apaga a presença e a entidade).',
+    'Para sortear de novo do zero, toque no <b>↻</b> no canto do bloco do sorteio: ele apaga as duplas (também as fixadas) e volta ao botão Sortear.',
     'Em gira <b>passada</b>, o ajuste manual fica sempre ligado, para registrar como foi.',
   ]),
   h3('Publicar a escala'),
@@ -254,7 +254,8 @@ duvidas = bloco(
     ['A corrente não vê a escala.', 'Falta publicar: “Publicar escala”.'],
     ['O WhatsApp está apagado.', 'Falta sortear.'],
     ['Alguém não consegue marcar Ausente.', 'Passou da véspera, ou você já marcou a presença dela. Marque você na caixa amarela.'],
-    ['Quero refazer o sorteio.', 'Use Remanejar faltas ou Ajuste manual. Do zero, só com Reiniciar.'],
+    ['Quero refazer o sorteio.', 'Use Remanejar faltas ou Ajuste manual. Do zero, toque no ↻ do bloco do sorteio e sorteie de novo.'],
+    ['A gira mudou de dia.', 'Toque na data, no alto do card da gira, e escolha o novo dia.'],
     ['Uma pessoa está cambonando e não devia.', 'Confira as entidades dela em Pessoas → Editar, ou mude a função do dia na presença.'],
     ['Presença errada numa gira antiga.', 'O Admin root corrige em Histórico → Estatísticas.'],
   ], [0.36, 0.64], C),

@@ -840,6 +840,35 @@ test('cancelar o sorteio: apaga as duplas (também as fixadas) e despublica', as
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });
 
+test('mudar a data da gira: leva presença, duplas e o resto para a data nova', async () => {
+  const d = '2029-07-04', nova = '2029-07-11', ocupada = '2029-07-18';
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo', orixa: 'Oxóssi', limpeza: 3, presenca: { [ps[0].id]: 'a' } });
+  const sorteada = (await api('POST', `/api/giras/${d}/sortear`, ADMIN)).json.gira;
+  await api('PUT', `/api/giras/${ocupada}`, ADMIN, { entidade: 'Baiano' });
+  assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'mudarData', para: nova })).status, 403);
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'mudarData', para: '2029-02-30' })).status, 400);
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'mudarData', para: ocupada })).status, 409);
+  assert.equal((await api('POST', '/api/giras/2029-07-25', ADMIN, { acao: 'mudarData', para: nova })).status, 404);
+  const r = (await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'mudarData', para: nova })).json;
+  assert.equal(r.gira.data, nova);
+  assert.equal(r.gira.entidade, 'Caboclo');
+  assert.equal(r.gira.orixa, 'Oxóssi');
+  assert.equal(r.gira.limpeza, 3);
+  assert.equal(r.gira.presenca[ps[0].id], 'a');
+  assert.deepEqual(r.gira.pares, sorteada.pares);
+  assert.equal((await api('GET', `/api/giras/${d}`, ADMIN)).json.entidade, '', 'a data antiga ficou vazia');
+  await api('DELETE', `/api/giras/${nova}`, ADMIN);
+  await api('DELETE', `/api/giras/${ocupada}`, ADMIN);
+});
+
+test('mudar a data: gira encerrada não muda', async () => {
+  const d = '2029-08-01';
+  await api('PUT', `/api/giras/${d}`, ADMIN, { atendimentos: { preferencial: 1, normal: 2, passe: 3 }, encerrada: true });
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'mudarData', para: '2029-08-08' })).status, 409);
+  await api('DELETE', `/api/giras/${d}`, ADMIN);
+});
+
 test('entrada na corrente: só o admin root altera', async () => {
   const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
   const p = ps[0];

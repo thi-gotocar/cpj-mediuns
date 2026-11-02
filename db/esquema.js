@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 55;  // v55: ervas: guardar com o mesmo nome de gira e data atualiza a compra do histórico
+export const VERSAO = 56;  // v56: gira_mudar_data (trocar a data programada de uma gira em aberto)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1683,6 +1683,26 @@ export const MIGRACOES = [
      end if;
      update sistema set valor = v_id::text where chave = 'ervas_compra_atual';
      return ervas_estado();
+   end;
+   $$`,
+
+  // ================================================== v56: trocar a data programada de uma gira
+  // A data é a chave da gira e presenças/duplas apontam para ela (sem "on update cascade"): cria a gira na data
+  // nova com a mesma linha (todas as colunas, sem precisar listá-las), passa presenças e duplas e apaga a antiga.
+  // Quem chama confere antes que a gira existe, está em aberto e que a data nova está livre.
+  `create or replace function gira_mudar_data(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_de date := (p ->> 'data')::date;
+     v_para date := (p ->> 'para')::date;
+   begin
+     insert into giras
+     select (jsonb_populate_record(null::giras, to_jsonb(g) || jsonb_build_object('data', v_para, 'atualizado_em', now()))).*
+       from giras g where g.data = v_de;
+     update presencas set gira_data = v_para where gira_data = v_de;
+     update duplas set gira_data = v_para where gira_data = v_de;
+     delete from giras where data = v_de;
+     return gira_obter(jsonb_build_object('data', v_para));
    end;
    $$`,
 ];

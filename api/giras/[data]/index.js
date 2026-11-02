@@ -6,6 +6,7 @@
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 //                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas) e despublica: volta ao botão Sortear
+//                            { acao: 'mudarData', para: 'AAAA-MM-DD' }  troca a data programada da gira em aberto (leva tudo junto) → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
@@ -129,6 +130,16 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const { acao, atendimentos } = b;
+    if (acao === 'mudarData') {
+      const para = validarData(String(b.para || ''));
+      const [atual, ocupada] = await Promise.all([db.rpc('gira_obter', { data }), db.rpc('gira_obter', { data: para })]);
+      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
+      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+      if (para === data) return { gira: atual, mensagem: 'A gira já está nesta data.' };
+      if (ocupada) throw new HttpError(409, 'Já existe uma gira nesta data. Escolha outro dia.');
+      const [y, m, d] = para.split('-');
+      return { gira: await db.rpc('gira_mudar_data', { data, para }), mensagem: `Data da gira alterada para ${d}/${m}/${y}.` };
+    }
     if (acao === 'publicar') {
       if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');
       const pub = b.publicada !== false;

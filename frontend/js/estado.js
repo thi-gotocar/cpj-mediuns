@@ -185,7 +185,28 @@ async function situacaoDaGira(acao, extra = {}) {
 }
 export const encerrarGira = (atendimentos) => situacaoDaGira('encerrar', { atendimentos });
 export const reabrirGira = () => situacaoDaGira('reabrir');
-export const reiniciarGira = () => situacaoDaGira('reiniciar');
+// Troca a data programada da gira aberta na tela; a tela passa para a data nova.
+export async function mudarDataGira(para) {
+  const data = prefs.data;
+  await descarregar(data);
+  estado.salvando++;
+  try {
+    const r = await api('POST', '/giras/' + data, { acao: 'mudarData', para });
+    delete estado.giras[data];
+    estado.giras[r.gira.data] = r.gira;
+    prefs.data = r.gira.data;
+    salvarPrefs();
+    estado.manual = null;
+    toast(r.mensagem);
+    return true;
+  } catch (e) {
+    toast(e.message);
+    return false;
+  } finally {
+    estado.salvando--;
+    avisar();
+  }
+}
 // Cancela o sorteio: apaga as duplas (e despublica), volta ao botão Sortear.
 export const cancelarSorteio = () => situacaoDaGira('cancelarSorteio');
 // Acesso da corrente: a própria pessoa declara que não vai (Pendente → Ausente).
