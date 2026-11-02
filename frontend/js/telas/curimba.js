@@ -8,7 +8,7 @@ import { esc, toast, hoje, wd, ajustarRolagem } from '../util.js';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const STATUS = [['p', 'Presente'], ['f', 'Falta']];
-const U = () => (estado.curUi ||= { novoAluno: false, modo: 'corrente', novaAula: false, editar: null, lista: false, meses: new Set(), aula: null, graficos: false, abertos: new Set(), confirmar: null });
+const U = () => (estado.curUi ||= { alunosFechado: false, novoAluno: false, modo: 'corrente', novaAula: false, editar: null, lista: false, meses: new Set(), aula: null, graficos: false, abertos: new Set(), confirmar: null });
 const dia = (d) => `${wd(d).replace(/^./, (c) => c.toUpperCase())} ${dataCurta(d)}`;
 const cabDobra = (act, titulo, count, aberto) => `<button class="grp-h dobra" data-act="${act}" aria-expanded="${aberto}"><h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
 // Verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50% (como "Sua presença" da aba Gira).
@@ -31,8 +31,11 @@ function aulaAtual(aulas) {
 // ---------- alunos ----------
 function cardAlunos(C, editar) {
   const u = U();
-  let h = `<div class="card cur-alunos"><div class="grp-h"><h2>🥁 Alunos de curimba</h2><span class="count">${C.alunos.length}</span>
-    ${editar ? `<button class="btn small cur-mais" data-act="curnovo" aria-expanded="${u.novoAluno}" title="Cadastrar aluno" aria-label="Cadastrar aluno">${u.novoAluno ? '✕' : '＋'}</button>` : ''}</div>`;
+  // Tocar no título minimiza/abre o bloco; o ＋ fica sempre à vista (e abre o bloco).
+  const aberto = !u.alunosFechado;
+  let h = `<div class="card cur-alunos"><div class="cur-cab">${cabDobra('curalunos', '🥁 Alunos de curimba', C.alunos.length, aberto)}
+    ${editar ? `<button class="btn small cur-mais" data-act="curnovo" aria-expanded="${aberto && u.novoAluno}" title="Cadastrar aluno" aria-label="Cadastrar aluno">${aberto && u.novoAluno ? '✕' : '＋'}</button>` : ''}</div>`;
+  if (!aberto) return h + '</div>';
   if (editar && u.novoAluno) {
     const ja = new Set(C.alunos.map((a) => a.pessoaId).filter(Boolean));
     const ps = pessoasOrd().filter((p) => !ja.has(p.id));
@@ -182,7 +185,14 @@ export function render() {
 const alternar = (k) => { U()[k] = !U()[k]; avisar(); };
 
 export const cliques = {
-  curnovo() { alternar('novoAluno'); if (U().novoAluno && U().modo === 'fora') document.getElementById('cur-nome')?.focus(); },
+  curalunos() { alternar('alunosFechado'); },
+  curnovo() {
+    const u = U();
+    // Bloco minimizado: o ＋ abre o bloco já com o cadastro.
+    if (u.alunosFechado) { u.alunosFechado = false; u.novoAluno = false; }
+    alternar('novoAluno');
+    if (u.novoAluno && u.modo === 'fora') document.getElementById('cur-nome')?.focus();
+  },
   curmodo(el) { U().modo = el.dataset.v; avisar(); if (U().modo === 'fora') document.getElementById('cur-nome')?.focus(); },
   curaulanova() { alternar('novaAula'); if (U().novaAula) document.getElementById('cur-aula-data')?.focus(); },
   curaulas() { alternar('lista'); },
