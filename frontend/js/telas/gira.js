@@ -60,6 +60,14 @@ function blocoLicenca(ps, g) {
     <span>${quem.map((p) => `${esc(p.nome)} <span class="muted">(até ${dDM(licencaEm(p, g.data).fim)})</span>`).join(', ')}</span></div>`;
 }
 
+// Ausência: quem está com status Ausente nesta gira (um por linha), logo acima do bloco de licença.
+function blocoAusencia(ps, g) {
+  const quem = ps.filter((p) => status(p, g) === 'a');
+  if (!quem.length) return '';
+  return `<div class="limpeza ausencia"><b><span class="x-vermelho" aria-hidden="true">✖</span> Ausência · ${quem.length}</b>
+    ${quem.map((p) => `<span>${esc(p.nome)}</span>`).join('')}</div>`;
+}
+
 // Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
 // A lista de quem cambona por causa da linha só aparece para o admin.
 function avisoEntidade(ps, g, editar, admin) {
@@ -466,6 +474,7 @@ function renderGira() {
     </div>
     ${editar && existe && estado.confirm === 'enc:' + g.data ? caixaEncerrar(g) : ''}
     ${encerrada ? '' : blocoLimpeza(g, admin)}
+    ${blocoAusencia(ps, g)}
     ${blocoLicenca(ps, g)}
     ${encerrada ? `<div class="infobox"><div class="enc-info"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>
       ${g.atendimentos ? `<span>${textoAtendimentos(g.atendimentos)}</span>` : ''}

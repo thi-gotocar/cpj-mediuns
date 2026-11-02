@@ -45,7 +45,7 @@ gira = bloco(
     ['1', '<b>Eventos</b>', 'O que vem por aí na casa.'],
     ['2', '<b>Você nesta gira</b>', 'A sua função e com quem você trabalha.'],
     ['3', '<b>Sua presença no ano</b>', 'Quantas giras você foi neste ano.'],
-    ['4', '<b>A gira</b>', 'Data, nome da gira, limpeza e quem está de licença.'],
+    ['4', '<b>A gira</b>', 'Data, nome da gira, limpeza, quem está ausente e quem está de licença.'],
     ['5', '<b>A escala</b>', 'Todos os médiuns e cambones (depois de publicada).'],
   ], [0.07, 0.3, 0.63]),
   h3('1. Eventos'),
