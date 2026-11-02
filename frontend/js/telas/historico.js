@@ -245,7 +245,38 @@ export function render() {
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
   h += cardEstatisticas(gs, ps);
-  h += `<div class="card"><div class="grp-h"><h2>Giras salvas</h2>${pode('giras:editar') && !estado.giraAntiga ? '<button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button>' : ''}</div>`;
+  h += blocoGirasSalvas(gs, ps);
+
+  const meds = ps.filter(recebe).sort(ordRecebe);
+  const cams = ps.filter(ehCambone);
+  if (meds.length && cams.length && gs.some((g) => (g.pares || []).length)) {
+    const cnt = {};
+    gs.forEach((g) => (g.pares || []).forEach((p) => { const k = p.m + '|' + p.c; cnt[k] = (cnt[k] || 0) + 1; }));
+    const usados = cams.filter((c) => meds.some((m) => cnt[m.id + '|' + c.id]));
+    const camAberto = !!estado.cambAberto;
+    h += `<div class="card"><button class="grp-h dobra" data-act="dobrarcamb" aria-expanded="${camAberto}"><h2>Quem já cambonou quem</h2><span class="count"><span class="seta" aria-hidden="true">${camAberto ? '▾' : '▸'}</span></span></button>`;
+    if (camAberto) h += `<p class="muted" style="margin:0;font-size:.9rem">Vezes que cada cambone acompanhou cada médium, em todas as giras.</p>
+      <div class="matrix"><table><thead><tr><th></th>${usados.map((c) => `<th>${esc(c.nome)}</th>`).join('')}</tr></thead><tbody>
+      ${meds.map((m) => `<tr><th class="rh">${esc(m.nome)}</th>${usados.map((c) => { const n = cnt[m.id + '|' + c.id] || 0; return `<td class="${n === 0 ? 'z' : n === 1 ? 'h1' : 'h2'}">${n || '·'}</td>`; }).join('')}</tr>`).join('')}
+      </tbody></table></div>`;
+    h += '</div>';
+  }
+
+  if (pode('dados:importar')) {
+    h += `<div class="card adm"><h2>Backup</h2><p class="muted" style="margin:0;font-size:.9rem">Os dados ficam no banco da corrente. O backup é uma cópia extra em arquivo; “Restaurar” também importa o backup da versão anterior do app (a que salvava no aparelho).</p>
+      <div class="row"><button class="btn" data-act="backup">Baixar backup</button>
+      <label class="btn" for="f-import" style="cursor:pointer">Restaurar backup</label><input type="file" id="f-import" accept="application/json,.json" hidden></div></div>`;
+  }
+  return h + '</section>';
+}
+
+// Bloco "Giras salvas": vem sempre minimizado (estado.salvasAberto volta a false ao entrar na aba Histórico).
+function blocoGirasSalvas(gs, ps) {
+  const ab = !!estado.salvasAberto;
+  let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarsalvas" aria-expanded="${ab}" aria-label="${ab ? 'Minimizar' : 'Expandir'} Giras salvas">
+    <h2><span aria-hidden="true">🗂️</span> Giras salvas</h2><span class="count">${gs.length} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
+  if (!ab) return h + '</div>';
+  if (pode('giras:editar') && !estado.giraAntiga) h += '<div><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button></div>';
   // Cadastrar gira antiga: dentro do bloco (o formulário abre aqui).
   if (pode('giras:editar') && estado.giraAntiga) h += cardGiraAntiga(ps).replace('<div class="card adm" id="card-ga">', '<div class="ga-box" id="card-ga">');
   // Soma dos atendidos de todas as giras que têm o registro.
@@ -280,29 +311,7 @@ export function render() {
     });
     h += `</div>`;
   }
-  h += `</div>`;
-
-  const meds = ps.filter(recebe).sort(ordRecebe);
-  const cams = ps.filter(ehCambone);
-  if (meds.length && cams.length && gs.some((g) => (g.pares || []).length)) {
-    const cnt = {};
-    gs.forEach((g) => (g.pares || []).forEach((p) => { const k = p.m + '|' + p.c; cnt[k] = (cnt[k] || 0) + 1; }));
-    const usados = cams.filter((c) => meds.some((m) => cnt[m.id + '|' + c.id]));
-    const camAberto = !!estado.cambAberto;
-    h += `<div class="card"><button class="grp-h dobra" data-act="dobrarcamb" aria-expanded="${camAberto}"><h2>Quem já cambonou quem</h2><span class="count"><span class="seta" aria-hidden="true">${camAberto ? '▾' : '▸'}</span></span></button>`;
-    if (camAberto) h += `<p class="muted" style="margin:0;font-size:.9rem">Vezes que cada cambone acompanhou cada médium, em todas as giras.</p>
-      <div class="matrix"><table><thead><tr><th></th>${usados.map((c) => `<th>${esc(c.nome)}</th>`).join('')}</tr></thead><tbody>
-      ${meds.map((m) => `<tr><th class="rh">${esc(m.nome)}</th>${usados.map((c) => { const n = cnt[m.id + '|' + c.id] || 0; return `<td class="${n === 0 ? 'z' : n === 1 ? 'h1' : 'h2'}">${n || '·'}</td>`; }).join('')}</tr>`).join('')}
-      </tbody></table></div>`;
-    h += '</div>';
-  }
-
-  if (pode('dados:importar')) {
-    h += `<div class="card adm"><h2>Backup</h2><p class="muted" style="margin:0;font-size:.9rem">Os dados ficam no banco da corrente. O backup é uma cópia extra em arquivo; “Restaurar” também importa o backup da versão anterior do app (a que salvava no aparelho).</p>
-      <div class="row"><button class="btn" data-act="backup">Baixar backup</button>
-      <label class="btn" for="f-import" style="cursor:pointer">Restaurar backup</label><input type="file" id="f-import" accept="application/json,.json" hidden></div></div>`;
-  }
-  return h + '</section>';
+  return h + '</div>';
 }
 
 export const cliques = {
@@ -317,6 +326,7 @@ export const cliques = {
     await corrigirPresenca(el.dataset.d, el.dataset.id, v);
   },
   dobrarcamb() { estado.cambAberto = !estado.cambAberto; avisar(); },
+  dobrarsalvas() { estado.salvasAberto = !estado.salvasAberto; avisar(); },
   gaabrir() {
     estado.giraAntiga = { data: '', entidade: '', orixa: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
     avisar();

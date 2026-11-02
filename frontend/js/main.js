@@ -135,7 +135,8 @@ tabs.addEventListener('click', (e) => {
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
   if (b.dataset.tab === 'perfil') estado.perfil = null;
-  if (b.dataset.tab === 'hist') estado.stPerfis = null;
+  // Histórico: o bloco Giras salvas volta minimizado.
+  if (b.dataset.tab === 'hist') { estado.stPerfis = null; estado.salvasAberto = false; }
   salvarPerfilAgora();
   salvarPrefs();
   render();
