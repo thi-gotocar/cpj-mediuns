@@ -217,6 +217,29 @@ export function csvFornecedor(ervas, resumo) {
   return '\uFEFF' + linhas.map((l) => l.map(celCsv).join(';')).join('\r\n');
 }
 
+// ---------- Compra encerrada (Histórico de compras): o retrato da compra no momento em que foi encerrada ----------
+// Valores em centavos. compra: as ervas compradas (Qtd. corrente, Qtd. pedido, preço da porção e valor);
+// pessoas: a cobrança de cada um. totalCompra = ervas + frete (o que a casa paga); totalCobranca = o que a corrente paga.
+export function resumoCompra(ervas, escolhas, frete) {
+  const r = calcularPedidos(ervas, escolhas, frete);
+  const ped = pedidosPorErva(r);
+  const compra = ervas.map((e) => {
+    const pedido = porcoesErva(e, ped[e.id] || 0);
+    const preco = temPreco(e) ? centavos(e.preco) : null;
+    return { nome: e.nome, corrente: ped[e.id] || 0, pedido, preco, valor: preco === null ? null : preco * pedido };
+  }).filter((x) => x.pedido > 0).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const freteC = Math.max(0, centavos(frete));
+  return {
+    compra,
+    frete: freteC,
+    totalCompra: compra.reduce((a, x) => a + (x.valor || 0), 0) + freteC,
+    pessoas: r.pessoas.map((p) => ({ nome: p.nome, itens: p.itens.map((i) => ({ nome: i.nome, quantidade: i.quantidade, valor: i.valor })),
+      subtotal: p.subtotal, frete: p.frete, total: p.total, semPreco: !!p.semPreco })),
+    totalCobranca: r.totalGeral,
+    faltamPrecos: r.faltamPrecos,
+  };
+}
+
 // ---------- Cobrança: quanto cada pessoa paga ----------
 // Só faz sentido com todos os preços definidos (resumo.faltamPrecos vazio).
 export function textoCobranca(resumo, data = new Date(), evento = null) {

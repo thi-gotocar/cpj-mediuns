@@ -546,6 +546,31 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.equal(e.ervas[0].qtdCompra, 0, 'nova compra zera as quantidades da compra');
 });
 
+test('ervas: encerrar a compra guarda no histórico e começa uma nova', async () => {
+  const H = () => api('GET', '/api/ervas?lista=historico', ADMIN);
+  assert.equal((await api('GET', '/api/ervas?lista=historico', USER)).status, 403);
+  const antes = (await H()).json.length;
+  // Sem pedidos nem quantidade na compra: não há o que guardar.
+  assert.equal((await api('POST', '/api/ervas', ADMIN, { acao: 'encerrarCompra' })).status, 400);
+  let e = (await api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', nome: 'Alfazema' })).json;
+  const alf = e.ervas.find((x) => x.nome === 'Alfazema');
+  await api('POST', '/api/ervas', ADMIN, { acao: 'salvarCompra', gira: 'Gira de Exu', data: '2026-11-14', frete: '60', itens: [{ id: alf.id, quantidade: 0, preco: '30' }] });
+  await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: alf.id, quantidade: 1 }] });
+  assert.equal((await api('POST', '/api/ervas', USER, { acao: 'encerrarCompra' })).status, 403);
+  e = (await api('POST', '/api/ervas', ADMIN, { acao: 'encerrarCompra' })).json;
+  assert.equal(e.pedidos.pessoas.length, 0, 'a nova compra começa sem pedidos');
+  assert.equal(e.aberta, true);
+  const hs = (await H()).json;
+  assert.equal(hs.length, antes + 1);
+  const c = hs[0];
+  assert.deepEqual([c.gira, c.data], ['Gira de Exu', '2026-11-14']);
+  assert.deepEqual(c.resumo.compra.map((x) => [x.nome, x.corrente, x.pedido, x.valor]), [['Alfazema', 1, 1, 3000]]);
+  assert.equal(c.resumo.totalCompra, 3000 + 6000);
+  assert.equal(c.resumo.pessoas.length, 1);
+  assert.equal(c.resumo.totalCobranca, 9000);
+  await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: alf.id });
+});
+
 test('oferendas: admin cria itens, todos doam até o limite, admin marca entregue', async () => {
   const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
   assert.equal((await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'X', data: '2026-11-07' }, USER)).status, 403);

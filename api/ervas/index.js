@@ -1,17 +1,19 @@
 // Compra coletiva de ervas.
 //   GET  /api/ervas   catálogo, frete, lista aberta/fechada e as minhas escolhas
 //                     e todos os pedidos calculados (andamento geral)
+//   GET  /api/ervas?lista=historico  só admin: compras encerradas [{ id, gira, data, resumo, encerradaEm }], da mais nova
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
-//   POST /api/ervas   { acao, ... }  — só admin (com a lista fechada, só config { aberta } e novaCompra):
+//   POST /api/ervas   { acao, ... }  — só admin (com a lista fechada, só config { aberta }, novaCompra e encerrarCompra):
 //        salvarErva { id?, nome, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
 //        salvarCompra { gira, data, frete, itens: [{ id, quantidade, preco }] }  — bloco Compra (preço da porção; vazio = a definir)
 //        reatribuir { chave, pessoaId }  — passa o pedido para uma pessoa da corrente
+//        encerrarCompra  — guarda o retrato da compra no Histórico de compras e começa uma nova (novaCompra descarta)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
-import { chavePessoa, calcularPedidos, normalizarNome } from '../../shared/ervas.js';
+import { chavePessoa, calcularPedidos, normalizarNome, resumoCompra } from '../../shared/ervas.js';
 
 function resposta(estado, eu) {
   const chave = chavePessoa(eu);
@@ -55,6 +57,10 @@ function evento(b) {
 
 export default rota({
   GET: async (req) => {
+    if (req.query.lista === 'historico') {
+      await exigir(req, 'ervas:gerenciar');
+      return db.rpc('ervas_historico');
+    }
     const eu = await exigir(req, 'ervas:escolher');
     return resposta(await db.rpc('ervas_estado'), eu);
   },
@@ -94,7 +100,7 @@ export default rota({
     const eu = await exigir(req, 'ervas:gerenciar');
     const b = corpo(req);
     // Lista fechada: ninguém altera nada (pedidos, Compra, cadastro); só reabrir ou começar nova compra.
-    const soAbrir = (b.acao === 'config' && !['frete', 'gira', 'data'].some((k) => k in b)) || b.acao === 'novaCompra';
+    const soAbrir = (b.acao === 'config' && !['frete', 'gira', 'data'].some((k) => k in b)) || ['novaCompra', 'encerrarCompra'].includes(b.acao);
     if (!soAbrir && (await db.rpc('ervas_estado')).aberta === false) throw new HttpError(400, FECHADA);
     let estado;
     switch (b.acao) {
@@ -137,6 +143,14 @@ export default rota({
       case 'novaCompra':
         estado = await db.rpc('ervas_nova_compra');
         break;
+      case 'encerrarCompra': {
+        const atual = await db.rpc('ervas_estado');
+        const ervas = atual.ervas.map((e) => ({ ...e, preco: e.preco === null ? null : Number(e.preco) }));
+        const resumo = resumoCompra(ervas, atual.escolhas, Number(atual.frete));
+        if (!resumo.compra.length && !resumo.pessoas.length) throw new HttpError(400, 'Não há nada nesta compra para guardar. Use Descartar.');
+        estado = await db.rpc('ervas_compra_encerrar', { gira: atual.gira || '', data: atual.data || '', resumo });
+        break;
+      }
       // Passa um pedido (de um nome digitado errado, por exemplo) para uma pessoa da corrente.
       // Se ela já tiver pedido a mesma erva, fica a quantidade que ela já tinha.
       case 'reatribuir': {

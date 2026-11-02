@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 52;  // v52: pessoas com o guia chefe e o de frente (rótulo na sugestão Mi/Mãe Vê)
+export const VERSAO = 53;  // v53: ervas: histórico de compras encerradas
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1586,5 +1586,29 @@ export const MIGRACOES = [
                    then substring(p.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario
        from pessoas p
      ) x;
+   $$`,
+
+  // ================================================== v53: ervas: histórico de compras (encerrar guarda o retrato da compra)
+  `create table if not exists ervas_compras (
+     id           uuid primary key default gen_random_uuid(),
+     gira         text not null default '',
+     data         text not null default '',             -- data do evento ('AAAA-MM-DD' ou vazio)
+     resumo       jsonb not null,                       -- shared/ervas.js resumoCompra (valores em centavos)
+     encerrada_em timestamptz not null default now()
+   )`,
+  `create or replace function ervas_historico(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'gira', c.gira, 'data', c.data, 'resumo', c.resumo, 'encerradaEm', c.encerrada_em)
+                               order by c.encerrada_em desc), '[]'::jsonb)
+     from ervas_compras c
+   $$`,
+  // Encerrar: guarda o retrato e começa a nova compra (a mesma coisa de "Nova compra").
+  `create or replace function ervas_compra_encerrar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into ervas_compras (gira, data, resumo)
+     values (coalesce(p ->> 'gira', ''), coalesce(p ->> 'data', ''), p -> 'resumo');
+     return ervas_nova_compra();
+   end;
    $$`,
 ];

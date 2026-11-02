@@ -131,7 +131,7 @@ tabs.addEventListener('click', (e) => {
   estado.confirm = null;
   // Usuários: busca de novo; o bloco Senhas volta minimizado.
   if (b.dataset.tab === 'usuarios') { estado.usuarios = null; estado.senhasAberto = false; estado.senhaEdit = null; }
-  if (b.dataset.tab === 'ervas') { estado.ervas = null; estado.ervasCompra = null; estado.ervasFechar = false; }
+  if (b.dataset.tab === 'ervas') { estado.ervas = null; estado.ervasCompra = null; estado.ervasFechar = false; estado.ervasNova = null; estado.ervasHist = null; }
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
   if (b.dataset.tab === 'perfil') estado.perfil = null;

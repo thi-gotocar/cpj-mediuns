@@ -16,6 +16,8 @@ export const estado = {
   ervasImg: null,      // imagem gerada do pedido ao fornecedor / cobrança
   ervasCompra: null,   // admin editando o bloco Compra: { gira, data, frete, itens: { ervaId: { qtd, preco } } } (null = travado)
   ervasFechar: false,  // janela "Fechar a lista?" aberta
+  ervasNova: null,     // janela Nova compra: { passo: 'escolher' } ou { passo: 'confirmar', modo: 'encerrar' | 'descartar' }
+  ervasHist: null,     // Histórico de compras (admin): lista, undefined = carregando, { erro }
   ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
@@ -357,6 +359,12 @@ export async function importarBackup(obj) {
 }
 
 // ---------- ervas ----------
+// Histórico de compras (admin): as compras encerradas.
+export async function carregarHistoricoErvas() {
+  estado.ervasHist = undefined;
+  try { estado.ervasHist = await api('GET', '/ervas?lista=historico'); } catch (e) { estado.ervasHist = { erro: e.message }; }
+  avisar();
+}
 export async function carregarErvas() {
   try { estado.ervas = await api('GET', '/ervas'); } catch (e) { toast(e.message); estado.ervas = estado.ervas || { ervas: [], minhas: [], frete: 0, aberta: false, participantes: 0 }; }
   avisar();

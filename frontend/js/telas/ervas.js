@@ -1,7 +1,7 @@
 // Tela "Ervas": escolher as ervas da compra coletiva; o admin cadastra, define o frete e exporta.
 
 import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca, normalizarNome, linhaEvento, itensCompra, porcoesErva, pedidosPorErva } from '/shared/ervas.js';
-import { estado, pode, pessoasOrd, carregarErvas, escolherErva, acaoErvas, salvarPedidoDe, avisar } from '../estado.js';
+import { estado, pode, pessoasOrd, carregarErvas, carregarHistoricoErvas, escolherErva, acaoErvas, salvarPedidoDe, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
 
@@ -234,10 +234,8 @@ function cardCompra(E, r) {
     </div>
     <p class="muted" style="margin:0;font-size:.85rem">${C ? 'Editando: altere o que precisar e toque em Salvar. ' : ''}${E.aberta ? 'Lista aberta: todos podem escolher e mudar o pedido.' : 'Lista fechada: ninguém altera os pedidos nem a Compra até você reabrir.'}</p>`;
   return h + exportacao(E, r) + `<div class="grp" style="border-top:1px solid var(--line);padding-top:12px">
-      <p class="muted" style="margin:0;font-size:.85rem">Depois de cobrar, comece uma nova compra: os pedidos e as quantidades da compra são apagados e a lista reabre. As ervas, os preços e o frete ficam.</p>
-      ${estado.confirm === 'nova-compra'
-        ? '<button class="btn danger" data-act="novacompra">Confirmar: apagar pedidos e começar nova compra</button>'
-        : '<button class="btn" data-act="askdel" data-k="nova-compra">Nova compra</button>'}
+      <p class="muted" style="margin:0;font-size:.85rem">Depois de cobrar, comece uma nova compra: a atual pode ser encerrada (fica guardada no Histórico de compras) ou descartada. Os pedidos e as quantidades são apagados e a lista reabre; as ervas, os preços e o frete ficam.</p>
+      <button class="btn" data-act="novaini"><span aria-hidden="true">🆕</span> Nova compra</button>
     </div></div>`;
 }
 
@@ -346,10 +344,68 @@ export function render() {
   let h = `<section class="panel">${cabecalho(E)}${cardEscolha(E)}`;
   if (pode('ervas:gerenciar')) {
     const r = E.pedidos || calcularPedidos(E.ervas, [], E.frete);
-    h += (E.ervas.length ? cardPedidoDe(E) : '') + cardCompra(E, r) + cardCatalogo(E) + cardPedidos(E, r);
+    h += (E.ervas.length ? cardPedidoDe(E) : '') + cardCompra(E, r) + cardCatalogo(E) + cardPedidos(E, r) + cardHistorico();
   }
   else h += cardStatus(E);
-  return h + janelaFechar() + `</section>`;
+  return h + janelaFechar() + janelaNova() + `</section>`;
+}
+
+// Nova compra: primeiro escolhe encerrar (guarda no Histórico de compras) ou descartar; depois confirma de novo.
+function janelaNova() {
+  const N = estado.ervasNova;
+  if (!N) return '';
+  const caixa = (titulo, corpo, botoes) => `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="en-t"><div class="modal">
+    <h3 id="en-t">${titulo}</h3>${corpo}<div class="row" style="justify-content:flex-end;gap:8px">${botoes}</div></div></div>`;
+  if (N.passo === 'escolher') {
+    return caixa('Nova compra', `<p style="margin:0">O que fazer com a compra atual?</p>
+      <div class="nova-ops">
+        <button class="btn primary" data-act="novamodo" data-m="encerrar"><span aria-hidden="true">📦</span> Encerrar e guardar<span class="nova-sub">Fica no Histórico de compras, com a tabela e a cobrança</span></button>
+        <button class="btn" data-act="novamodo" data-m="descartar"><span aria-hidden="true">🗑️</span> Descartar<span class="nova-sub">Apaga sem guardar</span></button>
+      </div>`, '<button class="btn" data-act="novacancel">Cancelar</button>');
+  }
+  return N.modo === 'encerrar'
+    ? caixa('Encerrar e guardar?', '<p style="margin:0">A compra atual vai para o <b>Histórico de compras</b>. Depois os pedidos e as quantidades são apagados e a lista reabre para a nova compra.</p>',
+      '<button class="btn" data-act="novavoltar">Voltar</button><button class="btn primary" data-act="novaok">Sim, encerrar e começar nova</button>')
+    : caixa('Descartar a compra atual?', '<p style="margin:0">Os pedidos e as quantidades são <b>apagados sem guardar</b>. Isso não pode ser desfeito.</p>',
+      '<button class="btn" data-act="novavoltar">Voltar</button><button class="btn danger" data-act="novaok">Sim, descartar</button>');
+}
+
+// Histórico de compras (admin): as compras encerradas, da mais nova. Começa minimizado e só busca ao abrir.
+let histAberto = false;
+function cardHistorico() {
+  const H = estado.ervasHist;
+  if (histAberto && H === null) carregarHistoricoErvas();
+  const n = Array.isArray(H) ? H.length : null;
+  let h = `<div class="card adm"><button class="grp-h dobra" data-act="dobrarhist" aria-expanded="${histAberto}" aria-label="${histAberto ? 'Minimizar' : 'Expandir'} Histórico de compras">
+      <h2><span aria-hidden="true">🧾</span> Histórico de compras</h2><span class="count">${n === null ? '' : n} <span class="seta" aria-hidden="true">${histAberto ? '▾' : '▸'}</span></span></button>`;
+  if (!histAberto) return h + '</div>';
+  if (!Array.isArray(H)) return h + `<p class="muted" style="margin:0">${H?.erro ? esc(H.erro) : 'Carregando…'}</p></div>`;
+  if (!H.length) return h + '<p class="muted" style="margin:0">Nenhuma compra encerrada ainda. Em Nova compra, escolha Encerrar e guardar.</p></div>';
+  return h + H.map(compraGuardada).join('') + '</div>';
+}
+
+// Cada compra começa minimizada (nome, data, valor, quando foi encerrada e quantas pessoas); ▸ expande.
+const histAbertas = new Set();
+function compraGuardada(c) {
+  const R = c.resumo || {};
+  const [y, m, d] = (c.data || '').split('-');
+  const quando = new Date(c.encerradaEm).toLocaleDateString('pt-BR');
+  const val = (v) => (v === null || v === undefined ? '<span class="muted">a definir</span>' : reais(v));
+  const compra = R.compra || [];
+  const falta = compra.some((x) => x.valor === null);
+  const np = (R.pessoas || []).length;
+  const aberta = histAbertas.has(c.id);
+  const topo = `<button class="hc-topo" data-act="dobrarcompra" data-id="${esc(c.id)}" aria-expanded="${aberta}">
+      <span class="hc-tit">${esc(c.gira || 'Compra sem gira')}</span><span class="hc-tot">${reais(R.totalCompra || 0)}${falta ? ' +?' : ''} <span class="seta" aria-hidden="true">${aberta ? '▾' : '▸'}</span></span>
+      <span class="muted hc-sub">${c.data ? `${d}/${m}/${y} · ` : ''}encerrada em ${quando} · ${np} pessoa${np === 1 ? '' : 's'}</span></button>`;
+  if (!aberta) return `<div class="hist-compra">${topo}</div>`;
+  return `<div class="hist-compra">${topo}
+    <div class="matrix"><table class="pedidos compra-tab"><thead><tr><th class="rh">Erva</th><th>Qtd. corrente</th><th>Qtd. pedido</th><th>Valor unit.</th><th>Valor</th></tr></thead><tbody>
+      ${compra.map((x) => `<tr><th class="rh">${esc(x.nome)}</th><td>${x.corrente}</td><td>${x.pedido}</td><td>${val(x.preco)}</td><td>${val(x.valor)}</td></tr>`).join('')}
+      ${R.frete ? `<tr><th class="rh">Frete</th><td></td><td></td><td></td><td>${reais(R.frete)}</td></tr>` : ''}
+    </tbody><tfoot><tr><th class="rh">Total</th><td>${compra.reduce((a, x) => a + x.corrente, 0)}</td><td>${compra.reduce((a, x) => a + x.pedido, 0)}</td><td></td><td><b>${reais(R.totalCompra || 0)}${falta ? ' + a definir' : ''}</b></td></tr></tfoot></table></div>
+    ${(R.pessoas || []).length ? `<h3 class="hc-h">Cobrança · ${reais(R.totalCobranca || 0)}</h3><div class="hc-pessoas">${R.pessoas.map((p) => `<div class="hc-p"><span><b>${esc(p.nome)}</b> <span class="muted">${p.itens.map((i) => esc(i.nome) + (i.quantidade > 1 ? ' x' + i.quantidade : '')).join(', ')}</span></span><b>${reais(p.total)}${p.semPreco ? ' +?' : ''}</b></div>`).join('')}</div>` : ''}
+  </div>`;
 }
 
 // Confirmação antes de fechar a lista.
@@ -405,7 +461,22 @@ export const cliques = {
     if (await acaoErvas('salvarErva', { id, nome: val('ev-n-' + id), pessoasPorcao: val('ev-s-' + id) })) toast('Erva salva.');
   },
   async delerva(el) { estado.confirm = null; if (await acaoErvas('excluirErva', { id: el.dataset.id })) toast('Erva excluída.'); },
-  async novacompra() { estado.confirm = null; if (await acaoErvas('novaCompra')) { estado.ervasCompra = null; toast('Nova compra iniciada.'); avisar(); } },
+  novaini() { estado.ervasNova = { passo: 'escolher' }; avisar(); },
+  novamodo(el) { estado.ervasNova = { passo: 'confirmar', modo: el.dataset.m }; avisar(); },
+  novavoltar() { estado.ervasNova = { passo: 'escolher' }; avisar(); },
+  novacancel() { estado.ervasNova = null; avisar(); },
+  async novaok() {
+    const encerrar = estado.ervasNova?.modo === 'encerrar';
+    estado.ervasNova = null;
+    if (await acaoErvas(encerrar ? 'encerrarCompra' : 'novaCompra')) {
+      estado.ervasCompra = null;
+      if (encerrar) estado.ervasHist = null;   // busca de novo com a compra que acabou de entrar
+      toast(encerrar ? 'Compra guardada no Histórico de compras. Nova compra iniciada.' : 'Compra descartada. Nova compra iniciada.');
+    }
+    avisar();
+  },
+  dobrarhist() { histAberto = !histAberto; avisar(); },
+  dobrarcompra(el) { const id = el.dataset.id; if (histAbertas.has(id)) histAbertas.delete(id); else histAbertas.add(id); avisar(); },
   // ---- pedido de outra pessoa (admin)
   editarpedido(el) {
     const p = (estado.ervas.pedidos?.pessoas || []).find((x) => x.chave === el.dataset.chave);

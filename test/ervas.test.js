@@ -119,3 +119,27 @@ test('porções: quantas pessoas a porção serve aumenta a compra e o custo div
   r = calcularPedidos(lista, [...pedir(5), { chave: 'x', nome: 'Xavier', ervaId: 'r', quantidade: 2 }], 0);
   assert.equal(r.totalItens, 5000);
 });
+
+test('compra encerrada: retrato da compra e da cobrança para o histórico', async () => {
+  const { resumoCompra } = await import('../shared/ervas.js');
+  const lista = [
+    { id: 'r', nome: 'Alecrim', preco: 25, pessoasPorcao: 6, qtdCompra: 0 },
+    { id: 'a', nome: 'Arruda', preco: null, qtdCompra: 0 },
+    { id: 'e', nome: 'Espada', preco: 20, qtdCompra: 1 },
+    { id: 'g', nome: 'Guiné', preco: 5, qtdCompra: 0 },
+  ];
+  const esc = [
+    ...Array.from({ length: 7 }, (_, k) => ({ chave: 'p' + k, nome: 'P' + k, ervaId: 'r', quantidade: 1 })),
+    { chave: 'p0', nome: 'P0', ervaId: 'a', quantidade: 1 },
+  ];
+  const c = resumoCompra(lista, esc, 60);
+  // Alecrim: 7 pedidos, serve 6 → 2 porções; Espada: ninguém pediu, mas a compra tem 1; Guiné fica de fora.
+  assert.deepEqual(c.compra.map((x) => [x.nome, x.corrente, x.pedido, x.preco, x.valor]),
+    [['Alecrim', 7, 2, 2500, 5000], ['Arruda', 1, 1, null, null], ['Espada', 0, 1, 2000, 2000]]);
+  assert.equal(c.frete, 6000);
+  assert.equal(c.totalCompra, 5000 + 2000 + 6000);
+  assert.equal(c.pessoas.length, 7);
+  assert.equal(c.totalCobranca, 5000 + 6000, 'a Espada ninguém pediu: não entra na cobrança');
+  assert.deepEqual(c.faltamPrecos, ['Arruda']);
+  assert.equal(c.pessoas.find((p) => p.nome === 'P0').semPreco, true);
+});
