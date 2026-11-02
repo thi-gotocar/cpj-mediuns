@@ -82,7 +82,7 @@ const APELIDOS = {};
 LINHAS.flatMap((g) => g.itens).forEach(([k, label]) => {
   const n = normalizar(label);
   APELIDOS[n] = k;
-  APELIDOS[n.split(' ').map((w) => w + 's').join(' ')] = k;   // plural: "Pretos Velhos"
+  APELIDOS[n.split(' ').map((w) => (w.endsWith('m') ? w.slice(0, -1) + 'ns' : w + 's')).join(' ')] = k;   // plural: "Pretos Velhos", "Exus Mirins"
   APELIDOS[n.replace(/ /g, '')] = k;                           // junto: "Pombagira"
 });
 APELIDOS[normalizar('Ere')] = 'eres';

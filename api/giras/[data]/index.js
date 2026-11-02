@@ -1,15 +1,18 @@
 // GET    /api/giras/:data
 // PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
-//                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala)
+//                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala: só o root)
 // POST   /api/giras/:data   { acao: 'publicar', publicada?: false } → a escala fica visível para todos (ou volta a ficar só para os admins)
 //                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 //                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas) e despublica: volta ao botão Sortear
 //                            { acao: 'mudarData', para: 'AAAA-MM-DD' }  troca a data programada da gira em aberto (leva tudo junto) → { gira, mensagem }
+//                            { acao: 'escala', entidade, orixa, presenca, papeis, pares, passes }  Histórico → Cadastrar escala (gira que já foi; só o root):
+//                              sem gira na data, cria já encerrada; com gira, grava as duplas e mantém presença e atendidos → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
+import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
 import { db } from '../../_lib/db.js';
 import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma, podeDeclararAusencia } from '../../../shared/regras.js';
@@ -25,6 +28,40 @@ function validarDuplas(lista, nome) {
     fixo: !!d.fixo,
     remanejado: !!d.remanejado,
   }));
+}
+
+function validarPresenca(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) throw new HttpError(400, 'Presença inválida.');
+  const r = {};
+  for (const [id, st] of Object.entries(o)) {
+    validarId(id, 'Pessoa');
+    if (!STATUS_KEYS.includes(st)) throw new HttpError(400, 'Status de presença inválido.');
+    r[id] = st;
+  }
+  return r;
+}
+
+function validarPapeis(o) {
+  if (!o || typeof o !== 'object' || Array.isArray(o)) throw new HttpError(400, 'Função do dia inválida.');
+  const r = {};
+  for (const [id, v] of Object.entries(o)) {
+    validarId(id, 'Pessoa');
+    if (!['sup', 'na', 'cad', 'pas', 'ext', 'sen'].includes(v)) throw new HttpError(400, 'Função do dia inválida.');
+    r[id] = v;
+  }
+  return r;
+}
+
+function validarEntidade(v) {
+  const e = String(v ?? '').trim();
+  if (e.length > 120) throw new HttpError(400, 'Entidade muito longa.');
+  return e;
+}
+
+function validarOrixa(v) {
+  const o = String(v ?? '').trim();
+  if (o && !ORIXAS.includes(o)) throw new HttpError(400, 'Orixá inválido.');
+  return o;
 }
 
 function validarAtendimentos(a) {
@@ -62,33 +99,15 @@ export default rota({
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
     const b = corpo(req);
+    // Cadastrar gira antiga (já encerrada): só o admin root.
+    if (b.encerrada === true && !pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra gira antiga.');
     // Gira encerrada: só a turma da limpeza e o orixá ainda podem mudar (o resto, só reabrindo).
     const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza' || k === 'orixa');
     if (!soLimpeza && (await db.rpc('gira_obter', { data }))?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
     const p = { data, usuario: perfil.id };
-    if ('entidade' in b) {
-      const e = String(b.entidade ?? '').trim();
-      if (e.length > 120) throw new HttpError(400, 'Entidade muito longa.');
-      p.entidade = e;
-    }
-    if ('presenca' in b) {
-      if (!b.presenca || typeof b.presenca !== 'object' || Array.isArray(b.presenca)) throw new HttpError(400, 'Presença inválida.');
-      p.presenca = {};
-      for (const [id, st] of Object.entries(b.presenca)) {
-        validarId(id, 'Pessoa');
-        if (!STATUS_KEYS.includes(st)) throw new HttpError(400, 'Status de presença inválido.');
-        p.presenca[id] = st;
-      }
-    }
-    if ('papeis' in b) {
-      if (!b.papeis || typeof b.papeis !== 'object' || Array.isArray(b.papeis)) throw new HttpError(400, 'Função do dia inválida.');
-      p.papeis = {};
-      for (const [id, v] of Object.entries(b.papeis)) {
-        validarId(id, 'Pessoa');
-        if (!['sup', 'na', 'cad', 'pas', 'ext', 'sen'].includes(v)) throw new HttpError(400, 'Função do dia inválida.');
-        p.papeis[id] = v;
-      }
-    }
+    if ('entidade' in b) p.entidade = validarEntidade(b.entidade);
+    if ('presenca' in b) p.presenca = validarPresenca(b.presenca);
+    if ('papeis' in b) p.papeis = validarPapeis(b.papeis);
     if ('pares' in b) p.pares = validarDuplas(b.pares, 'cambones');
     if ('passes' in b) p.passes = validarDuplas(b.passes, 'médiuns de passe');
     if ('atendimentos' in b) p.atendimentos = validarAtendimentos(b.atendimentos);
@@ -97,11 +116,7 @@ export default rota({
       else if (TURMAS_LIMPEZA.includes(Number(b.limpeza))) p.limpeza = Number(b.limpeza);
       else throw new HttpError(400, 'Turma da limpeza inválida (1 a 7).');
     }
-    if ('orixa' in b) {
-      const o = String(b.orixa ?? '').trim();
-      if (o && !ORIXAS.includes(o)) throw new HttpError(400, 'Orixá inválido.');
-      p.orixa = o;
-    }
+    if ('orixa' in b) p.orixa = validarOrixa(b.orixa);
     if (b.encerrada === true) p.encerrada = true;
     return db.rpc('gira_salvar', p);
   },
@@ -139,6 +154,25 @@ export default rota({
       if (ocupada) throw new HttpError(409, 'Já existe uma gira nesta data. Escolha outro dia.');
       const [y, m, d] = para.split('-');
       return { gira: await db.rpc('gira_mudar_data', { data, para }), mensagem: `Data da gira alterada para ${d}/${m}/${y}.` };
+    }
+    if (acao === 'escala') {
+      if (!pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra escala.');
+      if (data > hojeBR()) throw new HttpError(400, 'Essa gira ainda não aconteceu. Use a aba Gira para montar a escala.');
+      const atual = await db.rpc('gira_obter', { data });
+      const p = { data, usuario: perfil.id, pares: validarDuplas(b.pares, 'cambones'), passes: validarDuplas(b.passes, 'médiuns de passe') };
+      const papeis = validarPapeis(b.papeis);
+      const entidade = validarEntidade(b.entidade);
+      const orixa = validarOrixa(b.orixa);
+      const [d, m, y] = data.split('-').reverse();
+      if (!atual) {
+        Object.assign(p, { entidade, orixa, papeis, presenca: validarPresenca(b.presenca), encerrada: true });
+        return { gira: await db.rpc('gira_salvar', p), mensagem: `Escala de ${d}/${m}/${y} cadastrada no histórico.` };
+      }
+      // Gira já salva (ex.: pelo resumo do WhatsApp): troca as duplas, soma a função do dia e completa a gira e o orixá se estiverem vazios.
+      p.papeis = { ...(atual.papeis || {}), ...papeis };
+      if (!atual.entidade && entidade) p.entidade = entidade;
+      if (!atual.orixa && orixa) p.orixa = orixa;
+      return { gira: await db.rpc('gira_salvar', p), mensagem: `Escala gravada na gira de ${d}/${m}/${y} (a presença e os atendidos ficaram como estavam).` };
     }
     if (acao === 'publicar') {
       if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');

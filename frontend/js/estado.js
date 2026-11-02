@@ -261,6 +261,17 @@ export async function cadastrarGiraAntiga(data, dados) {
   } catch (e) { toast(e.message); return false; }
 }
 
+// Histórico → Cadastrar escala: grava as duplas de uma gira que já foi (cria a gira, já encerrada, se não existir).
+export async function cadastrarEscala(data, dados) {
+  try {
+    const r = await api('POST', '/giras/' + data, { acao: 'escala', ...dados });
+    estado.giras[data] = r.gira;
+    toast(r.mensagem);
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+
 export async function excluirGira(data) {
   try {
     await api('DELETE', '/giras/' + data);

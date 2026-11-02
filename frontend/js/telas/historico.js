@@ -5,6 +5,7 @@ import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, 
 import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
+import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
 
 // Resultado da leitura da mensagem. Tudo o que ficou em dúvida aparece em vermelho, com opção de
 // corrigir e um botão Aceitar; só dá para gravar depois de aceitar todos.
@@ -262,9 +263,14 @@ function blocoGirasSalvas(gs, ps) {
   let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarsalvas" aria-expanded="${ab}" aria-label="${ab ? 'Minimizar' : 'Expandir'} Giras salvas">
     <h2><span aria-hidden="true">🗂️</span> Giras salvas</h2><span class="count">${gs.length} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
   if (!ab) return h + '</div>';
-  if (pode('giras:editar') && !estado.giraAntiga) h += '<div><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button></div>';
-  // Cadastrar gira antiga: dentro do bloco (o formulário abre aqui).
-  if (pode('giras:editar') && estado.giraAntiga) h += cardGiraAntiga(ps).replace('<div class="card adm" id="card-ga">', '<div class="ga-box" id="card-ga">');
+  // Cadastrar gira antiga e Cadastrar escala: só o admin root.
+  const root = pode('usuarios:gerenciar');
+  if (root && !estado.giraAntiga && !estado.escalaTxt) {
+    h += '<div class="row"><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button><button class="btn small" data-act="esabrir">＋ Cadastrar escala</button></div>';
+  }
+  // Cadastrar gira antiga / escala: dentro do bloco (o formulário abre aqui).
+  if (root && estado.giraAntiga) h += cardGiraAntiga(ps).replace('<div class="card adm" id="card-ga">', '<div class="ga-box" id="card-ga">');
+  if (root && estado.escalaTxt) h += cardEscala();
   // Soma dos atendidos de todas as giras que têm o registro.
   const comAt = gs.filter((g) => g.atendimentos);
   if (comAt.length) {
@@ -302,6 +308,7 @@ function blocoGirasSalvas(gs, ps) {
 
 export const cliques = {
   ...cliquesResumo,
+  ...cliquesEscala,
   stedit(el) { estado.stEdit = el.dataset.k; avisar(); },
   stedcancel() { estado.stEdit = null; avisar(); },
   async stedok(el) {
@@ -386,6 +393,7 @@ export const cliques = {
 };
 
 export const mudancas = {
+  ...mudancasEscala,
   stano(t) { estado.stAno = t.value; estado.stMais = {}; avisar(); },
   gacampo(t) { estado.giraAntiga[t.dataset.k] = t.value; avisar(); },
   gastatus(t) {

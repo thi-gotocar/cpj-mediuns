@@ -31,6 +31,10 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **Publicar escala**: até publicar, só quem edita vê o sorteio (`ocultarSorteio`).
 - Encerrar exige ninguém pendente + atendimentos (preferencial/normal/passe); quem sobrou vai para o Suporte. Reabrir desfaz.
 - Root corrige presença de qualquer gira (mesmo encerrada) em Histórico → Estatísticas (`acao: 'corrigirPresenca'`).
+- **Cadastrar escala** (Histórico → Giras salvas, **só o admin root**, como o Cadastrar gira antiga): cola o **texto** da escala de atendimentos de uma gira que já foi (formato em `shared/escalaTexto.js`) e grava quem cambonou quem e os médiuns de passe — entra no rodízio e na tabela "quem já cambonou quem". A imagem da escala não é usada.
+  - Leitura: "X / X" = presente sem cambone; "não atende" = Não atende (cambona); Suporte = Suporte; quem cambona fora da própria função = Não atende; extra/passe que atendeu na própria função = função do cadastro; cambone na senha = Senha. Data sem ano: este ano (ou o anterior, se ainda não chegou).
+  - Conferência em vermelho com **Aceitar** (só grava com tudo aceito): data sem ano, gira não reconhecida, nome aproximado/parecido/não achado (combo com a pessoa ou "ignorar") e cada "?" (combo para escolher o cambone ou ninguém).
+  - Sem gira na data: cria a gira **encerrada**; quem não está na escala fica **Ausente** (ou Presente, se escolher; licença continua valendo). Com gira já salva (ex.: pelo resumo do WhatsApp): troca só as duplas e soma a função do dia; **presença e atendidos ficam**; gira e orixá só se estavam vazios. Não aceita data futura.
 - Estatísticas também mostram o top 3 de guia chefe, guia de frente, orixá de frente e **orixá de cabeça** (frente, ancestral ou adjunto; a pessoa conta uma vez por orixá, mesmo repetido em duas posições) do Perfil, com o % sobre todo o cadastro (não depende do ano). O servidor manda só as contagens (`GET /api/pessoas?lista=perfis`), nunca o perfil de cada pessoa — o orixá de cada um continua visível só para o admin.
 
 ## Aba Gira (visão)
