@@ -8,7 +8,9 @@
 //        salvarErva { id?, nome, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
 //        salvarCompra { gira, data, frete, itens: [{ id, quantidade, preco }] }  — bloco Compra (preço da porção; vazio = a definir)
 //        reatribuir { chave, pessoaId }  — passa o pedido para uma pessoa da corrente
-//        encerrarCompra  — guarda o retrato da compra no Histórico de compras e começa uma nova (novaCompra descarta)
+//        encerrarCompra  — grava o retrato final da compra no Histórico de compras e começa uma nova
+//        novaCompra  — descarta: começa uma nova sem guardar (tira do histórico o que foi guardado ao fechar)
+//        config { aberta: false }  — fechar a lista também guarda o retrato da compra atual no histórico
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -42,6 +44,14 @@ function valor(v, oque) {
   const n = Number(String(v ?? '').replace(/\s|R\$/g, '').replace(',', '.'));
   if (!Number.isFinite(n) || n < 0 || n > 100000) throw new HttpError(400, oque + ' inválido.');
   return Math.round(n * 100) / 100;
+}
+
+// Retrato da compra para o Histórico de compras (null quando não há pedido nem erva na compra).
+function retrato(estado) {
+  const ervas = estado.ervas.map((e) => ({ ...e, preco: e.preco === null ? null : Number(e.preco) }));
+  const resumo = resumoCompra(ervas, estado.escolhas, Number(estado.frete));
+  if (!resumo.compra.length && !resumo.pessoas.length) return null;
+  return { gira: estado.gira || '', data: estado.data || '', resumo };
 }
 
 const FECHADA = 'A lista de ervas está fechada. Reabra a lista para alterar.';
@@ -138,17 +148,22 @@ export default rota({
         if ('gira' in b) p.gira = evento(b).gira;
         if ('data' in b) p.data = evento(b).data;
         estado = await db.rpc('ervas_config', p);
+        // Fechar a lista já guarda a compra no Histórico de compras. Se lá já houver uma com o mesmo nome
+        // de gira e a mesma data (reaberta e alterada, por exemplo), ela é atualizada em vez de repetir.
+        if (p.aberta === false) {
+          const r = retrato(estado);
+          if (r) estado = await db.rpc('ervas_compra_guardar', r);
+        }
         break;
       }
+      // Descartar: apaga sem guardar (e tira do histórico o que foi guardado ao fechar a lista).
       case 'novaCompra':
-        estado = await db.rpc('ervas_nova_compra');
+        estado = await db.rpc('ervas_compra_descartar');
         break;
       case 'encerrarCompra': {
-        const atual = await db.rpc('ervas_estado');
-        const ervas = atual.ervas.map((e) => ({ ...e, preco: e.preco === null ? null : Number(e.preco) }));
-        const resumo = resumoCompra(ervas, atual.escolhas, Number(atual.frete));
-        if (!resumo.compra.length && !resumo.pessoas.length) throw new HttpError(400, 'Não há nada nesta compra para guardar. Use Descartar.');
-        estado = await db.rpc('ervas_compra_encerrar', { gira: atual.gira || '', data: atual.data || '', resumo });
+        const r = retrato(await db.rpc('ervas_estado'));
+        if (!r) throw new HttpError(400, 'Não há nada nesta compra para guardar. Use Descartar.');
+        estado = await db.rpc('ervas_compra_encerrar', r);
         break;
       }
       // Passa um pedido (de um nome digitado errado, por exemplo) para uma pessoa da corrente.

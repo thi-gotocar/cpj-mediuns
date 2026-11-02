@@ -571,6 +571,56 @@ test('ervas: encerrar a compra guarda no histórico e começa uma nova', async (
   await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: alf.id });
 });
 
+test('ervas: fechar a lista guarda a compra atual no histórico; reabrir e fechar atualiza; descartar tira', async () => {
+  const H = async () => (await api('GET', '/api/ervas?lista=historico', ADMIN)).json;
+  const cfg = (aberta) => api('POST', '/api/ervas', ADMIN, { acao: 'config', aberta });
+  const antes = (await H()).length;
+  let e = (await api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', nome: 'Manjericão' })).json;
+  const man = e.ervas.find((x) => x.nome === 'Manjericão');
+  await api('POST', '/api/ervas', ADMIN, { acao: 'salvarCompra', gira: '', data: '', frete: '60', itens: [{ id: man.id, quantidade: 0, preco: '10' }] });
+  await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: man.id, quantidade: 1 }] });
+  await cfg(false);
+  let hs = await H();
+  assert.equal(hs.length, antes + 1, 'fechar guardou');
+  assert.equal(hs[0].atual, true, 'é a compra atual');
+  assert.equal(hs[0].resumo.compra[0].valor, 1000);
+  // Reabre (a compra continua na tela), muda o preço e fecha de novo: atualiza a mesma linha.
+  e = (await cfg(true)).json;
+  assert.equal(e.pedidos.pessoas.length, 1, 'reaberta, o pedido continua');
+  await api('POST', '/api/ervas', ADMIN, { acao: 'salvarCompra', gira: '', data: '', frete: '60', itens: [{ id: man.id, quantidade: 0, preco: '12' }] });
+  await cfg(false);
+  hs = await H();
+  assert.equal(hs.length, antes + 1, 'não duplicou');
+  assert.equal(hs[0].resumo.compra[0].valor, 1200);
+  // Descartar tira do histórico.
+  await api('POST', '/api/ervas', ADMIN, { acao: 'novaCompra' });
+  assert.equal((await H()).length, antes);
+  // Fechar e depois encerrar: fica uma linha só, que deixa de ser a atual.
+  await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: man.id, quantidade: 1 }] });
+  await cfg(false);
+  await api('POST', '/api/ervas', ADMIN, { acao: 'encerrarCompra' });
+  hs = await H();
+  assert.equal(hs.length, antes + 1);
+  assert.equal(hs[0].atual, false);
+  // Mesmo nome de gira e mesma data de uma compra do histórico (ex.: reabriu e alterou): atualiza aquela, não repete.
+  const encerrada = hs[0];
+  await api('PUT', '/api/ervas', USER, { itens: [{ ervaId: man.id, quantidade: 2 }] });
+  assert.equal((await cfg(false)).status, 200);
+  hs = await H();
+  assert.equal(hs.length, antes + 1, 'não repetiu nome + data');
+  assert.equal(hs[0].id, encerrada.id, 'atualizou a mesma linha');
+  assert.equal(hs[0].atual, true);
+  assert.equal(hs[0].resumo.compra[0].corrente, 2);
+  // Mudar o nome da compra atual (reabrindo): a mesma linha do histórico muda de nome.
+  await cfg(true);
+  await api('POST', '/api/ervas', ADMIN, { acao: 'salvarCompra', gira: 'Gira de Oxóssi', data: '2026-12-05', frete: '60', itens: [{ id: man.id, quantidade: 0, preco: '12' }] });
+  await cfg(false);
+  assert.equal((await H()).length, antes + 1, 'a compra atual mudou de nome: continua uma linha só');
+  assert.equal((await H())[0].gira, 'Gira de Oxóssi');
+  await api('POST', '/api/ervas', ADMIN, { acao: 'novaCompra' });
+  await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: man.id });
+});
+
 test('oferendas: admin cria itens, todos doam até o limite, admin marca entregue', async () => {
   const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
   assert.equal((await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'X', data: '2026-11-07' }, USER)).status, 403);

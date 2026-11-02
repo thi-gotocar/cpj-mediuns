@@ -371,7 +371,7 @@ function janelaNova() {
   }
   return caixa('O que fazer com o pedido atual?', `<div class="nova-ops">
       <button class="btn primary" data-act="novaok" data-m="encerrar"><span aria-hidden="true">📦</span> Encerrar e guardar<span class="nova-sub">Fica no Histórico de compras, com a tabela e a cobrança</span></button>
-      <button class="btn danger" data-act="novaok" data-m="descartar"><span aria-hidden="true">🗑️</span> Descartar<span class="nova-sub">Apaga sem guardar; não dá para desfazer</span></button>
+      <button class="btn danger" data-act="novaok" data-m="descartar"><span aria-hidden="true">🗑️</span> Descartar<span class="nova-sub">Apaga sem guardar (sai também do Histórico, se já tinha sido guardada ao fechar a lista); não dá para desfazer</span></button>
     </div>`, '<button class="btn" data-act="novacancel">Cancelar</button>');
 }
 
@@ -401,8 +401,8 @@ function compraGuardada(c) {
   const np = (R.pessoas || []).length;
   const aberta = histAbertas.has(c.id);
   const topo = `<button class="hc-topo" data-act="dobrarcompra" data-id="${esc(c.id)}" aria-expanded="${aberta}">
-      <span class="hc-tit">${esc(c.gira || 'Compra sem gira')}</span><span class="hc-tot">${reais(R.totalCompra || 0)}${falta ? ' +?' : ''} <span class="seta" aria-hidden="true">${aberta ? '▾' : '▸'}</span></span>
-      <span class="muted hc-sub">${c.data ? `${d}/${m}/${y} · ` : ''}encerrada em ${quando} · ${np} pessoa${np === 1 ? '' : 's'}</span></button>`;
+      <span class="hc-tit">${esc(c.gira || 'Compra sem gira')}${c.atual ? ' <span class="badge rep">compra atual</span>' : ''}</span><span class="hc-tot">${reais(R.totalCompra || 0)}${falta ? ' +?' : ''} <span class="seta" aria-hidden="true">${aberta ? '▾' : '▸'}</span></span>
+      <span class="muted hc-sub">${c.data ? `${d}/${m}/${y} · ` : ''}${c.atual ? 'fechada' : 'encerrada'} em ${quando} · ${np} pessoa${np === 1 ? '' : 's'}</span></button>`;
   if (!aberta) return `<div class="hist-compra">${topo}</div>`;
   return `<div class="hist-compra">${topo}
     <div class="matrix"><table class="pedidos compra-tab"><thead><tr><th class="rh">Erva</th><th>Qtd. corrente</th><th>Qtd. pedido</th><th>Valor unit.</th><th>Valor</th></tr></thead><tbody>
@@ -419,6 +419,7 @@ function janelaFechar() {
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ef-t"><div class="modal">
     <h3 id="ef-t">Fechar a lista?</h3>
     <p style="margin:0">Com a lista fechada, ninguém altera mais os pedidos (nem o admin) e a Compra fica travada até você reabrir.</p>
+    <p style="margin:0">A compra fica guardada no <b>Histórico de compras</b> como compra atual. Se reabrir e fechar de novo, ela é atualizada lá.</p>
     <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="fecharcancel">Cancelar</button><button class="btn danger" data-act="fecharok">Fechar lista</button></div>
   </div></div>`;
 }
@@ -458,7 +459,7 @@ export const cliques = {
   async fecharok() {
     estado.ervasFechar = false;
     // Fechar descarta a edição da Compra e o pedido de outra pessoa que estiverem abertos.
-    if (await acaoErvas('config', { aberta: false })) { estado.ervasCompra = null; estado.ervasPara = null; toast('Lista fechada.'); avisar(); }
+    if (await acaoErvas('config', { aberta: false })) { estado.ervasCompra = null; estado.ervasPara = null; estado.ervasHist = null; toast('Lista fechada e guardada no Histórico de compras.'); avisar(); }
     else avisar();
   },
   async salvarerva(el) {
@@ -474,7 +475,7 @@ export const cliques = {
     estado.ervasNova = null;
     if (await acaoErvas(encerrar ? 'encerrarCompra' : 'novaCompra')) {
       estado.ervasCompra = null;
-      if (encerrar) estado.ervasHist = null;   // busca de novo com a compra que acabou de entrar
+      estado.ervasHist = null;   // busca de novo (encerrar grava a versão final; descartar tira a compra atual)
       toast(encerrar ? 'Compra guardada no Histórico de compras. Nova compra iniciada.' : 'Compra descartada. Nova compra iniciada.');
     }
     avisar();

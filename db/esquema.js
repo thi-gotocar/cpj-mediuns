@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 53;  // v53: ervas: histórico de compras encerradas
+export const VERSAO = 55;  // v55: ervas: guardar com o mesmo nome de gira e data atualiza a compra do histórico
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1609,6 +1609,80 @@ export const MIGRACOES = [
      insert into ervas_compras (gira, data, resumo)
      values (coalesce(p ->> 'gira', ''), coalesce(p ->> 'data', ''), p -> 'resumo');
      return ervas_nova_compra();
+   end;
+   $$`,
+
+  // ================================================== v54: ervas: fechar a lista já guarda a compra atual no histórico
+  // ervas_compra_atual: id da linha do histórico da compra em andamento ('' = ainda não guardada).
+  // Fechar de novo atualiza a mesma linha; Encerrar grava a versão final; Descartar tira a linha do histórico.
+  `insert into sistema (chave, valor) values ('ervas_compra_atual', '') on conflict (chave) do nothing`,
+  `create or replace function ervas_historico(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'gira', c.gira, 'data', c.data, 'resumo', c.resumo, 'encerradaEm', c.encerrada_em,
+                                                  'atual', c.id::text = (select valor from sistema where chave = 'ervas_compra_atual'))
+                               order by c.encerrada_em desc), '[]'::jsonb)
+     from ervas_compras c
+   $$`,
+  `create or replace function ervas_compra_guardar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid;
+   begin
+     select c.id into v_id from ervas_compras c
+      where c.id::text = (select valor from sistema where chave = 'ervas_compra_atual');
+     if v_id is null then
+       insert into ervas_compras (gira, data, resumo)
+       values (coalesce(p ->> 'gira', ''), coalesce(p ->> 'data', ''), p -> 'resumo') returning id into v_id;
+       update sistema set valor = v_id::text where chave = 'ervas_compra_atual';
+     else
+       update ervas_compras set gira = coalesce(p ->> 'gira', ''), data = coalesce(p ->> 'data', ''), resumo = p -> 'resumo', encerrada_em = now()
+        where id = v_id;
+     end if;
+     return ervas_estado();
+   end;
+   $$`,
+  `create or replace function ervas_compra_encerrar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     perform ervas_compra_guardar(p);
+     update sistema set valor = '' where chave = 'ervas_compra_atual';
+     return ervas_nova_compra();
+   end;
+   $$`,
+  `create or replace function ervas_compra_descartar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from ervas_compras where id::text = (select valor from sistema where chave = 'ervas_compra_atual');
+     update sistema set valor = '' where chave = 'ervas_compra_atual';
+     return ervas_nova_compra();
+   end;
+   $$`,
+
+  // ================================================== v55: ervas: o histórico não repete nome de gira + data
+  // Guardar (fechar a lista ou encerrar) procura no histórico uma compra com o mesmo nome de gira e a mesma data
+  // (sem diferença de maiúscula) e atualiza essa linha — pode ser a mesma compra, reaberta e alterada.
+  // Se a compra atual já tinha outra linha, ela some (fica uma só).
+  `create or replace function ervas_compra_guardar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_atual uuid;
+     v_id uuid;
+     v_gira text := coalesce(p ->> 'gira', '');
+     v_data text := coalesce(p ->> 'data', '');
+   begin
+     select c.id into v_atual from ervas_compras c
+      where c.id::text = (select valor from sistema where chave = 'ervas_compra_atual');
+     select c.id into v_id from ervas_compras c
+      where lower(btrim(c.gira)) = lower(btrim(v_gira)) and c.data = v_data
+      order by (c.id = v_atual) desc nulls last, c.encerrada_em desc limit 1;
+     v_id := coalesce(v_id, v_atual);
+     if v_id is null then
+       insert into ervas_compras (gira, data, resumo) values (v_gira, v_data, p -> 'resumo') returning id into v_id;
+     else
+       update ervas_compras set gira = v_gira, data = v_data, resumo = p -> 'resumo', encerrada_em = now() where id = v_id;
+       delete from ervas_compras where id = v_atual and id <> v_id;
+     end if;
+     update sistema set valor = v_id::text where chave = 'ervas_compra_atual';
+     return ervas_estado();
    end;
    $$`,
 ];
