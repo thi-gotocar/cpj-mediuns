@@ -683,7 +683,25 @@ body.deslogado .rodape{display:none}
 .sorteio-pend .sp-prev{font-size:.88rem}
 .eu-poss{font-size:.88rem}
 .selo-preench.oferenda{border-color:var(--orange);color:var(--orange);background:color-mix(in srgb,var(--orange) 10%,transparent)}
-.selo-preench.andamento{border-color:#2c4ea3;color:#2c4ea3;background:#e6ecfb}
+.selo-preench.andamento{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+/* Perfil → Orixás, guias e oferendas: resumo das oferendas, seções Orixás / Guias e uma caixinha por posição */
+.pf-c-espiritual > .grp-h h2{font-size:1.12rem}
+.pf-of-resumo{display:grid;gap:6px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--gold) 9%,transparent);border:1px solid color-mix(in srgb,var(--gold) 30%,var(--line))}
+.pf-of-resumo-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:.9rem;font-weight:700}
+.pf-of-resumo-h b{font:700 1.15rem var(--f-display);color:var(--gold)}
+.pf-of-resumo .pf-barra{height:8px}
+.pf-of-resumo .pf-barra span{background:var(--gold)}
+.pf-barra.cheia span{background:var(--ok) !important}
+.pf-sec{display:grid;gap:8px}
+.pf-sec-h{display:flex;align-items:center;gap:8px}
+.pf-sec-h h3{margin:0;font-size:.8rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.pf-sec-h::after{content:"";flex:1;height:1px;background:var(--line);order:3}
+.pf-sec-h .selo-preench{order:2}
+.pf-linha.pf-pos{gap:6px;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;background:var(--bg)}
+.pf-linha.pf-pos.feita{border-left-color:var(--ok)}
+.pf-pos .pf-rot{font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pf-of:has(input:checked){border-color:var(--ok);background:var(--ok-soft);color:var(--ok);font-weight:700}
+.pf-of:has(input:checked) input{accent-color:var(--ok)}
 /* Perfil: título e selo na mesma linha (o título encolhe/quebra, o selo fica à direita) */
 .card .grp-h.dobra:has(.selo-preench){flex-wrap:nowrap;align-items:center}
 .card .grp-h.dobra:has(.selo-preench) h2{flex:1 1 auto;min-width:0}

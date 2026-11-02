@@ -20,7 +20,7 @@ function cab(k, titulo, count, aberto, dobra) {
 // adm: o card fica dentro da moldura dourada "ADMIN" (no topo da aba), sem borda própria.
 function card(k, titulo, count, padrao, corpo, dobra = admin(), adm = false) {
   const ab = !dobra || (U().abertos[k] ?? padrao);
-  return `<div class="card${adm ? ' pf-adm-card' : ''}">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
+  return `<div class="card pf-c-${k}${adm ? ' pf-adm-card' : ''}">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
 }
 
 // ---------- admin: Ajustes (escolhe a pessoa e o que alterar) ----------
@@ -141,9 +141,9 @@ function cardsAfinidade(eu) {
   }).join('');
 }
 
-// Uma linha: rótulo, combo e "Oferenda realizada" ao lado.
+// Uma posição (caixinha): rótulo, combo e "Oferenda realizada" ao lado (verde com ✓ quando marcada).
 function linhaEscolha({ grupo, k, rotulo, valor, opcoes, oferenda }) {
-  return `<div class="pf-linha">
+  return `<div class="pf-linha pf-pos${valor && oferenda ? ' feita' : ''}">
     <label class="pf-rot" for="pf-${grupo}-${k}">${rotulo}</label>
     <div class="pf-campos">
       <select id="pf-${grupo}-${k}" data-act="pfsel" data-g="${grupo}" data-k="${k}">
@@ -155,21 +155,33 @@ function linhaEscolha({ grupo, k, rotulo, valor, opcoes, oferenda }) {
   </div>`;
 }
 
+// Bloco "Orixás, guias e oferendas": resumo das oferendas no topo e as seções Orixás e Guias dentro.
+function cardEspiritual(P) {
+  const orixas = POSICOES_ORIXA.map(([k]) => P.orixas[k]);
+  const guias = POSICOES_GUIA.map(([k]) => P.guias[k]);
+  const okOrixas = situacaoOferendas(orixas, 'nome');
+  const okGuias = situacaoOferendas(guias, 'linha');
+  // Selo geral: preenchido só com tudo escolhido e todas as oferendas feitas.
+  const okTudo = okOrixas === true && okGuias === true ? true : okOrixas && okGuias ? 'oferenda' : false;
+  const todas = [...orixas, ...guias];
+  const feitas = todas.filter((x) => x.oferenda).length;
+  const pct = Math.round((feitas / todas.length) * 100);
+  const secao = (titulo, ok, linhas) => `<div class="pf-sec"><div class="pf-sec-h"><h3>${titulo}</h3>${selo(ok)}</div>${linhas}</div>`;
+  return card('espiritual', '<span aria-hidden="true">🕯️</span> Orixás, guias e oferendas', selo(okTudo), false, () => `
+    <div class="pf-of-resumo"><div class="pf-of-resumo-h"><span>Oferendas realizadas</span><b>${feitas} de ${todas.length}</b></div>
+      <div class="pf-barra${feitas === todas.length ? ' cheia' : ''}" role="img" aria-label="${feitas} de ${todas.length} oferendas realizadas"><span style="width:${pct}%"></span></div></div>
+    ${secao('Orixás', okOrixas, POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: ORIXAS.map((o) => [o, o]), oferenda: P.orixas[k].oferenda })).join(''))}
+    ${secao('Guias', okGuias, POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''))}`, true);
+}
+
 // ---------- meu perfil ----------
 function meusCards(eu) {
   const P = eu.perfil;
-  // Orixás, guias e outros guias começam minimizados (para todos); tocar no título expande.
+  // Orixás e guias (num bloco só) e outros guias começam minimizados (para todos); tocar no título expande.
   const padrao = false;
-  const orixas = ORIXAS.map((o) => [o, o]);
-  // Preenchido só quando todos os campos estão preenchidos.
-  const okOrixas = situacaoOferendas(POSICOES_ORIXA.map(([k]) => P.orixas[k]), 'nome');
-  const okGuias = situacaoOferendas(POSICOES_GUIA.map(([k]) => P.guias[k]), 'linha');
   const nOutros = GUIAS.filter(([k]) => (P.outros || {})[k]).length;
   const okOutros = nOutros === GUIAS.length ? true : nOutros ? 'andamento' : false;
-  return cardInfo(eu) + cardsAfinidade(eu) + card('orixas', 'Orixás', selo(okOrixas), padrao, () =>
-    POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: orixas, oferenda: P.orixas[k].oferenda })).join(''), true)
-  + card('guias', 'Guias', selo(okGuias), padrao, () =>
-    POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''), true)
+  return cardInfo(eu) + cardsAfinidade(eu) + cardEspiritual(P)
   + card('outros', 'Guias de atendimento', selo(okOutros), padrao, () => `
     <p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>
     ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">

@@ -46,7 +46,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 
 ## Perfil
 
-- Informações (nome, nascimento, celular, contato), afinidades por função, Orixás, Guias, Guias de atendimento (nome do guia por linha), Guias da corrente.
+- Informações (nome, nascimento, celular, contato), afinidades por função, **Orixás, guias e oferendas** (um bloco com as seções Orixás e Guias e o total de oferendas feitas; selo geral "preenchido" só com tudo escolhido e todas as oferendas feitas), Guias de atendimento (nome do guia por linha), Guias da corrente.
 - Admin (moldura ADMIN): Ajustes, Informações da corrente, Respostas, Oferendas pendentes.
 
 ## Outros
