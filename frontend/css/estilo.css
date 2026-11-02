@@ -907,19 +907,28 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-senha{--fn:var(--muted)}
 .pessoas-tela .fn-curimba{--fn:var(--off)}
 .pessoas-tela .corrente-card{border-top:4px solid var(--gold)}
-.pessoas-tela .corrente-card .presentes{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
-.pessoas-tela .corrente-card .presentes > span{display:flex;flex-direction:column-reverse;align-items:flex-start;gap:2px;padding:8px 10px;border-radius:10px;background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--fn);min-width:0}
-.pessoas-tela .corrente-card .presentes b{font:700 1.5rem/1 var(--f-display);color:var(--fn)}
-.pessoas-tela .corrente-card .presentes .muted{font-size:.78rem;overflow-wrap:anywhere}
+/* Os quadradinhos das funções numa linha só (as licenças ficam embaixo) */
+.pessoas-tela .corrente-card .presentes{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));grid-auto-flow:column;gap:5px}
+.pessoas-tela .corrente-card .presentes > span{display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;padding:7px 3px 6px;border-radius:9px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--fn);min-width:0;text-align:center}
+.pessoas-tela .corrente-card .presentes b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
+.pessoas-tela .corrente-card .presentes .muted{font-size:.62rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere}
 .pessoas-tela .pp-card{border-top:4px solid var(--fn)}
 .pessoas-tela .pp-card > .grp-h h2{color:var(--fn)}
-.pessoas-tela .pp-card .ppl{gap:8px}
-.pessoas-tela .pp-card .pp{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.pessoas-tela .pp-card .ppl{gap:6px}
+.pessoas-tela .pp-card .pp{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg)}
+/* Cada pessoa em 2 linhas: 1) nome + Editar/Excluir; 2) etiquetas e, ao lado, o resumo das entidades */
+.pessoas-tela .pp-card .pp2:not(.pp-editando){display:flex;flex-wrap:wrap;align-items:center;gap:5px 8px}
+.pessoas-tela .pp-card .pp2:not(.pp-editando) > .pp-l1{flex:1 1 100%}
+.pessoas-tela .pp-card .pp2:not(.pp-editando) > .pp-l2{flex:0 0 auto;align-self:flex-start}
+.pessoas-tela .pp-card .pp2:not(.pp-editando) > .pp-res{flex:1 1 140px;min-width:0;padding-top:0;border-top:0;gap:1px}
+.pessoas-tela .pp-card .pp-res .muted{font-size:.72rem !important;line-height:1.25}
+.pessoas-tela .pp-card .pp2:not(.pp-editando) .btn.pp-bt{min-width:0;padding:4px 10px;font-size:.78rem}
+.pessoas-tela .pp-card .pp2:not(.pp-editando) .pp-bts{gap:4px}
 .pessoas-tela .pp-card .pp:last-child{border-bottom:1px solid var(--line)}
 .pessoas-tela .pp-card .pp .nm{font-weight:700}
 .pessoas-tela .pp-card .pp-editando{margin:0;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg))}
 .pessoas-tela .pp-l2{gap:6px}
-.pessoas-tela .pp-fn,.pessoas-tela .pp-limp{font-size:.8rem;padding:3px 9px;border-radius:20px}
+.pessoas-tela .pp-fn,.pessoas-tela .pp-limp{font-size:.74rem;padding:2px 8px;border-radius:20px}
 .pessoas-tela .pp-res{padding-top:6px;border-top:1px dashed var(--line)}
 .pessoas-tela .turmas{gap:6px}
 .pessoas-tela .turma-l{display:flex;align-items:flex-start;gap:10px;padding:6px 10px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
