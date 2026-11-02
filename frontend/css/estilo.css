@@ -980,7 +980,12 @@ section.panel.pf-tela{gap:14px}
 /* aba Curimba (e o bloco Aula de curimba da aba Gira) */
 .mp-st.p{background:var(--ok-soft);color:var(--ok)}
 .mp-st.nada{background:var(--bg);color:var(--muted)}
-.cur-gira .grp-h{align-items:center}
+.card.comp-of.cur-gira{border-left-color:var(--accent)}
+.card.comp-of.cur-gira.ok{border-left-color:var(--ok)}.card.comp-of.cur-gira.medio{border-left-color:var(--warn)}.card.comp-of.cur-gira.baixo{border-left-color:var(--off)}
+.cur-gira-pct{font-size:1.05rem}
+.cur-gira.ok .cur-gira-pct{color:var(--ok)}.cur-gira.medio .cur-gira-pct{color:var(--warn)}.cur-gira.baixo .cur-gira-pct{color:var(--off)}
+.cur-gira .mp-barra{margin:4px 0 2px}
+.cur-gira .mp-l{font-size:.92rem}
 .cur-cab{display:flex;align-items:center;gap:8px}
 .cur-cab .grp-h.dobra{flex:1 1 auto;width:auto;min-width:0;flex-wrap:nowrap}
 .cur-cab .grp-h h2{flex:1 1 auto;min-width:0;margin:0;font-size:1.2rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

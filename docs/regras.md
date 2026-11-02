@@ -43,7 +43,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **✖ Ausência** (todos veem): no card da gira, logo acima de "De licença", no mesmo padrão com a borda e o fundo amarelos; quem está Ausente nesta gira, um nome por linha.
 - **De licença** (todos veem): no card da gira, logo abaixo da limpeza, no mesmo padrão dela com a borda vermelha; nome e até quando. Saiu dos blocos de faltas/ausentes do sorteio.
 - Botão **WhatsApp** (no card da gira, abaixo de Encerrar gira) abre o painel de texto/imagem logo abaixo desse card; fica desabilitado enquanto não houver sorteio.
-- Ordem (todos, admin também): Eventos → Você nesta gira → Sua presença no ano → a gira (data, navegação) e o resto.
+- Ordem (todos, admin também): Eventos → Você nesta gira → Seus compromissos → Aula de curimba (só aluno) → Sua presença no ano → a gira (data, navegação) e o resto.
 - Logo depois de "Você nesta gira": **⚠️ Seus compromissos nas oferendas** — os itens que a pessoa vai doar e ainda não foram entregues (oferendas de hoje em diante, não encerradas) e, na oferenda com uma linha por pessoa, "Pagamento" e "Entrega" quando falta algum dos dois (enquanto a oferenda não for encerrada, mesmo com a data passada). Link para a aba Oferendas. Só aparece quando há algum.
 - **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.
 
@@ -61,7 +61,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **🗓️ Aulas - curimba**: cadastrar aula (data e nome opcional, **uma aula por dia**) e aulas cadastradas por mês, do mais recente ao mais antigo (editar/excluir). Excluir aula ou aluno leva as presenças junto.
 - **📋 Presença da aula**: escolhe a data da aula (abre na mais recente até hoje) e marca cada aluno como **Presente** ou **Falta** (ou "—", sem marcação). Toda mudança pede confirmação numa janela.
 - **📊 Gráficos**: % de presença de cada aluno sobre as aulas **marcadas** (sem marcação não conta), com barra verde/amarela/vermelha (90% / 50%); tocar no nome abre as aulas (dia, Presente/Ausente) e **Recolher** fecha.
-- Único ponto em comum com o app: quem está logado e é aluno da corrente vê na aba Gira, logo depois de "Sua presença", o bloco **🥁 Aula de curimba** com a % e as aulas até hoje (Presente/Falta).
+- Único ponto em comum com o app: quem está logado e é aluno da corrente vê na aba Gira, logo acima de "Sua presença" (depois de "Seus compromissos"), o bloco **🥁 Aula de curimba** no mesmo padrão de "Seus compromissos" (faixa à esquerda, na cor da % de presença), com a % e as aulas até hoje (Presente/Falta).
 
 ## Outros
 
