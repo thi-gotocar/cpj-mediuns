@@ -205,9 +205,18 @@ function previaPendentes(of, admin) {
     ${pend.length > 2 ? `<button class="btn link small" data-act="maispend" data-id="${of.id}" aria-expanded="${todos}">${todos ? 'Ver menos' : `Ver mais (${pend.length - 2})`}</button>` : ''}`;
 }
 
+// Cor da borda de cima de cada oferenda: azul publicada, vermelha bloqueada, amarela aguardando publicação,
+// verde completa, cinza encerrada.
+function corOferenda(of) {
+  if (of.status === 'encerrado') return 'encerrada';
+  if (of.status === 'rascunho') return 'bloqueada';
+  if (!of.publicada) return 'espera';
+  return !of.bloqueada && of.itens.length && percentualDoado(of) >= 100 ? 'completa' : 'aberta';
+}
+
 function cardOferenda(of, admin) {
   const u = U();
-  let h = `<div class="card" id="of-${of.id}">`;
+  let h = `<div class="card of-card ${corOferenda(of)}" id="of-${of.id}">`;
   if (admin && u.editar === of.id) {
     h += `<form class="row" data-form="ofed" data-id="${of.id}" autocomplete="off">
       <label class="field grow">Título<input type="text" name="titulo" maxlength="120" required value="${esc(of.titulo)}"></label>
@@ -228,10 +237,12 @@ function cardOferenda(of, admin) {
       `<button class="btn small st-bt ${bloq ? 'desbloquear' : ''}" data-act="statusof" data-id="${of.id}" data-v="${bloq ? volta : 'rascunho'}">${bloq ? 'Desbloquear' : 'Bloquear'}</button>`,
       `<button class="btn small st-bt encerrar ${enc ? 'ligado' : ''}" data-act="statusof" data-id="${of.id}" data-v="${enc ? volta : 'encerrado'}" aria-pressed="${enc}">${enc ? 'Encerrado' : 'Encerrar'}</button>`,
     ].join('');
-    h += `${admin ? `<div class="row st-of-linha">${of.status === 'publicado' ? '' : etiqueta(of.status)}${of.status === 'publicado' ? '' : `<span class="muted" style="font-size:.82rem;flex-basis:100%">${enc ? 'Oferenda encerrada: saiu da lista da corrente.' : bloq ? 'Bloqueada: a corrente vê a oferenda, mas não a lista de itens.' : 'A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.'}</span>`}
+    // Cabeçalho primeiro (faixa colorida no topo do card), depois a situação e os botões do admin.
+    h += `<div class="datehead of-cab"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span>
+        <span class="of-cab-l"><span class="ent">${esc(Dia(of.data))}</span>${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span></div>
+      ${admin ? `<div class="row st-of-linha">${of.status === 'publicado' ? '' : etiqueta(of.status)}${of.status === 'publicado' ? '' : `<span class="muted" style="font-size:.82rem;flex-basis:100%">${enc ? 'Oferenda encerrada: saiu da lista da corrente.' : bloq ? 'Bloqueada: a corrente vê a oferenda, mas não a lista de itens.' : 'A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.'}</span>`}
         <span class="st-of-bts">${bts}</span></div>` : ''}
-      ${!admin && (of.status === 'rascunho' || of.responsavel) ? `<div class="of-topo">${of.status === 'rascunho' ? etiqueta('rascunho') : '<span></span>'}${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</div>` : ''}
-      <div class="datehead"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}${admin && of.responsavel ? ` <span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span><span class="ent">${esc(Dia(of.data))}</span></div>
+      ${!admin && of.status === 'rascunho' ? `<div class="of-topo">${etiqueta('rascunho')}</div>` : ''}
       ${barraDoacoes(of)}
       ${of.porMedium && !of.bloqueada ? barrasMediuns(of) : ''}
       <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa · ${(of.mediuns || []).length} pessoas${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
@@ -313,6 +324,7 @@ export function render() {
     h += `</div>`;
   }
   if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda ainda. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação no momento. Quando o admin publicar, ela aparece aqui.'}</p></div></section>`;
+  h += `<div class="of-sec"><h2><span aria-hidden="true">🕯️</span> Próximas oferendas</h2><span class="of-sec-n">${proximas.length}</span></div>`;
   h += proximas.map((o) => cardOferenda(o, admin)).join('');
   if (!proximas.length) h += `<div class="card empty"><p class="muted">Nenhuma oferenda marcada para os próximos dias.</p></div>`;
   if (anteriores.length) {

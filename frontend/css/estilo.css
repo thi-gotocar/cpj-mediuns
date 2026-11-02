@@ -720,6 +720,20 @@ body.deslogado .rodape{display:none}
 .med .falta-bt{margin-left:auto}
 .eu-guia b{color:var(--accent)}
 .eu-l.eu-guia{display:block}
+/* Oferendas cadastradas: cada uma bem separada — borda de cima na cor da situação (azul publicada, vermelha bloqueada,
+   amarela aguardando, verde completa, cinza encerrada), faixa no cabeçalho e sombra */
+.of-card{--of:var(--accent);border:1px solid color-mix(in srgb,var(--of) 30%,var(--line));border-top:5px solid var(--of);box-shadow:0 8px 22px rgba(0,0,0,.28);margin-bottom:6px}
+.of-card.espera{--of:var(--warn)}
+.of-card.bloqueada{--of:var(--off)}
+.of-card.completa{--of:var(--ok)}
+.of-card.encerrada{--of:var(--muted)}
+.of-cab{margin:-16px -16px 0;padding:14px 16px 12px;border-radius:var(--r) var(--r) 0 0;border-bottom:1px solid color-mix(in srgb,var(--of) 25%,var(--line));background:linear-gradient(180deg,color-mix(in srgb,var(--of) 16%,transparent),color-mix(in srgb,var(--of) 4%,transparent))}
+.of-cab .eyebrow{color:var(--of)}
+.of-cab-l{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.of-sec{display:flex;align-items:center;gap:10px;margin-top:6px}
+.of-sec h2{font-size:1.15rem}
+.of-sec::after{content:"";flex:1;height:2px;border-radius:2px;background:linear-gradient(90deg,color-mix(in srgb,var(--gold) 55%,transparent),transparent)}
+.of-sec-n{font-size:.75rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--surface);background:var(--gold);border-radius:20px;padding:1px 8px}
 .of-grupos{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px 26px}
 .of-grupos[hidden]{display:none}
 .of-incluir{padding:4px 0 8px}
