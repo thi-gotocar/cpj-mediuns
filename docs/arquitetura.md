@@ -6,7 +6,7 @@ Visão geral e decisões. Detalhes (arquivos, colunas, funções SQL) ficam no c
 
 | Camada | Tecnologia |
 |---|---|
-| Frontend | HTML + CSS + **ES modules sem framework e sem bundler**. PWA. |
+| Frontend | HTML + CSS + **ES modules sem framework e sem bundler**. PWA. **Modo escuro fixo para todos** (`data-theme="dark"` no `<html>`); a paleta clara continua no CSS, mas não é usada. |
 | Backend | **Funções serverless da Vercel** (Node ≥ 20, ESM) em `api/`. |
 | Banco | **Postgres da Vercel (Neon)**, SQL via HTTP. A lógica de dados fica em **funções SQL `jsonb`** chamadas por `db.rpc(nome, params)`. |
 | Regras | `shared/` — o mesmo código roda no navegador e no backend. |
