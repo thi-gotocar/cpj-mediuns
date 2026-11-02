@@ -671,11 +671,22 @@ body.deslogado .rodape{display:none}
 .pf-info-card{gap:10px;padding:14px}
 .pf-info{grid-template-columns:1fr 1fr;gap:8px 10px}
 .pf-info .pf-info-c{font-size:.8rem;gap:3px;min-width:0}
-.pf-info .pf-info-c:first-child{grid-column:1/-1}
+.pf-info .pf-info-c.inteiro{grid-column:1/-1}
+/* Informações: dica, seções "Seus dados" e "Pessoa para contato" (caixinha), rótulos pequenos e aviso de salvo em pílula */
+.pf-info-card .grp-h{align-items:center}
+.pf-info-dica{margin:-4px 0 0;font-size:.8rem;color:var(--muted)}
+.pf-info-sec{display:grid;gap:8px}
+.pf-info-sec h3{margin:0;font:800 .78rem var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.pf-info-contato{padding:10px 12px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.pf-info .pf-info-c{font-size:.74rem;letter-spacing:.04em;text-transform:uppercase}
+.pf-info input{min-height:42px;text-transform:none;letter-spacing:normal}
+.pf-salvo:not(:empty){border-radius:20px;padding:2px 10px;background:var(--line)}
+.pf-salvo.salvo{background:var(--ok-soft);color:var(--ok) !important}
+.pf-salvo.erro{background:var(--off-soft)}
 .pf-info input{padding:7px 10px;font-size:.95rem;min-width:0}
 /* selo "não preenchido" / "preenchido" ao lado do título */
-.selo-preench{display:inline-block;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 9px;border:1.5px solid #d4a017;color:#8a6500;background:#fff7d6;vertical-align:middle;font-family:var(--f-body)}
-.selo-preench.ok{border-color:#2e9b55;color:#1d7a3c;background:#e3f4e8}
+.selo-preench{display:inline-block;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 9px;border:1.5px solid var(--warn);color:var(--warn);background:var(--warn-soft);vertical-align:middle;font-family:var(--f-body)}
+.selo-preench.ok{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
 /* Gira: sorteio ainda não feito */
 .sorteio-pend{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;border:2px solid var(--off);border-radius:12px;padding:12px;background:color-mix(in srgb,var(--off) 5%,var(--surface))}
 .sorteio-pend .sp-icone{font-size:1.6rem;line-height:1}

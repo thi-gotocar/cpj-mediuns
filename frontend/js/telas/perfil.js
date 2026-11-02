@@ -96,19 +96,22 @@ function cardInfoAdmin(todos) {
     ${x ? formInfoAdmin(x) : '<p class="muted" style="margin:0;font-size:.88rem">Escolha a pessoa para ver e alterar as informações.</p>'}`, true, true);
 }
 
-// Bloco Informações (o próprio perfil; salva enquanto digita).
+// Bloco Informações (o próprio perfil; salva enquanto digita): "Seus dados" e, numa caixinha, "Pessoa para contato".
 function cardInfo(eu) {
   const I = eu.perfil.info || {};
-  const campo = (k, rotulo, attrs, valor) => `<label class="field pf-info-c">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
+  const campo = (k, rotulo, attrs, valor, cls = '') => `<label class="field pf-info-c${cls}">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
   const sv = estado.perfilSalvo;
-  return `<div class="card pf-info-card"><div class="grp-h"><h2>Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
-    <div class="pf-info">
-      ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome)}
+  return `<div class="card pf-info-card"><div class="grp-h"><h2><span aria-hidden="true">👤</span> Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
+    <p class="pf-info-dica">Salva sozinho enquanto você digita.</p>
+    <div class="pf-info-sec"><h3>Seus dados</h3><div class="pf-info">
+      ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome, ' inteiro')}
       ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
-      ${campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher" autocomplete="tel"', telefoneBR(I.celular))}
-      ${campo('contatoNome', 'Nome para contato', 'type="text" maxlength="80" placeholder="Quem chamar"', I.contatoNome)}
-      ${campo('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.contatoTelefone))}
-    </div></div>`;
+      ${campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 91234-5678" autocomplete="tel"', telefoneBR(I.celular))}
+    </div></div>
+    <div class="pf-info-sec pf-info-contato"><h3><span aria-hidden="true">📞</span> Pessoa para contato</h3><div class="pf-info">
+      ${campo('contatoNome', 'Nome', 'type="text" maxlength="80" placeholder="Quem chamar"', I.contatoNome)}
+      ${campo('contatoTelefone', 'Telefone', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 91234-5678"', telefoneBR(I.contatoTelefone))}
+    </div></div></div>`;
 }
 
 // Selo ao lado do título: "não preenchido" (amarelo) ou "preenchido" (verde).
