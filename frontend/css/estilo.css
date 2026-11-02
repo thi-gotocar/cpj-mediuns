@@ -373,6 +373,14 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .ev-grupo>.card h2{font-size:1.05rem}
 .ev-grupo>.card.adm{border:1px solid var(--line)}   /* a moldura dourada fica só no bloco de fora */
 .limpeza.ausencia{border-left-color:#e8b400;background:var(--warn-soft)}
+/* Banho orixá / Banho guia: ervas em pílulas, borda verde */
+.limpeza.banho{border-left-color:var(--ok);gap:8px}
+.banho-p{display:grid;gap:5px}
+.banho-p > b{font-size:.86rem;color:var(--ok)}
+.banho-ervas{display:flex;flex-wrap:wrap;gap:4px}
+.banho-ervas span{font-size:.8rem;padding:1px 8px;border-radius:20px;background:var(--ok-soft);color:var(--ink);border:1px solid color-mix(in srgb,var(--ok) 30%,var(--line))}
+.banho-obs{font-size:.8rem}
+.banho-aviso{font-size:.8rem;color:var(--warn)}
 .limp-sel{font-size:.85rem;padding:3px 6px;width:auto}
 .turmas{display:flex;flex-direction:column;gap:4px;font-size:.9rem}
 

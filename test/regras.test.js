@@ -258,6 +258,27 @@ test('perfil: só orixás e guias válidos; oferenda só com algo escolhido', as
   assert.deepEqual(e.orixa, [{ nome: 'Oxum', qtd: 1 }]);
 });
 
+test('banhos da gira: ervas do orixá do dia e da linha da gira', async () => {
+  const { banhosDaGira, BANHO_ORIXA, BANHO_GUIA } = await import('../shared/banhos.js');
+  const { ORIXAS, LINHA_KEYS } = await import('../shared/regras.js');
+  // Todo orixá do app e toda linha (menos o Encontro das Linhas) tem a sua lista.
+  ORIXAS.forEach((o) => assert.ok(BANHO_ORIXA[o]?.ervas.length, `orixá sem ervas: ${o}`));
+  LINHA_KEYS.filter((k) => k !== 'mista' && k !== 'exus-pombagira').forEach((k) => assert.ok(BANHO_GUIA[k]?.ervas.length, `linha sem ervas: ${k}`));
+  const b = banhosDaGira({ entidade: 'Caboclo', orixa: 'Oxóssi' });
+  assert.equal(b.orixa.nome, 'Oxóssi');
+  assert.ok(b.orixa.ervas.includes('guiné'));
+  assert.ok(b.orixa.aviso, 'aviso da comigo-ninguém-pode');
+  assert.equal(b.guia.nome, 'Caboclo');
+  assert.ok(b.guia.ervas.includes('samambaia'));
+  // Esquerda não tem orixá; gira junta soma as linhas sem repetir.
+  const e = banhosDaGira({ entidade: 'Exus & Pombagira', orixa: 'Ogum' });
+  assert.equal(e.orixa, null);
+  assert.ok(e.guia.ervas.includes('dandá') && e.guia.ervas.includes('hibisco'));
+  assert.equal(new Set(e.guia.ervas).size, e.guia.ervas.length);
+  assert.deepEqual(banhosDaGira({ entidade: '' }), { orixa: null, guia: null });
+  assert.equal(banhosDaGira({ entidade: 'Encontro das Linhas' }).guia, null);
+});
+
 test('perfil da curimba: só as informações pessoais', async () => {
   const { perfilDaFuncao, cadastraEspiritual } = await import('../shared/perfil.js');
   const p = { orixas: { frente: { nome: 'Ogum', oferenda: true } }, guias: { chefe: { linha: 'caboclo' } }, outros: { exu: 'Tranca Rua' },

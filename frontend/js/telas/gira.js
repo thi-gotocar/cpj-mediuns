@@ -9,6 +9,7 @@ import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo } from '/shared/resumoGira.js';
 import { eventosDoTopo, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
+import { banhosDaGira } from '/shared/banhos.js';
 import { textoEntrega, dataBR, ROTULO_MEDIUM } from '/shared/oferendas.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
@@ -59,6 +60,17 @@ function blocoLicenca(ps, g) {
   if (!quem.length) return '';
   return `<div class="limpeza licenca"><b><span class="cruz-vermelha" aria-hidden="true">✚</span> De licença · ${quem.length}</b>
     <span>${quem.map((p) => `${esc(p.nome)} <span class="muted">(até ${dDM(licencaEm(p, g.data).fim)})</span>`).join(', ')}</span></div>`;
+}
+
+// Banho: ervas do orixá do dia e da linha da gira (das apostilas), logo abaixo da limpeza. Vale para todos verem.
+function blocoBanho(g) {
+  const { orixa, guia } = banhosDaGira(g);
+  if (!orixa && !guia) return '';
+  const parte = (titulo, b) => `<div class="banho-p"><b>${titulo} · ${esc(b.nome)}</b>
+    <div class="banho-ervas">${b.ervas.map((e) => `<span>${esc(e)}</span>`).join('')}</div>
+    ${b.obs ? `<span class="muted banho-obs">${esc(b.obs)}</span>` : ''}${b.aviso ? `<span class="banho-aviso">⚠️ ${esc(b.aviso)}</span>` : ''}</div>`;
+  return `<div class="limpeza banho"><b><span aria-hidden="true">🌿</span> Banho</b>
+    ${orixa ? parte('Banho orixá', orixa) : ''}${guia ? parte('Banho guia', guia) : ''}</div>`;
 }
 
 // Ausência: quem está com status Ausente nesta gira (um por linha), logo acima do bloco de licença.
@@ -527,6 +539,7 @@ function renderGira() {
     </div>
     ${editar && existe && estado.confirm === 'enc:' + g.data ? caixaEncerrar(g) : ''}
     ${encerrada ? '' : blocoLimpeza(g, admin)}
+    ${blocoBanho(g)}
     ${blocoAusencia(ps, g)}
     ${blocoLicenca(ps, g)}
     ${encerrada ? `<div class="infobox"><div class="enc-info"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>
