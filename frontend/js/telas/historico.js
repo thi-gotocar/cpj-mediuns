@@ -238,7 +238,8 @@ function ajustarRolagem() {
 export function render() {
   setTimeout(ajustarRolagem, 0);
   // Eventos (antes numa aba própria) ficam no topo do Histórico.
-  let h = `<section class="panel">${pode('eventos:ver') ? blocosEventos() : ''}`;
+  // Bloco Eventos: agrupa o Cadastrar evento e os Eventos cadastrados.
+  let h = `<section class="panel">${pode('eventos:ver') ? `<div class="card ev-grupo"><h2><span aria-hidden="true">🗓️</span> Eventos</h2>${blocosEventos()}</div>` : ''}`;
   if (!pode('historico:ver')) return h + '</section>';
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
