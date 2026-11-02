@@ -542,18 +542,54 @@ export function reabrir(pessoas, g) {
 // ("100% de afinidade e segurança") para a linha da gira. Quem já é Passe no cadastro não entra no Passe.
 // PASSE: Cambone que marcou a linha no bloco Passe; At. Extra que NÃO marcou a linha no Atendimento extra
 // (quem marcou "Todas" não entra; quem não marcou nenhuma entra).
-// ATENDIMENTO EXTRA: Passe que marcou a linha no bloco Atendimento extra. Cada um vem com o nome da entidade.
-export function sugestoesDaGira(pessoas, g) {
+// ATENDIMENTO EXTRA: Passe que marcou a linha no bloco Atendimento extra. Cada um vem com o nome da entidade,
+// a presença no ano (pct) e quantas giras desta linha já foi (nGiras), contando as giras anteriores a esta.
+// perfis ({ [pessoaId]: perfil }, só o admin tem): oferendas feitas do orixá de frente, ancestral, adjunto e
+// do guia chefe (null sem perfis).
+// Ordem: oferenda do orixá de frente; mais oferendas de orixás; oferenda do guia chefe; Guia chefe, Guia de frente,
+// sem rótulo; quem tem nome da entidade; maior presença; mais giras da linha; nome.
+export function sugestoesDaGira(pessoas, g, giras = [], perfis = null) {
   const l = linhaDaEntidade(g?.entidade);
   if (!l) return null;
   const alvo = [l, ...(JUNTAS[l] || [])];
   const tem = (arr) => (arr || []).some((x) => alvo.includes(x));
   const fora = (p) => !naCorrenteEm(p, g.data) || ['lic', 'f', 'a'].includes(presencaDe(p, g));
-  // guias: rótulos "Guia chefe" / "Guia de frente" quando o guia do Perfil é da linha da gira (só informa; não muda quem aparece).
+  const antes = (giras || []).filter((x) => x.data < g.data);
+  const daLinha = antes.filter((x) => { const lx = linhaDaEntidade(x.entidade); return alvo.includes(lx) || (JUNTAS[lx] || []).includes(l); });
+  // guias: rótulos "Guia chefe" / "Guia de frente" quando o guia do Perfil é da linha da gira (não muda quem aparece).
   const guias = (p) => [alvo.includes(p.guiaChefe) && 'Guia chefe', alvo.includes(p.guiaFrente) && 'Guia de frente'].filter(Boolean);
-  const item = (p) => ({ id: p.id, nome: p.nome, funcao: p.funcao, entidade: guiaNaGira(p, g) || LINHA_LABEL[l], guias: guias(p) });
-  const ord = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+  const oferendas = (p) => {
+    if (!perfis) return null;
+    const pf = perfis[p.id] || {};
+    const o = (k) => !!pf.orixas?.[k]?.oferenda;
+    return { frente: o('frente'), ancestral: o('ancestral'), adjunto: o('adjunto'), chefe: !!pf.guias?.chefe?.oferenda };
+  };
+  const item = (p) => {
+    const nomeEnt = guiaNaGira(p, g);
+    return { id: p.id, nome: p.nome, funcao: p.funcao, entidade: nomeEnt || LINHA_LABEL[l], temNome: !!nomeEnt, guias: guias(p),
+      ...presencaNoAno(p, antes, g.data), nGiras: daLinha.filter((x) => naCorrenteEm(p, x.data) && presencaDe(p, x) === 'p').length,
+      oferendas: oferendas(p) };
+  };
+  const nivel = (x) => (x.guias.includes('Guia chefe') ? 0 : x.guias.length ? 1 : 2);
+  const of = (x, k) => (x.oferendas?.[k] ? 1 : 0);
+  const ord = (a, b) => of(b, 'frente') - of(a, 'frente')
+    || (of(b, 'ancestral') + of(b, 'adjunto')) - (of(a, 'ancestral') + of(a, 'adjunto')) || of(b, 'chefe') - of(a, 'chefe')
+    || nivel(a) - nivel(b) || b.temNome - a.temNome || (b.pct ?? -1) - (a.pct ?? -1)
+    || b.nGiras - a.nGiras || a.nome.localeCompare(b.nome, 'pt-BR');
   const passe = pessoas.filter((p) => !fora(p) && ((p.funcao === 'cambone' && tem(p.afinidadePasse)) || (p.funcao === 'extra' && !tem(p.linhas)))).map(item).sort(ord);
   const extra = pessoas.filter((p) => !fora(p) && p.funcao === 'passe' && tem(p.afinidadeExtra)).map(item).sort(ord);
   return { linha: l, passe, extra };
+}
+
+// Presença da pessoa no ano de "data", nas giras antes dessa data: { pres, base, pct } (licença e pendente não contam).
+export function presencaNoAno(p, giras, data) {
+  let pres = 0, base = 0;
+  (giras || []).forEach((g) => {
+    if (g.data >= data || g.data.slice(0, 4) !== data.slice(0, 4) || !naCorrenteEm(p, g.data)) return;
+    const st = presencaDe(p, g);
+    if (st === 'lic' || st === 'pend') return;
+    base++;
+    if (st === 'p') pres++;
+  });
+  return { pres, base, pct: base ? Math.round((pres / base) * 100) : null };
 }

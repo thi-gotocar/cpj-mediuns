@@ -352,3 +352,37 @@ test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async ()
   assert.deepEqual(r.extra[0].guias, ['Guia chefe', 'Guia de frente']);
   assert.equal(sugestoesDaGira(ps, { data: '2030-01-01', entidade: '' }), null);
 });
+
+test('sugestão Mi/Mãe Vê: presença no ano, giras da linha e ordem', async () => {
+  const { sugestoesDaGira } = await import('../shared/regras.js');
+  const cam = (id, nome, extra = {}) => ({ id, nome, funcao: 'cambone', afinidadePasse: ['caboclo'], ...extra });
+  const ps = [
+    cam('1', 'Ana'),
+    cam('2', 'Bia', { guiasAtendimento: { caboclo: 'Pena Branca' } }),
+    cam('3', 'Caio', { guiaFrente: 'caboclo' }),
+    cam('4', 'Duda', { guiaChefe: 'caboclo' }),
+    cam('5', 'Eva'),
+    cam('6', 'Fábio'),
+  ];
+  const giras = [
+    { data: '2029-12-01', entidade: 'Caboclo', presenca: { 1: 'p', 5: 'p', 6: 'f' } },   // ano anterior: só conta nas giras da linha
+    { data: '2030-01-10', entidade: 'Caboclo', presenca: { 1: 'p', 5: 'f', 6: 'p' } },
+    { data: '2030-01-17', entidade: 'Baiano', presenca: { 1: 'f', 5: 'p', 6: 'p' } },
+    { data: '2030-02-01', entidade: 'Caboclo', presenca: {} },                              // a própria gira: não conta
+  ];
+  const r = sugestoesDaGira(ps, giras[3], giras);
+  // Guia chefe, Guia de frente, com nome da entidade; depois presença (Fábio 100%, Eva e Ana 50%) e giras da linha (Ana 2, Eva 1).
+  assert.deepEqual(r.passe.map((x) => x.nome), ['Duda', 'Caio', 'Bia', 'Fábio', 'Ana', 'Eva']);
+  const ana = r.passe.find((x) => x.nome === 'Ana');
+  assert.deepEqual([ana.pres, ana.base, ana.pct, ana.nGiras], [1, 2, 50, 2]);
+  assert.equal(r.passe.find((x) => x.nome === 'Bia').temNome, true);
+  assert.equal(ana.oferendas, null, 'sem perfis: sem oferendas');
+
+  // Oferendas (perfis do admin) vêm antes de tudo: orixá de frente; mais orixás (ancestral, adjunto); guia chefe.
+  const ofs = (frente, ancestral, adjunto, chefe) => ({ orixas: { frente: { oferenda: frente }, ancestral: { oferenda: ancestral }, adjunto: { oferenda: adjunto } }, guias: { chefe: { oferenda: chefe } } });
+  const perfis = { 1: ofs(false, true, true, true), 5: ofs(true, false, false, false), 6: ofs(false, true, false, false), 3: ofs(false, true, false, true) };
+  const r2 = sugestoesDaGira(ps, giras[3], giras, perfis);
+  assert.deepEqual(r2.passe.map((x) => x.nome), ['Eva', 'Ana', 'Caio', 'Fábio', 'Duda', 'Bia']);
+  assert.deepEqual(r2.passe[0].oferendas, { frente: true, ancestral: false, adjunto: false, chefe: false });
+  assert.deepEqual(r2.passe.find((x) => x.nome === 'Bia').oferendas, { frente: false, ancestral: false, adjunto: false, chefe: false });
+});

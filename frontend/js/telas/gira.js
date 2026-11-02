@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
@@ -350,15 +350,52 @@ function resultado(g) {
 }
 
 // Admin: "Sugestão Mi/Mãe Vê" — quem marcou no Perfil que se sente confiante na entidade da gira,
-// em dois blocos (Passe e Atendimento extra), 5 nomes à vista e o resto com rolagem.
+// em dois blocos (Passe e Atendimento extra): tabela Nome (com rótulos e entidade) | oferendas feitas (orixá de frente,
+// ancestral, adjunto e guia chefe — só para quem vê o perfil de todos) | % de presença no ano | giras da linha,
+// 5 linhas à vista e o resto com rolagem.
+const curto4 = (s) => { const a = Array.from(s); return a.length > 4 ? a.slice(0, 4).join('') + '…' : s; };
+const corPres = (pct) => (pct >= 80 ? 'ok' : pct >= 60 ? 'medio' : 'baixo');
+const OFERENDAS_SUG = [['frente', 'Fr', 'Orixá de frente'], ['ancestral', 'An', 'Orixá ancestral'], ['adjunto', 'Ad', 'Orixá adjunto'], ['chefe', 'Ch', 'Guia chefe']];
+// Perfil de todos ({ pessoaId: perfil }) para as colunas de oferendas; busca uma vez se ainda não veio.
+let pedindoPerfil = false;
+function perfisDaCorrente() {
+  if (!pode('perfil:corrente')) return null;
+  if (estado.perfil === null) {
+    if (!pedindoPerfil) { pedindoPerfil = true; carregarPerfil().finally(() => { pedindoPerfil = false; }); }
+    return null;
+  }
+  const t = estado.perfil?.todos;
+  return Array.isArray(t) ? Object.fromEntries(t.map((x) => [x.pessoaId, x.perfil])) : null;
+}
+function linhaSugestao(x, linha, ano) {
+  // Segunda linha do nome: rótulos Guia chefe / Guia de frente e, ao lado, o nome da entidade.
+  const sub = [...x.guias.map((t) => `<span class="sug-tag${t === 'Guia chefe' ? ' chefe' : ''}">${t}</span>`),
+    x.temNome ? `<span class="sug-ent" title="${esc(x.entidade)}">${esc(curto4(x.entidade))}</span>` : ''].join('');
+  const tags = sub ? `<span class="sug-tags">${sub}</span>` : '';
+  const pres = x.pct === null ? '<span class="sug-pct vazio" title="Sem giras no ano">—</span>'
+    : `<span class="sug-pct ${corPres(x.pct)}" title="${x.pres} de ${x.base} gira${x.base > 1 ? 's' : ''} em ${ano}"><b>${x.pct}%</b><i style="--p:${x.pct}%"></i></span>`;
+  const n = `<span class="sug-n${x.nGiras ? '' : ' zero'}" title="${x.nGiras} gira${x.nGiras === 1 ? '' : 's'} de ${esc(linha)}">${x.nGiras}</span>`;
+  const ofs = x.oferendas ? OFERENDAS_SUG.map(([k, , t]) => (x.oferendas[k]
+    ? `<span class="sug-of sim" title="${t}: oferenda feita" aria-label="${t}: sim">✓</span>`
+    : `<span class="sug-of nao" title="${t}: oferenda não feita" aria-label="${t}: não">✕</span>`)).join('') : '';
+  return `<div class="sug-l${x.oferendas ? ' com-of' : ''}"><span class="sug-nome"><span class="sug-nm">${esc(x.nome)}</span>${tags}</span>${ofs}${pres}${n}</div>`;
+}
 function blocoSugestao(ps, g) {
-  const sug = sugestoesDaGira(ps, g);
+  const sug = sugestoesDaGira(ps, g, girasLista(), perfisDaCorrente());
+  const linha = sug ? LINHA_LABEL[sug.linha] || '' : '';
+  const comOf = !!sug && [...sug.passe, ...sug.extra].some((x) => x.oferendas);
+  const cabGiras = `<span class="sug-cab-g${linha.length > 14 ? ' mlongo' : linha.length > 9 ? ' longo' : ''}">Giras de ${esc(linha)}</span>`;
+  const cab = comOf
+    ? `<div class="sug-l sug-cab com-of" aria-hidden="true"><span class="c-nome">Nome</span><span class="c-gx">Orixá</span><span class="c-gg">Guia</span>
+      ${OFERENDAS_SUG.map(([, s], i) => `<span class="c-o c-o${i + 1}">${s}</span>`).join('')}<span class="c-pres">Pres.</span>${cabGiras}</div>`
+    : `<div class="sug-l sug-cab" aria-hidden="true"><span>Nome</span><span>Pres.</span>${cabGiras}</div>`;
   const corpo = !sug
     ? '<p class="muted" style="margin:0;font-size:.88rem">Escolha a entidade da gira para ver as sugestões.</p>'
-    : [['PASSE', sug.passe], ['ATENDIMENTO EXTRA', sug.extra]].map(([t, lista]) => `<div class="grp sug-grp"><div class="grp-h"><h3>${t}</h3><span class="count">${lista.length}</span></div>
-      ${lista.length ? `<div class="sug-lista">${lista.map((x) => `<div class="sug-l"><span class="sug-nome">${esc(x.nome)}</span><span class="sug-ent">${x.guias.map((t) => `<span class="badge guia">${t}</span>`).join('')}<span>${esc(x.entidade)}</span></span></div>`).join('')}</div>`
-        : '<p class="muted" style="margin:0;font-size:.85rem">Ninguém marcou esta entidade.</p>'}</div>`).join('');
-  return `<div class="card adm sugestao"><div class="grp-h"><h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="count">${esc(LINHA_LABEL[sug.linha] || '')}</span>` : ''}</div>${corpo}</div>`;
+    : [['Passe', sug.passe], ['Atendimento extra', sug.extra]].map(([t, lista]) => `<div class="grp sug-grp"><div class="sug-sub"><h3>${t}</h3><span class="sug-qtd">${lista.length}</span></div>
+      ${lista.length ? `<div class="sug-lista">${cab}${lista.map((x) => linhaSugestao(x, linha, g.data.slice(0, 4))).join('')}</div>`
+        : '<p class="muted sug-vazio">Ninguém marcou esta entidade.</p>'}</div>`).join('');
+  return `<div class="card adm sugestao"><div class="grp-h"><h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}</div>${corpo}
+    ${sug ? `<p class="sug-leg">${comOf ? 'Oferendas: Fr = orixá de frente · An = ancestral · Ad = adjunto · Ch = guia chefe<br>' : ''}Pres. = presença em ${g.data.slice(0, 4)} · Giras de ${esc(linha)} = em quantas esteve presente</p>` : ''}</div>`;
 }
 
 // Topo da aba Gira (só data e nome): gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.
