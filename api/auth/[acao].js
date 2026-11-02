@@ -9,7 +9,7 @@
 //   POST /api/auth/criarSenha { senha }  acesso da corrente: cria a senha (4 a 8 números) → { token }
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
-//   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro
+//   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
 
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
@@ -17,7 +17,7 @@ import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { permissoesDe, ehAcessoCorrente, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
-import { normalizarPerfil, blocosAfinidade } from '../../shared/perfil.js';
+import { normalizarPerfil, perfilDaFuncao, blocosAfinidade } from '../../shared/perfil.js';
 import { LINHA_KEYS } from '../../shared/regras.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,9 +40,10 @@ const acoes = {
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).
+  // A curimba só tem as informações pessoais (sem orixás, guias e guias de atendimento).
   async perfil(req) {
     const eu = await exigir(req);
-    const limpo = (r) => ({ ...r, perfil: normalizarPerfil(r.perfil) });
+    const limpo = (r) => ({ ...r, perfil: perfilDaFuncao(r.perfil, r.funcao) });
     if (req.method === 'GET') {
       const r = { eu: eu.pessoaId ? limpo(await db.rpc('perfil_ler', { pessoaId: eu.pessoaId })) : null };
       // Admin: o perfil de todos, para acompanhar respostas, guias e oferendas.
@@ -72,15 +73,15 @@ const acoes = {
       const p = normalizarPerfil(atual.perfil);
       const CAMPOS = ['nome', 'nascimento', 'celular', 'contatoNome', 'contatoTelefone'];
       CAMPOS.forEach((k) => { if (k in info) p.info[k] = info[k] || ''; });
-      const novo = normalizarPerfil(p);
+      const novo = perfilDaFuncao(p, atual.funcao);
       if (info.nascimento && !novo.info.nascimento) throw new HttpError(400, 'Data de nascimento inválida.');
       if (info.celular && !novo.info.celular) throw new HttpError(400, 'Celular incompleto: coloque o DDD e o número.');
       if (info.contatoTelefone && !novo.info.contatoTelefone) throw new HttpError(400, 'Telefone para contato incompleto: coloque o DDD e o número.');
       return limpo(await db.rpc('perfil_salvar', { pessoaId: atual.pessoaId, perfil: novo }));
     }
     if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
-    const r = await db.rpc('perfil_salvar', { pessoaId: eu.pessoaId, perfil: normalizarPerfil(b.perfil) });
-    return { ...r, perfil: normalizarPerfil(r.perfil) };
+    const { funcao } = await db.rpc('perfil_ler', { pessoaId: eu.pessoaId });
+    return limpo(await db.rpc('perfil_salvar', { pessoaId: eu.pessoaId, perfil: perfilDaFuncao(b.perfil, funcao) }));
   },
 
   async estado(req) {

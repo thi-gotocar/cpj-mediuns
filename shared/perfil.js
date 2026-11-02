@@ -7,7 +7,7 @@
 //     info:   { nome, nascimento: 'AAAA-MM-DD', celular, contatoNome, contatoTelefone }  // telefones só com os números
 //   }
 
-import { ORIXAS, LINHAS } from './regras.js';
+import { ORIXAS, LINHAS, CURIMBA } from './regras.js';
 
 export const POSICOES_ORIXA = [['frente', 'Orixá de frente'], ['ancestral', 'Orixá ancestral'], ['adjunto', 'Orixá adjunto']];
 export const POSICOES_GUIA = [['chefe', 'Guia chefe'], ['frente', 'Guia de frente']];
@@ -16,6 +16,12 @@ export const GUIAS = LINHAS.flatMap((g) => g.itens).filter(([k]) => k !== 'mista
   .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
 const GUIA_KEYS = GUIAS.map(([k]) => k);
 export const NOME_GUIA_MAX = 60;
+
+// A curimba não cadastra orixás, guias nem guias de atendimento: no Perfil, só as informações pessoais.
+export const cadastraEspiritual = (funcao) => funcao !== CURIMBA;
+// Perfil que vale para a função: para a curimba, só as informações (o resto fica vazio).
+export const perfilDaFuncao = (perfil, funcao) =>
+  (cadastraEspiritual(funcao) ? normalizarPerfil(perfil) : normalizarPerfil({ info: normalizarPerfil(perfil).info }));
 
 // A pessoa já respondeu: escolheu algum orixá ou guia, ou escreveu algum nome.
 export const respondeu = (p) => !!p && (Object.values(p.orixas || {}).some((x) => x.nome)
@@ -54,11 +60,13 @@ export function blocosAfinidade(funcao) {
 
 // Estatísticas do cadastro (Histórico): quantas pessoas têm cada guia chefe, guia de frente, orixá de frente e
 // orixá de cabeça (frente, ancestral ou adjunto: a pessoa conta uma vez por orixá, mesmo repetido em duas posições).
-// Só contagens (sem nomes), para não expor o perfil de cada um. perfis: [{ perfil }] (perfis_listar).
+// Só contagens (sem nomes), para não expor o perfil de cada um. perfis: [{ perfil, funcao }] (perfis_listar);
+// a curimba não entra (não cadastra orixás e guias).
 // → { total, chefe: [{ nome, qtd }], frente: [...], orixa: [...], cabeca: [...], cabecaPessoas }, do maior para o menor
 // (empate: nome). cabecaPessoas: quantas pessoas escolheram algum orixá de cabeça.
-export function contagemPerfis(perfis) {
+export function contagemPerfis(todos) {
   const nomeGuia = Object.fromEntries(GUIAS);
+  const perfis = todos.filter((x) => cadastraEspiritual(x.funcao));
   const pfs = perfis.map((x) => normalizarPerfil(x.perfil));
   const contar = (valor) => {
     const m = {};

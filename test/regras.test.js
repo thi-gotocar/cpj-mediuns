@@ -249,6 +249,28 @@ test('perfil: só orixás e guias válidos; oferenda só com algo escolhido', as
   ]);
   assert.deepEqual(d.cabeca, [{ nome: 'Oxum', qtd: 2 }, { nome: 'Ogum', qtd: 1 }, { nome: 'Xangô', qtd: 1 }]);
   assert.equal(d.cabecaPessoas, 3);
+  // A curimba não entra nas contagens (nem no total).
+  const e = contagemPerfis([
+    { funcao: 'medium', perfil: { orixas: { frente: { nome: 'Oxum' } } } },
+    { funcao: 'curimba', perfil: { orixas: { frente: { nome: 'Ogum' } } } },
+  ]);
+  assert.equal(e.total, 1);
+  assert.deepEqual(e.orixa, [{ nome: 'Oxum', qtd: 1 }]);
+});
+
+test('perfil da curimba: só as informações pessoais', async () => {
+  const { perfilDaFuncao, cadastraEspiritual } = await import('../shared/perfil.js');
+  const p = { orixas: { frente: { nome: 'Ogum', oferenda: true } }, guias: { chefe: { linha: 'caboclo' } }, outros: { exu: 'Tranca Rua' },
+    info: { nome: 'Zé', celular: '11912345678' } };
+  const c = perfilDaFuncao(p, 'curimba');
+  assert.equal(c.orixas.frente.nome, '');
+  assert.equal(c.guias.chefe.linha, '');
+  assert.deepEqual(c.outros, {});
+  assert.equal(c.info.nome, 'Zé');
+  assert.equal(c.info.celular, '11912345678');
+  assert.equal(perfilDaFuncao(p, 'medium').orixas.frente.nome, 'Ogum');
+  assert.equal(cadastraEspiritual('curimba'), false);
+  assert.equal(cadastraEspiritual('cambone'), true);
 });
 
 test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)', async () => {

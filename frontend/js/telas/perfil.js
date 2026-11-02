@@ -2,7 +2,7 @@
 // O admin também acompanha a corrente: quem já respondeu, os guias de todos e as oferendas pendentes.
 
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
-import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade } from '/shared/perfil.js';
+import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual } from '/shared/perfil.js';
 import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa } from '../estado.js';
 import { esc, toast } from '../util.js';
 
@@ -29,9 +29,11 @@ function cardAjustes(todos) {
   const A = (estado.ajUi ||= { pessoa: '', campo: '' });
   const root = pode('usuarios:gerenciar');
   if (root && estado.usuarios === null) { estado.usuarios = undefined; carregarUsuarios(); }
-  const CAMPOS = [['espiritual', 'Orixás e guias'], ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
-  if (!CAMPOS.some(([k]) => k === A.campo)) A.campo = '';
   const x = todos.find((t) => t.pessoaId === A.pessoa);
+  // Curimba: sem orixás e guias.
+  const CAMPOS = [...(!x || cadastraEspiritual(x.funcao) ? [['espiritual', 'Orixás e guias']] : []),
+    ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
+  if (!CAMPOS.some(([k]) => k === A.campo)) A.campo = '';
   return card('ajustes', '⚙️ Ajustes', '', false, () => {
     let h = `<div class="aj-sel">
       <label class="field">Pessoa<select data-act="ajpessoa" aria-label="Pessoa"><option value="">— escolha a pessoa —</option>${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === A.pessoa ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
@@ -182,6 +184,8 @@ function meusCards(eu) {
   const P = eu.perfil;
   // Orixás e guias (num bloco só) e outros guias começam minimizados (para todos); tocar no título expande.
   const padrao = false;
+  // Curimba: só as informações pessoais (não cadastra orixás, guias nem guias de atendimento).
+  if (!cadastraEspiritual(eu.funcao)) return cardInfo(eu);
   const nOutros = GUIAS.filter(([k]) => (P.outros || {})[k]).length;
   const okOutros = nOutros === GUIAS.length ? true : nOutros ? 'andamento' : false;
   return cardInfo(eu) + cardsAfinidade(eu) + cardEspiritual(P)
@@ -241,8 +245,10 @@ export function render() {
   let h = '';
   // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".
   if (admin()) {
+    // Respostas e oferendas pendentes contam só quem cadastra orixás e guias (a curimba fica fora).
+    const comOrixas = todos.filter((x) => cadastraEspiritual(x.funcao));
     h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
-      ${cardAjustes(todos)}${cardInfoAdmin(todos)}${cardRespostas(todos)}${cardOferendas(todos)}</div>`;
+      ${cardAjustes(todos)}${cardInfoAdmin(todos)}${cardRespostas(comOrixas)}${cardOferendas(comOrixas)}</div>`;
   }
   if (eu) h += meusCards(eu);
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;

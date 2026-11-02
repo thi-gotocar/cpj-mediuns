@@ -98,6 +98,7 @@ ausencia = bloco(
 
 perfil = bloco(
   P('As suas informações ajudam a organizar a casa e deixam o sorteio mais justo. Os blocos começam fechados: <b>toque no título para abrir</b>.'),
+  P('Quem é da <b>curimba</b> preenche só as <b>Informações</b> (os seus dados): a curimba não cadastra orixás, guias nem guias de atendimento.'),
   P('Ao lado do título de cada bloco aparece um selo:'),
   tabela(['Selo', 'Quer dizer'], [
     ['<font color="#9a6a10"><b>não preenchido</b></font>', 'Falta responder.'],
