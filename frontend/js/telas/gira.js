@@ -358,7 +358,7 @@ function blocoSugestao(ps, g) {
     : [['PASSE', sug.passe], ['ATENDIMENTO EXTRA', sug.extra]].map(([t, lista]) => `<div class="grp sug-grp"><div class="grp-h"><h3>${t}</h3><span class="count">${lista.length}</span></div>
       ${lista.length ? `<div class="sug-lista">${lista.map((x) => `<div class="sug-l"><span class="sug-nome">${esc(x.nome)}</span><span class="sug-ent">${x.guias.map((t) => `<span class="badge guia">${t}</span>`).join('')}<span>${esc(x.entidade)}</span></span></div>`).join('')}</div>`
         : '<p class="muted" style="margin:0;font-size:.85rem">Ninguém marcou esta entidade.</p>'}</div>`).join('');
-  return `<div class="card adm sugestao"><div class="grp-h"><h2>Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="count">${esc(LINHA_LABEL[sug.linha] || '')}</span>` : ''}</div>${corpo}</div>`;
+  return `<div class="card adm sugestao"><div class="grp-h"><h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="count">${esc(LINHA_LABEL[sug.linha] || '')}</span>` : ''}</div>${corpo}</div>`;
 }
 
 // Topo da aba Gira (só data e nome): gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.
@@ -462,7 +462,7 @@ function renderGira() {
   const eu = existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
   // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Sua presença e só depois a gira (próximo evento).
   let h = `<section class="panel">${eu}${cardCompromissos()}${cardMinhaPresenca()}
-  <div class="card card-gira">
+  <div class="card card-gira${existe && !encerrada ? ' aberta' : ''}">
     ${editar && existe ? (estado.confirm === 'rei:' + g.data
       ? `<div class="infobox rei"><span><b>Reiniciar a gira?</b> Volta tudo ao início: todos ficam Pendente e saem a gira, o orixá, a turma da limpeza e o sorteio. Só a data fica.</span>
           <span class="row" style="gap:6px"><button class="btn small danger" data-act="reiniciar">Sim, reiniciar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`

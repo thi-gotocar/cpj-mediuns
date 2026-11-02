@@ -346,6 +346,8 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 
 /* Turma da limpeza */
 .limpeza{display:flex;flex-direction:column;gap:4px;border-left:3px solid var(--orange);background:var(--bg);border-radius:8px;padding:8px 12px;font-size:.92rem}
+/* Gira em aberto: borda realçada para chamar a atenção. */
+.card-gira.aberta{border:2px solid var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent),0 6px 18px color-mix(in srgb,var(--accent) 14%,transparent)}
 .limpeza.licenca{border-left-color:var(--off)}
 .limpeza.ausencia{border-left-color:#e8b400;background:var(--warn-soft)}
 .limp-sel{font-size:.85rem;padding:3px 6px;width:auto}
