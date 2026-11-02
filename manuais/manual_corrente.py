@@ -103,7 +103,7 @@ perfil = bloco(
   tabela(['Selo', 'Quer dizer'], [
     ['<font color="#9a6a10"><b>não preenchido</b></font>', 'Falta responder.'],
     ['<font color="#2c4ea3"><b>em andamento</b></font>', 'Você preencheu uma parte.'],
-    ['<font color="#c2570c"><b>pendente oferenda de apresentação</b></font>', 'Tudo escolhido, mas falta marcar alguma oferenda.'],
+    ['<font color="#c2570c"><b>pendências</b></font>', 'Tudo escolhido, mas falta marcar alguma oferenda.'],
     ['<font color="#24785a"><b>preenchido</b></font>', 'Tudo certo.'],
   ], [0.45, 0.55]),
   h3('Informações'),

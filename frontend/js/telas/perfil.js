@@ -118,10 +118,10 @@ function cardInfo(eu) {
 
 // Selo ao lado do título: "não preenchido" (amarelo) ou "preenchido" (verde).
 // ok: true/false, ou um estado: 'oferenda' (laranja) / 'andamento' (azul).
-const SELOS = { true: ['ok', 'preenchido'], false: ['', 'não preenchido'], oferenda: ['oferenda', 'pendente oferenda de apresentação'], andamento: ['andamento', 'em andamento'] };
+const SELOS = { true: ['ok', 'preenchido'], false: ['', 'não preenchido'], oferenda: ['oferenda', 'pendências'], andamento: ['andamento', 'em andamento'] };
 const selo = (ok) => { const [c, t] = SELOS[ok] || SELOS.false; return `<span class="selo-preench ${c}">${t}</span>`; };
 // Orixás / Guias: todos escolhidos e todas as oferendas marcadas = preenchido;
-// tudo escolhido mas falta alguma oferenda = pendente oferenda de apresentação.
+// tudo escolhido mas falta alguma oferenda = pendências.
 function situacaoOferendas(itens, campo) {
   if (!itens.every((x) => x[campo])) return false;
   return itens.every((x) => x.oferenda) ? true : 'oferenda';
