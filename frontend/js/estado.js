@@ -184,6 +184,8 @@ async function situacaoDaGira(acao, extra = {}) {
 export const encerrarGira = (atendimentos) => situacaoDaGira('encerrar', { atendimentos });
 export const reabrirGira = () => situacaoDaGira('reabrir');
 export const reiniciarGira = () => situacaoDaGira('reiniciar');
+// Cancela o sorteio: apaga as duplas (e despublica), volta ao botão Sortear.
+export const cancelarSorteio = () => situacaoDaGira('cancelarSorteio');
 // Acesso da corrente: a própria pessoa declara que não vai (Pendente → Ausente).
 export const declararAusencia = () => situacaoDaGira('ausencia');
 export const publicarEscala = (publicada = true) => situacaoDaGira('publicar', { publicada });

@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, declararAusencia, publicarEscala, carregarOferendas, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, reiniciarGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
@@ -302,8 +302,13 @@ function acoesSorteio(g, remanejarOk, manualOk, manual) {
         <span class="row" style="gap:6px"><button class="btn small primary" data-act="remanejar">Confirmar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>` : '';
   return `<div class="sort-acoes${bts.length === 1 ? ' um' : ''}">${bts.join('')}</div>${conf}`;
 }
-// Título do bloco do sorteio: para quem não edita, depois de publicado, "Sorteio realizado!".
-const tituloSorteio = () => (pode('giras:editar') ? '<h2>Sorteio</h2>' : '<h2 class="sorteio-ok">🚀 Sorteio realizado! ❤️</h2>');
+// Título do bloco do sorteio: para quem não edita, depois de publicado, "Sorteio realizado!";
+// para o admin, "Sorteio de escala" com o ícone de bingo depois de sorteado.
+const tituloSorteio = (sorteado) => (sorteado && !pode('giras:editar') ? '<h2 class="sorteio-ok">🚀 Sorteio realizado! ❤️</h2>'
+  : `<h2>Sorteio de escala${sorteado ? ' <span aria-hidden="true">🎱</span>' : ''}</h2>`);
+// Confirmação dentro do bloco do sorteio (antes de sortear e antes de cancelar o sorteio).
+const confirmaSorteio = (texto, act, botao) => `<div class="infobox rem-conf"><span>${texto}</span>
+  <span class="row" style="gap:6px"><button class="btn small primary" data-act="${act}">${botao}</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`;
 // Presença e WhatsApp também começam minimizados (abrem enquanto o app estiver aberto).
 const abertos = new Set();
 const cabDobra = (k, titulo, extra = '') => {
@@ -326,7 +331,7 @@ function resultado(g) {
     return temBlocoEu() ? '' : `<div class="card">${caixaPendente(g)}</div>`;
   }
   const aberto = duplasAbertas.has(g.data);
-  let h = `<div class="card"><div class="grp-h">${tituloSorteio()}</div>`;
+  let h = `<div class="card"><div class="grp-h">${tituloSorteio(true)}</div>`;
   if (!aberto) return h + `${blocosFora(pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data)), g)}${botaoDobrar(false)}</div>`;
   h += `<div class="pairs">`;
   lista.forEach((x) => {
@@ -597,8 +602,13 @@ function renderGira() {
   };
   const aberto = manual || duplasAbertas.has(g.data);
   // Moldura dourada de admin para quem pode mexer na gira.
-  h += `<div class="card${admin ? ' adm' : ''}"><div class="grp-h">${temDuplas ? tituloSorteio() : '<h2>Sorteio</h2>'}</div>
-      ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual) : sortearOk ? '<button class="btn primary btn-grande" data-act="sortear">🎲 Sortear</button>' : ''}
+  // Depois de sorteado, o quadrado ↻ no canto cancela o sorteio (apaga as duplas e volta ao Sortear).
+  const cancelaOk = temDuplas && sortearOk;
+  h += `<div class="card${admin ? ' adm' : ''}"><div class="grp-h">${tituloSorteio(temDuplas)}${cancelaOk ? `<button class="sort-cancel" data-act="askdel" data-k="csort:${g.data}" title="Cancelar o sorteio" aria-label="Cancelar o sorteio">↻</button>` : ''}</div>
+      ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Cancelar o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Depois é só sortear de novo.`, 'cancelsort', 'Sim, cancelar') : ''}
+      ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual) : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
+        ? confirmaSorteio('<b>Tem certeza que quer sortear?</b> O app monta as duplas agora.', 'sortear', '🎲 Sortear')
+        : `<button class="btn primary btn-grande" data-act="askdel" data-k="sort:${g.data}">🎲 Sortear</button>`}
       ${editar && temDuplas ? (g.publicada
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
         : `<button class="btn btn-grande pub-bt" data-act="publicar"><span class="pub-tit">📢 Publicar escala</span><span class="pub-sub">Só os admins veem o sorteio até publicar</span></button>`) : ''}
@@ -762,6 +772,7 @@ export const cliques = {
     avisar();
   },
   remanejar: () => { estado.confirm = null; duplasAbertas.add(giraAtual().data); remanejar(); },
+  cancelsort: () => { estado.confirm = null; cancelarSorteio(); },
   faltaask(el) { estado.faltaConf = el.dataset.id; avisar(); },
   faltacancel() { estado.faltaConf = null; avisar(); },
   // Confirmou: presença vira Falta e a escala é refeita (Remanejar faltas).

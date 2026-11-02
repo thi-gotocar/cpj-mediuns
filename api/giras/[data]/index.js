@@ -5,6 +5,7 @@
 //                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
+//                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas) e despublica: volta ao botão Sortear
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
@@ -114,6 +115,16 @@ export default rota({
       const pessoaId = validarId(b.pessoaId, 'Pessoa');
       if (!['p', 'f', 'a'].includes(b.status)) throw new HttpError(400, 'Status inválido.');
       return { gira: await db.rpc('presenca_marcar', { data, pessoaId, status: b.status }), mensagem: 'Presença corrigida.' };
+    }
+    if (b.acao === 'cancelarSorteio') {
+      const quem = await exigir(req, 'giras:sortear');
+      const data = validarData(req.query.data);
+      const atual = await db.rpc('gira_obter', { data });
+      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
+      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+      let gira = await db.rpc('gira_salvar', { data, usuario: quem.id, pares: [], passes: [] });
+      if (gira.publicada) gira = await db.rpc('gira_publicar', { data, publicada: false });
+      return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);

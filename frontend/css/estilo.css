@@ -461,6 +461,9 @@ body.deslogado .rodape{display:none}
 /* Aba Gira: botão grande (Sortear, Adicionar evento) e Ver mais no fim do card */
 .btn-grande{width:100%;padding:14px 16px;font-size:1.1rem;border-radius:10px}
 .sort-acoes{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+/* Quadrado ↻ no canto do bloco do sorteio: cancela o sorteio. */
+.sort-cancel{margin-left:auto;flex:none;width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:700 1.2rem/1 system-ui,sans-serif;cursor:pointer}
+.sort-cancel:hover{border-color:var(--accent);color:var(--accent)}
 .ver-mais{justify-self:center}
 .card-novo .btn-grande{margin-top:4px}
 .pp.ent-l{grid-template-columns:minmax(0,1fr) 150px 36px;align-items:center}

@@ -104,7 +104,8 @@ presenca = bloco(
 
 sorteio = bloco(
   h3('Sortear'),
-  P(f'No bloco <b>Sorteio</b>, toque em {B("Sortear")}. O app monta as duplas na hora.'),
+  P(f'No bloco <b>Sorteio de escala</b>, toque em {B("Sortear")} e confirme. O app monta as duplas na hora e o título ganha o 🎱.'),
+  P(f'Para desfazer, toque no quadrado {B("↻")} no canto do bloco e confirme: todas as duplas são apagadas (também as fixadas), a escala deixa de ficar publicada e volta o botão {B("Sortear")}.'),
   h3('Como o sorteio decide'),
   lista([
     '<b>Recebem cambone:</b> médiuns e At. Extra presentes, na função do dia.',

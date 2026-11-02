@@ -749,6 +749,22 @@ test('reiniciar gira em aberto: volta tudo ao início, só a data fica', async (
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });
 
+test('cancelar o sorteio: apaga as duplas (também as fixadas) e despublica', async () => {
+  const d = '2029-06-13';
+  await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' });
+  const s1 = (await api('POST', `/api/giras/${d}/sortear`, ADMIN)).json.gira;
+  assert.ok(s1.pares.length > 0, 'sorteou');
+  await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'publicar' });
+  assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'cancelarSorteio' })).status, 403);
+  const r = (await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'cancelarSorteio' })).json;
+  assert.deepEqual(r.gira.pares, []);
+  assert.deepEqual(r.gira.passes || [], []);
+  assert.equal(r.gira.publicada, false);
+  assert.equal(r.gira.entidade, 'Caboclo', 'o resto da gira fica');
+  assert.equal((await api('POST', '/api/giras/2029-06-20', ADMIN, { acao: 'cancelarSorteio' })).status, 404);
+  await api('DELETE', `/api/giras/${d}`, ADMIN);
+});
+
 test('entrada na corrente: só o admin root altera', async () => {
   const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
   const p = ps[0];
