@@ -8,7 +8,7 @@ import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo } from '/shared/resumoGira.js';
-import { eventosDoTopo, dataCurta } from '/shared/eventos.js';
+import { eventosDoTopo, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
 import { textoEntrega, dataBR, ROTULO_MEDIUM } from '/shared/oferendas.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
@@ -404,9 +404,14 @@ function cardSemana() {
   const hj = hoje();
   // Aniversariantes da semana (domingo a sábado): dia/mês do Perfil, com 🎈🎂 antes do nome.
   const evs = [...eventosDoTopo(estado.eventos, hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || (a.niver ? 1 : 0) - (b.niver ? 1 : 0));
-  const dia = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()) + ' ' + dataCurta(d));
-  return `<div class="card ev-semana"><div class="grp-h"><span class="eyebrow">📅 Eventos</span>${evs.length ? `<span class="count">${evs.length}</span>` : ''}</div>
-    ${evs.length ? `<div class="evs-lista">${evs.map((e) => `<div class="evs-l${e.data === hj ? ' hoje' : ''}"><span class="evs-dia">${dia(e.data)}</span><span class="evs-sep">-</span><span class="evs-nome">${e.niver ? '<span class="evs-niver" aria-label="Aniversário">🎈🎂</span> ' : ''}${esc(e.nome)}</span></div>`).join('')}</div>`
+  // Cada evento: "folhinha" com o dia da semana (ou HOJE) e a data, o nome e o tipo num selo à direita.
+  const semana = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()));
+  const tipo = (e) => (e.niver ? ['niver', 'Aniversário'] : [e.tipo || 'evento', TIPO_EVENTO_LABEL[e.tipo] || 'Evento']);
+  return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2>${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</div>
+    ${evs.length ? `<div class="evs-lista">${evs.map((e) => { const [k, rot] = tipo(e); return `<div class="evs-l${e.data === hj ? ' hoje' : ''}">
+        <span class="evs-data"><span class="evs-sem">${semana(e.data)}</span><b>${dataCurta(e.data)}</b></span>
+        <span class="evs-nome">${e.niver ? '<span class="evs-niver" aria-hidden="true">🎈🎂</span> ' : ''}${esc(e.nome)}</span>
+        <span class="evs-tipo ${k}">${rot}</span></div>`; }).join('')}</div>`
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum evento nos próximos 30 dias.</p>'}</div>`;
 }
 

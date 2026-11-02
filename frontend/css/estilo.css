@@ -580,14 +580,18 @@ body.deslogado .rodape{display:none}
 .eu-aus select.st-p:disabled{color:#1d7a3c}
 .eu-trava{font-size:.82rem;flex-basis:100%}
 /* Eventos da semana (topo da aba Gira) */
-.ev-semana{gap:6px;padding-block:12px}
-.evs-lista{max-height:9.5rem;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;margin-right:-6px;padding-right:6px}
-.evs-l{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line);font-size:.95rem}
-.evs-l:first-child{border-top:0}
-.evs-dia{flex:none;min-width:5.6em;font-weight:700;color:var(--accent)}
-.evs-sep{color:var(--muted)}
-.evs-nome{min-width:0;overflow-wrap:anywhere}
-.evs-l.hoje .evs-dia{color:var(--gold)}
+/* Aba Gira → 📅 Eventos: cada evento numa caixinha com a "folhinha" da data, o nome e o tipo à direita */
+.ev-semana{gap:10px;padding-block:14px;border-top:4px solid var(--accent)}
+.evs-tit{font-size:1.1rem}
+.evs-qtd{font-size:.75rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--surface);background:var(--accent);border-radius:20px;padding:1px 8px}
+.evs-lista{max-height:15.5rem;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:6px;margin-right:-6px;padding-right:6px}
+.evs-l{flex:none;display:flex;gap:10px;align-items:center;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:.95rem}
+.evs-data{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;width:3.4rem;padding:3px 0;border-radius:8px;background:var(--accent-soft);color:var(--accent);line-height:1.1}
+.evs-sem{font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.evs-data b{font:700 1rem var(--f-display);font-variant-numeric:tabular-nums}
+.evs-nome{flex:1 1 auto;min-width:0;font-weight:600;overflow-wrap:break-word}
+.evs-l.hoje{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 10%,var(--bg))}
+.evs-l.hoje .evs-data{background:var(--gold);color:var(--surface)}
 /* aba Eventos */
 .ev-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
 .ev-data{flex:0 1 120px}
@@ -608,9 +612,10 @@ body.deslogado .rodape{display:none}
 .ev-tipo{flex:0 1 130px}
 .evs-tipo{flex:none;margin-left:auto;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 8px;background:var(--bg);color:var(--muted);border:1px solid var(--line);align-self:center}
 .ev-nome .evs-tipo{margin-left:4px;vertical-align:middle}
-.evs-tipo.gira{background:#e6ecfb;color:#2c4ea3;border-color:#cdd8f5}
-.evs-tipo.amaci{background:#e3f4e8;color:#1d7a3c;border-color:#c6e7d1}
-.evs-tipo.aviso{background:#fbefc4;color:#7a5600;border-color:#f0dd9a}
+.evs-tipo.gira{background:var(--accent-soft);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.evs-tipo.amaci{background:var(--ok-soft);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,var(--line))}
+.evs-tipo.aviso{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,var(--line))}
+.evs-tipo.niver{background:color-mix(in srgb,#f472b6 14%,transparent);color:#f472b6;border-color:color-mix(in srgb,#f472b6 35%,var(--line))}
 /* aba Perfil: informações */
 .pf-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
 .pf-info-c input{width:100%}
