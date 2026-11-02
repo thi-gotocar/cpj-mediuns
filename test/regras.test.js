@@ -447,3 +447,12 @@ test('aba Curimba: só o root e o Admin curimba (o Admin não vem com ela)', () 
   assert.ok(permissoesDe('admin_curimba', abas('admin_curimba')).includes('curimba:editar'));
   for (const k of ['admin', 'usuario', 'corrente']) assert.ok(!permissoesDe(k, abas(k)).includes('curimba:ver'), k);
 });
+
+test('eventos: orixá aparece só no próprio dia (com duas datas, nas duas)', async () => {
+  const { orixasDoDia } = await import('../shared/eventos.js');
+  assert.deepEqual(orixasDoDia('2026-04-23'), [{ data: '2026-04-23', nome: 'Dia de Ogum', orixa: true }]);
+  assert.deepEqual(orixasDoDia('2026-04-22'), []);
+  assert.deepEqual(orixasDoDia('2026-12-08').map((e) => e.nome), ['Dia de Iemanjá', 'Dia de Oxum']);
+  assert.deepEqual(orixasDoDia('2026-09-30').map((e) => e.nome), ['Dia de Xangô']);
+  assert.deepEqual(orixasDoDia('2026-08-16').map((e) => e.nome), ['Dia de Obaluaê', 'Dia de Omulu']);
+});

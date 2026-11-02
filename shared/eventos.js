@@ -42,4 +42,14 @@ export function eventosDoTopo(eventos, hoje) {
   return (eventos || []).filter((e) => e.data >= hoje && e.data <= (ate[e.tipo || 'evento'] || '9999-12-31')).sort(porData);
 }
 
+// Dia de cada orixá (dia/mês) — lista da casa. Com mais de uma data, aparece em todas.
+export const DIAS_ORIXAS = [
+  ['Oxóssi', ['01-20']], ['Iemanjá', ['02-02', '12-08']], ['Ogum', ['04-23']], ['Oroiná', ['05-24']], ['Obá', ['05-30']],
+  ['Xangô', ['06-24', '09-30']], ['Nanã', ['07-26']], ['Logunã', ['08-11']], ['Obaluaê', ['08-16']], ['Omulu', ['08-16']],
+  ['Oxumaré', ['08-24']], ['Oxum', ['10-12', '12-08']], ['Iansã', ['12-04']], ['Oxalá', ['12-25']],
+];
+// Bloco "Eventos" da aba Gira: o orixá aparece só no próprio dia.
+export const orixasDoDia = (hoje) => DIAS_ORIXAS.filter(([, dias]) => dias.includes(hoje.slice(5)))
+  .map(([orixa]) => ({ data: hoje, nome: 'Dia de ' + orixa, orixa: true }));
+
 export const dataCurta = (isoData) => `${isoData.slice(8, 10)}/${isoData.slice(5, 7)}`;

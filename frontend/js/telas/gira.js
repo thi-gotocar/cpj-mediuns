@@ -8,7 +8,7 @@ import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo } from '/shared/resumoGira.js';
-import { eventosDoTopo, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
+import { eventosDoTopo, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { corDaFaixa } from './curimba.js';
 import { textoEntrega, dataBR, ROTULO_MEDIUM } from '/shared/oferendas.js';
@@ -416,10 +416,12 @@ function blocoSugestao(ps, g) {
 function cardSemana() {
   const hj = hoje();
   // Aniversariantes da semana (domingo a sábado): dia/mês do Perfil, com 🎈🎂 antes do nome.
-  const evs = [...eventosDoTopo(estado.eventos, hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || (a.niver ? 1 : 0) - (b.niver ? 1 : 0));
+  // Orixás: só no próprio dia (DIAS_ORIXAS). No mesmo dia: eventos, depois orixás, depois aniversários.
+  const ordem = (e) => (e.niver ? 2 : e.orixa ? 1 : 0);
+  const evs = [...eventosDoTopo(estado.eventos, hj), ...orixasDoDia(hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
   // Cada evento: "folhinha" com o dia da semana (ou HOJE) e a data, o nome e o tipo num selo à direita.
   const semana = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()));
-  const tipo = (e) => (e.niver ? ['niver', 'Aniversário'] : [e.tipo || 'evento', TIPO_EVENTO_LABEL[e.tipo] || 'Evento']);
+  const tipo = (e) => (e.niver ? ['niver', 'Aniversário'] : e.orixa ? ['orixa', 'Orixá'] : [e.tipo || 'evento', TIPO_EVENTO_LABEL[e.tipo] || 'Evento']);
   return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2>${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</div>
     ${evs.length ? `<div class="evs-lista">${evs.map((e) => { const [k, rot] = tipo(e); return `<div class="evs-l${e.data === hj ? ' hoje' : ''}">
         <span class="evs-data"><span class="evs-sem">${semana(e.data)}</span><b>${dataCurta(e.data)}</b></span>
