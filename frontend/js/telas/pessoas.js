@@ -116,17 +116,17 @@ function editorLinhas(p, c) {
   </details>`;
 }
 
-// Uma pessoa (quem edita): linha 1 = nome, Editar e Excluir; linha 2 = função, 🧹 turma e "+ médium de passe";
+// Uma pessoa (quem edita): linha 1 = nome, função, 🧹 turma, "+ médium de passe" e os botões ✎ (Editar) e 🗑️ (Excluir);
 // depois o resumo das entidades. Nada muda fora do Editar: em Editar, nome, função, turma, "+ médium de passe"
 // e as entidades ficam editáveis e só são gravados no Salvar (Cancelar descarta).
 function linhaPessoa(p, { funcao = true } = {}) {
   const ed = estado.renomear === p.id;
   if (!ed) {
     return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
-        <span class="pp-bts"><button class="btn small pp-bt" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}">Editar</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="p" data-id="${p.id}">Excluir</button></span></div>
-      <div class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
-        <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span>
-        ${p.funcao === 'medium' && p.experiente ? '<span class="pp-fn pp-exp-on">+ médium de passe</span>' : ''}</div>
+        <span class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
+          <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span>
+          ${p.funcao === 'medium' && p.experiente ? '<span class="pp-fn pp-exp-on">+ médium de passe</span>' : ''}</span>
+        <span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="p" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div>
       ${camposDe(p).length ? `<div class="pp-res">${resumoLinhas(p)}</div>` : ''}</div>`;
   }
   return `<div class="pp pp2 pp-editando"><form id="f-ren" class="pp-form" data-id="${p.id}" autocomplete="off">
