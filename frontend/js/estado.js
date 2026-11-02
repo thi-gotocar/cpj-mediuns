@@ -4,6 +4,7 @@
 import { api } from './api.js';
 import { token } from './auth.js';
 import { giraVazia, ordenarPessoas } from '/shared/regras.js';
+import { permissoesDe, PERFIS_PADRAO } from '/shared/permissoes.js';
 import { hoje, toast } from './util.js';
 
 export const estado = {
@@ -39,6 +40,8 @@ export const estado = {
   minhaCurimba: null,  // aba Gira: { aulas } de quem está logado, se for aluno da curimba
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
+  visaoCorrente: false, // root com o botão "Admin" desligado: vê o app como a corrente (só na tela)
+  permCorrente: [],     // permissões do perfil Corrente, usadas nessa visão
 };
 
 const PREF = 'sortmediuns:prefs';
@@ -53,7 +56,7 @@ export function aoMudar(fn) { ouvinte = fn; }
 export const avisar = () => ouvinte();
 
 // ---------- leitura ----------
-export const pode = (perm) => !!estado.me && (estado.me.permissoes || []).includes(perm);
+export const pode = (perm) => !!estado.me && ((estado.visaoCorrente ? estado.permCorrente : estado.me.permissoes) || []).includes(perm);
 export const pessoasOrd = () => ordenarPessoas(estado.pessoas);
 export const nome = (id) => estado.pessoas.find((p) => p.id === id)?.nome || '(removido)';
 export const girasLista = () => Object.values(estado.giras);
@@ -61,7 +64,8 @@ export const giraAtual = () => estado.giras[prefs.data] || giraVazia(prefs.data)
 
 function definirGiras(lista) {
   const novo = {};
-  lista.forEach((g) => { novo[g.data] = g; });
+  // Na visão da corrente, a escala ainda não publicada fica escondida, como o servidor faz para a corrente.
+  lista.forEach((g) => { novo[g.data] = estado.visaoCorrente && !g.publicada ? { ...g, pares: [], passes: [] } : g; });
   // Não sobrescreve giras com edição ainda não enviada.
   Object.keys(pendente).forEach((d) => { if (estado.giras[d]) novo[d] = estado.giras[d]; });
   estado.giras = novo;
@@ -82,6 +86,21 @@ export async function carregarTudo() {
     const datas = Object.keys(estado.giras).sort();
     prefs.data = datas.find((d) => d >= hoje()) || datas[datas.length - 1] || hoje();
   }
+  avisar();
+}
+
+// Root: botão "Admin" no topo. Desligado, a tela fica como a da corrente (abas, botões e escala não publicada);
+// o servidor continua respondendo como root. Ao abrir o app, começa sempre ligado.
+export async function alternarVisaoAdmin() {
+  if (estado.me?.papel !== 'root') return;
+  if (!estado.visaoCorrente) {
+    let abas = PERFIS_PADRAO.find((p) => p.chave === 'corrente').abas;
+    try { abas = (await api('GET', '/usuarios?lista=perfis')).find((p) => p.chave === 'corrente')?.abas || abas; } catch { /* usa o padrão */ }
+    estado.permCorrente = permissoesDe('corrente', abas);
+  }
+  estado.visaoCorrente = !estado.visaoCorrente;
+  estado.confirm = null;
+  try { definirGiras(await api('GET', '/giras')); } catch (e) { toast(e.message); }
   avisar();
 }
 

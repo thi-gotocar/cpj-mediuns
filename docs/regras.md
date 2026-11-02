@@ -66,6 +66,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 
 ## Outros
 
+- **Root: botão Admin** (no topo, embaixo do Sair). Ligado (dourado) = tudo do root; desligado = vê o app como a **corrente** (abas e botões do perfil Corrente; escala não publicada escondida). É só a tela: o servidor continua tratando como root. Ao abrir o app, começa sempre ligado.
 - O app abre sempre na aba **Gira** (não volta na última aba usada); trocar de aba, ou ir por um link como "Ver oferendas ›", começa do topo da página.
 - Oferenda minimizada: mostra os itens com doação pendente (2 à vista, **Ver mais** para os outros) e o link **Ver todos os itens**. Bloqueada continua sem itens para a corrente.
 - Rodapé da oferenda (admin): Compartilhar lista, Compartilhar imagem, Editar e Excluir lado a lado, do mesmo tamanho.

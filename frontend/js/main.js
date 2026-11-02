@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
-import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, alternarVisaoAdmin } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
 import { ehAcessoCorrente, PIN_VALIDO } from '/shared/permissoes.js';
 import * as gira from './telas/gira.js';
@@ -37,8 +37,11 @@ function renderConta() {
   saudNome.textContent = estado.me.nome;
   // Acesso da corrente sem senha: pode criar uma (depois disso o botão some).
   saudExtra.innerHTML = estado.me.corrente && !estado.me.temSenha ? '<button class="btn small" data-conta="criarsenha">🔒 Criar senha</button>' : '';
+  // Root: o botão "Admin" fica embaixo do Sair (ligado = tudo do root; desligado = vê como a corrente).
+  const root = estado.me.papel === 'root';
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : ''}</span>` : ''}
-    <button class="btn small" data-conta="sair">Sair</button>`;
+    <span class="conta-bts"><button class="btn small" data-conta="sair">Sair</button>
+    ${root ? `<button class="btn small bt-admin" data-conta="admin" aria-pressed="${!estado.visaoCorrente}" title="${estado.visaoCorrente ? 'Vendo como a corrente. Toque para voltar às opções de admin.' : 'Toque para ver o app como a corrente.'}">Admin</button>` : ''}</span>`;
   rodape.hidden = false;
   rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${esc(estado.me.papel)}">${esc(estado.me.papelNome || estado.me.papel)}</span>
     ${estado.me.corrente ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
@@ -106,8 +109,9 @@ async function iniciar() {
     return;
   }
   main.innerHTML = '<div class="loading">Carregando a corrente…</div>';
-  // Ao abrir o app (ou entrar), começa sempre na aba Gira.
+  // Ao abrir o app (ou entrar), começa sempre na aba Gira e, para o root, com o "Admin" ligado.
   prefs.tab = 'gira';
+  estado.visaoCorrente = false;
   try {
     await carregarTudo();
   } catch (e) {
@@ -154,9 +158,12 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
+  } else if (b.dataset.conta === 'admin') {
+    await alternarVisaoAdmin();
+    window.scrollTo(0, 0);
   } else if (b.dataset.conta === 'senha') {
     const atual = prompt('Sua senha atual:');
     if (atual === null) return;
