@@ -906,6 +906,9 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-cambone{--fn:var(--ok)}
 .pessoas-tela .fn-senha{--fn:var(--muted)}
 .pessoas-tela .fn-curimba{--fn:var(--off)}
+.pessoas-tela .fn-limpeza{--fn:#2dd4bf}
+.pessoas-tela .fn-alunos{--fn:#a78bfa}
+.pessoas-tela .pp-card > h2,.pessoas-tela .pp-card .turmas-d > summary h2{color:var(--fn)}
 .pessoas-tela .corrente-card{border-top:4px solid var(--gold)}
 /* Os quadradinhos das funções numa linha só (as licenças ficam embaixo) */
 .pessoas-tela .corrente-card .presentes{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));grid-auto-flow:column;gap:5px}

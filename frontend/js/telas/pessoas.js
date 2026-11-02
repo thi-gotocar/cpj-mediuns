@@ -66,7 +66,7 @@ function cardTurmas(ps) {
   const com = ps.filter((p) => p.limpeza);
   if (!com.length) return '';
   const aberto = estado.turmasAbertas ? ' open' : '';
-  return `<div class="card"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${ps.length}</span></summary>
+  return `<div class="card pp-card fn-limpeza"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${ps.length}</span></summary>
     <div class="turmas" style="margin-top:8px">${TURMAS_LIMPEZA.map((t) => {
       const nomes = ps.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome) + (ehCurimba(p) ? ' 🥁' : ''));
       return `<div class="turma-l"><span class="turma-n" aria-hidden="true">${t}</span><div><b>Turma ${t}</b> <span class="muted">(${nomes.length})</span>: ${nomes.length ? nomes.join(', ') : '<span class="muted">ninguém</span>'}</div></div>`;
@@ -211,10 +211,10 @@ function cardAdicionar(ps) {
 // ---------- alunos da CPJ: um sub-bloco por turma ----------
 function cardAlunos() {
   const A = estado.alunos;
-  if (!A) return `<div class="card"><h2>🎓 Alunos</h2><div class="loading">Carregando alunos…</div></div>`;
+  if (!A) return `<div class="card pp-card fn-alunos"><h2>🎓 Alunos</h2><div class="loading">Carregando alunos…</div></div>`;
   const ed = pode('alunos:editar');
   const aberto = estado.alunosAberto ?? false;   // começa minimizado
-  let h = `<div class="card">${cabDobra('dobraralunos', '🎓 Alunos', A.alunos.length, aberto)}`;
+  let h = `<div class="card pp-card fn-alunos">${cabDobra('dobraralunos', '🎓 Alunos', A.alunos.length, aberto)}`;
   if (!aberto) return h + '</div>';
   const grupos = [...A.turmas.map((t) => ({ id: t.id, nome: t.nome, lista: A.alunos.filter((a) => a.turmaId === t.id) })),
     { id: '', nome: 'Sem turma', lista: A.alunos.filter((a) => !a.turmaId || !A.turmas.some((t) => t.id === a.turmaId)) }]
@@ -275,17 +275,18 @@ function renderPessoas() {
   const verAlunos = pode('alunos:ver');
   if (verAlunos && estado.alunos === null) { estado.alunos = undefined; carregarAlunos(); }
   let h = `<section class="panel pessoas-tela">`;
-  if (editar || pode('alunos:editar')) h += cardAdicionar(ps);
+  const add = editar || pode('alunos:editar') ? cardAdicionar(ps) : '';
   // Perfil que só cuida dos alunos (ex.: Admin oferendas): só o Adicionar e o bloco Alunos.
-  if (!pode('pessoas:ver')) return h + (verAlunos ? cardAlunos() : '') + '</section>';
+  if (!pode('pessoas:ver')) return h + add + (verAlunos ? cardAlunos() : '') + '</section>';
   if (!editar) h += `<p class="leitura" style="margin:0">Lista da corrente, só para consulta.</p>`;
   if (!ps.length) {
-    return h + cardCurimba(todas, editar) + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div>${verAlunos ? cardAlunos() : ''}</section>`;
+    return h + add + cardCurimba(todas, editar) + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div>${verAlunos ? cardAlunos() : ''}</section>`;
   }
-  // Ordem: Adicionar, Corrente, Licenças, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba, Turmas da limpeza, Alunos.
+  // Ordem: Corrente (com as licenças), Adicionar, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba, Turmas da limpeza, Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
-    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span class="fn-${f.k}"><span class="muted">${tituloFuncao(f)}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div>
+    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span class="fn-${f.k}"><span class="muted">${f.k === 'extra' ? 'At. Extra' : tituloFuncao(f)}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div>
     ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
+  h += add;
   ORDEM_FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
