@@ -1014,3 +1014,28 @@ section.panel.pf-tela{gap:14px}
 .cur-det{display:flex;flex-direction:column;gap:6px;margin:2px 0 6px;padding:6px 10px;border-radius:10px;background:var(--bg)}
 .cur-det .mp-l:first-child{border-top:0}
 .cur-det .btn{align-self:flex-start}
+
+/* ---------- aba Vídeos ---------- */
+.vd-card{display:flex;flex-direction:column;gap:10px}
+.vd-card>.grp-h h2{margin:0}
+.vd-busca{display:flex;flex-wrap:wrap;gap:8px}
+.vd-busca select{flex:1 1 150px;width:auto}
+.vd-busca input{flex:1 1 150px;width:auto}
+.vd-mes{border-top:1px solid var(--line);padding-top:6px}
+.vd-mes-h{display:flex;align-items:baseline;gap:6px;margin:0 0 2px;font-size:1.02rem;font-weight:400}
+.vd-mes-h .count{margin-left:auto;font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.vd-l{border-top:1px solid var(--line)}
+.vd-mes-h+.vd-l{border-top:0}
+.vd-cab{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;width:100%;background:none;border:0;padding:9px 0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.vd-tit{flex:1 1 0;min-width:0;overflow-wrap:anywhere}
+.vd-dia{color:var(--accent)}
+.vd-cab .seta{flex:none;color:var(--accent)}
+.vd-tags{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px}
+.vd-player{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000}
+.vd-player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vd-acts{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 10px}
+.vd-acts a.btn{text-decoration:none}
+.vd-form{display:flex;flex-direction:column;gap:10px;padding:4px 0 10px}
+.vd-classes{display:flex;flex-direction:column;gap:6px}
+.vd-cl-grupo{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.vd-cl-nome{flex-basis:100%;font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}

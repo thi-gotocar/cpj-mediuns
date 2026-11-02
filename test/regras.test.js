@@ -456,3 +456,15 @@ test('eventos: orixá aparece só no próprio dia (com duas datas, nas duas)', a
   assert.deepEqual(orixasDoDia('2026-09-30').map((e) => e.nome), ['Dia de Xangô']);
   assert.deepEqual(orixasDoDia('2026-08-16').map((e) => e.nome), ['Dia de Obaluaê', 'Dia de Omulu']);
 });
+
+test('aba Vídeos: só o root (o Admin não vem com ela)', () => {
+  assert.ok(PERMISSOES_ROOT.includes('videos:ver') && PERMISSOES_ROOT.includes('videos:editar'));
+  for (const p of PERFIS_PADRAO.filter((x) => x.chave !== 'root')) assert.ok(!permissoesDe(p.chave, p.abas).includes('videos:ver'), p.chave);
+});
+
+test('vídeos: código do YouTube sai de qualquer formato de link', async () => {
+  const { idDoYoutube } = await import('../shared/videos.js');
+  for (const u of ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10', 'youtu.be/dQw4w9WgXcQ?si=x', 'https://m.youtube.com/shorts/dQw4w9WgXcQ',
+    'https://www.youtube.com/live/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', 'dQw4w9WgXcQ']) assert.equal(idDoYoutube(u), 'dQw4w9WgXcQ', u);
+  for (const u of ['https://vimeo.com/123', 'https://evil.com/watch?v=dQw4w9WgXcQ', 'https://youtu.be/curto', '', null]) assert.equal(idDoYoutube(u), null, String(u));
+});

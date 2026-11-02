@@ -8,7 +8,8 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - presença, entidade do dia, **sorteio de cambones e médiuns de passe** com rodízio, remanejamento de faltas, ajuste manual, publicação da escala e exportação para o **WhatsApp** (texto e imagem PNG);
 - perfil de cada pessoa (informações, orixás, guias, guias de atendimento, afinidades);
 - eventos da casa, oferendas, compra coletiva de ervas, histórico e estatísticas;
-- aulas de curimba (aba à parte): alunos da corrente ou de fora, aulas, presença e gráfico de presença.
+- aulas de curimba (aba à parte): alunos da corrente ou de fora, aulas, presença e gráfico de presença;
+- vídeos do YouTube das giras (aba Vídeos, por enquanto só o root), por mês e classificados por orixá/linha.
 
 ## Para quem
 
@@ -31,6 +32,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - **Ação `reiniciar` sem botão.** O Reiniciar saiu do card da gira (refazer o sorteio do zero é pelo ↻); a ação continua em `api/giras/[data]` e nos testes. Remover?
 - **Mudar a data da gira não foi testado no banco.** A migração v56 (`gira_mudar_data`) e os testes novos de `test/api.test.js` não rodaram (sem Postgres local).
 - **Aba Curimba não foi testada no banco.** A migração v57 e o teste de `test/api.test.js` não rodaram (sem Postgres local); conferir no app publicado.
+- **Aba Vídeos não foi testada no banco.** A migração v58 não rodou (sem Postgres local); a tela foi conferida com uma API falsa. Conferir no app publicado.
 - **Afinidade de passe do At. Extra** só existe na aba Pessoas (não no Perfil dele) e não entra na Sugestão Mi/Mãe Vê.
 - **Testes no Windows.** `npm test` depende de Linux (`runuser`) e de Postgres local; na pasta atual não roda.
 - O doc `claude/regras-sort-mediuns.md` do Project é antigo (out/2026); [regras.md](regras.md) é a referência atual.

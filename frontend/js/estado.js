@@ -38,6 +38,8 @@ export const estado = {
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
   curimba: null,       // aba Curimba: { alunos, aulas, presencas }
   minhaCurimba: null,  // aba Gira: { aulas } de quem está logado, se for aluno da curimba
+  videos: null,        // aba Vídeos: [{ id, data, evento, youtube, classes }]
+  vidUi: null,         // aba Vídeos: o que está aberto, o filtro e o formulário
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
   visaoCorrente: false, // root com o botão "Admin" desligado: vê o app como a corrente (só na tela)
@@ -357,6 +359,19 @@ export async function acaoCurimba(acao, dados = {}) {
     estado.curimba = await api('POST', '/pessoas', { acao, ...dados });
     // A pessoa logada pode ser aluna: o bloco da aba Gira acompanha.
     api('GET', '/pessoas?lista=minhaCurimba').then((r) => { estado.minhaCurimba = r?.aulas ? r : null; }).catch(() => {});
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
+// ---------- aba Vídeos (vídeos do YouTube das giras) ----------
+export async function carregarVideos() {
+  try { estado.videos = await api('GET', '/giras?lista=videos'); } catch (e) { toast(e.message); estado.videos = estado.videos || []; }
+  avisar();
+}
+export async function acaoVideos(acao, dados = {}) {
+  try {
+    estado.videos = await api('POST', '/giras', { acao, ...dados });
     avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }

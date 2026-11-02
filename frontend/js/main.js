@@ -14,6 +14,7 @@ import * as oferendas from './telas/oferendas.js';
 import * as perfil from './telas/perfil.js';
 import * as eventos from './telas/eventos.js';
 import * as curimba from './telas/curimba.js';
+import * as videos from './telas/videos.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
@@ -22,13 +23,14 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, usuarios };
+const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
 let digitadoLogin = '';       // o nome como a pessoa digitou (para juntar o que ela preencheu antes)
 let pinLogin = null;          // acesso da corrente: a pessoa tem senha → { nome } (pede a senha)
 let instalado = true;
+let ultimoDesenho = '';    // aba + HTML do último desenho (a aba Vídeos não redesenha se nada mudou)
 
 // ---------- render ----------
 // Topo: "Seja bem-vindo, Nome!" e o Sair à direita. No fim da página: o perfil e o Trocar senha.
@@ -51,6 +53,7 @@ function render() {
   // Fora do app (login, instalação) não mostra o título no topo.
   document.body.classList.toggle('deslogado', !logado());
   if (!logado() || !estado.pronto) {
+    ultimoDesenho = '';
     tabs.hidden = true;
     renderConta();
     if (!logado()) {
@@ -62,7 +65,7 @@ function render() {
   }
   // Abas que o perfil pode ver (a Gira sempre aparece).
   const VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
-    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), gira: true };
+    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver'), gira: true };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
@@ -73,13 +76,19 @@ function render() {
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();
 
+  const html = TELAS[prefs.tab].render();
+  // Aba Vídeos: redesenhar recarrega o vídeo que está tocando; se nada mudou na tela, deixa como está.
+  const desenho = prefs.tab + '|' + html;
+  if (prefs.tab === 'videos' && desenho === ultimoDesenho) return;
+  ultimoDesenho = desenho;
+
   // Preserva o foco e o cursor ao redesenhar.
   const a = document.activeElement;
   // Combos (select) não recebem o foco de volta: no celular isso reabre a lista de opções.
   const fid = a && a.tagName !== 'SELECT' && a.id;
   let ss = null, se = null;
   try { if (fid && a.selectionStart != null) { ss = a.selectionStart; se = a.selectionEnd; } } catch { /* input sem seleção */ }
-  main.innerHTML = TELAS[prefs.tab].render();
+  main.innerHTML = html;
   if (fid) {
     let el = document.getElementById(fid);
     // Campo de data em uso: mantém o mesmo elemento (no celular, trocar o elemento
@@ -127,6 +136,7 @@ quandoSessaoExpirar(() => {
   estado.ervas = null;
   estado.perfil = null;
   estado.curimba = null;
+  estado.videos = null;
   erroLogin = 'Sua sessão terminou. Entre de novo.';
   render();
 });
@@ -145,6 +155,8 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'perfil') estado.perfil = null;
   // Curimba: busca de novo e fecha as janelas abertas.
   if (b.dataset.tab === 'curimba') { estado.curimba = null; if (estado.curUi) estado.curUi.confirmar = null; }
+  // Vídeos: busca de novo e todos voltam fechados.
+  if (b.dataset.tab === 'videos') { estado.videos = null; estado.vidUi = null; }
   // Histórico: o bloco Giras salvas volta minimizado.
   if (b.dataset.tab === 'hist') { estado.stPerfis = null; estado.salvasAberto = false; }
   salvarPerfilAgora();
@@ -158,7 +170,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'admin') {
@@ -235,6 +247,7 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoCorrente(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
+  if (e.target.id === 'vid-busca') videos.buscar(e.target);
   if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
   if (e.target.dataset.mascara === 'tel' && !String(e.inputType || '').startsWith('delete')) mascaraTel(e.target);
   if (prefs.tab === 'perfil' && (e.target.dataset.act === 'pfinfo' || e.target.dataset.act === 'pfnome')) perfil.digitando(e.target);
@@ -308,6 +321,8 @@ main.addEventListener('submit', async (e) => {
     await curimba.enviarAluno(e.target);
   } else if (id === 'f-cur-aula' || id === 'f-cur-aula-ed') {
     await curimba.enviarAula(e.target);
+  } else if (id === 'f-video' || id === 'f-video-ed') {
+    await videos.enviar(e.target);
   } else if (id === 'f-perfilnovo') {
     await usuarios.criarPerfil();
   } else if (id === 'f-perfilnome') {

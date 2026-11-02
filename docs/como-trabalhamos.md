@@ -85,6 +85,6 @@ node test/e2e-servidor.js             # servidor de teste na porta 4310 (banco s
 
 ### Permissões
 
-- Perfis ficam na tabela `perfis` com matriz `abas: { gira|pessoas|alunos|hist|ervas|oferendas|eventos|perfil|curimba: { ver, editar } }`.
+- Perfis ficam na tabela `perfis` com matriz `abas: { gira|pessoas|alunos|hist|ervas|oferendas|eventos|perfil|curimba|videos: { ver, editar } }`.
 - `permissoesDe(papel, abas)` gera as permissões; **root** tem todas + `usuarios:gerenciar`.
-- Perfis padrão: root, admin, usuario, admin_oferendas, admin_ervas, admin_curimba, corrente. A aba Curimba não vem no admin.
+- Perfis padrão: root, admin, usuario, admin_oferendas, admin_ervas, admin_curimba, corrente. As abas Curimba e Vídeos não vêm no admin (Vídeos, por enquanto, só o root).

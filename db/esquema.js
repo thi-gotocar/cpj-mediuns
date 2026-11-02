@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 57;  // v57: aba Curimba (alunos, aulas e presença, à parte da corrente)
+export const VERSAO = 58;  // v58: aba Vídeos (vídeos do YouTube das giras, classificados por orixá/linha)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1803,5 +1803,46 @@ export const MIGRACOES = [
      select jsonb_build_object('aulas', coalesce((select jsonb_agg(jsonb_build_object('data', au.data, 'nome', au.nome, 'status', cp.status) order by au.data)
                                                   from curimba_aulas au left join curimba_presencas cp on cp.aula_id = au.id and cp.aluno_id = a.id), '[]'::jsonb))
      from curimba_alunos a where a.pessoa_id = (p ->> 'pessoaId')::uuid
+   $$`,
+
+  // ================================================== v58: aba Vídeos (vídeos do YouTube das giras)
+  // youtube = o código do vídeo (11 letras); classes = orixás/linhas marcados pelo admin, para a busca.
+  `create table if not exists videos (
+     id         uuid primary key default gen_random_uuid(),
+     data       date not null,
+     evento     text not null check (length(btrim(evento)) between 1 and 120),
+     youtube    text not null check (youtube ~ '^[A-Za-z0-9_-]{11}$'),
+     classes    text[] not null default '{}',
+     criado_em  timestamptz not null default now()
+   )`,
+  `create index if not exists videos_por_data on videos (data)`,
+  `create or replace function videos_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'data', data, 'evento', evento, 'youtube', youtube, 'classes', to_jsonb(classes))
+                               order by data desc, criado_em desc), '[]'::jsonb)
+     from videos
+   $$`,
+  // p = { id?, data, evento, youtube, classes: [..] } — sem id cria.
+  `create or replace function video_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_classes text[] := array(select jsonb_array_elements_text(coalesce(p -> 'classes', '[]'::jsonb)));
+   begin
+     if coalesce(p ->> 'id', '') = '' then
+       insert into videos (data, evento, youtube, classes) values ((p ->> 'data')::date, btrim(p ->> 'evento'), p ->> 'youtube', v_classes);
+     else
+       update videos set data = (p ->> 'data')::date, evento = btrim(p ->> 'evento'), youtube = p ->> 'youtube', classes = v_classes
+       where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Vídeo não encontrado.'; end if;
+     end if;
+     return videos_listar();
+   end;
+   $$`,
+  `create or replace function video_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from videos where id = (p ->> 'id')::uuid;
+     return videos_listar();
+   end;
    $$`,
 ];

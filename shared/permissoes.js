@@ -15,6 +15,7 @@ export const ABAS = [
   { k: 'eventos', nome: 'Eventos', ver: 'O bloco Eventos na aba Gira (a lista do mês).', editar: 'Cadastrar, editar e excluir eventos.' },
   { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás e guias).', editar: 'Ver o perfil de todos e as pendências.' },
   { k: 'curimba', nome: 'Curimba', ver: 'A aba Curimba: alunos, aulas e presença.', editar: 'Cadastrar alunos e aulas e marcar presença.' },
+  { k: 'videos', nome: 'Vídeos', ver: 'A aba Vídeos: assistir aos vídeos das giras.', editar: 'Publicar, classificar e excluir vídeos.' },
 ];
 export const ABA_KEYS = ABAS.map((a) => a.k);
 
@@ -28,6 +29,7 @@ const MAPA = {
   perfil: { ver: ['perfil:ver'], editar: ['perfil:corrente'] },
   eventos: { ver: ['eventos:ver'], editar: ['eventos:editar'] },
   curimba: { ver: ['curimba:ver'], editar: ['curimba:editar'] },
+  videos: { ver: ['videos:ver'], editar: ['videos:editar'] },
 };
 // Todo mundo logado vê os nomes da corrente (para mostrar as duplas, os pedidos etc.).
 const BASE = ['pessoas:ler'];
@@ -62,8 +64,8 @@ const abasDe = (o) => normalizarAbas(o);
 // Perfis que já vêm cadastrados (o root pode mudar tudo, menos o próprio Admin root).
 export const PERFIS_PADRAO = [
   { chave: 'root', nome: 'Admin root', ordem: 0, abas: abasDe(Object.fromEntries(ABA_KEYS.map((k) => [k, tudo(true, true)]))) },
-  // A aba Curimba é um controle à parte: só o root e o Admin curimba.
-  { chave: 'admin', nome: 'Admin', ordem: 1, abas: abasDe(Object.fromEntries(ABA_KEYS.filter((k) => k !== 'curimba').map((k) => [k, tudo(true, true)]))) },
+  // A aba Curimba é um controle à parte: só o root e o Admin curimba. A aba Vídeos, por enquanto, só o root.
+  { chave: 'admin', nome: 'Admin', ordem: 1, abas: abasDe(Object.fromEntries(ABA_KEYS.filter((k) => k !== 'curimba' && k !== 'videos').map((k) => [k, tudo(true, true)]))) },
   { chave: 'usuario', nome: 'Usuário', ordem: 2, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true) }) },
   { chave: 'admin_oferendas', nome: 'Admin oferendas', ordem: 3, abas: abasDe({ gira: tudo(true), alunos: tudo(true, true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true, true), perfil: tudo(true) }) },
   { chave: 'admin_ervas', nome: 'Admin ervas', ordem: 4, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true, true), oferendas: tudo(true), perfil: tudo(true) }) },
