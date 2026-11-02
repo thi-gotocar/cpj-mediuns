@@ -391,7 +391,7 @@ function blocoSugestao(ps, g) {
     : `<div class="sug-l sug-cab" aria-hidden="true"><span>Nome</span><span>Pres.</span>${cabGiras}</div>`;
   const corpo = !sug
     ? '<p class="muted" style="margin:0;font-size:.88rem">Escolha a entidade da gira para ver as sugestões.</p>'
-    : [['Passe', sug.passe], ['Atendimento extra', sug.extra]].map(([t, lista]) => `<div class="grp sug-grp"><div class="sug-sub"><h3>${t}</h3><span class="sug-qtd">${lista.length}</span></div>
+    : [['Passe', sug.passe, 'passe'], ['Atendimento extra', sug.extra, 'extra']].map(([t, lista, k]) => `<div class="grp sug-grp"><div class="sug-sub ${k}"><h3>${t}</h3><span class="sug-qtd">${lista.length}</span></div>
       ${lista.length ? `<div class="sug-lista">${cab}${lista.map((x) => linhaSugestao(x, linha, g.data.slice(0, 4))).join('')}</div>`
         : '<p class="muted sug-vazio">Ninguém marcou esta entidade.</p>'}</div>`).join('');
   return `<div class="card adm sugestao"><div class="grp-h"><h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}</div>${corpo}

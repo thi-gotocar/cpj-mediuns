@@ -738,10 +738,14 @@ body.deslogado .rodape{display:none}
 /* Sugestão Mi/Mãe Vê: tabela alinhada (Nome | Entid. | Pres. | Giras), 5 linhas à vista e o resto com rolagem */
 .sugestao .sug-grp{gap:8px}
 .sug-linha{font-size:.78rem;font-weight:700;color:var(--gold);background:color-mix(in srgb,var(--gold) 12%,transparent);border-radius:20px;padding:2px 10px;white-space:nowrap}
-.sug-sub{display:flex;align-items:center;gap:8px}
-.sug-sub h3{margin:0;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.sug-sub::after{content:"";flex:1;height:1px;background:var(--line);order:3}
-.sug-qtd{order:2;min-width:1.4rem;text-align:center;font-size:.72rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent);background:var(--accent-soft);border-radius:20px;padding:1px 6px}
+/* Títulos dos blocos com cor própria para separar à primeira vista: Passe em azul, Atendimento extra em laranja */
+.sug-sub{--sub:var(--accent);display:flex;align-items:center;gap:8px}
+.sug-sub.extra{--sub:var(--orange)}
+.sug-sub h3{margin:0;font-size:.8rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sub);background:color-mix(in srgb,var(--sub) 13%,transparent);border-left:3px solid var(--sub);border-radius:4px 20px 20px 4px;padding:3px 12px 3px 9px}
+.sug-sub::after{content:"";flex:1;height:2px;border-radius:2px;background:linear-gradient(90deg,color-mix(in srgb,var(--sub) 45%,transparent),transparent);order:3}
+.sug-sub + .sug-lista{border-top:3px solid var(--accent)}
+.sug-sub.extra + .sug-lista{border-top-color:var(--orange)}
+.sug-qtd{order:2;min-width:1.4rem;text-align:center;font-size:.72rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--surface);background:var(--sub);border-radius:20px;padding:1px 6px}
 .sug-lista{--sug-h:2.6rem;display:flex;flex-direction:column;max-height:calc(5 * var(--sug-h) + 3.4rem);overflow-y:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .sug-l{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 3.1rem 4.6rem;align-items:center;column-gap:8px;min-height:var(--sug-h);padding:0 12px;border-bottom:1px solid var(--line);font-size:.92rem}
 .sug-l:last-child{border-bottom:0}
