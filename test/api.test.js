@@ -297,6 +297,38 @@ test('perfis admin oferendas e admin ervas: cada um administra só a sua aba', a
   for (const o of lista.filter((x) => x.titulo === 'Teste')) await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: o.id });
 });
 
+test('curimba: alunos da corrente e de fora, aulas e presença; o aluno vê as próprias aulas', async () => {
+  assert.equal((await api('GET', '/api/pessoas?lista=curimba', USER)).status, 403);
+  assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'curimbaAluno', nome: 'X' })).status, 403);
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Aluna Curimba', funcao: 'senha' });
+  const pe = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Aluna Curimba');
+  await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, email: 'cur@corrente.org', senha: 'senha-forte-9', papel: 'admin_curimba' });
+  const cur = (await api('POST', '/api/auth/entrar', null, { email: 'cur@corrente.org', senha: 'senha-forte-9' })).json.token;
+  assert.equal((await api('GET', '/api/pessoas?lista=minhaCurimba', cur)).json?.aulas, undefined, 'ainda não é aluna');
+  let C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaAluno', pessoaId: pe.id })).json;
+  assert.equal((await api('POST', '/api/pessoas', cur, { acao: 'curimbaAluno', pessoaId: pe.id })).status, 400, 'já é aluna');
+  C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaAluno', nome: 'Visitante de Fora' })).json;
+  assert.equal(C.alunos.length, 2);
+  assert.equal(C.alunos.find((a) => a.nome === 'Aluna Curimba').pessoaId, pe.id);
+  assert.equal((await api('POST', '/api/pessoas', cur, { acao: 'curimbaAluno', nome: 'visitante de fora' })).status, 400, 'nome repetido');
+  C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaAula', data: '2026-03-07', nome: 'Toques' })).json;
+  assert.equal((await api('POST', '/api/pessoas', cur, { acao: 'curimbaAula', data: '2026-03-07' })).status, 400, 'uma aula por dia');
+  const aula = C.aulas[0];
+  const [eu, fora] = [C.alunos.find((a) => a.pessoaId), C.alunos.find((a) => !a.pessoaId)];
+  await api('POST', '/api/pessoas', cur, { acao: 'curimbaPresenca', aulaId: aula.id, alunoId: eu.id, status: 'p' });
+  C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaPresenca', aulaId: aula.id, alunoId: fora.id, status: 'f' })).json;
+  assert.equal(C.presencas.length, 2);
+  assert.equal((await api('POST', '/api/pessoas', cur, { acao: 'curimbaPresenca', aulaId: aula.id, alunoId: eu.id, status: 'a' })).status, 400);
+  assert.deepEqual((await api('GET', '/api/pessoas?lista=minhaCurimba', cur)).json.aulas, [{ data: '2026-03-07', nome: 'Toques', status: 'p' }]);
+  assert.equal((await api('GET', '/api/pessoas?lista=curimba', ADMIN)).status, 200, 'o root vê');
+  C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaPresenca', aulaId: aula.id, alunoId: fora.id, status: '' })).json;
+  assert.equal(C.presencas.length, 1, 'vazio tira a marcação');
+  C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaExcluirAula', id: aula.id })).json;
+  assert.equal(C.presencas.length, 0, 'excluir a aula leva as presenças');
+  for (const a of C.alunos) C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaExcluirAluno', id: a.id })).json;
+  assert.equal(C.alunos.length, 0);
+});
+
 test('admin só entra como admin com o e-mail dele; pelo cpj entra como corrente', async () => {
   // Liga um admin a uma pessoa da corrente e tenta entrar pelo acesso da corrente com o nome dele.
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Admin Pessoa', funcao: 'senha' });
@@ -897,7 +929,7 @@ test('reiniciar: a turma da limpeza volta para a próxima do rodízio', async ()
 
 test('perfis no banco: o root cria um perfil, marca as abas e as permissões valem na hora', async () => {
   const perfis = (await api('GET', '/api/usuarios?lista=perfis', ADMIN)).json;
-  assert.ok(['root', 'admin', 'usuario', 'admin_oferendas', 'admin_ervas', 'corrente'].every((k) => perfis.some((f) => f.chave === k)));
+  assert.ok(['root', 'admin', 'usuario', 'admin_oferendas', 'admin_ervas', 'admin_curimba', 'corrente'].every((k) => perfis.some((f) => f.chave === k)));
   assert.equal((await api('GET', '/api/usuarios?lista=perfis', USER)).status, 403);
   const criado = (await api('POST', '/api/usuarios', ADMIN, { acao: 'perfil', nome: 'Admin giras', abas: { gira: { editar: true } } })).json;
   const ag = criado.find((f) => f.nome === 'Admin giras');

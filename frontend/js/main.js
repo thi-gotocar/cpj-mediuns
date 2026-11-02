@@ -13,6 +13,7 @@ import * as ervas from './telas/ervas.js';
 import * as oferendas from './telas/oferendas.js';
 import * as perfil from './telas/perfil.js';
 import * as eventos from './telas/eventos.js';
+import * as curimba from './telas/curimba.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
@@ -21,7 +22,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, usuarios };
+const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -58,7 +59,7 @@ function render() {
   }
   // Abas que o perfil pode ver (a Gira sempre aparece).
   const VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
-    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), gira: true };
+    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), gira: true };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
@@ -119,6 +120,7 @@ quandoSessaoExpirar(() => {
   estado.usuarios = null;
   estado.ervas = null;
   estado.perfil = null;
+  estado.curimba = null;
   erroLogin = 'Sua sessão terminou. Entre de novo.';
   render();
 });
@@ -135,6 +137,8 @@ tabs.addEventListener('click', (e) => {
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
   if (b.dataset.tab === 'perfil') estado.perfil = null;
+  // Curimba: busca de novo e fecha as janelas abertas.
+  if (b.dataset.tab === 'curimba') { estado.curimba = null; if (estado.curUi) estado.curUi.confirmar = null; }
   // Histórico: o bloco Giras salvas volta minimizado.
   if (b.dataset.tab === 'hist') { estado.stPerfis = null; estado.salvasAberto = false; }
   salvarPerfilAgora();
@@ -147,7 +151,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {
@@ -290,6 +294,10 @@ main.addEventListener('submit', async (e) => {
     await usuarios.renomear(e.target);
   } else if (id === 'f-evento' || id === 'f-evento-ed') {
     await eventos.enviar(e.target);
+  } else if (id === 'f-cur-aluno') {
+    await curimba.enviarAluno(e.target);
+  } else if (id === 'f-cur-aula' || id === 'f-cur-aula-ed') {
+    await curimba.enviarAula(e.target);
   } else if (id === 'f-perfilnovo') {
     await usuarios.criarPerfil();
   } else if (id === 'f-perfilnome') {

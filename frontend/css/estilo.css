@@ -977,3 +977,28 @@ section.panel.pf-tela{gap:14px}
 .lic-h-l{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .lic-h-l.lic-ed{display:grid;gap:8px}
 .lic-h-t{min-width:0;font-size:.9rem;overflow-wrap:anywhere}
+/* aba Curimba (e o bloco Aula de curimba da aba Gira) */
+.mp-st.p{background:var(--ok-soft);color:var(--ok)}
+.mp-st.nada{background:var(--bg);color:var(--muted)}
+.cur-alunos .grp-h,.cur-gira .grp-h{align-items:center}
+.cur-alunos .grp-h h2{flex:1 1 auto;margin:0}
+.cur-mais{flex:none;min-width:40px;font-size:1.1rem;font-weight:700}
+.cur-novo{display:flex;flex-direction:column;gap:8px;padding:10px;border:1.5px dashed var(--gold);border-radius:10px}
+.cur-novo .seg{align-self:flex-start}
+.cur-lista{display:flex;flex-direction:column}
+.cur-al{display:flex;align-items:center;gap:8px;min-height:2.6rem;padding:6px 0;border-top:1px solid var(--line)}
+.cur-al:first-child{border-top:0}
+.cur-nm{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-weight:600}
+.cur-tag{flex:none;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 8px;border:1px solid var(--line);color:var(--muted)}
+.cur-tag.cor{background:var(--accent-soft);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.cur-cont{margin:0;font-size:.85rem}
+.cur-st{flex:0 0 auto;width:auto;min-width:7.5rem;font-size:.9rem;padding:5px 8px}
+.cur-st.p{border-color:var(--ok);color:var(--ok)}.cur-st.f{border-color:var(--off);color:var(--off)}
+.cur-gr-l{padding-top:8px;border-top:1px solid var(--line)}
+.cur-gr-nome{display:flex;align-items:baseline;gap:8px;width:100%;background:none;border:0;padding:2px 0;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.cur-gr-nome .cur-nm{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.cur-gr-pct{flex:none;font-size:.9rem;font-variant-numeric:tabular-nums}
+.cur-gr-pct.ok b{color:var(--ok)}.cur-gr-pct.medio b{color:var(--warn)}.cur-gr-pct.baixo b{color:var(--off)}
+.cur-det{display:flex;flex-direction:column;gap:6px;margin:2px 0 6px;padding:6px 10px;border-radius:10px;background:var(--bg)}
+.cur-det .mp-l:first-child{border-top:0}
+.cur-det .btn{align-self:flex-start}

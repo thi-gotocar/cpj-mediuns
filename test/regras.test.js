@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium } from '../shared/regras.js';
+import { PERFIS_PADRAO, PERMISSOES_ROOT, permissoesDe } from '../shared/permissoes.js';
 
 test('entidade da gira é reconhecida com variações de escrita', () => {
   assert.equal(linhaDaEntidade('Preto Velho'), 'preto-velho');
@@ -438,4 +439,11 @@ test('sugestão Mi/Mãe Vê: presença no ano, giras da linha e ordem', async ()
   assert.deepEqual(r2.passe.map((x) => x.nome), ['Eva', 'Ana', 'Fábio', 'Caio', 'Duda', 'Bia']);
   assert.deepEqual(r2.passe[0].oferendas, { frente: true, ancestral: false, adjunto: false, chefe: false, guiaFrente: false });
   assert.deepEqual(r2.passe.find((x) => x.nome === 'Bia').oferendas, { frente: false, ancestral: false, adjunto: false, chefe: false, guiaFrente: false });
+});
+
+test('aba Curimba: só o root e o Admin curimba (o Admin não vem com ela)', () => {
+  const abas = (chave) => PERFIS_PADRAO.find((p) => p.chave === chave).abas;
+  assert.ok(PERMISSOES_ROOT.includes('curimba:editar'));
+  assert.ok(permissoesDe('admin_curimba', abas('admin_curimba')).includes('curimba:editar'));
+  for (const k of ['admin', 'usuario', 'corrente']) assert.ok(!permissoesDe(k, abas(k)).includes('curimba:ver'), k);
 });

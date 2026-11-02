@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 56;  // v56: gira_mudar_data (trocar a data programada de uma gira em aberto)
+export const VERSAO = 57;  // v57: aba Curimba (alunos, aulas e presença, à parte da corrente)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1704,5 +1704,104 @@ export const MIGRACOES = [
      delete from giras where data = v_de;
      return gira_obter(jsonb_build_object('data', v_para));
    end;
+   $$`,
+
+  // ================================================== v57: aba Curimba (controle à parte: alunos, aulas e presença)
+  // O aluno pode ser alguém da corrente (pessoa_id: o nome vem do cadastro) ou de fora (só o nome).
+  `create table if not exists curimba_alunos (
+     id         uuid primary key default gen_random_uuid(),
+     nome       text not null check (length(btrim(nome)) between 1 and 80),
+     pessoa_id  uuid references pessoas (id) on delete set null,
+     criado_em  timestamptz not null default now()
+   )`,
+  `create unique index if not exists curimba_alunos_pessoa on curimba_alunos (pessoa_id) where pessoa_id is not null`,
+  // Uma aula por dia.
+  `create table if not exists curimba_aulas (
+     id         uuid primary key default gen_random_uuid(),
+     data       date not null unique,
+     nome       text not null default '' check (length(nome) <= 120),
+     criado_em  timestamptz not null default now()
+   )`,
+  `create table if not exists curimba_presencas (
+     aula_id   uuid not null references curimba_aulas (id) on delete cascade,
+     aluno_id  uuid not null references curimba_alunos (id) on delete cascade,
+     status    text not null check (status in ('p', 'f')),
+     primary key (aula_id, aluno_id)
+   )`,
+  `create or replace function curimba_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'alunos', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'nome', coalesce(pe.nome, a.nome), 'pessoaId', a.pessoa_id)
+                                            order by lower(coalesce(pe.nome, a.nome)))
+                           from curimba_alunos a left join pessoas pe on pe.id = a.pessoa_id), '[]'::jsonb),
+       'aulas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'data', data, 'nome', nome) order by data) from curimba_aulas), '[]'::jsonb),
+       'presencas', coalesce((select jsonb_agg(jsonb_build_object('aulaId', aula_id, 'alunoId', aluno_id, 'status', status)) from curimba_presencas), '[]'::jsonb))
+   $$`,
+  // p = { pessoaId } (da corrente) ou { nome } (de fora).
+  `create or replace function curimba_aluno_criar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_pessoa uuid := nullif(p ->> 'pessoaId', '')::uuid;
+     v_nome text := btrim(coalesce(p ->> 'nome', ''));
+   begin
+     if v_pessoa is not null then
+       select nome into v_nome from pessoas where id = v_pessoa;
+       if not found then raise exception 'Pessoa não encontrada.'; end if;
+       if exists (select 1 from curimba_alunos where pessoa_id = v_pessoa) then raise exception 'Essa pessoa já é aluna da curimba.'; end if;
+     elsif exists (select 1 from curimba_alunos a left join pessoas pe on pe.id = a.pessoa_id
+                    where lower(btrim(coalesce(pe.nome, a.nome))) = lower(v_nome)) then
+       raise exception 'Já existe um aluno com esse nome.';
+     end if;
+     insert into curimba_alunos (nome, pessoa_id) values (v_nome, v_pessoa);
+     return curimba_estado();
+   end;
+   $$`,
+  `create or replace function curimba_aluno_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from curimba_alunos where id = (p ->> 'id')::uuid;
+     return curimba_estado();
+   end;
+   $$`,
+  `create or replace function curimba_aula_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if coalesce(p ->> 'id', '') = '' then
+       insert into curimba_aulas (data, nome) values ((p ->> 'data')::date, btrim(coalesce(p ->> 'nome', '')));
+     else
+       update curimba_aulas set data = (p ->> 'data')::date, nome = btrim(coalesce(p ->> 'nome', '')) where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Aula não encontrada.'; end if;
+     end if;
+     return curimba_estado();
+   exception when unique_violation then
+     raise exception 'Já existe uma aula nesta data.';
+   end;
+   $$`,
+  `create or replace function curimba_aula_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from curimba_aulas where id = (p ->> 'id')::uuid;
+     return curimba_estado();
+   end;
+   $$`,
+  // p = { aulaId, alunoId, status: 'p' | 'f' | '' } — vazio tira a marcação.
+  `create or replace function curimba_presenca(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if coalesce(p ->> 'status', '') = '' then
+       delete from curimba_presencas where aula_id = (p ->> 'aulaId')::uuid and aluno_id = (p ->> 'alunoId')::uuid;
+     else
+       insert into curimba_presencas (aula_id, aluno_id, status) values ((p ->> 'aulaId')::uuid, (p ->> 'alunoId')::uuid, p ->> 'status')
+       on conflict (aula_id, aluno_id) do update set status = excluded.status;
+     end if;
+     return curimba_estado();
+   end;
+   $$`,
+  // Aba Gira: as aulas de quem está logado (null se a pessoa não é aluna da curimba).
+  `create or replace function curimba_minha(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('aulas', coalesce((select jsonb_agg(jsonb_build_object('data', au.data, 'nome', au.nome, 'status', cp.status) order by au.data)
+                                                  from curimba_aulas au left join curimba_presencas cp on cp.aula_id = au.id and cp.aluno_id = a.id), '[]'::jsonb))
+     from curimba_alunos a where a.pessoa_id = (p ->> 'pessoaId')::uuid
    $$`,
 ];

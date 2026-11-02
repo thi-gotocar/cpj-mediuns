@@ -73,6 +73,11 @@ erDiagram
     OFERENDAS ||--o{ OFERENDA_ALUNOS : por_aluno
     ALUNOS ||--o{ OFERENDA_ALUNOS : participa
     ERVAS ||--o{ ERVAS_ESCOLHAS : pedidos
+    PESSOAS |o--o{ CURIMBA_ALUNOS : "pessoa_id (nulo = de fora)"
+    CURIMBA_AULAS ||--o{ CURIMBA_PRESENCAS : registra
+    CURIMBA_ALUNOS ||--o{ CURIMBA_PRESENCAS : marca
 ```
+
+A curimba (aba Curimba) tem tabelas próprias, sem ligação com `giras`/`presencas`: é um controle à parte. A API fica em `api/pessoas` (`?lista=curimba`, `?lista=minhaCurimba` e ações `curimba*`), para não criar função nova.
 
 Outras tabelas: `sistema` (chave/valor: segredo de sessão, marcadores de migração), `login_falhas`, `eventos`.

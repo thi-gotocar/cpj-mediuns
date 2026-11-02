@@ -53,6 +53,15 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **Curimba**: só as Informações pessoais — não cadastra orixás, guias nem guias de atendimento. O backend grava só as informações (`perfilDaFuncao`); a curimba fica fora de Respostas, Oferendas pendentes, do "Orixás e guias" dos Ajustes e das estatísticas de perfil do Histórico.
 - Admin (moldura ADMIN): Ajustes, Informações da corrente, Respostas, Oferendas pendentes.
 
+## Curimba (aba própria)
+
+- Controle **à parte** da corrente: alunos, aulas e presença próprios — não mexem na presença das giras, no sorteio nem nos alunos da aba Pessoas. Veem a aba só o **root** e o perfil **Admin curimba** (o Admin não vem com ela; o root pode liberar na aba Usuários).
+- **＋** no bloco Alunos: aluno **da corrente** (escolhe a pessoa; o nome segue o cadastro) ou **de fora** (só o nome, sem cadastro na corrente). Uma pessoa da corrente só entra uma vez; nome de fora não repete.
+- **🗓️ Aulas - curimba**: cadastrar aula (data e nome opcional, **uma aula por dia**) e aulas cadastradas por mês, do mais recente ao mais antigo (editar/excluir). Excluir aula ou aluno leva as presenças junto.
+- **📋 Presença da aula**: escolhe a data da aula (abre na mais recente até hoje) e marca cada aluno como **Presente** ou **Falta** (ou "—", sem marcação). Toda mudança pede confirmação numa janela.
+- **📊 Gráficos**: % de presença de cada aluno sobre as aulas **marcadas** (sem marcação não conta), com barra verde/amarela/vermelha (90% / 50%); tocar no nome abre as aulas (dia, Presente/Ausente) e **Recolher** fecha.
+- Único ponto em comum com o app: quem está logado e é aluno da corrente vê na aba Gira, logo depois de "Sua presença", o bloco **🥁 Aula de curimba** com a % e as aulas até hoje (Presente/Falta).
+
 ## Outros
 
 - Oferenda minimizada: mostra os itens com doação pendente (2 à vista, **Ver mais** para os outros) e o link **Ver todos os itens**. Bloqueada continua sem itens para a corrente.

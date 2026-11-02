@@ -35,6 +35,8 @@ export const estado = {
   alunos: null,        // aba Pessoas: { turmas, alunos }
   stPerfis: null,      // Histórico → Estatísticas: contagens do Perfil { total, chefe, frente, orixa } (undefined = carregando)
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
+  curimba: null,       // aba Curimba: { alunos, aulas, presencas }
+  minhaCurimba: null,  // aba Gira: { aulas } de quem está logado, se for aluno da curimba
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
 };
@@ -66,10 +68,11 @@ function definirGiras(lista) {
 }
 
 export async function carregarTudo() {
-  const [me, pessoas, giras, eventos] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
-    api('GET', '/giras?lista=eventos').catch(() => [])]);
+  const [me, pessoas, giras, eventos, minhaCurimba] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
+    api('GET', '/giras?lista=eventos').catch(() => []), api('GET', '/pessoas?lista=minhaCurimba').catch(() => null)]);
   estado.me = me;
   estado.eventos = eventos;
+  estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
   estado.pessoas = pessoas;
   definirGiras(giras);
   estado.pronto = true;
@@ -90,9 +93,11 @@ export async function atualizarDoServidor() {
   if (Date.now() - ultimaAtualizacao < 15000) return;
   ultimaAtualizacao = Date.now();
   try {
-    const [pessoas, giras, eventos] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos)]);
+    const [pessoas, giras, eventos, minhaCurimba] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos),
+      api('GET', '/pessoas?lista=minhaCurimba').catch(() => estado.minhaCurimba)]);
     estado.pessoas = pessoas;
     estado.eventos = eventos || [];
+    estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
     definirGiras(giras);
     // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
     if (estado.oferendas !== null && prefs.tab === 'oferendas' && !Object.values(timersDoacao).some(Boolean)) {
@@ -318,6 +323,21 @@ export async function acaoUsuarios(acao, dados = {}) {
 export async function acaoEventos(acao, dados = {}) {
   try {
     estado.eventos = await api('POST', '/giras', { acao, ...dados });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
+// ---------- aba Curimba (alunos, aulas e presença: à parte da corrente) ----------
+export async function carregarCurimba() {
+  try { estado.curimba = await api('GET', '/pessoas?lista=curimba'); } catch (e) { toast(e.message); estado.curimba = estado.curimba || { alunos: [], aulas: [], presencas: [] }; }
+  avisar();
+}
+export async function acaoCurimba(acao, dados = {}) {
+  try {
+    estado.curimba = await api('POST', '/pessoas', { acao, ...dados });
+    // A pessoa logada pode ser aluna: o bloco da aba Gira acompanha.
+    api('GET', '/pessoas?lista=minhaCurimba').then((r) => { estado.minhaCurimba = r?.aulas ? r : null; }).catch(() => {});
     avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }

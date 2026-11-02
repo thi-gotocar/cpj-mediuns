@@ -6,6 +6,11 @@
 // GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa, cabeca, cabecaPessoas }  (Histórico → Estatísticas: só contagens do Perfil)
 // POST /api/pessoas            { acao: 'alunos', nome: "A, B", turmaId } · { acao: 'aluno', id, nome?, turmaId? }
 //                              { acao: 'excluirAluno', id } · { acao: 'turma', nome }  → { turmas, alunos }
+// GET  /api/pessoas?lista=curimba      { alunos, aulas, presencas }  (aba Curimba: controle à parte da corrente)
+// GET  /api/pessoas?lista=minhaCurimba { aulas: [{ data, nome, status }] } | null  (aba Gira: as aulas de quem está logado)
+// POST /api/pessoas            { acao: 'curimbaAluno', pessoaId? | nome } · { acao: 'curimbaExcluirAluno', id }
+//                              { acao: 'curimbaAula', id?, data, nome? } · { acao: 'curimbaExcluirAula', id }
+//                              { acao: 'curimbaPresenca', aulaId, alunoId, status: 'p'|'f'|'' }  → { alunos, aulas, presencas }
 import { rota, corpo, HttpError, validarData, validarId } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -13,6 +18,7 @@ import { FUNCAO_KEYS } from '../../shared/regras.js';
 import { contagemPerfis } from '../../shared/perfil.js';
 
 const ACOES_ALUNOS = ['alunos', 'aluno', 'excluirAluno', 'turma'];
+const ACOES_CURIMBA = ['curimbaAluno', 'curimbaExcluirAluno', 'curimbaAula', 'curimbaExcluirAula', 'curimbaPresenca'];
 const limpar = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max + 1);
 const turmaId = (v) => (v ? validarId(v, 'Turma') : '');
 
@@ -40,11 +46,37 @@ async function acaoAlunos(b) {
   return db.rpc('alunos_criar', { nomes, turmaId: turmaId(b.turmaId) });
 }
 
+function acaoCurimba(b) {
+  if (b.acao === 'curimbaAluno') {
+    if (b.pessoaId) return db.rpc('curimba_aluno_criar', { pessoaId: validarId(b.pessoaId, 'Pessoa') });
+    const nome = limpar(b.nome, 80);
+    if (!nome || nome.length > 80) throw new HttpError(400, 'Informe o nome do aluno (até 80 letras).');
+    return db.rpc('curimba_aluno_criar', { nome });
+  }
+  if (b.acao === 'curimbaExcluirAluno') return db.rpc('curimba_aluno_excluir', { id: validarId(b.id, 'Aluno') });
+  if (b.acao === 'curimbaExcluirAula') return db.rpc('curimba_aula_excluir', { id: validarId(b.id, 'Aula') });
+  if (b.acao === 'curimbaAula') {
+    const nome = limpar(b.nome, 120);
+    if (nome.length > 120) throw new HttpError(400, 'Nome da aula muito longo (até 120 letras).');
+    return db.rpc('curimba_aula_salvar', { id: b.id ? validarId(b.id, 'Aula') : '', data: validarData(String(b.data || '')), nome });
+  }
+  if (!['p', 'f', ''].includes(b.status ?? '')) throw new HttpError(400, 'Escolha presença ou falta.');
+  return db.rpc('curimba_presenca', { aulaId: validarId(b.aulaId, 'Aula'), alunoId: validarId(b.alunoId, 'Aluno'), status: b.status || '' });
+}
+
 export default rota({
   GET: async (req) => {
     if (req.query.lista === 'alunos') {
       await exigir(req, 'alunos:ver');
       return db.rpc('alunos_estado');
+    }
+    if (req.query.lista === 'curimba') {
+      await exigir(req, 'curimba:ver');
+      return db.rpc('curimba_estado');
+    }
+    if (req.query.lista === 'minhaCurimba') {
+      const eu = await exigir(req);
+      return eu.pessoaId ? db.rpc('curimba_minha', { pessoaId: eu.pessoaId }) : null;
     }
     if (req.query.lista === 'perfis') {
       await exigir(req, 'historico:ver');
@@ -58,6 +90,10 @@ export default rota({
     if (ACOES_ALUNOS.includes(b.acao)) {
       await exigir(req, 'alunos:editar');
       return acaoAlunos(b);
+    }
+    if (ACOES_CURIMBA.includes(b.acao)) {
+      await exigir(req, 'curimba:editar');
+      return acaoCurimba(b);
     }
     await exigir(req, 'pessoas:editar');
     if (b.acao === 'licenca' || b.acao === 'editarLicenca') {
