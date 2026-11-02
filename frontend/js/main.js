@@ -5,6 +5,7 @@ import { quandoSessaoExpirar } from './api.js';
 import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, alternarVisaoAdmin } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
 import { ehAcessoCorrente, PIN_VALIDO } from '/shared/permissoes.js';
+import { FOTOS_ATIVA } from '/shared/fotos.js';
 import * as gira from './telas/gira.js';
 import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
@@ -15,6 +16,7 @@ import * as perfil from './telas/perfil.js';
 import * as eventos from './telas/eventos.js';
 import * as curimba from './telas/curimba.js';
 import * as videos from './telas/videos.js';
+import * as fotos from './telas/fotos.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
@@ -23,7 +25,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, usuarios };
+const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -65,7 +67,7 @@ function render() {
   }
   // Abas que o perfil pode ver (a Gira sempre aparece).
   const VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
-    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver'), gira: true };
+    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver'), fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
@@ -137,6 +139,7 @@ quandoSessaoExpirar(() => {
   estado.perfil = null;
   estado.curimba = null;
   estado.videos = null;
+  estado.fotos = null;
   erroLogin = 'Sua sessão terminou. Entre de novo.';
   render();
 });
@@ -157,6 +160,8 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'curimba') { estado.curimba = null; if (estado.curUi) estado.curUi.confirmar = null; }
   // Vídeos: busca de novo e todos voltam fechados.
   if (b.dataset.tab === 'videos') { estado.videos = null; estado.vidUi = null; }
+  // Fotos: busca de novo (os links das fotos expiram) e os álbuns voltam fechados, a não ser no meio de um envio.
+  if (b.dataset.tab === 'fotos') { estado.fotos = null; if (!estado.fotUi?.envio) estado.fotUi = null; }
   // Histórico: o bloco Giras salvas volta minimizado.
   if (b.dataset.tab === 'hist') { estado.stPerfis = null; estado.salvasAberto = false; }
   salvarPerfilAgora();
@@ -170,7 +175,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'admin') {
@@ -250,6 +255,7 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'vid-busca') videos.buscar(e.target);
   if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
   if (e.target.dataset.mascara === 'tel' && !String(e.inputType || '').startsWith('delete')) mascaraTel(e.target);
+  if (prefs.tab === 'fotos' && (e.target.id === 'ft-data' || e.target.id === 'ft-nome')) fotos.digitando(e.target);
   if (prefs.tab === 'perfil' && (e.target.dataset.act === 'pfinfo' || e.target.dataset.act === 'pfnome')) perfil.digitando(e.target);
   if (prefs.tab === 'ervas' && e.target.dataset.compra) ervas.digitando(e.target);
 });
@@ -321,6 +327,8 @@ main.addEventListener('submit', async (e) => {
     await curimba.enviarAluno(e.target);
   } else if (id === 'f-cur-aula' || id === 'f-cur-aula-ed') {
     await curimba.enviarAula(e.target);
+  } else if (id === 'f-ft-album') {
+    await fotos.enviarAlbum(e.target);
   } else if (id === 'f-video' || id === 'f-video-ed') {
     await videos.enviar(e.target);
   } else if (id === 'f-perfilnovo') {

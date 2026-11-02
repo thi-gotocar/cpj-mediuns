@@ -9,7 +9,7 @@ Processo, ambiente e convenções. O que o projeto **é** está em [visao.md](vi
 - Repositório: **`thi-gotocar/cpj-mediuns`** (branch `main`). Produção: **https://cpj-mediuns.vercel.app** — a Vercel publica sozinha a cada `git push` em `main`.
 - Pasta de trabalho: **`C:\Users\Thi\OneDrive\Documentos\sort-mediuns`** — é a única cópia que vale.
 - **Quem faz o `git push` é o usuário.** O assistente só faz commit, e só quando o usuário pede.
-- Vercel: projeto `prj_w0Uv5orUUgrBYO3Lod32NusQGkDi`, time `team_zDUClDMlwzMyd5Xsw0oJ962a`. Variáveis: `DATABASE_URL` (Neon) e `CODIGO_INSTALACAO`.
+- Vercel: projeto `prj_w0Uv5orUUgrBYO3Lod32NusQGkDi`, time `team_zDUClDMlwzMyd5Xsw0oJ962a`. Variáveis: `DATABASE_URL` (Neon), `CODIGO_INSTALACAO` e as `R2_*` das fotos (ver `.env.example`).
 - Logs de runtime da Vercel guardam só ~1 hora (Hobby).
 
 ### Fluxo de entrega
@@ -85,6 +85,6 @@ node test/e2e-servidor.js             # servidor de teste na porta 4310 (banco s
 
 ### Permissões
 
-- Perfis ficam na tabela `perfis` com matriz `abas: { gira|pessoas|alunos|hist|ervas|oferendas|eventos|perfil|curimba|videos: { ver, editar } }`.
+- Perfis ficam na tabela `perfis` com matriz `abas: { gira|pessoas|alunos|hist|ervas|oferendas|eventos|perfil|curimba|videos|fotos: { ver, editar } }`.
 - `permissoesDe(papel, abas)` gera as permissões; **root** tem todas + `usuarios:gerenciar`.
-- Perfis padrão: root, admin, usuario, admin_oferendas, admin_ervas, admin_curimba, corrente. As abas Curimba e Vídeos não vêm no admin (Vídeos, por enquanto, só o root).
+- Perfis padrão: root, admin, usuario, admin_oferendas, admin_ervas, admin_curimba, corrente. As abas Curimba e Vídeos não vêm no admin (Vídeos, por enquanto, só o root). A aba Fotos vem em todos; Editar (apagar foto dos outros) só nos perfis de admin.

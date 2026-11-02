@@ -468,3 +468,11 @@ test('vídeos: código do YouTube sai de qualquer formato de link', async () => 
     'https://www.youtube.com/live/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', 'dQw4w9WgXcQ']) assert.equal(idDoYoutube(u), 'dQw4w9WgXcQ', u);
   for (const u of ['https://vimeo.com/123', 'https://evil.com/watch?v=dQw4w9WgXcQ', 'https://youtu.be/curto', '', null]) assert.equal(idDoYoutube(u), null, String(u));
 });
+
+test('aba Fotos: todos veem; só os perfis de admin apagam a foto dos outros', () => {
+  for (const p of PERFIS_PADRAO) {
+    const perms = permissoesDe(p.chave, p.abas);
+    assert.ok(perms.includes('fotos:ver'), p.chave);
+    assert.equal(perms.includes('fotos:editar'), p.chave === 'root' || p.chave.startsWith('admin'), p.chave);
+  }
+});

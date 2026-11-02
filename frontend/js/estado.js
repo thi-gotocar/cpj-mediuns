@@ -40,6 +40,8 @@ export const estado = {
   minhaCurimba: null,  // aba Gira: { aulas } de quem está logado, se for aluno da curimba
   videos: null,        // aba Vídeos: [{ id, data, evento, youtube, classes }]
   vidUi: null,         // aba Vídeos: o que está aberto, o filtro e o formulário
+  fotos: null,         // aba Fotos: { albuns, fotos, usado, limite, configurado }
+  fotUi: null,         // aba Fotos: álbum escolhido, álbuns abertos, foto em tela cheia, envio em andamento
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
   visaoCorrente: false, // root com o botão "Admin" desligado: vê o app como a corrente (só na tela)
@@ -375,6 +377,21 @@ export async function acaoVideos(acao, dados = {}) {
     avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }
+}
+
+// ---------- aba Fotos (álbuns por gira/evento; os arquivos ficam no Cloudflare R2) ----------
+export async function carregarFotos() {
+  try { estado.fotos = await api('GET', '/giras?lista=fotos'); } catch (e) { toast(e.message); estado.fotos = estado.fotos || { albuns: [], fotos: [], usado: 0, limite: 0, configurado: false }; }
+  avisar();
+}
+// Devolve a resposta (ou null se deu erro); quando ela traz os álbuns, atualiza a tela.
+export async function acaoFotos(acao, dados = {}) {
+  try {
+    const r = await api('POST', '/giras', { acao, ...dados });
+    if (r && r.albuns) estado.fotos = r;
+    avisar();
+    return r;
+  } catch (e) { toast(e.message); avisar(); return null; }
 }
 
 // ---------- alunos da CPJ (aba Pessoas) ----------

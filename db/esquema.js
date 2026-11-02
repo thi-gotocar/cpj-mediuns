@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 58;  // v58: aba Vídeos (vídeos do YouTube das giras, classificados por orixá/linha)
+export const VERSAO = 59;  // v59: aba Fotos (álbuns por gira/evento; as fotos ficam no Cloudflare R2)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1843,6 +1843,94 @@ export const MIGRACOES = [
    begin
      delete from videos where id = (p ->> 'id')::uuid;
      return videos_listar();
+   end;
+   $$`,
+
+  // ================================================== v59: aba Fotos (álbuns por gira/evento; os arquivos ficam no Cloudflare R2)
+  // A aba entra nos perfis que já existem: todos veem; os perfis de admin também apagam qualquer foto.
+  // Só mexe em quem ainda não tem a chave "fotos" (o que o root mudar depois fica).
+  `update perfis set abas = abas || jsonb_build_object('fotos', jsonb_build_object('ver', true, 'editar', chave = 'root' or chave like 'admin%'))
+   where not abas ? 'fotos'`,
+  `create table if not exists fotos_albuns (
+     id         uuid primary key default gen_random_uuid(),
+     data       date not null,
+     nome       text not null check (length(btrim(nome)) between 1 and 120),
+     criado_em  timestamptz not null default now()
+   )`,
+  `create unique index if not exists fotos_albuns_unico on fotos_albuns (data, lower(btrim(nome)))`,
+  // chave = caminho no R2 sem a extensão (a foto é chave.jpg e a miniatura, chave-p.jpg).
+  // autor = 'p:<pessoa>' (quem tem cadastro na corrente) ou 'u:<usuário>': é quem pode apagar a própria foto.
+  `create table if not exists fotos (
+     id          uuid primary key default gen_random_uuid(),
+     album_id    uuid not null references fotos_albuns (id) on delete cascade,
+     chave       text not null unique,
+     autor       text not null,
+     autor_nome  text not null default '',
+     tamanho     integer not null default 0,
+     largura     integer not null default 0,
+     altura      integer not null default 0,
+     criado_em   timestamptz not null default now()
+   )`,
+  `create index if not exists fotos_por_album on fotos (album_id, criado_em)`,
+  `create or replace function fotos_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'albuns', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'data', data, 'nome', nome) order by data desc, lower(nome)) from fotos_albuns), '[]'::jsonb),
+       'fotos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'albumId', album_id, 'chave', chave, 'autor', autor, 'autorNome', autor_nome,
+                                                             'largura', largura, 'altura', altura, 'criadoEm', criado_em) order by criado_em) from fotos), '[]'::jsonb),
+       'usado', (select coalesce(sum(tamanho), 0) from fotos))
+   $$`,
+  // p = { id?, data, nome } → { id }. Sem id cria; se já existe um álbum com a mesma data e nome, devolve esse.
+  `create or replace function foto_album_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid;
+   begin
+     if coalesce(p ->> 'id', '') = '' then
+       select id into v_id from fotos_albuns where data = (p ->> 'data')::date and lower(btrim(nome)) = lower(btrim(p ->> 'nome'));
+       if v_id is null then
+         insert into fotos_albuns (data, nome) values ((p ->> 'data')::date, btrim(p ->> 'nome')) returning id into v_id;
+       end if;
+     else
+       update fotos_albuns set data = (p ->> 'data')::date, nome = btrim(p ->> 'nome') where id = (p ->> 'id')::uuid returning id into v_id;
+       if v_id is null then raise exception 'Álbum não encontrado.'; end if;
+     end if;
+     return jsonb_build_object('id', v_id);
+   exception when unique_violation then
+     raise exception 'Já existe um álbum com essa data e esse nome.';
+   end;
+   $$`,
+  // Devolve as chaves das fotos que saíram (o servidor apaga os arquivos no R2).
+  `create or replace function foto_album_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_chaves jsonb;
+   begin
+     select coalesce(jsonb_agg(chave), '[]'::jsonb) into v_chaves from fotos where album_id = (p ->> 'id')::uuid;
+     delete from fotos_albuns where id = (p ->> 'id')::uuid;
+     return v_chaves;
+   end;
+   $$`,
+  `create or replace function foto_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if not exists (select 1 from fotos_albuns where id = (p ->> 'albumId')::uuid) then raise exception 'Álbum não encontrado.'; end if;
+     insert into fotos (album_id, chave, autor, autor_nome, tamanho, largura, altura)
+     values ((p ->> 'albumId')::uuid, p ->> 'chave', p ->> 'autor', coalesce(p ->> 'autorNome', ''),
+             (p ->> 'tamanho')::integer, (p ->> 'largura')::integer, (p ->> 'altura')::integer);
+     return jsonb_build_object('ok', true);
+   end;
+   $$`,
+  // p = { id, autor, admin } — quem não é admin só apaga a própria foto. Devolve a chave (o servidor apaga no R2).
+  `create or replace function foto_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_chave text;
+   begin
+     delete from fotos where id = (p ->> 'id')::uuid and (coalesce((p ->> 'admin')::boolean, false) or autor = p ->> 'autor')
+     returning chave into v_chave;
+     if v_chave is null then raise exception 'Foto não encontrada, ou você só pode apagar as fotos que enviou.'; end if;
+     return to_jsonb(v_chave);
    end;
    $$`,
 ];

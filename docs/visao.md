@@ -9,7 +9,8 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - perfil de cada pessoa (informações, orixás, guias, guias de atendimento, afinidades);
 - eventos da casa, oferendas, compra coletiva de ervas, histórico e estatísticas;
 - aulas de curimba (aba à parte): alunos da corrente ou de fora, aulas, presença e gráfico de presença;
-- vídeos do YouTube das giras (aba Vídeos, por enquanto só o root), por mês e classificados por orixá/linha.
+- vídeos do YouTube das giras (aba Vídeos, por enquanto só o root), por mês e classificados por orixá/linha;
+- álbum de fotos por gira/evento (aba Fotos): todos veem, quem entrou com senha envia; os arquivos ficam no Cloudflare R2 gratuito.
 
 ## Para quem
 
@@ -32,6 +33,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - **Ação `reiniciar` sem botão.** O Reiniciar saiu do card da gira (refazer o sorteio do zero é pelo ↻); a ação continua em `api/giras/[data]` e nos testes. Remover?
 - **Mudar a data da gira não foi testado no banco.** A migração v56 (`gira_mudar_data`) e os testes novos de `test/api.test.js` não rodaram (sem Postgres local).
 - **Aba Curimba não foi testada no banco.** A migração v57 e o teste de `test/api.test.js` não rodaram (sem Postgres local); conferir no app publicado.
+- **Aba Fotos está desligada no código** (`FOTOS_ATIVA = false` em `shared/fotos.js`). Para ligar: criar o bucket no Cloudflare R2 e pôr as 4 variáveis `R2_*` na Vercel (ver `.env.example`) e trocar para `true`. A migração v59 não rodou no Postgres e o R2 de verdade não foi usado: os testes foram com banco e R2 falsos (a assinatura confere com os exemplos da AWS). O Guia da Corrente (PDF) ainda não fala da aba.
 - **Aba Vídeos não foi testada no banco.** A migração v58 não rodou (sem Postgres local); a tela foi conferida com uma API falsa. Conferir no app publicado.
 - **Afinidade de passe do At. Extra** só existe na aba Pessoas (não no Perfil dele) e não entra na Sugestão Mi/Mãe Vê.
 - **Testes no Windows.** `npm test` depende de Linux (`runuser`) e de Postgres local; na pasta atual não roda.

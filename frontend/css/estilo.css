@@ -1039,3 +1039,22 @@ section.panel.pf-tela{gap:14px}
 .vd-classes{display:flex;flex-direction:column;gap:6px}
 .vd-cl-grupo{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .vd-cl-nome{flex-basis:100%;font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+
+/* ---------- aba Fotos (usa também as linhas e meses da aba Vídeos) ---------- */
+.ft-enviar{display:flex;flex-direction:column;gap:10px}
+.ft-enviar h2{margin:0}
+.ft-escolher{align-self:flex-start;cursor:pointer}
+.ft-form{padding:4px 0 10px}
+.ft-grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:2px 0 8px}
+.ft-mini{aspect-ratio:1;min-width:0;padding:0;border:0;border-radius:6px;overflow:hidden;background:var(--bg);cursor:pointer}
+.ft-mini img{width:100%;height:100%;object-fit:cover;display:block}
+.ft-luz{position:fixed;inset:0;z-index:900;background:#000;display:flex;flex-direction:column;color:#fff}
+.ft-luz-topo,.ft-luz-rodape{display:flex;align-items:center;gap:10px;padding:10px 12px;flex:none}
+.ft-luz-topo{padding-top:max(10px,env(safe-area-inset-top))}
+.ft-luz-rodape{justify-content:space-between;padding-bottom:max(12px,env(safe-area-inset-bottom));min-height:3rem}
+.ft-luz-tit{flex:1 1 auto;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-luz .muted{color:#bbb}
+.ft-luz-img{position:relative;flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center}
+.ft-luz-img img{max-width:100%;max-height:100%;object-fit:contain}
+.ft-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:64px;border:0;border-radius:8px;background:rgba(0,0,0,.45);color:#fff;font-size:2rem;line-height:1;cursor:pointer}
+.ft-nav.ant{left:4px}.ft-nav.prox{right:4px}
