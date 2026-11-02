@@ -5,7 +5,9 @@ import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualiz
 import { esc, toast, hoje } from '../util.js';
 
 // Nome do bloco Extras nesta tela.
-const tituloFuncao = (f) => (f.k === 'extra' ? 'Atendimento Extra' : f.pl);
+// Título do bloco de cada função (os quadradinhos da Corrente CPJ usam os nomes curtos).
+const TITULO_BLOCO = { extra: 'Médiuns At. Extra', passe: 'Médiuns de Passe' };
+const tituloFuncao = (f) => TITULO_BLOCO[f.k] || f.pl;
 // Ordem dos blocos de função nesta tela.
 const ORDEM_FUNCOES = ['medium', 'extra', 'passe', 'cambone', 'senha'].map((k) => FUNCOES.find((f) => f.k === k)).filter(Boolean);
 const cabDobra = (act, titulo, count, aberto) => `<button class="grp-h dobra" data-act="${act}" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'}">
@@ -285,7 +287,7 @@ function renderPessoas() {
   }
   // Ordem: Corrente (com as licenças), Adicionar, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba, Turmas da limpeza, Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
-    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span class="fn-${f.k}"><span class="muted">${f.k === 'extra' ? 'At. Extra' : tituloFuncao(f)}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div>
+    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span class="fn-${f.k}"><span class="muted">${f.k === 'extra' ? 'At. Extra' : f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div>
     ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
   h += add;
   ORDEM_FUNCOES.forEach((f) => {
