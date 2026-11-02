@@ -350,24 +350,29 @@ export function render() {
   return h + janelaFechar() + janelaNova() + `</section>`;
 }
 
-// Nova compra: primeiro escolhe encerrar (guarda no Histórico de compras) ou descartar; depois confirma de novo.
+// Nova compra: primeiro "Tem certeza?" (avisa do pedido em andamento); depois escolhe encerrar
+// (guarda no Histórico de compras) ou descartar. Sem nada em andamento, confirma e já começa a nova.
 function janelaNova() {
   const N = estado.ervasNova;
   if (!N) return '';
+  const E = estado.ervas;
+  const r = E.pedidos || calcularPedidos(E.ervas, [], E.frete);
+  const np = r.pessoas.length;
+  const ni = itensCompra(E.ervas, r).length;
   const caixa = (titulo, corpo, botoes) => `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="en-t"><div class="modal">
     <h3 id="en-t">${titulo}</h3>${corpo}<div class="row" style="justify-content:flex-end;gap:8px">${botoes}</div></div></div>`;
-  if (N.passo === 'escolher') {
-    return caixa('Nova compra', `<p style="margin:0">O que fazer com a compra atual?</p>
-      <div class="nova-ops">
-        <button class="btn primary" data-act="novamodo" data-m="encerrar"><span aria-hidden="true">📦</span> Encerrar e guardar<span class="nova-sub">Fica no Histórico de compras, com a tabela e a cobrança</span></button>
-        <button class="btn" data-act="novamodo" data-m="descartar"><span aria-hidden="true">🗑️</span> Descartar<span class="nova-sub">Apaga sem guardar</span></button>
-      </div>`, '<button class="btn" data-act="novacancel">Cancelar</button>');
+  if (N.passo === 'aviso') {
+    if (!np && !ni) {
+      return caixa('Nova compra', '<p style="margin:0">Não há pedido em andamento. Começar uma nova compra? A lista reabre.</p>',
+        '<button class="btn" data-act="novacancel">Cancelar</button><button class="btn primary" data-act="novaok" data-m="descartar">Começar nova compra</button>');
+    }
+    return caixa('Tem certeza?', `<p style="margin:0"><b>Há um pedido em andamento</b>: ${np} pessoa${np === 1 ? '' : 's'} ${np === 1 ? 'pediu' : 'pediram'} ervas e ${ni} erva${ni === 1 ? '' : 's'} na Compra. Começar uma nova compra tira este pedido da tela.</p>`,
+      '<button class="btn" data-act="novacancel">Cancelar</button><button class="btn primary" data-act="novaseguir">Sim, nova compra</button>');
   }
-  return N.modo === 'encerrar'
-    ? caixa('Encerrar e guardar?', '<p style="margin:0">A compra atual vai para o <b>Histórico de compras</b>. Depois os pedidos e as quantidades são apagados e a lista reabre para a nova compra.</p>',
-      '<button class="btn" data-act="novavoltar">Voltar</button><button class="btn primary" data-act="novaok">Sim, encerrar e começar nova</button>')
-    : caixa('Descartar a compra atual?', '<p style="margin:0">Os pedidos e as quantidades são <b>apagados sem guardar</b>. Isso não pode ser desfeito.</p>',
-      '<button class="btn" data-act="novavoltar">Voltar</button><button class="btn danger" data-act="novaok">Sim, descartar</button>');
+  return caixa('O que fazer com o pedido atual?', `<div class="nova-ops">
+      <button class="btn primary" data-act="novaok" data-m="encerrar"><span aria-hidden="true">📦</span> Encerrar e guardar<span class="nova-sub">Fica no Histórico de compras, com a tabela e a cobrança</span></button>
+      <button class="btn danger" data-act="novaok" data-m="descartar"><span aria-hidden="true">🗑️</span> Descartar<span class="nova-sub">Apaga sem guardar; não dá para desfazer</span></button>
+    </div>`, '<button class="btn" data-act="novacancel">Cancelar</button>');
 }
 
 // Histórico de compras (admin): as compras encerradas, da mais nova. Começa minimizado e só busca ao abrir.
@@ -461,12 +466,11 @@ export const cliques = {
     if (await acaoErvas('salvarErva', { id, nome: val('ev-n-' + id), pessoasPorcao: val('ev-s-' + id) })) toast('Erva salva.');
   },
   async delerva(el) { estado.confirm = null; if (await acaoErvas('excluirErva', { id: el.dataset.id })) toast('Erva excluída.'); },
-  novaini() { estado.ervasNova = { passo: 'escolher' }; avisar(); },
-  novamodo(el) { estado.ervasNova = { passo: 'confirmar', modo: el.dataset.m }; avisar(); },
-  novavoltar() { estado.ervasNova = { passo: 'escolher' }; avisar(); },
+  novaini() { estado.ervasNova = { passo: 'aviso' }; avisar(); },
+  novaseguir() { estado.ervasNova = { passo: 'escolher' }; avisar(); },
   novacancel() { estado.ervasNova = null; avisar(); },
-  async novaok() {
-    const encerrar = estado.ervasNova?.modo === 'encerrar';
+  async novaok(el) {
+    const encerrar = el.dataset.m === 'encerrar';
     estado.ervasNova = null;
     if (await acaoErvas(encerrar ? 'encerrarCompra' : 'novaCompra')) {
       estado.ervasCompra = null;

@@ -16,7 +16,7 @@ export const estado = {
   ervasImg: null,      // imagem gerada do pedido ao fornecedor / cobrança
   ervasCompra: null,   // admin editando o bloco Compra: { gira, data, frete, itens: { ervaId: { qtd, preco } } } (null = travado)
   ervasFechar: false,  // janela "Fechar a lista?" aberta
-  ervasNova: null,     // janela Nova compra: { passo: 'escolher' } ou { passo: 'confirmar', modo: 'encerrar' | 'descartar' }
+  ervasNova: null,     // janela Nova compra: { passo: 'aviso' } (tem certeza?) ou { passo: 'escolher' } (encerrar ou descartar)
   ervasHist: null,     // Histórico de compras (admin): lista, undefined = carregando, { erro }
   ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
