@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 59;  // v59: aba Fotos (álbuns por gira/evento; as fotos ficam no Cloudflare R2)
+export const VERSAO = 60;  // v60: aba Vídeos publicada (toda a corrente vê) ou só para admin
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1931,6 +1931,21 @@ export const MIGRACOES = [
      returning chave into v_chave;
      if v_chave is null then raise exception 'Foto não encontrada, ou você só pode apagar as fotos que enviou.'; end if;
      return to_jsonb(v_chave);
+   end;
+   $$`,
+
+  // ================================================== v60: aba Vídeos publicada (toda a corrente vê) ou só para admin
+  `insert into sistema (chave, valor) values ('videos_publicada', 'false') on conflict (chave) do nothing`,
+  `create or replace function videos_publicada(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(coalesce((select valor = 'true' from sistema where chave = 'videos_publicada'), false))
+   $$`,
+  `create or replace function videos_publicar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('videos_publicada', case when (p ->> 'publicada')::boolean then 'true' else 'false' end)
+     on conflict (chave) do update set valor = excluded.valor;
+     return videos_publicada();
    end;
    $$`,
 ];

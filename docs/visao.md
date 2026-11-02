@@ -9,7 +9,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - perfil de cada pessoa (informações, orixás, guias, guias de atendimento, afinidades);
 - eventos da casa, oferendas, compra coletiva de ervas, histórico e estatísticas;
 - aulas de curimba (aba à parte): alunos da corrente ou de fora, aulas, presença e gráfico de presença;
-- vídeos do YouTube das giras (aba Vídeos, por enquanto só o root), por mês e classificados por orixá/linha;
+- vídeos do YouTube das giras (aba Vídeos: o admin publica para toda a corrente ou deixa só para os admins), por mês e classificados por orixá/linha;
 - álbum de fotos por gira/evento (aba Fotos): todos veem, quem entrou com senha envia; os arquivos ficam no Cloudflare R2 gratuito.
 
 ## Para quem

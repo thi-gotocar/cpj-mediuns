@@ -77,7 +77,8 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 
 ## Vídeos (aba própria)
 
-- Vídeos do YouTube das giras, assistidos dentro do app (player do YouTube embutido). **Por enquanto só o root** vê a aba (o Admin não vem com ela; o root pode liberar na aba Usuários).
+- Vídeos do YouTube das giras, assistidos dentro do app (player do YouTube embutido).
+- Quem vê a aba: chave **Aba publicada** no topo (para quem edita os vídeos). **Marcada** = toda a corrente vê (só assiste e busca); **desmarcada** = só quem tem a aba Vídeos no perfil — hoje só o **root** (o Admin não vem com ela; o root pode liberar na aba Usuários). Começa desmarcada.
 - Cada vídeo: **data**, **evento de gira** (texto livre), **link do YouTube** (qualquer formato: watch, youtu.be, shorts, live; guarda só o código) e **classificação** — orixás e linhas (as mesmas do Perfil), quantas quiser, para a busca.
 - Lista por **mês**, do mais recente ao mais antigo; **um vídeo por linha**, no formato `dd/mm - Evento`, com as classificações embaixo. **Todos abrem fechados**: tocar na linha abre o vídeo (um por vez; abrir outro fecha o anterior). Voltar à aba fecha todos.
 - Busca: filtro por classificação e campo de texto pelo nome do evento.

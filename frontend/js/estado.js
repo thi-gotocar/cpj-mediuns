@@ -371,6 +371,15 @@ export async function carregarVideos() {
   try { estado.videos = await api('GET', '/giras?lista=videos'); } catch (e) { toast(e.message); estado.videos = estado.videos || []; }
   avisar();
 }
+// Aba Vídeos publicada (toda a corrente vê) ou só para quem tem a aba no perfil.
+export async function publicarVideos(publicada) {
+  try {
+    const r = await api('POST', '/giras', { acao: 'videosPublicar', publicada });
+    estado.me = { ...estado.me, videosPublicada: r.publicada };
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
 export async function acaoVideos(acao, dados = {}) {
   try {
     estado.videos = await api('POST', '/giras', { acao, ...dados });

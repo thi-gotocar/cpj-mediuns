@@ -4,7 +4,7 @@
 
 import { lerDataCurta, dataCurta } from '/shared/eventos.js';
 import { CLASSES_VIDEO, idDoYoutube } from '/shared/videos.js';
-import { estado, pode, carregarVideos, acaoVideos, avisar } from '../estado.js';
+import { estado, pode, carregarVideos, acaoVideos, publicarVideos, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -86,8 +86,12 @@ export function render() {
   if (!V) return '<section class="panel"><div class="loading">Carregando os vídeos…</div></section>';
   const editar = pode('videos:editar');
   const u = U();
+  const pub = !!estado.me?.videosPublicada;
+  // Quem vê a aba: marcada = toda a corrente; desmarcada = só quem tem a aba Vídeos no perfil (os admins).
+  const aba = editar ? `<div class="card adm"><label class="check vd-pub"><input type="checkbox" data-act="vidpublicar" ${pub ? 'checked' : ''}>
+    <span><b>Aba publicada</b><br><span class="muted">${pub ? 'Toda a corrente vê a aba Vídeos.' : 'Só os admins veem a aba Vídeos.'}</span></span></label></div>` : '';
   const novo = editar ? `<div class="card adm">${cabDobra('vidnovo', '＋ Publicar vídeo', '', u.novo)}${u.novo ? formulario(null) : ''}</div>` : '';
-  return `<section class="panel">${novo}${cardLista(V, editar)}${janela()}</section>`;
+  return `<section class="panel">${aba}${novo}${cardLista(V, editar)}${janela()}</section>`;
 }
 
 export const cliques = {
@@ -107,6 +111,12 @@ export const cliques = {
 
 export const mudancas = {
   vidfiltro(el) { U().filtro = el.value; U().aberto = null; avisar(); },
+  async vidpublicar(el) {
+    const pub = el.checked;
+    // Se não gravou, desfaz a marcação (a tela não é redesenhada quando nada mudou).
+    if (!(await publicarVideos(pub))) { el.checked = !pub; return; }
+    toast(pub ? 'Aba Vídeos publicada: toda a corrente vê.' : 'Aba Vídeos só para os admins.');
+  },
 };
 
 export function buscar(el) { U().busca = el.value; avisar(); }

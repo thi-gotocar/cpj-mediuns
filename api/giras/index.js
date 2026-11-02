@@ -3,7 +3,9 @@
 // GET  /api/giras?lista=eventos — eventos da casa (todos veem; a aba Gira mostra os da semana)
 // POST /api/giras  { acao: 'evento', id?, data: 'AAAA-MM-DD', nome, tipo: 'gira'|'amaci'|'aviso'|'evento' } · { acao: 'excluirEvento', id }  → eventos
 // GET  /api/giras?lista=videos — vídeos do YouTube das giras (aba Vídeos), do mais recente ao mais antigo
+//      (quem não tem a aba no perfil só vê com a aba publicada)
 // POST /api/giras  { acao: 'video', id?, data, evento, youtube: link ou código, classes: [..] } · { acao: 'excluirVideo', id }  → vídeos
+//                  { acao: 'videosPublicar', publicada: true|false }  → { publicada }
 // GET  /api/giras?lista=fotos — álbuns e fotos (aba Fotos), com links assinados do R2  → { albuns, fotos, usado, limite, configurado }
 // POST /api/giras  { acao: 'fotoAlbum', id?, data, nome }  → { ...fotos, albumId } (com id = editar: só admin)
 //                  { acao: 'fotoEnviar', albumId, foto, miniatura (JPEG em base64), largura, altura }  → { ok }
@@ -111,7 +113,8 @@ export default rota({
       return db.rpc('eventos_listar');
     }
     if (req.query.lista === 'videos') {
-      await exigir(req, 'videos:ver');
+      const eu = await exigir(req);
+      if (!pode(eu, 'videos:ver') && !(await db.rpc('videos_publicada'))) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
       return db.rpc('videos_listar');
     }
     if (req.query.lista === 'fotos') {
@@ -126,6 +129,11 @@ export default rota({
     if (b.acao === 'video' || b.acao === 'excluirVideo') {
       await exigir(req, 'videos:editar');
       return acaoVideo(b);
+    }
+    if (b.acao === 'videosPublicar') {
+      await exigir(req, 'videos:editar');
+      if (typeof b.publicada !== 'boolean') throw new HttpError(400, 'Informe se a aba fica publicada.');
+      return { publicada: await db.rpc('videos_publicar', { publicada: b.publicada }) };
     }
     if (ACOES_FOTOS.includes(b.acao)) {
       exigirFotosAtiva();

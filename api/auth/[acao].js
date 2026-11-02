@@ -36,7 +36,9 @@ const acoes = {
   async me(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
-    return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' ? { temSenha: !!u.temSenha } : {}) };
+    // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
+    return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' ? { temSenha: !!u.temSenha } : {}),
+      videosPublicada: !!(await db.rpc('videos_publicada')) };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).
