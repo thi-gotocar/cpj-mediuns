@@ -240,6 +240,15 @@ test('perfil: só orixás e guias válidos; oferenda só com algo escolhido', as
   assert.deepEqual(c.chefe, [{ nome: 'Caboclo', qtd: 2 }, { nome: 'Baiano', qtd: 1 }]);
   assert.deepEqual(c.frente, [{ nome: 'Exu', qtd: 1 }]);
   assert.deepEqual(c.orixa, [{ nome: 'Oxum', qtd: 2 }, { nome: 'Ogum', qtd: 1 }]);
+  // Orixá de cabeça: frente, ancestral ou adjunto; a mesma pessoa conta uma vez por orixá.
+  const d = contagemPerfis([
+    { perfil: { orixas: { frente: { nome: 'Oxum' }, ancestral: { nome: 'Ogum' }, adjunto: { nome: 'Oxum' } } } },
+    { perfil: { orixas: { ancestral: { nome: 'Oxum' } } } },
+    { perfil: { orixas: { adjunto: { nome: 'Xangô' } } } },
+    { perfil: {} },
+  ]);
+  assert.deepEqual(d.cabeca, [{ nome: 'Oxum', qtd: 2 }, { nome: 'Ogum', qtd: 1 }, { nome: 'Xangô', qtd: 1 }]);
+  assert.equal(d.cabecaPessoas, 3);
 });
 
 test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)', async () => {

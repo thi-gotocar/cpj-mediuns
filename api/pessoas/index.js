@@ -3,7 +3,7 @@
 //                              { acao: 'licenca', pessoaId, inicio, fim, motivo? } · { acao: 'editarLicenca', id, inicio, fim, motivo? }
 //                              { acao: 'removerLicenca', id }  → lista da corrente
 // GET  /api/pessoas?lista=alunos  { turmas, alunos }  (alunos da CPJ: fora da corrente)
-// GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa }  (Histórico → Estatísticas: só contagens do Perfil)
+// GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa, cabeca, cabecaPessoas }  (Histórico → Estatísticas: só contagens do Perfil)
 // POST /api/pessoas            { acao: 'alunos', nome: "A, B", turmaId } · { acao: 'aluno', id, nome?, turmaId? }
 //                              { acao: 'excluirAluno', id } · { acao: 'turma', nome }  → { turmas, alunos }
 import { rota, corpo, HttpError, validarData, validarId } from '../_lib/http.js';

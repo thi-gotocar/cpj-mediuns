@@ -52,21 +52,27 @@ export function blocosAfinidade(funcao) {
   return [];
 }
 
-// Estatísticas do cadastro (Histórico): quantas pessoas têm cada guia chefe, guia de frente e orixá de frente.
+// Estatísticas do cadastro (Histórico): quantas pessoas têm cada guia chefe, guia de frente, orixá de frente e
+// orixá de cabeça (frente, ancestral ou adjunto: a pessoa conta uma vez por orixá, mesmo repetido em duas posições).
 // Só contagens (sem nomes), para não expor o perfil de cada um. perfis: [{ perfil }] (perfis_listar).
-// → { total, chefe: [{ nome, qtd }], frente: [...], orixa: [...] }, do maior para o menor (empate: nome).
+// → { total, chefe: [{ nome, qtd }], frente: [...], orixa: [...], cabeca: [...], cabecaPessoas }, do maior para o menor
+// (empate: nome). cabecaPessoas: quantas pessoas escolheram algum orixá de cabeça.
 export function contagemPerfis(perfis) {
   const nomeGuia = Object.fromEntries(GUIAS);
+  const pfs = perfis.map((x) => normalizarPerfil(x.perfil));
   const contar = (valor) => {
     const m = {};
-    perfis.forEach((x) => { const v = valor(normalizarPerfil(x.perfil)); if (v) m[v] = (m[v] || 0) + 1; });
+    pfs.forEach((pf) => new Set([valor(pf)].flat().filter(Boolean)).forEach((v) => { m[v] = (m[v] || 0) + 1; }));
     return Object.entries(m).map(([nome, qtd]) => ({ nome, qtd })).sort((a, b) => b.qtd - a.qtd || a.nome.localeCompare(b.nome, 'pt-BR'));
   };
+  const cabeca = (pf) => POSICOES_ORIXA.map(([k]) => pf.orixas[k].nome);
   return {
     total: perfis.length,
     chefe: contar((pf) => nomeGuia[pf.guias.chefe.linha]),
     frente: contar((pf) => nomeGuia[pf.guias.frente.linha]),
     orixa: contar((pf) => pf.orixas.frente.nome),
+    cabeca: contar(cabeca),
+    cabecaPessoas: pfs.filter((pf) => cabeca(pf).some(Boolean)).length,
   };
 }
 

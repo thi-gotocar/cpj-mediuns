@@ -205,22 +205,23 @@ function cardEstatisticas(todas, ps) {
     </div></div>`;
 }
 
-// Guia chefe, guia de frente e orixá de frente com mais pessoas (top 3), do cadastro (aba Perfil):
-// não depende do ano; o percentual é sobre todas as pessoas do cadastro.
+// Guia chefe, guia de frente, orixá de frente e orixá de cabeça (frente, ancestral ou adjunto) com mais pessoas
+// (top 3), do cadastro (aba Perfil): não depende do ano; o percentual é sobre todas as pessoas do cadastro.
 function blocosPerfis() {
   const S = estado.stPerfis;
   if (S === null) carregarStPerfis();
   if (!S || S.erro) return S?.erro ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(S.erro)}</p>` : '';
-  const bloco = (titulo, lista, cor) => {
+  // preencheram: quem escolheu algo (no orixá de cabeça a pessoa pode estar em até 3 linhas, por isso vem do servidor).
+  const bloco = (titulo, lista, cor, preencheram = lista.reduce((a, x) => a + x.qtd, 0), nota = '') => {
     const top = lista.slice(0, 3);
-    const preencheram = lista.reduce((a, x) => a + x.qtd, 0);
     return `<div class="st-bloco"><h3>${titulo}</h3>
       ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b> pessoa${x.qtd > 1 ? 's' : ''}</span></li>`).join('')}</ol>`
         : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém preencheu ainda.</p>'}
-      <p class="muted" style="margin:0;font-size:.8rem">Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
+      <p class="muted" style="margin:0;font-size:.8rem">${nota}Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
   };
   return bloco('Guia chefe com mais pessoas', S.chefe, 'acc') + bloco('Guia de frente com mais pessoas', S.frente, 'acc')
-    + bloco('Orixá de frente com mais pessoas', S.orixa, 'or');
+    + bloco('Orixá de frente com mais pessoas', S.orixa, 'or')
+    + (S.cabeca ? bloco('Orixá de cabeça com mais pessoas', S.cabeca, 'or', S.cabecaPessoas, 'Frente, ancestral ou adjunto (cada pessoa conta uma vez por orixá) · ') : '');
 }
 
 // Listas que mostram só os primeiros N itens e rolam o resto ([data-rolar="N"]):
