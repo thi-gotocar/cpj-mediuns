@@ -299,7 +299,7 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-meus-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
 /* Aba Gira: compromissos nas oferendas (último bloco) */
 .card.comp-of{border-left:4px solid var(--warn)}
-.comp-of h2{display:flex;align-items:center;gap:6px}
+.comp-of h2{display:flex;align-items:center;gap:6px;flex-shrink:1;min-width:0}   /* no celular o título quebra a linha em vez de passar da borda */
 .comp-of-g{display:grid;gap:2px;font-size:.92rem}
 .comp-of-med{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
 .comp-of-g ul{margin:0;padding-left:18px;display:grid;gap:2px}
