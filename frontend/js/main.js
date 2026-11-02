@@ -106,6 +106,8 @@ async function iniciar() {
     return;
   }
   main.innerHTML = '<div class="loading">Carregando a corrente…</div>';
+  // Ao abrir o app (ou entrar), começa sempre na aba Gira.
+  prefs.tab = 'gira';
   try {
     await carregarTudo();
   } catch (e) {
@@ -144,6 +146,7 @@ tabs.addEventListener('click', (e) => {
   salvarPerfilAgora();
   salvarPrefs();
   render();
+  window.scrollTo(0, 0);   // a aba nova começa do topo
 });
 
 async function cliqueConta(e) {
@@ -204,7 +207,7 @@ main.addEventListener('click', async (e) => {
   const a = el.dataset.act;
   if (a === 'askdel') { estado.confirm = el.dataset.k; render(); return; }
   estado.confirm = null;
-  if (a === 'goto') { prefs.tab = el.dataset.tab; salvarPrefs(); render(); return; }
+  if (a === 'goto') { prefs.tab = el.dataset.tab; salvarPrefs(); render(); window.scrollTo(0, 0); return; }
   const tela = TELAS[prefs.tab];
   if (tela.cliques && tela.cliques[a]) tela.cliques[a](el, e);
   else render();

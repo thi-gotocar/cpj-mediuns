@@ -66,6 +66,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 
 ## Outros
 
+- O app abre sempre na aba **Gira** (não volta na última aba usada); trocar de aba, ou ir por um link como "Ver oferendas ›", começa do topo da página.
 - Oferenda minimizada: mostra os itens com doação pendente (2 à vista, **Ver mais** para os outros) e o link **Ver todos os itens**. Bloqueada continua sem itens para a corrente.
 - Rodapé da oferenda (admin): Compartilhar lista, Compartilhar imagem, Editar e Excluir lado a lado, do mesmo tamanho.
 - Oferenda com uma linha por pessoa: em **Seus compromissos**, "Pagamento: …" e "Entrega: …" de quem está logado; quem não está na lista vê "Você não está na lista de pessoas desta oferenda".
