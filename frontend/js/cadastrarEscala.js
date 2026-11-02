@@ -1,21 +1,24 @@
-// Histórico → Giras salvas → Cadastrar escala: cola o texto da escala de atendimentos, confere e grava
-// quem cambonou quem (e os médiuns de passe) numa gira que já foi. Tudo o que ficou em dúvida aparece
-// em vermelho com um combo para escolher e o botão Aceitar; só grava depois de aceitar todos.
+// Histórico → Giras salvas → Cadastrar escala (só o root): cola o texto da escala de atendimentos, confere e grava
+// quem cambonou quem (e os médiuns de passe) numa gira que JÁ ESTÁ SALVA. Não cria gira nem mexe em presença/faltas.
+// Tudo o que ficou em dúvida aparece em vermelho com um combo para escolher e o botão Aceitar; só grava depois de aceitar todos.
 
 import { lerEscala, nomesDaEscala, montarEscala } from '/shared/escalaTexto.js';
 import { casarNomes } from '/shared/resumo.js';
-import { OPCOES_GIRA, ORIXAS, nomeGira, linhaDaEntidade, giraEspecial, temOrixa, contaNaPresenca, naCorrenteEm, licencaEm } from '/shared/regras.js';
+import { OPCOES_GIRA, ORIXAS, nomeGira, linhaDaEntidade, giraEspecial, temOrixa, contaNaPresenca } from '/shared/regras.js';
 import { estado, pessoasOrd, cadastrarEscala, avisar } from './estado.js';
 import { esc, toast, hoje } from './util.js';
 
 const E = () => estado.escalaTxt;
 const pessoas = () => pessoasOrd().filter(contaNaPresenca);
 const dataBR = (d) => d.split('-').reverse().join('/');
+// Gira salva na data escolhida e, se ela já tem gira definida, se bate com a da escala.
+const salva = (x) => (x.data && estado.giras[x.data]) || null;
+const giraDiferente = (x) => { const g = salva(x); return !!(g && g.entidade && x.entidade && nomeGira(g.entidade) !== x.entidade); };
 
 function pendentes(x) {
   if (!x.lido) return 0;
   return x.nomes.filter((n) => n.duvida && !n.aceito).length + x.int.filter((i) => !i.aceito).length
-    + (x.lido.semAno && !x.dataOk ? 1 : 0) + (x.lido.gira && !x.giraReconhecida && !x.giraOk ? 1 : 0);
+    + (x.lido.semAno && !x.dataOk ? 1 : 0) + (x.lido.gira && !x.giraReconhecida && !x.giraOk ? 1 : 0) + (giraDiferente(x) && !x.giraDifOk ? 1 : 0);
 }
 
 const opcoesPessoa = (escolhido, candidatos, ps, vazio) => `<option value="" ${escolhido ? '' : 'selected'}>${vazio}</option>
@@ -32,6 +35,10 @@ function conferencia(x, ps) {
   if (x.lido.gira && !x.giraReconhecida) {
     h += `<div class="dv ${x.giraOk ? 'ok' : ''}"><span>Não reconheci a gira “${esc(x.lido.gira)}”. Escolha a gira acima (ou deixe sem).</span>
       <button class="btn small" data-act="esaceitar" data-k="gira">${x.giraOk ? 'Aceito ✓' : 'Aceitar'}</button></div>`;
+  }
+  if (giraDiferente(x)) {
+    h += `<div class="dv ${x.giraDifOk ? 'ok' : ''}"><span>A gira salva em ${dataBR(x.data)} é <b>${esc(nomeGira(salva(x).entidade))}</b>, mas a escala diz <b>${esc(x.entidade)}</b>. Confira a data.</span>
+      <button class="btn small" data-act="esaceitar" data-k="giradif">${x.giraDifOk ? 'Aceito ✓' : 'Aceitar'}</button></div>`;
   }
   x.nomes.forEach((n, i) => {
     if (!n.duvida) return;
@@ -73,7 +80,7 @@ export function cardEscala() {
   const x = E();
   const ps = pessoas();
   let h = `<div class="ga-box"><h2>Cadastrar escala</h2>
-    <p class="muted" style="margin:0;font-size:.88rem">Cole o texto da escala de atendimentos. Grava quem cambonou quem e os médiuns de passe de uma gira que já foi (entra no rodízio).</p>
+    <p class="muted" style="margin:0;font-size:.88rem">Cole o texto da escala de atendimentos. Grava quem cambonou quem e os médiuns de passe numa gira já salva (entra no rodízio). Não mexe em presença nem faltas.</p>
     <details class="ga-colar"${x.lido ? '' : ' open'}><summary>Colar o texto da escala</summary>
       <textarea id="es-msg" rows="8" placeholder="Informações Gerais&#10;* Orixá / Gira do dia: Exus Mirins&#10;* Data: 28/out&#10;…&#10;Quem Cambonou Quem&#10;* Erika: Amanda T8 e Akeline T8">${esc(x.msg || '')}</textarea>
       <button class="btn primary" data-act="esler">Ler escala</button>
@@ -86,11 +93,9 @@ export function cardEscala() {
     ${temOrixa(x) ? `<label class="field" style="flex:0 1 160px">Orixá<select data-act="escampo" data-k="orixa"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === x.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
   </div>`;
   h += conferencia(x, ps);
-  const existe = x.data && estado.giras[x.data];
-  h += existe
-    ? `<p class="es-aviso">Já existe uma gira salva em ${dataBR(x.data)}: grava só as duplas e a função do dia. A presença e os atendidos ficam como estão.</p>`
-    : `<label class="field">Quem não está na escala<select data-act="escampo" data-k="ausentes">
-        <option value="a" ${x.ausentes === 'a' ? 'selected' : ''}>Fica como Ausente</option><option value="p" ${x.ausentes === 'p' ? 'selected' : ''}>Fica como Presente</option></select></label>`;
+  h += salva(x)
+    ? `<p class="es-aviso">Grava na gira salva em ${dataBR(x.data)} só as duplas e a função do dia. Presença, faltas e atendidos não mudam.</p>`
+    : `<div class="dv"><span>Não existe gira salva em <b>${x.data ? dataBR(x.data) : '(sem data)'}</b>. Confira a data e a gira acima. A escala não cria gira nem presença: se a gira não foi cadastrada, cadastre antes pelo Cadastrar gira antiga.</span></div>`;
   h += previa(x, ps);
   return h + `<div class="row"><button class="btn primary" data-act="essalvar">Salvar escala</button><button class="btn" data-act="escancelar">Cancelar</button></div></div>`;
 }
@@ -120,7 +125,7 @@ export const cliquesEscala = {
     x.giraReconhecida = !!ent || !r.gira;
     x.giraOk = false;
     x.orixa = ORIXAS.find((o) => giraTxt.some((t) => t.localeCompare(o, 'pt-BR', { sensitivity: 'base' }) === 0)) || '';
-    x.ausentes ||= 'a';
+    x.giraDifOk = false;
     const dv = pendentes(x);
     toast(`Lido: ${r.data ? dataBR(r.data) : 'sem data'} · ${x.nomes.length} nomes${dv ? `, ${dv} para conferir (em vermelho)` : ''}.`);
     avisar();
@@ -132,6 +137,7 @@ export const cliquesEscala = {
     if (k === 'nome') x.nomes[+el.dataset.i].aceito = !x.nomes[+el.dataset.i].aceito;
     else if (k === 'int') x.int[+el.dataset.i].aceito = !x.int[+el.dataset.i].aceito;
     else if (k === 'data') x.dataOk = !x.dataOk;
+    else if (k === 'giradif') x.giraDifOk = !x.giraDifOk;
     else x.giraOk = !x.giraOk;
     avisar();
   },
@@ -141,24 +147,20 @@ export const cliquesEscala = {
     if (falta) { toast(`Confira e aceite os ${falta} ponto${falta > 1 ? 's' : ''} em vermelho antes de gravar.`); document.querySelector('.ga-box .dv:not(.ok)')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
     if (!x.data) { toast('Informe a data da gira.'); return; }
     if (x.data > hoje()) { toast('Essa gira ainda não aconteceu. Use a aba Gira para montar a escala.'); return; }
-    const ps = pessoas();
+    if (!salva(x)) { toast(`Não existe gira salva em ${dataBR(x.data)}. Confira a data e a gira.`); return; }
     const idDe = (lido) => x.nomes.find((n) => n.lido === lido)?.escolhido || '';
     const int = Object.fromEntries(x.int.map((i) => [i.chave, i.escolhido]));
     const m = montarEscala(x.lido, idDe, int, estado.pessoas);
-    const existe = !!estado.giras[x.data];
-    const presenca = {};
-    if (!existe && x.ausentes === 'a') {
-      ps.filter((p) => naCorrenteEm(p, x.data) && !licencaEm(p, x.data) && !m.presentes.includes(p.id)).forEach((p) => { presenca[p.id] = 'a'; });
-    }
-    const nAus = Object.keys(presenca).length;
-    if (!confirm(`Gravar a escala de ${dataBR(x.data)}?\n${m.pares.length} duplas de cambone e ${m.passes.length} de médium de passe.${existe ? '\nA gira já existe: a presença e os atendidos ficam como estão.' : `\nGira nova, já encerrada${nAus ? `, com ${nAus} ausente${nAus > 1 ? 's' : ''} (quem não está na escala)` : ''}.`}`)) return;
-    const ok = await cadastrarEscala(x.data, { entidade: x.entidade, orixa: temOrixa(x) ? x.orixa : '', presenca, papeis: m.papeis, pares: m.pares, passes: m.passes });
+    const g = salva(x);
+    if (!confirm(`Gravar a escala na gira de ${dataBR(x.data)}${g.entidade ? ` (${nomeGira(g.entidade)})` : ''}?\n${m.pares.length} duplas de cambone e ${m.passes.length} de médium de passe.\nPresença, faltas e atendidos não mudam.`)) return;
+    const ok = await cadastrarEscala(x.data, { entidade: x.entidade, orixa: temOrixa(x) ? x.orixa : '', papeis: m.papeis, pares: m.pares, passes: m.passes });
     if (ok) { estado.escalaTxt = null; avisar(); }
   },
 };
 
 export const mudancasEscala = {
-  escampo(t) { E()[t.dataset.k] = t.value; avisar(); },
+  // Trocar a data ou a gira pede para conferir de novo se bate com a gira salva.
+  escampo(t) { E()[t.dataset.k] = t.value; E().giraDifOk = false; avisar(); },
   esmap(t) { const n = E().nomes[+t.dataset.i]; n.escolhido = t.value || ''; n.aceito = false; avisar(); },
   esint(t) { const it = E().int[+t.dataset.i]; it.escolhido = t.value || ''; it.aceito = false; avisar(); },
 };

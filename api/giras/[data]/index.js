@@ -7,8 +7,8 @@
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 //                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas) e despublica: volta ao botão Sortear
 //                            { acao: 'mudarData', para: 'AAAA-MM-DD' }  troca a data programada da gira em aberto (leva tudo junto) → { gira, mensagem }
-//                            { acao: 'escala', entidade, orixa, presenca, papeis, pares, passes }  Histórico → Cadastrar escala (gira que já foi; só o root):
-//                              sem gira na data, cria já encerrada; com gira, grava as duplas e mantém presença e atendidos → { gira, mensagem }
+//                            { acao: 'escala', entidade, orixa, papeis, pares, passes }  Histórico → Cadastrar escala (só o root): grava as duplas
+//                              numa gira que já existe, sem mexer na presença nem nos atendidos (sem gira na data, recusa) → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
@@ -159,20 +159,17 @@ export default rota({
       if (!pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra escala.');
       if (data > hojeBR()) throw new HttpError(400, 'Essa gira ainda não aconteceu. Use a aba Gira para montar a escala.');
       const atual = await db.rpc('gira_obter', { data });
+      const [d, m, y] = data.split('-').reverse();
+      // A escala nunca cria gira nem presença: só completa uma gira que já foi salva (ex.: pelo resumo do WhatsApp).
+      if (!atual) throw new HttpError(404, `Não existe gira salva em ${d}/${m}/${y}. Confira a data ou cadastre a gira antes.`);
       const p = { data, usuario: perfil.id, pares: validarDuplas(b.pares, 'cambones'), passes: validarDuplas(b.passes, 'médiuns de passe') };
-      const papeis = validarPapeis(b.papeis);
       const entidade = validarEntidade(b.entidade);
       const orixa = validarOrixa(b.orixa);
-      const [d, m, y] = data.split('-').reverse();
-      if (!atual) {
-        Object.assign(p, { entidade, orixa, papeis, presenca: validarPresenca(b.presenca), encerrada: true });
-        return { gira: await db.rpc('gira_salvar', p), mensagem: `Escala de ${d}/${m}/${y} cadastrada no histórico.` };
-      }
-      // Gira já salva (ex.: pelo resumo do WhatsApp): troca as duplas, soma a função do dia e completa a gira e o orixá se estiverem vazios.
-      p.papeis = { ...(atual.papeis || {}), ...papeis };
+      // Troca as duplas, soma a função do dia e completa a gira e o orixá se estiverem vazios.
+      p.papeis = { ...(atual.papeis || {}), ...validarPapeis(b.papeis) };
       if (!atual.entidade && entidade) p.entidade = entidade;
       if (!atual.orixa && orixa) p.orixa = orixa;
-      return { gira: await db.rpc('gira_salvar', p), mensagem: `Escala gravada na gira de ${d}/${m}/${y} (a presença e os atendidos ficaram como estavam).` };
+      return { gira: await db.rpc('gira_salvar', p), mensagem: `Escala gravada na gira de ${d}/${m}/${y} (presença e atendidos não mudaram).` };
     }
     if (acao === 'publicar') {
       if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');
