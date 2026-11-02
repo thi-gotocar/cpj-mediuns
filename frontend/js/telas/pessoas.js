@@ -122,11 +122,12 @@ function editorLinhas(p, c) {
 function linhaPessoa(p, { funcao = true } = {}) {
   const ed = estado.renomear === p.id;
   if (!ed) {
+    // Linha 1: nome (quebra entre palavras se precisar), função, 🧹 turma e os botões; "+ médium de passe" na linha de baixo.
     return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
         <span class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
-          <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span>
-          ${p.funcao === 'medium' && p.experiente ? '<span class="pp-fn pp-exp-on">+ médium de passe</span>' : ''}</span>
+          <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span></span>
         <span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="p" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div>
+      ${p.funcao === 'medium' && p.experiente ? '<div class="pp-l3"><span class="pp-fn pp-exp-on">+ médium de passe</span></div>' : ''}
       ${camposDe(p).length ? `<div class="pp-res">${resumoLinhas(p)}</div>` : ''}</div>`;
   }
   return `<div class="pp pp2 pp-editando"><form id="f-ren" class="pp-form" data-id="${p.id}" autocomplete="off">

@@ -924,8 +924,11 @@ section.panel.pf-tela{gap:14px}
 /* Cada pessoa: linha 1 = nome, etiquetas e botões ✎ / 🗑️ (só ícone); embaixo, o resumo das entidades */
 .pessoas-tela .pp-card .pp2:not(.pp-editando){gap:4px}
 .pessoas-tela .pp-card .pp2:not(.pp-editando) > .pp-l1{gap:6px}
-.pessoas-tela .pp-card .pp2:not(.pp-editando) .pp-l1 > .nm{flex:1 1 auto;min-width:0}
-.pessoas-tela .pp-card .pp2:not(.pp-editando) .pp-l2{flex:0 1 auto;justify-content:flex-end}
+/* Linha 1: o nome usa o espaço que sobra (quebra entre palavras); função e 🧹 turma ficam inteiras ao lado, antes dos botões */
+.pessoas-tela .pp-card .pp2:not(.pp-editando) .pp-l1 > .nm{flex:1 1 auto;min-width:0;overflow-wrap:break-word}
+.pessoas-tela .pp-card .pp2:not(.pp-editando) .pp-l1 > .pp-l2{flex:none;flex-wrap:nowrap;gap:4px}
+.pessoas-tela .pp-card .pp-l1 .pp-fn,.pessoas-tela .pp-card .pp-l1 .pp-limp{white-space:nowrap}
+.pessoas-tela .pp-card .pp-l3{display:flex}
 .pessoas-tela .pp-card .pp-res{padding-top:4px;gap:1px}
 .pessoas-tela .pp-card .pp-res .muted{font-size:.72rem !important;line-height:1.25}
 .pessoas-tela .pp-card .pp-bts{gap:4px}
