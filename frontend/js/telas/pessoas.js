@@ -69,7 +69,7 @@ function cardTurmas(ps) {
   return `<div class="card"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${ps.length}</span></summary>
     <div class="turmas" style="margin-top:8px">${TURMAS_LIMPEZA.map((t) => {
       const nomes = ps.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome) + (ehCurimba(p) ? ' 🥁' : ''));
-      return `<div><b>Turma ${t}</b> <span class="muted">(${nomes.length})</span>: ${nomes.length ? nomes.join(', ') : '<span class="muted">ninguém</span>'}</div>`;
+      return `<div class="turma-l"><span class="turma-n" aria-hidden="true">${t}</span><div><b>Turma ${t}</b> <span class="muted">(${nomes.length})</span>: ${nomes.length ? nomes.join(', ') : '<span class="muted">ninguém</span>'}</div></div>`;
     }).join('')}
     ${ps.length > com.length ? `<div class="muted">Sem turma: ${ps.length - com.length}</div>` : ''}</div></details></div>`;
 }
@@ -154,7 +154,7 @@ function cardCurimba(todas, editar) {
   const cs = todas.filter(ehCurimba);
   if (!cs.length) return '';
   const aberto = !!estado.curimbaAberta;
-  let h = `<div class="card">${cabDobra('dobrarcurimba', '🥁 Curimba', cs.length, aberto)}`;
+  let h = `<div class="card pp-card fn-curimba">${cabDobra('dobrarcurimba', '🥁 Curimba', cs.length, aberto)}`;
   if (!aberto) return h + `</div>`;
   h += `<p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
   h += `<div class="ppl">${cs.map((p) => (editar ? linhaPessoa(p, { funcao: false })
@@ -274,7 +274,7 @@ function renderPessoas() {
   const editar = pode('pessoas:editar');
   const verAlunos = pode('alunos:ver');
   if (verAlunos && estado.alunos === null) { estado.alunos = undefined; carregarAlunos(); }
-  let h = `<section class="panel">`;
+  let h = `<section class="panel pessoas-tela">`;
   if (editar || pode('alunos:editar')) h += cardAdicionar(ps);
   // Perfil que só cuida dos alunos (ex.: Admin oferendas): só o Adicionar e o bloco Alunos.
   if (!pode('pessoas:ver')) return h + (verAlunos ? cardAlunos() : '') + '</section>';
@@ -284,13 +284,13 @@ function renderPessoas() {
   }
   // Ordem: Adicionar, Corrente, Licenças, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba, Turmas da limpeza, Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
-    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span><span class="muted">${tituloFuncao(f)}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div>
+    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span class="fn-${f.k}"><span class="muted">${tituloFuncao(f)}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div>
     ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
   ORDEM_FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
     if (!gp.length) return;
     const fechado = (prefs.pessoasFechadas || []).includes(f.k);
-    h += `<div class="card"><button class="grp-h dobra" data-act="dobrar" data-f="${f.k}" aria-expanded="${!fechado}" aria-label="${fechado ? 'Expandir' : 'Minimizar'} ${tituloFuncao(f)}">
+    h += `<div class="card pp-card fn-${f.k}"><button class="grp-h dobra" data-act="dobrar" data-f="${f.k}" aria-expanded="${!fechado}" aria-label="${fechado ? 'Expandir' : 'Minimizar'} ${tituloFuncao(f)}">
       <h2>${tituloFuncao(f)}</h2><span class="count">${gp.length} <span class="seta" aria-hidden="true">${fechado ? '▸' : '▾'}</span></span></button>`;
     if (fechado) { h += `</div>`; return; }
     h += `<div class="ppl">`;
