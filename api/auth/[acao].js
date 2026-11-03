@@ -10,6 +10,8 @@
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
+//   GET  /api/auth/foto?pessoaId=…  → { foto: base64 JPEG | null }  (qualquer um logado: a aba Gira mostra a foto de com quem você trabalha)
+//   POST /api/auth/foto     { pessoaId?, foto: base64 JPEG | null }  troca ou tira a foto (a própria, ou de qualquer um: admin)
 
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
@@ -84,6 +86,22 @@ const acoes = {
     if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
     const { funcao } = await db.rpc('perfil_ler', { pessoaId: eu.pessoaId });
     return limpo(await db.rpc('perfil_salvar', { pessoaId: eu.pessoaId, perfil: perfilDaFuncao(b.perfil, funcao) }));
+  },
+
+  // Foto da pessoa: todos que estão logados veem (a aba Gira mostra com quem cada um trabalha);
+  // trocar ou tirar, só a própria pessoa ou quem vê o perfil de todos (admin).
+  async foto(req) {
+    const eu = await exigir(req);
+    const pessoaId = validarId(String((req.method === 'GET' ? req.query.pessoaId : corpo(req).pessoaId) || eu.pessoaId || ''), 'Pessoa');
+    if (req.method === 'GET') return { foto: await db.rpc('pessoa_foto_ler', { pessoaId }) };
+    if (pessoaId !== eu.pessoaId && !pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin mexe na foto de outra pessoa.');
+    if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
+    const { foto } = corpo(req);
+    if (foto) {
+      const buf = typeof foto === 'string' && foto.length <= 200000 ? Buffer.from(foto, 'base64') : null;
+      if (!buf || buf.length < 100 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) throw new HttpError(400, 'Foto inválida (envie uma imagem JPEG pequena).');
+    }
+    return { foto: await db.rpc('pessoa_foto_salvar', { pessoaId, foto: foto || '' }) };
   },
 
   async estado(req) {

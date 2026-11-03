@@ -57,3 +57,6 @@ export function mascaraTel(el) {
   const corte = d.length === 11 ? 5 : 4;
   el.value = d.length <= 2 ? `(${d}` : `(${d.slice(0, 2)}) ${resto.length > corte ? `${resto.slice(0, corte)}-${resto.slice(corte)}` : resto}`;
 }
+
+// Iniciais do nome (até duas), para o lugar da foto de quem ainda não tem.
+export const iniciais = (nome) => String(nome || '').split(/\s+/).filter((w) => /^\p{L}/u.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join('');

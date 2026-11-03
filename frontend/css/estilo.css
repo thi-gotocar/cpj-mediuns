@@ -1087,3 +1087,27 @@ section.panel.pf-tela{gap:14px}
 .limp-wa{display:inline-flex;align-items:center;gap:4px;text-decoration:none}
 .limp-wa .wa-ico svg{width:18px;height:18px}
 .limp-nao{color:var(--off);text-decoration-thickness:2px}
+
+/* Perfil: foto da pessoa no canto do bloco Informações (e no "Informações da corrente" do admin) */
+.pf-dados{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}
+.pf-info.pf-info-1{grid-template-columns:1fr}
+.pf-foto{display:flex;flex-direction:column;align-items:center;gap:6px;width:104px}
+.pf-foto-img{width:96px;height:96px;border-radius:50%;overflow:hidden;border:3px solid var(--gold);background:var(--accent-soft);display:flex;align-items:center;justify-content:center}
+.pf-foto-img img{width:100%;height:100%;object-fit:cover;display:block}
+.pf-foto-img span{font:700 1.8rem var(--f-display, inherit);color:var(--accent)}
+.pf-foto-bt{cursor:pointer;white-space:nowrap}
+.pf-foto-tirar{font-size:.82rem;padding:0}
+.aj-foto{display:flex;justify-content:center;grid-column:1/-1}
+/* Aba Gira, "Você nesta gira": foto de com quem a pessoa trabalha */
+.eu-l.eu-pessoa{display:flex;align-items:center;gap:10px}
+.eu-av{flex:none;width:34px;height:34px;padding:0;border-radius:50%;overflow:hidden;border:2px solid var(--gold);background:var(--accent-soft);display:flex;align-items:center;justify-content:center}
+button.eu-av{cursor:zoom-in}
+.eu-av img{width:100%;height:100%;object-fit:cover;display:block}
+.eu-av span{font:700 .8rem var(--f-display);color:var(--accent)}
+/* Foto ampliada */
+.foto-fundo{background:rgba(0,0,0,.8);cursor:zoom-out}
+.foto-grande{display:flex;flex-direction:column;align-items:center;gap:10px;color:#fff}
+.foto-grande img{width:min(80vw,320px);height:min(80vw,320px);border-radius:50%;object-fit:cover;border:4px solid var(--gold)}
+.foto-grande b{font-size:1.15rem}
+
+.eu-pessoa + .eu-guia{padding-left:44px}

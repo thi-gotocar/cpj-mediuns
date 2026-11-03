@@ -3,8 +3,8 @@
 
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa } from '../estado.js';
-import { esc, toast } from '../util.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa, carregarFoto, salvarFoto } from '../estado.js';
+import { esc, toast, iniciais } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
 const ROT_ORIXA = { frente: 'frente', ancestral: 'ancestral', adjunto: 'adjunto' };
@@ -74,12 +74,41 @@ function cardAjustes(todos) {
   }, true, true);
 }
 
+// Foto da pessoa no canto do bloco Informações: a própria pessoa troca ou tira; o admin, de qualquer um.
+function blocoFoto(pessoaId, nome) {
+  if (!pessoaId) return '';
+  const F = estado.fotosPessoa;
+  if (F[pessoaId] === undefined) carregarFoto(pessoaId);
+  const url = F[pessoaId];
+  return `<div class="pf-foto">
+    <div class="pf-foto-img">${url ? `<img src="${url}" alt="Foto de ${esc(nome)}">` : `<span aria-hidden="true">${esc(iniciais(nome))}</span>`}</div>
+    <label class="btn small pf-foto-bt">📷 ${url ? 'Trocar' : 'Pôr foto'}<input type="file" accept="image/*" data-act="pffoto" data-id="${pessoaId}" hidden></label>
+    ${url ? `<button type="button" class="btn link pf-foto-tirar" data-act="pftirafoto" data-id="${pessoaId}">Remover</button>` : ''}
+  </div>`;
+}
+
+// A foto vira um quadrado de 320 px (corta o centro), em JPEG: fica pequena para o banco.
+async function reduzirFoto(arquivo) {
+  let img;
+  try { img = await createImageBitmap(arquivo, { imageOrientation: 'from-image' }); } catch {
+    const url = URL.createObjectURL(arquivo);
+    try { img = new Image(); img.src = url; await img.decode(); } finally { URL.revokeObjectURL(url); }
+  }
+  const lado = Math.min(img.width, img.height);
+  const c = document.createElement('canvas');
+  c.width = c.height = 320;
+  c.getContext('2d').drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, 320, 320);
+  const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.82));
+  return new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = erro; r.readAsDataURL(blob); });
+}
+
 // Primeiro bloco: informações da pessoa (salva ao sair de cada campo).
 // Informações de outra pessoa (admin): altera e grava ao tocar em Salvar.
 function formInfoAdmin(x) {
   const I = x.perfil.info || {};
   const c = (k, rot, attrs, v) => `<label class="field">${rot}<input name="${k}" ${attrs} value="${esc(v || '')}"></label>`;
   return `<form id="f-ajinfo" class="aj-info" autocomplete="off" data-id="${x.pessoaId}">
+    <div class="aj-foto">${blocoFoto(x.pessoaId, x.nome)}</div>
     ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
     ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
     ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.celular))}
@@ -105,11 +134,11 @@ function cardInfo(eu) {
   const sv = estado.perfilSalvo;
   return `<div class="card pf-info-card"><div class="grp-h"><h2><span aria-hidden="true">👤</span> Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
     <p class="pf-info-dica">Salva sozinho enquanto você digita.</p>
-    <div class="pf-info-sec"><h3>Seus dados</h3><div class="pf-info">
+    <div class="pf-info-sec"><h3>Seus dados</h3><div class="pf-dados"><div class="pf-info pf-info-1">
       ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome, ' inteiro')}
       ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
       ${campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 91234-5678" autocomplete="tel"', telefoneBR(I.celular))}
-    </div></div>
+    </div>${blocoFoto(eu.pessoaId, eu.nome)}</div></div>
     <div class="pf-info-sec pf-info-contato"><h3><span aria-hidden="true">📞</span> Pessoa para contato</h3><div class="pf-info">
       ${campo('contatoNome', 'Nome', 'type="text" maxlength="80" placeholder="Quem chamar"', I.contatoNome)}
       ${campo('contatoTelefone', 'Telefone', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 91234-5678"', telefoneBR(I.contatoTelefone))}
@@ -257,6 +286,10 @@ export function render() {
 }
 
 export const cliques = {
+  async pftirafoto(el) {
+    if (!confirm('Remover a foto?')) return;
+    if (await salvarFoto(el.dataset.id, null)) toast('Foto removida.');
+  },
   pfdobra(el) {
     const k = el.dataset.k;
     U().abertos[k] = el.getAttribute('aria-expanded') !== 'true';
@@ -306,6 +339,15 @@ export function digitando(el) {
 }
 
 export const mudancas = {
+  // Foto: a escolhida no aparelho vira um quadrado pequeno e já é salva.
+  async pffoto(t) {
+    const arq = t.files && t.files[0];
+    t.value = '';
+    if (!arq) return;
+    let b64;
+    try { b64 = await reduzirFoto(arq); } catch { toast('Não consegui abrir essa imagem.'); return; }
+    if (await salvarFoto(t.dataset.id, b64)) toast('Foto salva.');
+  },
   afin(t) {
     const eu = estado.perfil.eu;
     const bloco = blocosAfinidade(eu.funcao).find((x) => x.tipo === t.dataset.tipo);

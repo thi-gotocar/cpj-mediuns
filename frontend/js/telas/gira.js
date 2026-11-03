@@ -1,8 +1,8 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar, hoje, pd, ajustarRolagem } from '../util.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, carregarFoto, avisar } from '../estado.js';
+import { esc, dLong, dDM, toast, baixar, hoje, pd, ajustarRolagem, iniciais } from '../util.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
@@ -229,6 +229,16 @@ function blocoEu(g) {
   const passesDe = (m) => passes.filter((x) => x.m === m).map((x) => x.c);
   const L = [];
   const lin = (rot, val) => L.push(`<div class="eu-l"><span class="muted">${rot}:</span> <b>${val}</b></div>`);
+  // Com quem você trabalha (médium, cambone, passe): foto pequena do Perfil, para saber quem é quem; tocar amplia.
+  const comFoto = (rot, id) => {
+    const F = estado.fotosPessoa;
+    if (F[id] === undefined) carregarFoto(id);
+    const n = nome(id);
+    const av = F[id]
+      ? `<button type="button" class="eu-av" data-act="eufoto" data-id="${id}" aria-label="Ver a foto de ${esc(n)}"><img src="${F[id]}" alt=""></button>`
+      : `<span class="eu-av"><span aria-hidden="true">${esc(iniciais(n))}</span></span>`;
+    L.push(`<div class="eu-l eu-pessoa">${av}<span><span class="muted">${rot}:</span> <b>${esc(n)}</b></span></div>`);
+  };
   const aviso = (t) => L.push(`<p class="muted" style="margin:0">${t}</p>`);
   const fora = (t) => L.push(`<div class="eu-fora">${t}</div>`);
   // Abaixo do nome do médium: o guia de atendimento dele na linha desta gira (se cadastrou no Perfil).
@@ -245,24 +255,24 @@ function blocoEu(g) {
   else if (funcao === 'medium' || funcao === 'extra') {
     const cs = camsDe(p.id);
     if (!cs.length) aviso('Você ainda está sem cambone.');
-    cs.forEach((c, i) => lin(i ? `${i + 1}º cambone` : 'Cambone', esc(nome(c))));
-    if (funcao === 'medium') passesDe(p.id).forEach((c) => lin('Médium de passe', esc(nome(c))));
+    cs.forEach((c, i) => comFoto(i ? `${i + 1}º cambone` : 'Cambone', c));
+    if (funcao === 'medium') passesDe(p.id).forEach((c) => comFoto('Médium de passe', c));
   } else if (funcao === 'cambone') {
     const meus = pares.filter((x) => x.c === p.id).map((x) => x.m);
     if (!meus.length) aviso('Você não está com nenhum médium nesta escala.');
     meus.forEach((m, i) => {
-      lin(meus.length > 1 ? `Médium ${i + 1}` : 'Médium', esc(nome(m)));
+      comFoto(meus.length > 1 ? `Médium ${i + 1}` : 'Médium', m);
       guiaDe(m);
-      camsDe(m).filter((c) => c !== p.id).forEach((c) => lin('Cambone junto', esc(nome(c))));
-      passesDe(m).forEach((c) => lin('Médium de passe', esc(nome(c))));
+      camsDe(m).filter((c) => c !== p.id).forEach((c) => comFoto('Cambone junto', c));
+      passesDe(m).forEach((c) => comFoto('Médium de passe', c));
     });
   } else if (funcao === 'passe') {
     const meus = passes.filter((x) => x.c === p.id).map((x) => x.m);
     if (!meus.length) aviso('Você ainda está sem médium.');
     meus.forEach((m) => {
-      lin('Médium', esc(nome(m)));
+      comFoto('Médium', m);
       guiaDe(m);
-      camsDe(m).forEach((c) => lin('Cambone do médium', esc(nome(c))));
+      camsDe(m).forEach((c) => comFoto('Cambone do médium', c));
     });
   }
   // Gira em aberto ainda sem sorteio: o aviso "Sorteio de escala pendente" fica dentro deste bloco.
@@ -893,6 +903,8 @@ export const cliques = {
     editarGira({ [k]: (g[k] || []).map((p, i) => (i === +el.dataset.i ? { ...p, fixo: !p.fixo } : p)) });
     avisar();
   },
+  eufoto(el) { estado.fotoVer = el.dataset.id; atualizarJanela(); },
+  fotofechar() { estado.fotoVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).
   waabrir() { estado.waJanela = true; atualizarJanela(); prepararImagem(); },
   wafechar() { estado.waJanela = null; atualizarJanela(); },
@@ -973,7 +985,7 @@ function gravarRapida(c) {
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
-  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() : '';
+  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
@@ -982,7 +994,7 @@ function atualizarJanela() {
     raizJanela.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
-      else if (e.target.classList.contains('modal-fundo')) (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel)();
+      else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
     });
     // Data nova escolhida no calendário: salva e fecha.
     raizJanela.addEventListener('change', async (e) => {
@@ -996,6 +1008,15 @@ function atualizarJanela() {
   }
   if (raizJanela.innerHTML !== html) raizJanela.innerHTML = html;
   if (html) raizJanela.querySelector('[data-act=presok], [data-act=mdsim]')?.focus();
+}
+
+// Foto ampliada (tocar na foto pequena do "Você nesta gira"); tocar em qualquer lugar fecha.
+function janelaFoto() {
+  const id = estado.fotoVer;
+  const url = id && estado.fotosPessoa[id];
+  if (!url) return '';
+  return `<div class="modal-fundo foto-fundo" role="dialog" aria-modal="true" aria-label="Foto de ${esc(nome(id))}"><div class="foto-grande">
+    <img src="${url}" alt="Foto de ${esc(nome(id))}"><b>${esc(nome(id))}</b></div></div>`;
 }
 
 // Janela para trocar a data programada da gira: primeiro pergunta; com "Sim", mostra o calendário.

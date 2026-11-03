@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 62;  // v62: oferenda por pessoa: alunos por turma
+export const VERSAO = 63;  // v63: foto da pessoa (aba Perfil)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2049,6 +2049,32 @@ export const MIGRACOES = [
      select v_id, a.id from alunos a where aluno_no_grupo(a.turma_id, v_novos)
      on conflict do nothing;
      return oferendas_estado();
+   end;
+   $$`,
+
+  // ================================================== v63: foto da pessoa (aba Perfil, bloco Informações)
+  // Foto pequena (o celular reduz para um quadrado de 320 px antes de enviar), em base64: cabe no banco sem custo.
+  `create table if not exists pessoas_fotos (
+     pessoa_id     uuid primary key references pessoas (id) on delete cascade,
+     foto          text not null,
+     atualizado_em timestamptz not null default now()
+   )`,
+  `create or replace function pessoa_foto_ler(p jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(foto) from pessoas_fotos where pessoa_id = (p ->> 'pessoaId')::uuid
+   $$`,
+  // p = { pessoaId, foto } — foto vazia (ou ausente) apaga.
+  `create or replace function pessoa_foto_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if not exists (select 1 from pessoas where id = (p ->> 'pessoaId')::uuid) then raise exception 'Pessoa não encontrada.'; end if;
+     if coalesce(p ->> 'foto', '') = '' then
+       delete from pessoas_fotos where pessoa_id = (p ->> 'pessoaId')::uuid;
+     else
+       insert into pessoas_fotos (pessoa_id, foto) values ((p ->> 'pessoaId')::uuid, p ->> 'foto')
+       on conflict (pessoa_id) do update set foto = excluded.foto, atualizado_em = now();
+     end if;
+     return pessoa_foto_ler(p);
    end;
    $$`,
 ];

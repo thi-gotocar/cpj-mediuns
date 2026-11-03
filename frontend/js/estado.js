@@ -30,6 +30,7 @@ export const estado = {
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
+  fotosPessoa: {},     // aba Perfil: pessoaId → foto (data URL; '' = sem foto; null = buscando)
   pfUi: { abertos: {}, faltam: false },
   perfisCfg: null,     // aba Usuários: perfis e as abas de cada um
   senhas: null,        // aba Usuários: quem tem senha (PIN) no acesso da corrente
@@ -549,6 +550,23 @@ export async function salvarAfinidade(tipo, linhas) {
 }
 
 // Admin (bloco Ajustes da aba Perfil): informações de outra pessoa.
+// Foto da pessoa (aba Perfil): busca uma vez e guarda em estado.fotosPessoa.
+const dataUrl = (b64) => (b64 ? 'data:image/jpeg;base64,' + b64 : '');
+export async function carregarFoto(pessoaId) {
+  estado.fotosPessoa[pessoaId] = null;
+  try { estado.fotosPessoa[pessoaId] = dataUrl((await api('GET', '/auth/foto?pessoaId=' + encodeURIComponent(pessoaId))).foto); } catch { estado.fotosPessoa[pessoaId] = ''; }
+  avisar();
+}
+// foto = JPEG em base64 (ou null para tirar).
+export async function salvarFoto(pessoaId, foto) {
+  try {
+    const r = await api('POST', '/auth/foto', { pessoaId, foto });
+    estado.fotosPessoa[pessoaId] = dataUrl(r.foto);
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+
 export async function salvarInfoDe(pessoaId, info) {
   try {
     const r = await api('POST', '/auth/perfil', { pessoaId, info });
