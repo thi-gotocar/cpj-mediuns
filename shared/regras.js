@@ -240,8 +240,10 @@ export const cambonaHoje = (p, g) => {
 };
 export const recebe = (p) => p.funcao === 'medium' || p.funcao === 'extra';
 export const ehCambone = (p) => p.funcao === 'cambone';
+// A Mãe Vê (dirigente da casa) vem sempre primeiro na lista de médiuns.
+export const ehMaeVe = (p) => normalizar(p?.nome) === 'mae ve';
 export function ordRecebe(a, b) {
-  return (a.funcao === b.funcao ? 0 : a.funcao === 'medium' ? -1 : 1) || a.nome.localeCompare(b.nome, 'pt-BR');
+  return (a.funcao === b.funcao ? 0 : a.funcao === 'medium' ? -1 : 1) || ehMaeVe(b) - ehMaeVe(a) || a.nome.localeCompare(b.nome, 'pt-BR');
 }
 
 function shuffle(a) {

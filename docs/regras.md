@@ -28,6 +28,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **🎲 Sortear** pede confirmação. O bloco se chama "Sorteio de escala" e ganha o 🎱 depois de sorteado.
 - Depois do sorteio: **🔄 Remanejar faltas** (com confirmação; refaz só o afetado) e **✋ Ajuste manual**. "Sortear tudo de novo" foi removido; no lugar, o quadrado **↻** no canto do bloco **cancela o sorteio** (com confirmação): apaga todas as duplas, inclusive as fixadas, despublica a escala e volta ao botão Sortear (`acao: 'cancelarSorteio'`).
 - **Falta** direto na escala: marca falta e remaneja.
+- **Mãe Vê** vem sempre primeiro entre os médiuns nas listas da escala (aba Gira, texto e imagem do WhatsApp, quem já cambonou quem) — `ordRecebe`.
 - **Publicar escala**: até publicar, só quem edita vê o sorteio (`ocultarSorteio`).
 - Encerrar exige ninguém pendente + atendimentos (preferencial/normal/passe); quem sobrou vai para o Suporte. Reabrir desfaz.
 - Root corrige presença de qualquer gira (mesmo encerrada) em Histórico → Estatísticas (`acao: 'corrigirPresenca'`).
@@ -50,6 +51,9 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **✖ Ausência** (todos veem): no card da gira, logo acima de "De licença", no mesmo padrão com a borda e o fundo amarelos; quem está Ausente nesta gira, um nome por linha.
 - **De licença** (todos veem): no card da gira, logo abaixo da limpeza, no mesmo padrão dela com a borda vermelha; nome e até quando. Saiu dos blocos de faltas/ausentes do sorteio.
 - Botão **WhatsApp** (no card da gira, abaixo de Encerrar gira) abre o painel de texto/imagem logo abaixo desse card; fica desabilitado enquanto não houver sorteio.
+  - Texto e imagem com o mesmo desenho: no cabeçalho, dia da semana e data, o **orixá** numa linha, a **gira** na de baixo e a **senha** logo depois; **Médiuns** e **At. Extras** (separados, como na planilha da casa), com o **médium de passe embaixo do médium** (não tem seção própria; só "Passe sem médium" quando houver); no fim, Suporte, Cambones de apoio e a **Turma X da limpeza** com quem ajuda na limpeza. Quem ficou sem cambone aparece como "sem cambone".
+  - Imagem: logo da casa no cabeçalho, seções com linhas alternadas e quadros coloridos (suporte e apoio lado a lado; limpeza na largura toda, com quem ajuda separado por um fio).
+  - Texto (Lista): ícones e o negrito/itálico do WhatsApp; o passe vai recuado na linha de baixo; Suporte e Cambones de apoio com uma linha em branco depois de cada; a limpeza com os nomes em tópico e, na linha de baixo (sem tópico), quem ajuda. O formato Tabela continua opcional (com a tabela de passes).
 - Ordem (todos, admin também): Eventos → Você nesta gira → Seus compromissos → Aula de curimba (só aluno) → Sua presença no ano → a gira (data, navegação) e o resto.
 - Logo depois de "Você nesta gira": **⚠️ Seus compromissos nas oferendas** — os itens que a pessoa vai doar e ainda não foram entregues (oferendas de hoje em diante, não encerradas) e, na oferenda com uma linha por pessoa, "Pagamento" e "Entrega" quando falta algum dos dois (enquanto a oferenda não for encerrada, mesmo com a data passada). Link para a aba Oferendas. Só aparece quando há algum.
 - **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.

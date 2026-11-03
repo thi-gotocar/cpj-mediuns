@@ -1,7 +1,7 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
 import { giraEspecial, nomeGira, orixaDaGira, limpezaDaGira, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira } from '/shared/regras.js';
-import { wd, dShort } from './util.js';
+import { pd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
@@ -14,7 +14,7 @@ function tabela(L, h1, h2, rows) {
   L.push('```');
 }
 
-// Grupos que aparecem depois das duplas (também usados pela imagem).
+// Grupos que aparecem depois das duplas (também usados pela imagem): [título, nomes, chave].
 // Quem faltou ou está ausente não entra na lista do evento.
 const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
@@ -22,8 +22,8 @@ const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 export function gruposLimpeza(pessoas, g, giras) {
   const L = limpezaDaGira(pessoas, g, giras);
   if (!L) return [];
-  const out = [[`Limpeza · Turma ${L.turma}`, L.membros.length ? L.membros.map((p) => p.nome) : ['ninguém cadastrado nesta turma']]];
-  if (L.ajudantes.length) out.push([`Ajudam na limpeza (faltaram na Turma ${L.anterior.limpeza} em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome)]);
+  const out = [[`Limpeza · Turma ${L.turma}`, L.membros.length ? L.membros.map((p) => p.nome) : ['ninguém cadastrado nesta turma'], 'limpeza']];
+  if (L.ajudantes.length) out.push([`Ajudam na limpeza (Turma ${L.anterior.limpeza}, faltaram em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome), 'ajudam']);
   return out;
 }
 
@@ -31,40 +31,69 @@ export function gruposExtras(pessoas, g, giras = []) {
   const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
   const usados = new Set((g.pares || []).map((p) => p.c));
   return [
-    ['Senha', ps.filter((p) => presente(p, g) && p.funcao === 'senha').map((p) => p.nome)],
-    ['Suporte', ps.filter((p) => status(p, g) === 'sup').map((p) => p.nome)],
-    ['Cambones de apoio', ps.filter((p) => cambonaHoje(p, g) && !usados.has(p.id)).map((p) => p.nome)],
+    ['Senha', ps.filter((p) => presente(p, g) && p.funcao === 'senha').map((p) => p.nome), 'senha'],
+    ['Suporte', ps.filter((p) => status(p, g) === 'sup').map((p) => p.nome), 'suporte'],
+    ['Cambones de apoio', ps.filter((p) => cambonaHoje(p, g) && !usados.has(p.id)).map((p) => p.nome), 'apoio'],
   ].filter((x) => x[1].length).concat(gruposLimpeza(pessoas, g, giras));
 }
+
+// Cabeçalho da escala (texto e imagem): "Sábado, 07/11/2026" e "Gira de Caboclo · Orixá Ogum".
+export function cabecalhoGira(g) {
+  const dia = pd(g.data).toLocaleDateString('pt-BR', { weekday: 'long' });
+  const gira = !g.entidade ? '' : giraEspecial(g.entidade) ? nomeGira(g.entidade) : `Gira de ${nomeGira(g.entidade)}`;
+  return { dia: dia.charAt(0).toUpperCase() + dia.slice(1), data: dShort(g.data), gira, orixa: orixaDaGira(g) };
+}
+
+const ICONE = { senha: '🔑', suporte: '🛟', apoio: '🤲', limpeza: '🧹', ajudam: '🤝' };
+const LINHA = '━━━━━━━━━━━━━━━';
 
 export function textoWhats(pessoas, g, fmt, giras = []) {
   const nome = (id) => pessoas.find((p) => p.id === id)?.nome || '(removido)';
   const { lista, semPasse } = paresPorMedium(pessoas, g);
-  const L = [];
-  L.push('*GIRA · ' + wd(g.data).toUpperCase() + ', ' + dShort(g.data) + '*');
-  if (giraEspecial(g.entidade)) L.push('*' + nomeGira(g.entidade) + '*');
-  else if (g.entidade) L.push('*Entidade:* ' + nomeGira(g.entidade));
-  if (orixaDaGira(g)) L.push('*Orixá:* ' + orixaDaGira(g));
-  L.push('');
-  L.push('*Médiuns e cambones*');
+  const cab = cabecalhoGira(g);
+  const grupos = gruposExtras(pessoas, g, giras);
+  const grupo = (k) => grupos.find((x) => x[2] === k);
+  // Cabeçalho: orixá numa linha, a gira na de baixo e a senha logo depois.
+  const L = ['📜 *ESCALA DA GIRA*', `🗓️ *${cab.dia}, ${cab.data}*`];
+  if (cab.orixa) L.push(`👑 *Orixá:* ${cab.orixa}`);
+  if (cab.gira) L.push(`🕯️ *${cab.gira}*`);
+  if (grupo('senha')) L.push(`${ICONE.senha} *Senha:* ${grupo('senha')[1].join(', ')}`);
+  L.push(LINHA);
   const tab = fmt === 'tabela';
-  if (tab) {
-    tabela(L, 'MÉDIUM', 'CAMBONE', lista.map((x) => [x.m.funcao === 'extra' ? corta(x.m.nome, 12) + ' *' : x.m.nome, x.cams.length ? x.cams.map((p) => nome(p.c)) : ['—']]));
-    if (lista.some((x) => x.m.funcao === 'extra')) L.push('_* extra_');
-  } else {
-    lista.forEach((x) => L.push('• ' + x.m.nome + (x.m.funcao === 'extra' ? ' (extra)' : '') + ' → ' + (x.cams.length ? x.cams.map((p) => nome(p.c)).join(' e ') : '—')));
-  }
-  const comPasse = lista.filter((x) => x.passes.length);
-  if (comPasse.length || semPasse.length) {
-    L.push('');
-    L.push('*Médiuns de passe*');
-    if (tab) {
-      tabela(L, 'MÉDIUM', 'PASSE', comPasse.map((x) => [x.m.nome, x.passes.map((p) => nome(p.c))]).concat(semPasse.length ? [['(sem médium)', semPasse.map(nome)]] : []));
-    } else {
-      comPasse.forEach((x) => L.push('• ' + x.passes.map((p) => nome(p.c)).join(' e ') + ' com ' + x.m.nome));
-      semPasse.forEach((id) => L.push('• ' + nome(id) + ' → sem médium'));
+  // Médiuns e At. Extras em seções separadas (como na planilha da casa); quem está sem cambone aparece também.
+  // Na lista, o médium de passe vai na linha de baixo do médium, recuado.
+  const cams = (x) => (x.cams.length ? x.cams.map((p) => nome(p.c)).join(' e ') : '_sem cambone_');
+  const RECUO = '  ';   // espaço largo: o WhatsApp não some com ele no começo da linha
+  const secao = (titulo, itens) => {
+    if (!itens.length) return;
+    L.push('', titulo);
+    if (tab) tabela(L, 'MÉDIUM', 'CAMBONE', itens.map((x) => [x.m.nome, x.cams.length ? x.cams.map((p) => nome(p.c)) : ['—']]));
+    else {
+      itens.forEach((x) => {
+        L.push(`▫️ *${x.m.nome}* → ${cams(x)}`);
+        if (x.passes.length) L.push(`${RECUO}🙌 _Passe:_ ${x.passes.map((p) => nome(p.c)).join(' e ')}`);
+      });
     }
+  };
+  secao('👥 *MÉDIUNS*', lista.filter((x) => x.m.funcao !== 'extra'));
+  secao('⭐ *AT. EXTRAS*', lista.filter((x) => x.m.funcao === 'extra'));
+  const comPasse = lista.filter((x) => x.passes.length);
+  if (tab && (comPasse.length || semPasse.length)) {
+    L.push('', '🙌 *MÉDIUNS DE PASSE*');
+    tabela(L, 'MÉDIUM', 'PASSE', comPasse.map((x) => [x.m.nome, x.passes.map((p) => nome(p.c))]).concat(semPasse.length ? [['(sem médium)', semPasse.map(nome)]] : []));
+  } else if (semPasse.length) {
+    L.push('', `🙌 *Passe sem médium:* ${semPasse.map(nome).join(', ')}`);
   }
-  gruposExtras(pessoas, g, giras).forEach(([t, nomes]) => { L.push(''); L.push('*' + t + ':* ' + nomes.join(', ')); });
+  // Suporte e cambones de apoio, cada um com uma linha em branco depois; a limpeza em tópicos no fim.
+  for (const k of ['suporte', 'apoio']) {
+    const x = grupo(k);
+    if (x) L.push('', `${ICONE[k]} *${x[0]}:* ${x[1].join(', ')}`);
+  }
+  const limpeza = grupo('limpeza');
+  if (limpeza) {
+    L.push('', `${ICONE.limpeza} *${limpeza[0].replace(/^Limpeza · (Turma \d+)$/, '$1 da limpeza')}:*`, `• ${limpeza[1].join(', ')}.`);
+    if (grupo('ajudam')) L.push(`${ICONE.ajudam} *Ajudam na limpeza:* ${grupo('ajudam')[1].join(', ')}.`);
+  }
+  L.push('', LINHA, 'Boa gira a todos! 🙏');
   return L.join('\n');
 }

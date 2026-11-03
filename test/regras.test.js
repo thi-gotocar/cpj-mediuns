@@ -476,3 +476,9 @@ test('aba Fotos: todos veem; só os perfis de admin apagam a foto dos outros', (
     assert.equal(perms.includes('fotos:editar'), p.chave === 'root' || p.chave.startsWith('admin'), p.chave);
   }
 });
+
+test('Mãe Vê vem sempre primeiro entre os médiuns da escala', async () => {
+  const { ordRecebe } = await import('../shared/regras.js');
+  const ps = [{ nome: 'Ana', funcao: 'medium' }, { nome: 'Zé', funcao: 'extra' }, { nome: 'Mãe Vê', funcao: 'medium' }, { nome: 'Bruno', funcao: 'medium' }];
+  assert.deepEqual(ps.sort(ordRecebe).map((p) => p.nome), ['Mãe Vê', 'Ana', 'Bruno', 'Zé']);
+});
