@@ -325,7 +325,7 @@ const tituloSorteio = (sorteado) => (sorteado && !pode('giras:editar') ? '<h2 cl
 // Confirmação dentro do bloco do sorteio (antes de sortear e antes de cancelar o sorteio).
 const confirmaSorteio = (texto, act, botao) => `<div class="infobox rem-conf"><span>${texto}</span>
   <span class="row" style="gap:6px"><button class="btn small primary" data-act="${act}">${botao}</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`;
-// Presença e WhatsApp também começam minimizados (abrem enquanto o app estiver aberto).
+// A Presença também começa minimizada (abre enquanto o app estiver aberto).
 const abertos = new Set();
 const cabDobra = (k, titulo, extra = '') => {
   const ab = abertos.has(k);
@@ -580,7 +580,6 @@ function renderGira() {
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
     ${!encerrada && (existe || editar) ? contagemPresentes(ps, g) : ''}
   </div>`;
-  if (whats && temDuplas && abertos.has('wa')) h += painelWhats(g);
 
   if (!ps.length) {
     return h + `<div class="card empty"><h2>Nenhuma pessoa cadastrada</h2><p class="muted">${pode('pessoas:editar') ? 'Cadastre a corrente na aba Pessoas.' : 'Um admin precisa cadastrar a corrente.'}</p>
@@ -739,34 +738,45 @@ function renderGira() {
 
 // Ícone do WhatsApp (balão com o telefone).
 const ICONE_WHATS = '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#25D366" d="M12 2.2a9.8 9.8 0 0 0-8.4 14.9L2.3 21.8l4.8-1.3A9.8 9.8 0 1 0 12 2.2z"/><path fill="#fff" d="M8.6 7.2c.2-.4.5-.4.7-.4h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .6l-.4.6c-.1.2-.2.3 0 .6.4.7 1 1.4 1.6 1.9.7.6 1.3.8 1.6 1 .2.1.4.1.5-.1l.7-.8c.2-.2.3-.2.6-.1l1.8.9c.3.1.4.2.5.3 0 .2 0 .8-.3 1.4-.3.6-1.5 1.2-2 1.2-.6.1-1.1.3-3.7-.8-3.1-1.3-5-4.4-5.2-4.6-.1-.2-1.2-1.6-1.2-3.1 0-1.4.7-2.1 1-2.4z"/></svg>';
-// Botão do WhatsApp no card da gira, abaixo do Encerrar gira; abre o painel logo abaixo do card.
+// Botão do WhatsApp no card da gira, abaixo do Encerrar gira: abre a janela para escolher texto ou imagem.
 // Sem sorteio feito fica desabilitado (não há escala para mandar).
-const botaoWhats = (ok) => { const ab = ok && abertos.has('wa');
-  if (!ok) return `<button class="btn btn-grande wa-bt" disabled title="Faça o sorteio primeiro"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</button>`;
-  return `<button class="btn btn-grande wa-bt" data-act="dobrarcard" data-k="wa" aria-expanded="${ab}"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></button>`; };
+const botaoWhats = (ok) => (ok
+  ? `<button class="btn btn-grande wa-bt" data-act="waabrir"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</button>`
+  : `<button class="btn btn-grande wa-bt" disabled title="Faça o sorteio primeiro"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</button>`);
 
-// Painel do WhatsApp: texto para copiar e a imagem da escala.
-function painelWhats(g) {
-  const txt = textoWhats(estado.pessoas, g, prefs.fmt, girasLista());
-  const imgOk = estado.img && estado.img.data === g.data && estado.img.key === chaveImg();
-  let h = `<div class="card wa-painel"><button class="grp-h dobra" data-act="dobrarcard" data-k="wa" aria-expanded="true" aria-label="Recolher o WhatsApp"><h2><span class="wa-ico wa-ico-tit" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</h2><span class="count"><span class="seta" aria-hidden="true">▾</span></span></button>
-    <div class="row" style="justify-content:flex-end">
-    <div class="seg" role="group" aria-label="Formato"><button data-act="fmt" data-v="lista" aria-pressed="${prefs.fmt === 'lista'}">Lista</button><button data-act="fmt" data-v="tabela" aria-pressed="${prefs.fmt === 'tabela'}">Tabela</button></div></div>
-    <textarea id="f-txt" readonly aria-label="Texto para o WhatsApp">${esc(txt)}</textarea>
-    <div class="row"><button class="btn primary" data-act="copiar">Copiar texto</button>
-    <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Abrir no WhatsApp</a></div>
-    <div class="grp" style="border-top:1px solid var(--line);padding-top:14px"><div class="grp-h"><h3>Imagem da escala</h3>
-      <button class="btn ${imgOk ? '' : 'primary'}" data-act="gerarimg">${estado.img && !imgOk ? 'Gerar de novo' : imgOk ? 'Atualizar' : 'Gerar imagem'}</button></div>`;
-  if (estado.img && !imgOk) h += `<p class="muted" style="margin:0;font-size:.88rem">A escala mudou desde a última imagem. Gere de novo.</p>`;
-  else if (!estado.img) h += `<p class="muted" style="margin:0;font-size:.88rem">Gera um PNG com a escala da gira, pronto para mandar no grupo.</p>`;
-  if (imgOk) {
-    const share = podeCompartilhar();
-    h += `<img id="img-prev" class="prev" src="${estado.img.url}" alt="Imagem da escala da gira">
-      <div class="row">${share ? '<button class="btn primary" data-act="shareimg">Compartilhar</button>' : ''}<button class="btn ${share ? '' : 'primary'}" data-act="saveimg">Salvar imagem</button></div>
-      <p class="muted" style="margin:0;font-size:.88rem">No celular, também dá para tocar e segurar a imagem para salvar.</p>`;
-  }
-  h += `</div></div>`;
-  return h;
+// ---------- janela do WhatsApp: texto (abre o WhatsApp com a mensagem) ou imagem (compartilhar do aparelho) ----------
+const imagemPronta = () => { const g = giraAtual(); return !!(estado.img && estado.img.data === g.data && estado.img.key === chaveImg()); };
+// A imagem começa a ser feita quando a janela abre: o compartilhar do celular só funciona logo depois do toque,
+// então ela já precisa estar pronta quando a pessoa escolher "Imagem".
+async function prepararImagem() {
+  if (imagemPronta() || estado.waGerando) return;
+  estado.waGerando = true;
+  try {
+    const g = giraAtual();
+    const blob = await gerarImagem(estado.pessoas, g, girasLista());
+    if (estado.img) URL.revokeObjectURL(estado.img.url);
+    estado.img = { url: URL.createObjectURL(blob), blob, key: chaveImg(), data: g.data, nome: 'escala-' + g.data + '.png' };
+  } catch (e) { toast(e.message); }
+  estado.waGerando = false;
+  atualizarJanela();
+}
+
+function janelaWhats() {
+  if (!estado.waJanela) return '';
+  const txt = textoWhats(estado.pessoas, giraAtual(), prefs.fmt, girasLista());
+  const pronta = imagemPronta();
+  const share = pronta && podeCompartilhar();
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="wa-t"><div class="modal wa-modal">
+    <h3 id="wa-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar a escala</h3>
+    <p class="muted" style="margin:0">Como você quer mandar no WhatsApp?</p>
+    <a class="wa-op" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener" data-act="watexto">
+      <span class="wa-op-ico" aria-hidden="true">📝</span><span class="wa-op-txt"><b>Texto da lista</b><small>Abre o WhatsApp com a mensagem pronta para escolher o grupo</small></span></a>
+    <button class="wa-op" data-act="waimagem" ${pronta ? '' : 'disabled'}>
+      <span class="wa-op-ico" aria-hidden="true">🖼️</span><span class="wa-op-txt"><b>Imagem da escala</b><small>${!pronta ? 'Preparando a imagem…' : share ? 'Escolha o WhatsApp na lista do aparelho' : 'Baixa a imagem para anexar no WhatsApp'}</small></span></button>
+    <div class="row wa-mais"><div class="seg" role="group" aria-label="Formato do texto"><button data-act="wafmt" data-v="lista" aria-pressed="${prefs.fmt !== 'tabela'}">Lista</button><button data-act="wafmt" data-v="tabela" aria-pressed="${prefs.fmt === 'tabela'}">Tabela</button></div>
+      <button class="btn small" data-act="copiar">Copiar texto</button></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="wafechar">Cancelar</button></div>
+  </div></div>`;
 }
 
 // ---------- ações ----------
@@ -882,27 +892,38 @@ export const cliques = {
     editarGira({ [k]: (g[k] || []).map((p, i) => (i === +el.dataset.i ? { ...p, fixo: !p.fixo } : p)) });
     avisar();
   },
-  fmt(el) { prefs.fmt = el.dataset.v; salvarPrefs(); avisar(); },
+  // Janela do WhatsApp (texto ou imagem).
+  waabrir() { estado.waJanela = true; atualizarJanela(); prepararImagem(); },
+  wafechar() { estado.waJanela = null; atualizarJanela(); },
+  // O link já abre o WhatsApp; a janela fecha logo depois (sem atrapalhar o toque no link).
+  watexto() { setTimeout(cliques.wafechar, 0); },
+  waimagem() {
+    if (!imagemPronta()) return;
+    const { blob, url, nome: arq } = estado.img;
+    if (!podeCompartilhar()) {
+      baixar(url, arq);
+      toast('Imagem salva. Abra o WhatsApp e anexe a imagem no grupo.');
+      cliques.wafechar();
+      return;
+    }
+    navigator.share({ files: [new File([blob], arq, { type: 'image/png' })], title: 'Escala da gira' })
+      .then(() => cliques.wafechar())
+      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Tente pelo texto.'); });
+  },
+  wafmt(el) { prefs.fmt = el.dataset.v; salvarPrefs(); atualizarJanela(); },
   copiar() {
     const txt = textoWhats(estado.pessoas, giraAtual(), prefs.fmt, girasLista());
-    const fb = () => { const t = document.getElementById('f-txt'); t.focus(); t.select(); toast('Texto selecionado. Copie com o menu do aparelho.'); };
+    // Sem acesso à área de transferência: copia por uma caixa de texto escondida.
+    const fb = () => {
+      const t = document.createElement('textarea');
+      t.value = txt; t.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(t); t.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch { /* sem cópia */ }
+      t.remove();
+      toast(ok ? 'Copiado. Cole no grupo do WhatsApp.' : 'Não consegui copiar. Use a opção Texto da lista.');
+    };
     try { navigator.clipboard.writeText(txt).then(() => toast('Copiado. Cole no grupo do WhatsApp.'), fb); } catch { fb(); }
-  },
-  async gerarimg() {
-    try {
-      const g = giraAtual();
-      const blob = await gerarImagem(estado.pessoas, g, girasLista());
-      if (estado.img) URL.revokeObjectURL(estado.img.url);
-      estado.img = { url: URL.createObjectURL(blob), blob, key: chaveImg(), data: g.data, nome: 'gira-' + g.data + '.png' };
-      avisar();
-      document.getElementById('img-prev')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } catch (e) { toast(e.message); }
-  },
-  saveimg() { if (estado.img) baixar(estado.img.url, estado.img.nome); },
-  shareimg() {
-    if (!estado.img) return;
-    navigator.share({ files: [new File([estado.img.blob], estado.img.nome, { type: 'image/png' })], title: 'Escala da gira' })
-      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagem.'); });
   },
 };
 
@@ -951,7 +972,7 @@ function gravarRapida(c) {
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
-  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() : '';
+  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
@@ -960,7 +981,7 @@ function atualizarJanela() {
     raizJanela.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
-      else if (e.target.classList.contains('modal-fundo')) (estado.mudaData ? cliques.mdcancel : cliques.prescancel)();
+      else if (e.target.classList.contains('modal-fundo')) (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel)();
     });
     // Data nova escolhida no calendário: salva e fecha.
     raizJanela.addEventListener('change', async (e) => {

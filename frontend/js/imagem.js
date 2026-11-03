@@ -15,11 +15,13 @@ const C = {
 const COR = { medium: '#2d4a86', extra: '#b07d1c', passe: '#2f7d5b', suporte: '#2f7d5b', apoio: '#2d4a86', limpeza: '#c06a14' };
 const FD = '"Alegreya",Georgia,serif';
 const FB = '"Alegreya Sans",system-ui,sans-serif';
-const W = 720;
-const P = 28;
+// Área de desenho estreita (560) e imagem final larga (1440 px): no celular, tudo aparece grande e nítido.
+const W = 560;
+const LARGURA_PNG = 1440;
+const P = 22;
 const CW = W - 2 * P;
-const LH = 25;   // altura da linha de texto das listas
-const R = 54;    // raio do logo no cabeçalho
+const LH = 26;   // altura da linha de texto das listas
+const R = 50;    // raio do logo no cabeçalho
 
 function quebrar(ctx, t, max) {
   const out = [];
@@ -110,12 +112,15 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   // ---- seções em duas colunas, com linhas alternadas; o médium de passe vai embaixo do nome do médium
   const secao = (titulo, cor, c1, c2, itens) => {
     if (!itens.length) return;
-    const ix = P + 22, leftW = CW * 0.45 - 30, rx = P + CW * 0.45 + 6, rightW = CW * 0.55 - 30;
+    const ix = P + 20, leftW = CW * 0.42 - 26, rx = P + CW * 0.42 + 6, rightW = CW * 0.58 - 28;
     const rs = itens.map((r) => {
-      fonte(700, 19); const ll = quebrar(ctx, r.l, leftW);
-      fonte(600, 16); const pl = r.passe ? quebrar(ctx, 'Passe · ' + r.passe, leftW) : [];
-      fonte(r.vazio ? 'italic 400' : 400, 19); const rl = r.r.flatMap((t) => quebrar(ctx, t, rightW));
-      return { ...r, ll, pl, rl, h: Math.max(ll.length * LH + pl.length * 22 + (pl.length ? 2 : 0), rl.length * LH) + 18 };
+      fonte(700, 20); const ll = quebrar(ctx, r.l, leftW);
+      fonte(600, 17); const pl = r.passe ? quebrar(ctx, 'Passe · ' + r.passe, leftW) : [];
+      // Dois cambones na mesma linha, separados por " / "; se não couber, um embaixo do outro (com a barra no fim).
+      fonte(r.vazio ? 'italic 400' : 400, 20);
+      const juntos = r.r.join(' / ');
+      const rl = ctx.measureText(juntos).width <= rightW ? [juntos] : r.r.flatMap((t, i) => quebrar(ctx, i < r.r.length - 1 ? t + ' /' : t, rightW));
+      return { ...r, ll, pl, rl, h: Math.max(ll.length * LH + pl.length * 23 + (pl.length ? 2 : 0), rl.length * LH) + 20 };
     });
     const ch = 22 + 30 + 26 + rs.reduce((a, r) => a + r.h, 0) + 14;
     if (desenhar) cartao(ctx, P, y, CW, ch, cor);
@@ -132,10 +137,10 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
     rs.forEach((r, i) => {
       if (desenhar) {
         if (i % 2 === 0) { ctx.fillStyle = C.zebra; retangulo(ctx, ix - 10, yy, CW - 2 * (ix - P) + 20, r.h, 8); ctx.fill(); }
-        let ly = yy + 9; fonte(700, 19); ctx.fillStyle = C.ink;
+        let ly = yy + 10; fonte(700, 20); ctx.fillStyle = C.ink;
         r.ll.forEach((l) => { ctx.fillText(l, ix, ly); ly += LH; });
-        if (r.pl.length) { ly += 2; fonte(600, 16); ctx.fillStyle = COR.passe; r.pl.forEach((l) => { ctx.fillText(l, ix, ly); ly += 22; }); }
-        let ry = yy + 9; fonte(r.vazio ? 'italic 400' : 400, 19); ctx.fillStyle = r.vazio ? C.muted : C.ink;
+        if (r.pl.length) { ly += 2; fonte(600, 17); ctx.fillStyle = COR.passe; r.pl.forEach((l) => { ctx.fillText(l, ix, ly); ly += 23; }); }
+        let ry = yy + 10; fonte(r.vazio ? 'italic 400' : 400, 20); ctx.fillStyle = r.vazio ? C.muted : C.ink;
         r.rl.forEach((l) => { ctx.fillText(l, rx, ry); ry += LH; });
       }
       yy += r.h;
@@ -209,11 +214,11 @@ async function carregarLogo() {
 
 export async function gerarImagem(pessoas, g, giras = []) {
   try {
-    await Promise.all(['700 34px Alegreya', 'italic 700 20px Alegreya', '700 24px Alegreya', '400 19px "Alegreya Sans"', 'italic 400 19px "Alegreya Sans"',
-      '700 19px "Alegreya Sans"', '600 16px "Alegreya Sans"', '500 13px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
+    await Promise.all(['700 34px Alegreya', 'italic 700 20px Alegreya', '700 24px Alegreya', '400 20px "Alegreya Sans"', 'italic 400 20px "Alegreya Sans"',
+      '700 20px "Alegreya Sans"', '600 17px "Alegreya Sans"', '500 13px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
   } catch { /* usa as fontes do sistema */ }
   const logo = await carregarLogo();
-  const S = 2;
+  const S = LARGURA_PNG / W;
   const c = document.createElement('canvas');
   let ctx = c.getContext('2d');
   ctx.textBaseline = 'top';
