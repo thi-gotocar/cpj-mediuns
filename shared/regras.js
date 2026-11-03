@@ -283,7 +283,9 @@ export function custo(map, m, c) {
 }
 
 // Distribui cada item de "big" entre os de "small" por igual, com o menor custo total.
-function balancear(big, small, cost, fixos) {
+// prefere (opcional): os de "small" que ficam com as sobras quando cada um recebe 1 e alguns recebem 2
+// (médiuns com médium de passe junto ficam com o 2º cambone antes dos outros).
+function balancear(big, small, cost, fixos, prefere = null) {
   const base = Math.floor(big.length / small.length);
   const extra = big.length % small.length;
   let best = [];
@@ -306,7 +308,8 @@ function balancear(big, small, cost, fixos) {
       let pc = Infinity;
       for (const s of small) {
         if (!(cnt[s] < base || (cnt[s] === base && acima < extra))) continue;
-        const v = cost(b, s) + Math.random() * 0.6;
+        const sobra = prefere && base === 1 && cnt[s] === base && !prefere.has(s) ? 1000 : 0;
+        const v = cost(b, s) + sobra + Math.random() * 0.6;
         if (v < pc) { pc = v; pick = s; }
       }
       if (pick === null) {
@@ -336,30 +339,34 @@ export function sortear(pessoas, giras, g) {
   const msgs = [];
   const patch = {};
 
-  if (meds.length && cams.length) {
-    const map = custos(giras, g.data, 'pares');
-    const fx = (g.pares || []).filter((p) => p.fixo && meds.includes(p.m) && cams.includes(p.c));
-    const mm = meds.length >= cams.length;
-    const r = mm
-      ? balancear(meds, cams, (b, s) => custo(map, b, s), fx.map((f) => ({ b: f.m, s: f.c })))
-      : balancear(cams, meds, (b, s) => custo(map, s, b), fx.map((f) => ({ b: f.c, s: f.m })));
-    patch.pares = r.map((x) => (mm ? { m: x.b, c: x.s, fixo: x.fixo } : { m: x.s, c: x.b, fixo: x.fixo }));
-    msgs.push(patch.pares.filter((p) => !map[p.m + '|' + p.c]).length + ' de ' + patch.pares.length + ' duplas novas');
-  } else {
-    msgs.push(!meds.length ? 'nenhum médium presente' : 'nenhum cambone presente');
-  }
-
+  // Primeiro os médiuns de passe: quem fica com passe junto tem preferência para ter 2 cambones.
+  const msgPasse = [];
   if (passes.length) {
     if (hosts.length) {
       const map = custos(giras, g.data, 'passes');
       const fx = (g.passes || []).filter((p) => p.fixo && hosts.includes(p.m) && passes.includes(p.c));
       const r = balancear(passes, hosts, (b, s) => custo(map, s, b), fx.map((f) => ({ b: f.c, s: f.m })));
       patch.passes = r.map((x) => ({ m: x.s, c: x.b, fixo: x.fixo }));
-      msgs.push(patch.passes.length + ' médiuns de passe distribuídos');
+      msgPasse.push(patch.passes.length + ' médiuns de passe distribuídos');
     } else {
-      msgs.push('nenhum médium marcado para ter passe junto');
+      msgPasse.push('nenhum médium marcado para ter passe junto');
     }
   }
+  const comPasse = new Set((patch.passes || []).map((p) => p.m));
+
+  if (meds.length && cams.length) {
+    const map = custos(giras, g.data, 'pares');
+    const fx = (g.pares || []).filter((p) => p.fixo && meds.includes(p.m) && cams.includes(p.c));
+    const mm = meds.length >= cams.length;
+    const r = mm
+      ? balancear(meds, cams, (b, s) => custo(map, b, s), fx.map((f) => ({ b: f.m, s: f.c })))
+      : balancear(cams, meds, (b, s) => custo(map, s, b), fx.map((f) => ({ b: f.c, s: f.m })), comPasse);
+    patch.pares = r.map((x) => (mm ? { m: x.b, c: x.s, fixo: x.fixo } : { m: x.s, c: x.b, fixo: x.fixo }));
+    msgs.push(patch.pares.filter((p) => !map[p.m + '|' + p.c]).length + ' de ' + patch.pares.length + ' duplas novas');
+  } else {
+    msgs.push(!meds.length ? 'nenhum médium presente' : 'nenhum cambone presente');
+  }
+  msgs.push(...msgPasse);
   return { patch, mensagem: 'Sorteado: ' + msgs.join('; ') + '.' };
 }
 
@@ -436,12 +443,13 @@ export function remanejar(pessoas, giras, g) {
     add(pp.m, c);
     livres = livres.filter((x) => x !== c);
   }
-  // 3) cambones livres vão para médiuns com um só cambone (máximo dois)
+  // 3) cambones livres vão para médiuns com um só cambone (máximo dois); quem tem médium de passe junto vem antes
+  const comPasse = new Set((g.passes || []).map((p) => p.m));
   while (livres.length) {
     const alvo = R.filter((m) => camsDe(m).length < 2);
     if (!alvo.length) break;
     const c = livres[0];
-    const m = best(alvo, (m) => camsDe(m).length * 10 + custo(map, m, c));
+    const m = best(alvo, (m) => camsDe(m).length * 100 + (comPasse.has(m) ? 0 : 50) + custo(map, m, c));
     add(m, c);
     livres.shift();
   }

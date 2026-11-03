@@ -482,3 +482,27 @@ test('Mãe Vê vem sempre primeiro entre os médiuns da escala', async () => {
   const ps = [{ nome: 'Ana', funcao: 'medium' }, { nome: 'Zé', funcao: 'extra' }, { nome: 'Mãe Vê', funcao: 'medium' }, { nome: 'Bruno', funcao: 'medium' }];
   assert.deepEqual(ps.sort(ordRecebe).map((p) => p.nome), ['Mãe Vê', 'Ana', 'Bruno', 'Zé']);
 });
+
+test('sorteio: médium com médium de passe junto tem preferência para ter 2 cambones', async () => {
+  const { sortear, remanejar } = await import('../shared/regras.js');
+  // 5 médiuns (2 com passe junto), 7 cambones: 2 médiuns ficam com 2 cambones — os que têm passe.
+  const pessoas = [
+    ...['A', 'B', 'C', 'D', 'E'].map((n, i) => ({ id: 'm' + n, nome: n, funcao: 'medium', experiente: i < 3 })),
+    ...[1, 2, 3, 4, 5, 6, 7].map((n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' })),
+    { id: 'p1', nome: 'Passe 1', funcao: 'passe' }, { id: 'p2', nome: 'Passe 2', funcao: 'passe' },
+  ];
+  const g = { data: '2026-11-07', entidade: 'Gira interna', presenca: {}, pares: [], passes: [] };
+  for (let i = 0; i < 20; i++) {
+    const { pares, passes } = sortear(pessoas, [], g).patch;
+    const comPasse = new Set(passes.map((p) => p.m));
+    assert.equal(comPasse.size, 2);
+    const dois = ['mA', 'mB', 'mC', 'mD', 'mE'].filter((m) => pares.filter((p) => p.m === m).length === 2);
+    assert.deepEqual(new Set(dois), comPasse, 'quem tem passe fica com os 2 cambones');
+  }
+  // Remanejar: cambone livre vai primeiro para quem tem passe junto.
+  const g2 = { ...g, presenca: {}, passes: [{ m: 'mC', c: 'p1' }],
+    pares: [{ m: 'mA', c: 'c1' }, { m: 'mB', c: 'c2' }, { m: 'mC', c: 'c3' }, { m: 'mD', c: 'c4' }, { m: 'mE', c: 'c5' }] };
+  const semC6eC7 = pessoas.filter((p) => p.id !== 'c7' && p.id !== 'p2');
+  const r = remanejar(semC6eC7, [], g2).patch;
+  assert.ok(r.pares.some((p) => p.m === 'mC' && p.c === 'c6'), 'o cambone livre vai para quem tem passe');
+});
