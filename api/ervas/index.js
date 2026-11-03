@@ -5,7 +5,8 @@
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin (com a lista fechada, só config { aberta }, novaCompra e encerrarCompra):
-//        salvarErva { id?, nome, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém) · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
+//        salvarErva { id?, nome, precoEstimado?, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém)
+//                   precoEstimado = preço de referência do cadastro; preco = o real, que o bloco Compra preenche · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
 //        salvarCompra { gira, data, frete, itens: [{ id, quantidade, preco }] }  — bloco Compra (preço da porção; vazio = a definir)
 //        reatribuir { chave, pessoaId }  — passa o pedido para uma pessoa da corrente
 //        encerrarCompra  — grava o retrato final da compra no Histórico de compras e começa uma nova
@@ -25,7 +26,8 @@ function resposta(estado, eu) {
     aberta: estado.aberta,
     gira: estado.gira || '',
     data: estado.data || '',
-    ervas: estado.ervas.map((e) => ({ ...e, preco: e.preco === null ? null : Number(e.preco) })),
+    ervas: estado.ervas.map((e) => ({ ...e, preco: e.preco === null ? null : Number(e.preco),
+      precoEstimado: e.precoEstimado === null || e.precoEstimado === undefined ? null : Number(e.precoEstimado) })),
     minhas: estado.escolhas.filter((s) => s.chave === chave).map(({ ervaId, quantidade }) => ({ ervaId, quantidade })),
     eu: { chave, nome: eu.nome },
     participantes: participantes.size,
@@ -119,6 +121,7 @@ export default rota({
         if (!nome || nome.length > 60) throw new HttpError(400, 'Informe o nome da erva.');
         const p = { id: b.id ? validarId(b.id, 'Erva') : null, nome };
         if ('preco' in b) p.preco = precoOuNulo(b.preco);
+        if ('precoEstimado' in b) p.precoEstimado = precoOuNulo(b.precoEstimado);
         if ('pessoasPorcao' in b) {
           const vazio = b.pessoasPorcao === null || String(b.pessoasPorcao).trim() === '';
           const n = Number(b.pessoasPorcao);

@@ -177,16 +177,25 @@ details.linhas summary{cursor:pointer;font-size:.85rem;color:var(--accent);font-
 .resumo{display:grid;gap:4px;border-top:1px solid var(--line);padding-top:10px;font-variant-numeric:tabular-nums}
 .resumo div{display:flex;justify-content:space-between}
 .resumo .tot{font-size:1.1rem}
-.pp.ev{grid-template-columns:minmax(0,1fr) auto auto}
-.pp.ev input{padding:6px 9px}
 table.pedidos td,table.pedidos th{white-space:normal}
 table.pedidos td.rh{text-align:left;color:var(--muted)}
 table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--bg)}
-@media (max-width:560px){.pp.ev{grid-template-columns:minmax(0,1fr) auto}.pp.ev .acts{grid-column:1/-1}}
-.serve-erva{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);white-space:nowrap}
-.serve-erva input{width:70px}
-
-.pp.ev input.falta{border-color:var(--warn);background:var(--warn-soft)}
+/* Cadastro de ervas: nova erva numa caixa tracejada; cada erva num cartão com nome, campos com rótulo e ações. */
+.ec-nova{display:grid;gap:10px;padding:12px;border:1.5px dashed var(--gold);border-radius:10px}
+.ec-nova .btn{justify-self:start}
+.ec-tit{font-size:1rem}
+.ec-campos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ec-campos .field{font-size:.82rem}
+.ec-un{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.88rem;white-space:nowrap}
+.ec-un input{width:100%;min-width:0}
+.ec-lista{display:grid;gap:8px}
+.ec-linha{display:grid;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.ec-linha .ec-nome{font-weight:700}
+.ec-ler{gap:2px}
+.ec-pe{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ec-real{font-size:.85rem}
+.ec-acts{display:flex;gap:6px}
+.ec-dicas{margin:0;padding-left:18px;font-size:.84rem;display:grid;gap:4px}
 /* Bloco Compra: nome da gira e data lado a lado também no celular; campos travados até "Editar". */
 .row.compra-ev{flex-wrap:nowrap}
 .row.compra-ev>label.field:first-child{flex:1 1 0}

@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 60;  // v60: aba Vídeos publicada (toda a corrente vê) ou só para admin
+export const VERSAO = 61;  // v61: ervas: preço estimado no cadastro (o preço real continua no bloco Compra)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1946,6 +1946,54 @@ export const MIGRACOES = [
      insert into sistema (chave, valor) values ('videos_publicada', case when (p ->> 'publicada')::boolean then 'true' else 'false' end)
      on conflict (chave) do update set valor = excluded.valor;
      return videos_publicada();
+   end;
+   $$`,
+
+  // ================================================== v61: ervas: preço estimado (cadastro), separado do preço real (bloco Compra)
+  `alter table ervas add column if not exists preco_estimado numeric(10, 2) check (preco_estimado >= 0)`,
+  // Uma vez só: quem já tinha preço começa com ele como estimado.
+  `update ervas set preco_estimado = preco
+    where preco is not null and preco_estimado is null
+      and not exists (select 1 from sistema where chave = 'v61_preco_estimado')`,
+  `insert into sistema (chave, valor) values ('v61_preco_estimado', 'ok') on conflict (chave) do nothing`,
+  `create or replace function ervas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'frete', coalesce((select valor::numeric from sistema where chave = 'ervas_frete'), 0),
+       'aberta', coalesce((select valor = 'true' from sistema where chave = 'ervas_aberta'), true),
+       'gira', coalesce((select valor from sistema where chave = 'ervas_gira'), ''),
+       'data', coalesce((select valor from sistema where chave = 'ervas_data'), ''),
+       'ervas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'preco', e.preco, 'precoEstimado', e.preco_estimado,
+                                                     'qtdCompra', e.qtd_compra, 'pessoasPorcao', e.pessoas_porcao) order by lower(e.nome))
+                          from ervas e), '[]'::jsonb),
+       -- Quem tem conta aparece sempre com o nome cadastrado atual.
+       'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave,
+                                                                 'nome', coalesce(u.nome, pe.nome, x.pessoa_nome),
+                                                                 'ervaId', x.erva_id, 'quantidade', x.quantidade)
+                                              order by lower(coalesce(u.nome, pe.nome, x.pessoa_nome)))
+                             from ervas_escolhas x
+                             left join usuarios u on x.pessoa_chave = 'u:' || u.id::text
+                             left join pessoas pe on x.pessoa_chave = 'p:' || pe.id::text), '[]'::jsonb)
+     );
+   $$`,
+  // Cadastro: nome, pessoas por porção e preço estimado (cada campo só muda se vier).
+  `create or replace function erva_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into ervas (nome, preco, preco_estimado, pessoas_porcao)
+       values (btrim(p ->> 'nome'), (p ->> 'preco')::numeric, (p ->> 'precoEstimado')::numeric, (p ->> 'pessoasPorcao')::integer);
+     else
+       update ervas set nome = btrim(p ->> 'nome'),
+                        preco = case when p ? 'preco' then (p ->> 'preco')::numeric else preco end,
+                        preco_estimado = case when p ? 'precoEstimado' then (p ->> 'precoEstimado')::numeric else preco_estimado end,
+                        pessoas_porcao = case when p ? 'pessoasPorcao' then (p ->> 'pessoasPorcao')::integer else pessoas_porcao end
+        where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Erva não encontrada.'; end if;
+     end if;
+     return ervas_estado();
+   exception when unique_violation then
+     raise exception 'Já existe uma erva com esse nome.';
    end;
    $$`,
 ];

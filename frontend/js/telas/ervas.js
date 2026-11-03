@@ -23,6 +23,8 @@ const qtdDe = (ervaId) => (estado.ervas.minhas || []).find((m) => m.ervaId === e
 const serveTxt = (e) => (Number(e.pessoasPorcao) ? ` (serve ${e.pessoasPorcao})` : '');
 const precoTxt = (v) => (v === null || v === undefined ? 'preço a definir' : reais(centavos(v)));
 const precoCampo = (v) => (v === null || v === undefined ? '' : Number(v).toFixed(2).replace('.', ','));
+// Preço estimado (do cadastro): referência até o admin pôr o preço real no bloco Compra.
+const temEstimado = (e) => e.precoEstimado !== null && e.precoEstimado !== undefined && e.precoEstimado !== '';
 
 // Recalcula os pedidos com as minhas escolhas da tela (antes de salvar), para mostrar
 // a minha parte de cada erva e do frete já com quem mais pediu.
@@ -61,7 +63,7 @@ function cardEscolha(E) {
     const q = qtdDe(e.id);
     const n = nPor[e.id] || 0;
     const minha = m.porErva[e.id];
-    const info = !temPreco(e) ? 'preço a definir'
+    const info = !temPreco(e) ? (temEstimado(e) ? `≈ ${reais(centavos(e.precoEstimado))} a porção (estimado)${serveTxt(e)}` : 'preço a definir')
       : `${reais(centavos(e.preco))} a porção${serveTxt(e)}${n ? ` · ${n} pessoa${n > 1 ? 's' : ''}` : ''}${minha ? ` · sua parte ≈ ${reais(minha.valor)}` : ''}`;
     h += `<div class="erva ${q ? 'sel' : ''}">
       <span class="nmcell"><span class="nm">${esc(e.nome)}</span><span class="muted" style="font-size:.85rem">${info}</span></span>
@@ -210,8 +212,8 @@ function cardCompra(E, r) {
     const info = [n ? `corrente pediu ${n}` : 'ninguém pediu', serve ? `serve ${serve} → mínimo ${minimo}` : ''].filter(Boolean).join(' · ');
     h += `<div class="erva ${qtd ? 'sel' : ''}">
       <span class="nmcell"><span class="nm">${esc(e.nome)}</span>${C
-        ? `<label class="preco-compra">R$/porção<input type="text" inputmode="decimal" id="cp-p-${e.id}" data-compra="preco" data-id="${e.id}" value="${esc(it.preco)}" placeholder="a definir" aria-label="Preço da porção de ${esc(e.nome)}" class="${it.preco.trim() ? '' : 'falta'}"></label>`
-        : `<span class="muted" style="font-size:.85rem">${temPreco(e) ? precoTxt(e.preco) + ' a porção' : 'preço a definir'}</span>`}<span class="muted" style="font-size:.85rem">${info}</span></span>
+        ? `<label class="preco-compra">R$/porção<input type="text" inputmode="decimal" id="cp-p-${e.id}" data-compra="preco" data-id="${e.id}" value="${esc(it.preco)}" placeholder="${temEstimado(e) ? '≈ ' + precoCampo(e.precoEstimado) : 'a definir'}" aria-label="Preço da porção de ${esc(e.nome)}" class="${it.preco.trim() ? '' : 'falta'}"></label>`
+        : `<span class="muted" style="font-size:.85rem">${temPreco(e) ? precoTxt(e.preco) + ' a porção' : 'preço a definir'}${temEstimado(e) && !temPreco(e) ? ` · estimado ${reais(centavos(e.precoEstimado))}` : ''}</span>`}<span class="muted" style="font-size:.85rem">${info}</span></span>
       <span class="qtd">
         <button class="btn small" data-act="cpmenos" data-id="${e.id}" ${!C || qtd <= minimo ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
         <span class="n">${qtd}</span>
@@ -226,6 +228,7 @@ function cardCompra(E, r) {
     </div></div>
     <div class="grp"><h3>Pedido</h3><div id="cp-tabela">${tabelaCompra(E, r)}</div></div>
     <div class="bt-iguais">${E.aberta ? `
+      ${C && E.ervas.some((e) => !v.itens[e.id].preco.trim() && temEstimado(e)) ? '<button class="btn" data-act="cpestimados" title="Preenche as ervas sem preço com o preço estimado do cadastro">≈ Usar estimados</button>' : ''}
       ${C ? '<button class="btn" data-act="cpcancelar"><span aria-hidden="true">✕</span> Cancelar</button>'
         : '<button class="btn" data-act="cpeditar"><span aria-hidden="true">✎</span> Editar</button>'}
       <button class="btn ${C ? 'primary' : ''}" data-act="cpsalvar" ${C ? '' : 'disabled'}><span aria-hidden="true">✓</span> Salvar</button>
@@ -284,25 +287,38 @@ function cardCatalogo(E) {
   if (!aberto) return h + `</div>`;
   if (!E.aberta) {
     return h + `<p class="muted" style="margin:0">A lista está fechada. Reabra a lista para cadastrar ou mudar ervas.</p>
-      <p style="margin:0">${E.ervas.map((e) => esc(e.nome) + (Number(e.pessoasPorcao) ? ` (serve ${e.pessoasPorcao})` : '')).join(' · ')}</p></div>`;
+      <div class="ec-lista">${E.ervas.map((e) => `<div class="ec-linha ec-ler"><b>${esc(e.nome)}</b>
+        <span class="muted">${Number(e.pessoasPorcao) ? `serve ${e.pessoasPorcao}` : 'serve todos'} · ${temEstimado(e) ? `estimado ${reais(centavos(e.precoEstimado))}` : 'sem estimativa'}</span></div>`).join('')}</div></div>`;
   }
-  h += `
-    <form id="f-erva" class="row" autocomplete="off">
-      <label class="field grow">Erva<input type="text" id="ev-nome" maxlength="60" required placeholder="Ex.: Arruda"></label>
-      <label class="field" style="flex:0 1 150px">Porção serve (pessoas)<input type="number" inputmode="numeric" id="ev-serve" min="1" max="999" placeholder="todos"></label>
-      <button class="btn primary" type="submit">Adicionar</button>
+  // Erva nova: nome, quantas pessoas uma porção serve e o preço estimado (de referência).
+  h += `<form id="f-erva" class="ec-nova" autocomplete="off">
+      <b class="ec-tit">＋ Nova erva</b>
+      <label class="field">Nome<input type="text" id="ev-nome" maxlength="60" required placeholder="Ex.: Arruda"></label>
+      <div class="ec-campos">
+        <label class="field">Porção serve<span class="ec-un"><input type="number" inputmode="numeric" id="ev-serve" min="1" max="999" placeholder="todos"> pessoas</span></label>
+        <label class="field">Preço estimado<span class="ec-un">R$ <input type="text" inputmode="decimal" id="ev-estimado" maxlength="10" placeholder="0,00"></span></label>
+      </div>
+      <button class="btn primary" type="submit">Adicionar erva</button>
     </form>`;
   if (E.ervas.length) {
-    h += `<div class="ppl">`;
+    h += `<div class="ec-lista">`;
     E.ervas.forEach((e) => {
       const conf = estado.confirm === 'e:' + e.id;
-      h += `<div class="pp ev">
-        <input type="text" id="ev-n-${e.id}" value="${esc(e.nome)}" maxlength="60" aria-label="Nome">
-        <label class="serve-erva"><input type="number" inputmode="numeric" id="ev-s-${e.id}" min="1" max="999" value="${Number(e.pessoasPorcao) || ''}" placeholder="todos" aria-label="Quantas pessoas uma porção de ${esc(e.nome)} serve"> pessoas</label>
-        <span class="acts" style="display:flex;gap:6px"><button class="btn small" data-act="salvarerva" data-id="${e.id}">Salvar</button>
-        ${conf ? `<button class="btn small danger" data-act="delerva" data-id="${e.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="e:${e.id}">Excluir</button>`}</span></div>`;
+      // Preço real (do bloco Compra), só para conferir ao lado da estimativa.
+      const real = temPreco(e) ? `Compra: ${reais(centavos(e.preco))}` : 'Compra: a definir';
+      h += `<div class="ec-linha">
+        <input type="text" class="ec-nome" id="ev-n-${e.id}" value="${esc(e.nome)}" maxlength="60" aria-label="Nome da erva">
+        <div class="ec-campos">
+          <label class="field">Porção serve<span class="ec-un"><input type="number" inputmode="numeric" id="ev-s-${e.id}" min="1" max="999" value="${Number(e.pessoasPorcao) || ''}" placeholder="todos" aria-label="Quantas pessoas uma porção de ${esc(e.nome)} serve"> pessoas</span></label>
+          <label class="field">Preço estimado<span class="ec-un">R$ <input type="text" inputmode="decimal" id="ev-e-${e.id}" maxlength="10" value="${precoCampo(e.precoEstimado)}" placeholder="0,00" aria-label="Preço estimado da porção de ${esc(e.nome)}"></span></label>
+        </div>
+        <div class="ec-pe"><span class="muted ec-real">${real}</span><span class="ec-acts"><button class="btn small" data-act="salvarerva" data-id="${e.id}">Salvar</button>
+        ${conf ? `<button class="btn small danger" data-act="delerva" data-id="${e.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="e:${e.id}">Excluir</button>`}</span></div></div>`;
     });
-    h += `</div><p class="muted" style="margin:0;font-size:.85rem">“Porção serve” é quantas pessoas uma porção atende: com mais pedidos que isso, a Compra pede mais porções e o custo aumenta. Em branco, uma porção atende todos. O preço e a quantidade ficam no bloco Compra. Excluir uma erva tira ela dos pedidos de quem a escolheu.</p>`;
+    h += `</div><ul class="ec-dicas muted">
+      <li><b>Porção serve:</b> quantas pessoas uma porção atende. Com mais pedidos que isso, a Compra pede mais porções. Em branco, uma porção atende todos.</li>
+      <li><b>Preço estimado:</b> só uma referência. O preço real (que vale na cobrança) vai no bloco Compra, onde também ficam as quantidades.</li>
+      <li>Excluir uma erva tira ela dos pedidos de quem a escolheu.</li></ul>`;
   }
   return h + `</div>`;
 }
@@ -431,6 +447,13 @@ export const cliques = {
   mais(el) { escolherErva(el.dataset.id, Math.min(99, qtdDe(el.dataset.id) + 1)); },
   menos(el) { escolherErva(el.dataset.id, Math.max(0, qtdDe(el.dataset.id) - 1)); },
   // Bloco Compra: Editar libera os campos; Salvar grava tudo (se algo mudou) e trava de novo.
+  // Ervas ainda sem preço na Compra recebem o preço estimado do cadastro (dá para mudar antes de salvar).
+  cpestimados() {
+    const C = estado.ervasCompra;
+    if (!C) return;
+    estado.ervas.ervas.forEach((e) => { if (!C.itens[e.id].preco.trim() && temEstimado(e)) C.itens[e.id].preco = precoCampo(e.precoEstimado); });
+    avisar();
+  },
   cpeditar() {
     if (estado.ervasCompra) return;
     estado.ervasCompra = compraSalva(estado.ervas);
@@ -464,7 +487,7 @@ export const cliques = {
   },
   async salvarerva(el) {
     const id = el.dataset.id;
-    if (await acaoErvas('salvarErva', { id, nome: val('ev-n-' + id), pessoasPorcao: val('ev-s-' + id) })) toast('Erva salva.');
+    if (await acaoErvas('salvarErva', { id, nome: val('ev-n-' + id), pessoasPorcao: val('ev-s-' + id), precoEstimado: val('ev-e-' + id) })) toast('Erva salva.');
   },
   async delerva(el) { estado.confirm = null; if (await acaoErvas('excluirErva', { id: el.dataset.id })) toast('Erva excluída.'); },
   novaini() { estado.ervasNova = { passo: 'aviso' }; avisar(); },
@@ -588,7 +611,7 @@ export function enviarPara() {
 }
 
 export async function enviarFormulario() {
-  const ok = await acaoErvas('salvarErva', { nome: val('ev-nome'), pessoasPorcao: val('ev-serve') });
+  const ok = await acaoErvas('salvarErva', { nome: val('ev-nome'), pessoasPorcao: val('ev-serve'), precoEstimado: val('ev-estimado') });
   if (ok) {
     toast('Erva adicionada.');
     document.getElementById('ev-nome')?.focus();
