@@ -1,6 +1,6 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_OFERENDA } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_OFERENDA, opcoesGruposOferenda, gruposMarcados } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -109,10 +109,17 @@ const etqsMed = (m) => `<span class="of-med-etqs">${etqMed(m.pagamento)}${etqMed
 const comboMed = (of, m, campo, opcoes, rotulo) => `<select class="sel-med ${m[campo]}" data-act="ofmedium" data-campo="${campo}" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="${rotulo} de ${esc(m.nome)}">${opcoes.map(([k, l]) => `<option value="${k}" ${k === m[campo] ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
 // "Incluir novos cadastrados": de quais listas puxar (começa com os grupos da oferenda) e Confirmar.
 const GRUPOS_CORRENTE = GRUPOS_OFERENDA.map(([k]) => k).filter((k) => k !== 'alunos');
+// Grupos para escolher: a corrente por função e os alunos por turma (quando a lista de alunos está carregada).
+const opcoesGrupos = () => opcoesGruposOferenda(estado.alunos?.turmas, estado.alunos?.alunos);
+const chipsGrupos = (nome, act, marcados) => {
+  const ops = opcoesGrupos();
+  const m = gruposMarcados(marcados, ops);
+  return ops.map(([k, l]) => `<label class="chip"><input type="checkbox" name="${nome}" data-act="${act}" value="${esc(k)}" ${m.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('');
+};
 function painelIncluir(of) {
   const marcados = U().incluirGrupos || of.grupos || GRUPOS_CORRENTE;
   return `<div class="of-grupos of-incluir"><span class="muted" style="font-size:.85rem;flex-basis:100%">De quais listas puxar quem ainda não está:</span>
-    ${GRUPOS_OFERENDA.map(([k, l]) => `<label class="chip"><input type="checkbox" name="grupoinc" data-act="grupoinc" value="${k}" ${marcados.includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}
+    ${chipsGrupos('grupoinc', 'grupoinc', marcados)}
     <div class="row" style="flex-basis:100%"><button class="btn small primary" data-act="atualizarmed" data-id="${of.id}">Confirmar</button><button class="btn small" data-act="incluirmed" data-id="${of.id}">Cancelar</button></div></div>`;
 }
 // Admin: acrescenta na lista alguém do cadastro (corrente ou aluno) que ainda não está nela.
@@ -319,7 +326,7 @@ export function render() {
       <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
       <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" data-act="pormedium" style="margin-top:3px" ${U().novaPorMedium ? 'checked' : ''}><span>Uma linha para cada pessoa<br><span class="muted" style="font-size:.85rem">Em cada linha o admin confere o pagamento (Pago / Não pago) e a entrega (Pendente / Entregue), e pode tirar quem não participa.</span></span></label>
       <div class="of-grupos" id="of-grupos" ${U().novaPorMedium ? '' : 'hidden'}><span class="muted" style="font-size:.85rem;flex-basis:100%">De quais grupos vêm as pessoas:</span>
-        ${GRUPOS_OFERENDA.map(([k, l]) => `<label class="chip"><input type="checkbox" name="grupo" data-act="grupoof" value="${k}" ${(U().novaGrupos || GRUPOS_OFERENDA.map(([x]) => x).filter((x) => x !== 'alunos')).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+        ${chipsGrupos('grupo', 'grupoof', U().novaGrupos || GRUPOS_CORRENTE)}</div>
       <button class="btn primary" type="submit">Criar</button></form>`;
     h += `</div>`;
   }

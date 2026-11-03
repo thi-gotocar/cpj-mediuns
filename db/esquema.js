@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 61;  // v61: ervas: preço estimado no cadastro (o preço real continua no bloco Compra)
+export const VERSAO = 62;  // v62: oferenda por pessoa: alunos por turma
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1994,6 +1994,61 @@ export const MIGRACOES = [
      return ervas_estado();
    exception when unique_violation then
      raise exception 'Já existe uma erva com esse nome.';
+   end;
+   $$`,
+
+  // ================================================== v62: oferenda por pessoa: alunos por turma
+  // Grupos dos alunos: 'alunos' (todos), 'turma:<id>' (só aquela turma) e 'alunos:sem' (sem turma).
+  `create or replace function aluno_no_grupo(t uuid, g text[])
+   returns boolean language sql immutable as $$
+     select coalesce('alunos' = any(g) or (t is null and 'alunos:sem' = any(g)) or (t is not null and ('turma:' || t::text) = any(g)), false)
+   $$`,
+  `create or replace function oferenda_mediuns_atualizar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_g text[];
+   begin
+     if p ? 'grupos' then
+       update oferendas set por_medium = true, grupos = array(select jsonb_array_elements_text(p -> 'grupos')) where id = v_id;
+     else
+       update oferendas set por_medium = true where id = v_id;
+     end if;
+     if not found then raise exception 'Oferenda não encontrada.'; end if;
+     select grupos into v_g from oferendas where id = v_id;
+     if p ? 'grupos' then
+       delete from oferenda_mediuns om using pessoas pe
+       where om.oferenda_id = v_id and pe.id = om.pessoa_id and not (pe.funcao = any(v_g));
+       delete from oferenda_alunos oa using alunos a
+       where oa.oferenda_id = v_id and a.id = oa.aluno_id and not aluno_no_grupo(a.turma_id, v_g);
+     end if;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id)
+     select v_id, id from pessoas where v_g is null or funcao = any(v_g)
+     on conflict do nothing;
+     if v_g is not null then
+       insert into oferenda_alunos (oferenda_id, aluno_id) select v_id, a.id from alunos a where aluno_no_grupo(a.turma_id, v_g) on conflict do nothing;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_mediuns_incluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_novos text[] := array(select jsonb_array_elements_text(p -> 'grupos'));
+     v_g text[];
+   begin
+     select coalesce(grupos, array['medium', 'extra', 'passe', 'cambone', 'senha', 'curimba']) into v_g
+       from oferendas where id = v_id and por_medium;
+     if not found then raise exception 'Oferenda não encontrada.'; end if;
+     update oferendas set grupos = v_g || array(select g from unnest(v_novos) g where not (g = any(v_g))) where id = v_id;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id)
+     select v_id, id from pessoas where funcao = any(v_novos)
+     on conflict do nothing;
+     insert into oferenda_alunos (oferenda_id, aluno_id)
+     select v_id, a.id from alunos a where aluno_no_grupo(a.turma_id, v_novos)
+     on conflict do nothing;
+     return oferendas_estado();
    end;
    $$`,
 ];

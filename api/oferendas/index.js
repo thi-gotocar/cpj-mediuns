@@ -14,7 +14,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { PAGAMENTO_KEYS, ENTREGA_KEYS, GRUPOS_OFERENDA_KEYS } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido } from '../../shared/oferendas.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 function resposta(oferendas, eu) {
@@ -45,7 +45,7 @@ function texto(v, oque, max) {
   return s;
 }
 function validarGrupos(v) {
-  if (!Array.isArray(v) || !v.length || v.some((g) => !GRUPOS_OFERENDA_KEYS.includes(g))) throw new HttpError(400, 'Escolha de quais grupos vêm as pessoas.');
+  if (!Array.isArray(v) || !v.length || v.some((g) => !grupoOferendaValido(g))) throw new HttpError(400, 'Escolha de quais grupos vêm as pessoas.');
   return [...new Set(v)];
 }
 

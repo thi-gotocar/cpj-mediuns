@@ -3,6 +3,19 @@
 // Grupos de onde sai a lista "uma linha por pessoa": funções da corrente e alunos da CPJ.
 export const GRUPOS_OFERENDA = [['medium', 'Médiuns'], ['extra', 'Extras'], ['passe', 'Passe'], ['cambone', 'Cambones'], ['senha', 'Senha'], ['curimba', 'Curimba'], ['alunos', 'Alunos']];
 export const GRUPOS_OFERENDA_KEYS = GRUPOS_OFERENDA.map(([k]) => k);
+// Alunos também por turma: 'turma:<id>' (os alunos daquela turma) e 'alunos:sem' (sem turma).
+// 'alunos' sozinho = todos os alunos (oferendas antigas).
+export const grupoOferendaValido = (g) => GRUPOS_OFERENDA_KEYS.includes(g) || g === 'alunos:sem' || /^turma:[0-9a-f-]{36}$/i.test(g);
+// Opções de grupo para a tela: as funções da corrente e, no lugar de "Alunos", uma por turma.
+export function opcoesGruposOferenda(turmas, alunos) {
+  const corrente = GRUPOS_OFERENDA.filter(([k]) => k !== 'alunos');
+  if (!turmas) return GRUPOS_OFERENDA;   // turmas desconhecidas (sem acesso aos alunos): "Alunos" inteiro
+  const porTurma = turmas.map((t) => ['turma:' + t.id, 'Alunos · ' + t.nome]);
+  const semTurma = (alunos || []).some((a) => !a.turmaId) ? [['alunos:sem', 'Alunos sem turma']] : [];
+  return [...corrente, ...porTurma, ...semTurma];
+}
+// Marcados na tela: "alunos" (todos) acende todas as turmas.
+export const gruposMarcados = (grupos, opcoes) => (grupos.includes('alunos') ? [...grupos, ...opcoes.map(([k]) => k).filter((k) => k.startsWith('turma:') || k === 'alunos:sem')] : grupos);
 
 // Oferenda com uma linha por pessoa: duas conferências separadas, o pagamento e a entrega.
 export const PAGAMENTO = [['nao_pago', 'Não pago', '🔴'], ['pago', 'Pago', '🔵']];

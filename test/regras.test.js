@@ -506,3 +506,16 @@ test('sorteio: médium com médium de passe junto tem preferência para ter 2 ca
   const r = remanejar(semC6eC7, [], g2).patch;
   assert.ok(r.pares.some((p) => p.m === 'mC' && p.c === 'c6'), 'o cambone livre vai para quem tem passe');
 });
+
+test('oferendas: alunos por turma nos grupos', async () => {
+  const { grupoOferendaValido, opcoesGruposOferenda, gruposMarcados } = await import('../shared/oferendas.js');
+  assert.ok(grupoOferendaValido('medium') && grupoOferendaValido('alunos') && grupoOferendaValido('alunos:sem'));
+  assert.ok(grupoOferendaValido('turma:3f2c1a4e-0000-4000-8000-000000000001'));
+  assert.ok(!grupoOferendaValido('turma:xyz') && !grupoOferendaValido('outro'));
+  const turmas = [{ id: 't1', nome: 'Turma 09' }, { id: 't2', nome: 'Turma 10' }];
+  const ops = opcoesGruposOferenda(turmas, [{ turmaId: 't1' }, { turmaId: null }]);
+  assert.deepEqual(ops.slice(-3), [['turma:t1', 'Alunos · Turma 09'], ['turma:t2', 'Alunos · Turma 10'], ['alunos:sem', 'Alunos sem turma']]);
+  assert.ok(!ops.some(([k]) => k === 'alunos'), 'com as turmas, não há "Alunos" inteiro');
+  assert.ok(opcoesGruposOferenda(undefined).some(([k]) => k === 'alunos'), 'sem acesso às turmas, fica "Alunos"');
+  assert.deepEqual(gruposMarcados(['medium', 'alunos'], ops).filter((k) => k.startsWith('turma:')), ['turma:t1', 'turma:t2'], 'oferenda antiga com "alunos" marca todas as turmas');
+});

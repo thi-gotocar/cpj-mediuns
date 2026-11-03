@@ -35,6 +35,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - **Aba Curimba não foi testada no banco.** A migração v57 e o teste de `test/api.test.js` não rodaram (sem Postgres local); conferir no app publicado.
 - **Aba Fotos está desligada no código** (`FOTOS_ATIVA = false` em `shared/fotos.js`). Para ligar: criar o bucket no Cloudflare R2 e pôr as 4 variáveis `R2_*` na Vercel (ver `.env.example`) e trocar para `true`. A migração v59 não rodou no Postgres e o R2 de verdade não foi usado: os testes foram com banco e R2 falsos (a assinatura confere com os exemplos da AWS). O Guia da Corrente (PDF) ainda não fala da aba.
 - **Preço estimado das ervas não foi testado no banco.** A migração v61 (`preco_estimado`, copiada uma vez do preço atual) não rodou no Postgres; a tela foi conferida com banco falso.
+- **Alunos por turma nas oferendas não foi testado no banco.** A migração v62 (`aluno_no_grupo`) não rodou no Postgres; tela e validação conferidas com banco falso.
 - **Aba Vídeos não foi testada no banco.** A migração v58 não rodou (sem Postgres local); a tela foi conferida com uma API falsa. Conferir no app publicado.
 - **Afinidade de passe do At. Extra** só existe na aba Pessoas (não no Perfil dele) e não entra na Sugestão Mi/Mãe Vê.
 - **Testes no Windows.** `npm test` depende de Linux (`runuser`) e de Postgres local; na pasta atual não roda.
