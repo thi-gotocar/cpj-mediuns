@@ -1067,3 +1067,6 @@ section.panel.pf-tela{gap:14px}
 .es-prev h4{margin:8px 0 2px;font-size:.92rem}
 .es-l{display:flex;gap:8px;padding:3px 0;border-top:1px solid var(--line)}
 .es-m{flex:0 0 42%;min-width:0;font-weight:700;overflow-wrap:anywhere}
+.limp-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.limp-wa{display:inline-flex;align-items:center;gap:4px;text-decoration:none}
+.limp-wa .wa-ico svg{width:18px;height:18px}

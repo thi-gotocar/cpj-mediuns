@@ -7,7 +7,7 @@ import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
-import { dadosResumo } from '/shared/resumoGira.js';
+import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
 import { eventosDoTopo, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { corDaFaixa } from './curimba.js';
@@ -47,7 +47,9 @@ function blocoLimpeza(g, admin) {
   const L = limpezaDaGira(estado.pessoas, g, girasLista());
   if (!L) return '';
   const nomes = (l) => l.map((p) => esc(p.nome)).join(', ');
-  return `<div class="limpeza"><b>🧹 Limpeza · Turma ${L.turma}</b>
+  // Admin: manda o aviso da turma para o WhatsApp (abre o app já com a mensagem).
+  const wa = admin ? `<a class="btn small limp-wa" href="https://wa.me/?text=${encodeURIComponent(textoLimpeza(estado.pessoas, g, girasLista()))}" target="_blank" rel="noopener" title="Mandar a turma da limpeza no WhatsApp"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</a>` : '';
+  return `<div class="limpeza"><div class="limp-cab"><b>🧹 Limpeza · Turma ${L.turma}</b>${wa}</div>
     <span>${L.membros.length ? nomes(L.membros) : '<span class="muted">Ninguém cadastrado nesta turma (cadastre na aba Pessoas).</span>'}</span>
     ${L.deLicenca.length ? `<span class="muted" style="font-size:.85rem">De licença: ${nomes(L.deLicenca)}</span>` : ''}
     ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeGira(L.anterior.entidade))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`

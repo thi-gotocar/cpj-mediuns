@@ -4,8 +4,9 @@
 //   dadosResumo(pessoas, g) → { gira, data, presentes, ausentes, faltas, licenca, pct, atendimentos, total }
 //   textoResumo(pessoas, g, local?, giras?) → texto pronto para colar no WhatsApp
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
+//   textoLimpeza(pessoas, g, giras) → aviso da turma da limpeza para o grupo do WhatsApp (ou '')
 
-import { status, presencaDe, daGira, licencaEm, nomeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { status, presencaDe, daGira, licencaEm, nomeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -49,6 +50,33 @@ export function limpezaResumo(pessoas, g, giras = []) {
   const linha = (p) => { const [e, t] = situacaoNaGira(p, g); return { pessoa: p, emoji: e, situacao: t }; };
   const turma = [...L.membros, ...L.deLicenca].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(linha);
   return { turma: L.turma, membros: turma, ajudantes: L.ajudantes.map(linha), anterior: L.anterior };
+}
+
+const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+const diaDaSemana = (iso) => DIAS[new Date(iso + 'T12:00:00Z').getUTCDay()];
+
+// Aviso da turma da limpeza (aba Gira, botão WhatsApp do bloco 🧹): um nome por linha, com *negrito* e _itálico_ do WhatsApp.
+export function textoLimpeza(pessoas, g, giras = []) {
+  const L = limpezaDaGira(pessoas, g, giras);
+  if (!L) return '';
+  const lista = (ps) => ps.map((p) => `▫️ ${p.nome}`);
+  const gira = g.entidade ? (giraEspecial(g.entidade) ? nomeGira(g.entidade) : `Gira de ${nomeGira(g.entidade)}`) : 'Gira';
+  const orixa = orixaDaGira(g);
+  const T = [
+    '🧹 *LIMPEZA DO TERREIRO* ✨',
+    '━━━━━━━━━━━━━━━',
+    `🗓️ *${diaDaSemana(g.data)}, ${br(g.data)}*`,
+    `🕯️ ${gira}${orixa ? ` · Orixá ${orixa}` : ''}`,
+    '',
+    `👥 *Turma ${L.turma}*`,
+    ...(L.membros.length ? lista(L.membros) : ['_Ninguém cadastrado nesta turma._']),
+  ];
+  if (L.ajudantes.length) {
+    T.push('', '🤝 *Ajudam nesta limpeza*', `_Da Turma ${L.anterior.limpeza}, faltaram na gira de ${br(L.anterior.data).slice(0, 5)}_`, ...lista(L.ajudantes));
+  }
+  if (L.deLicenca.length) T.push('', '🩺 *De licença* _(não entram nesta limpeza)_', ...lista(L.deLicenca));
+  T.push('', '━━━━━━━━━━━━━━━', 'Contamos com vocês. Axé! 🙏');
+  return T.join('\n');
 }
 
 export const linhaLicenca = (l) => [l.pessoa.nome, l.motivo, l.retorno ? `Retorno em ${br(l.retorno)}` : ''].filter(Boolean).join(' - ');
