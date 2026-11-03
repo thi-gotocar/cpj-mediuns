@@ -9,7 +9,7 @@ import { gruposExtras, cabecalhoGira } from './exportar.js';
 
 const C = {
   bg: '#f4f1ea', card: '#ffffff', ink: '#1e2533', muted: '#6b7385', line: '#e8e3d8', zebra: '#faf7f0',
-  navy: '#1c2b4a', navy2: '#2d4a86', gold: '#c9a24a',
+  navy: '#1c2b4a', navy2: '#2d4a86', gold: '#c9a24a', vermelho: '#c0392b',
 };
 // Cor de cada seção e de cada quadro do fim.
 const COR = { medium: '#2d4a86', extra: '#b07d1c', passe: '#2f7d5b', suporte: '#2f7d5b', apoio: '#2d4a86', limpeza: '#c06a14' };
@@ -156,14 +156,27 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   //      e a turma da limpeza na largura toda, com quem ajuda embaixo
   const gap = 14;
   // Quadro: título colorido, nomes e, se houver, uma parte de baixo separada por um fio (quem ajuda na limpeza).
-  // Dois lado a lado: um nome por linha; sozinho na largura toda: nomes separados por " · ".
+  // Dois lado a lado: um nome por linha; sozinho na largura toda: nomes separados por " · " (sem quebrar um nome no meio).
+  // Quem já está com ausência (naoVao) aparece em vermelho e riscado.
+  const LQ = 25;
   const medir = (q, bw, empilhado) => {
-    const partes = [{ t: q.titulo, nomes: q.nomes }, ...(q.sub ? [q.sub] : [])].map((pt) => {
+    const max = bw - 44;
+    const partes = [{ t: q.titulo, nomes: q.nomes, naoVao: q.naoVao || [] }, ...(q.sub ? [q.sub] : [])].map((pt) => {
       fonte(700, 12); const tt = quebrar(ctx, pt.t.toUpperCase(), bw - 40);
-      fonte(400, 18); const ll = empilhado ? pt.nomes.flatMap((n) => quebrar(ctx, n, bw - 40)) : quebrar(ctx, pt.nomes.join(' · '), bw - 40);
-      return { tt, ll };
+      fonte(400, 19);
+      const sep = ctx.measureText(' · ').width;
+      const linhas = [[]];
+      let x = 0;
+      pt.nomes.forEach((n) => {
+        const w = ctx.measureText(n).width;
+        if (linhas[linhas.length - 1].length && (empilhado || x + sep + w > max)) { linhas.push([]); x = 0; }
+        const l = linhas[linhas.length - 1];
+        x += (l.length ? sep : 0) + w;
+        l.push({ n, w, risc: (pt.naoVao || []).includes(n) });
+      });
+      return { tt, linhas };
     });
-    return { partes, h: 18 + partes.reduce((a, pt, i) => a + (i ? 14 : 0) + pt.tt.length * 17 + 8 + pt.ll.length * 24, 0) + 16 };
+    return { partes, h: 18 + partes.reduce((a, pt, i) => a + (i ? 14 : 0) + pt.tt.length * 17 + 8 + pt.linhas.length * LQ, 0) + 16 };
   };
   const quadro = (q, m, bx, bw, bh) => {
     cartao(ctx, bx, y, bw, bh, q.cor);
@@ -172,7 +185,18 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
       if (i) { yy += 4; ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx + 22, yy + 0.5); ctx.lineTo(bx + bw - 22, yy + 0.5); ctx.stroke(); yy += 10; }
       fonte(700, 12); espaco('1.5px'); ctx.fillStyle = q.cor; pt.tt.forEach((l) => { ctx.fillText(l, bx + 22, yy); yy += 17; }); espaco('0px');
       yy += 8;
-      fonte(400, 18); ctx.fillStyle = C.ink; pt.ll.forEach((l) => { ctx.fillText(l, bx + 22, yy); yy += 24; });
+      fonte(400, 19);
+      const sep = ctx.measureText(' · ').width;
+      pt.linhas.forEach((l) => {
+        let x = bx + 22;
+        l.forEach((tk, k) => {
+          if (k) { ctx.fillStyle = C.muted; ctx.fillText(' · ', x, yy); x += sep; }
+          ctx.fillStyle = tk.risc ? C.vermelho : C.ink; ctx.fillText(tk.n, x, yy);
+          if (tk.risc) { ctx.strokeStyle = C.vermelho; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 1, yy + 11); ctx.lineTo(x + tk.w + 1, yy + 11); ctx.stroke(); }
+          x += tk.w;
+        });
+        yy += LQ;
+      });
     });
   };
   const linhaDeQuadros = (qs) => {
@@ -188,8 +212,9 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   linhaDeQuadros([q('suporte'), q('apoio')].filter(Boolean));
   const limp = grupo('limpeza');
   if (limp) {
-    linhaDeQuadros([{ titulo: limp[0].replace(/^Limpeza · (Turma \d+)$/, '$1 da limpeza'), nomes: limp[1], cor: COR.limpeza,
-      sub: grupo('ajudam') ? { t: 'Ajudam na limpeza', nomes: grupo('ajudam')[1] } : null }]);
+    const aj = grupo('ajudam');
+    linhaDeQuadros([{ titulo: limp[0].replace(/^Limpeza · (Turma \d+)$/, '$1 da limpeza'), nomes: limp[1], naoVao: limp[3], cor: COR.limpeza,
+      sub: aj ? { t: 'Ajudam na limpeza', nomes: aj[1], naoVao: aj[3] } : null }]);
   }
 
   // ---- rodapé

@@ -19,13 +19,18 @@ function tabela(L, h1, h2, rows) {
 const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 // Turma da limpeza do dia e quem ajuda (faltou na gira anterior). giras = todas as giras salvas.
+// O 4º item são os nomes de quem já está com ausência (ou falta) nesta gira: aparecem riscados no WhatsApp.
 export function gruposLimpeza(pessoas, g, giras) {
   const L = limpezaDaGira(pessoas, g, giras);
   if (!L) return [];
-  const out = [[`Limpeza · Turma ${L.turma}`, L.membros.length ? L.membros.map((p) => p.nome) : ['ninguém cadastrado nesta turma'], 'limpeza']];
-  if (L.ajudantes.length) out.push([`Ajudam na limpeza (Turma ${L.anterior.limpeza}, faltaram em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome), 'ajudam']);
+  const naoVao = (ps) => ps.filter((p) => ['a', 'f'].includes(status(p, g))).map((p) => p.nome);
+  const out = [[`Limpeza · Turma ${L.turma}`, L.membros.length ? L.membros.map((p) => p.nome) : ['ninguém cadastrado nesta turma'], 'limpeza', naoVao(L.membros)]];
+  if (L.ajudantes.length) out.push([`Ajudam na limpeza (Turma ${L.anterior.limpeza}, faltaram em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome), 'ajudam', naoVao(L.ajudantes)]);
   return out;
 }
+
+// Nome de quem não vai (ausência/falta) no texto do WhatsApp: ❌ e riscado.
+const riscar = (nomes, naoVao = []) => nomes.map((n) => (naoVao.includes(n) ? `❌ ~${n}~` : n));
 
 export function gruposExtras(pessoas, g, giras = []) {
   const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
@@ -91,8 +96,9 @@ export function textoWhats(pessoas, g, fmt, giras = []) {
   }
   const limpeza = grupo('limpeza');
   if (limpeza) {
-    L.push('', `${ICONE.limpeza} *${limpeza[0].replace(/^Limpeza · (Turma \d+)$/, '$1 da limpeza')}:*`, `• ${limpeza[1].join(', ')}.`);
-    if (grupo('ajudam')) L.push(`${ICONE.ajudam} *Ajudam na limpeza:* ${grupo('ajudam')[1].join(', ')}.`);
+    L.push('', `${ICONE.limpeza} *${limpeza[0].replace(/^Limpeza · (Turma \d+)$/, '$1 da limpeza')}:*`, `• ${riscar(limpeza[1], limpeza[3]).join(', ')}.`);
+    const aj = grupo('ajudam');
+    if (aj) L.push(`${ICONE.ajudam} *Ajudam na limpeza:* ${riscar(aj[1], aj[3]).join(', ')}.`);
   }
   L.push('', LINHA, 'Boa gira a todos! 🙏');
   return L.join('\n');

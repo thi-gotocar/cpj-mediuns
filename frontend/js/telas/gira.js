@@ -46,7 +46,8 @@ function blocoLimpeza(g, admin) {
   if (!temLimpeza(g)) return '';
   const L = limpezaDaGira(estado.pessoas, g, girasLista());
   if (!L) return '';
-  const nomes = (l) => l.map((p) => esc(p.nome)).join(', ');
+  // Quem já está com ausência (ou falta) nesta gira aparece em vermelho e riscado.
+  const nomes = (l) => l.map((p) => (['a', 'f'].includes(status(p, g)) ? `<s class="limp-nao">${esc(p.nome)}</s>` : esc(p.nome))).join(', ');
   // Admin: manda o aviso da turma para o WhatsApp (abre o app já com a mensagem).
   const wa = admin ? `<a class="btn small limp-wa" href="https://wa.me/?text=${encodeURIComponent(textoLimpeza(estado.pessoas, g, girasLista()))}" target="_blank" rel="noopener" title="Mandar a turma da limpeza no WhatsApp"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</a>` : '';
   return `<div class="limpeza"><div class="limp-cab"><b>🧹 Limpeza · Turma ${L.turma}</b>${wa}</div>

@@ -1077,3 +1077,4 @@ section.panel.pf-tela{gap:14px}
 .limp-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .limp-wa{display:inline-flex;align-items:center;gap:4px;text-decoration:none}
 .limp-wa .wa-ico svg{width:18px;height:18px}
+.limp-nao{color:var(--off);text-decoration-thickness:2px}
