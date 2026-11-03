@@ -3,13 +3,13 @@
 // médiuns e At. Extras em linhas alternadas, com o médium de passe embaixo do nome do médium;
 // no fim, quadros para suporte, cambones de apoio e a turma da limpeza (com quem ajuda).
 
-import { paresPorMedium } from '/shared/regras.js';
+import { paresPorMedium, guiaNaGira } from '/shared/regras.js';
 import { dLong } from './util.js';
 import { gruposExtras, cabecalhoGira } from './exportar.js';
 
 const C = {
   bg: '#f4f1ea', card: '#ffffff', ink: '#1e2533', muted: '#6b7385', line: '#e8e3d8', zebra: '#faf7f0',
-  navy: '#1c2b4a', navy2: '#2d4a86', gold: '#c9a24a', vermelho: '#c0392b',
+  navy: '#1c2b4a', navy2: '#2d4a86', gold: '#c9a24a', guia: '#8a6516', vermelho: '#c0392b', re: '#b4530a', reSoft: '#fde6cc',
 };
 // Cor de cada seção e de cada quadro do fim.
 const COR = { medium: '#2d4a86', extra: '#b07d1c', passe: '#2f7d5b', suporte: '#2f7d5b', apoio: '#2d4a86', limpeza: '#c06a14' };
@@ -76,7 +76,9 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   const linhas = [['ORIXÁ', cab.orixa], ['GIRA', cab.gira], ['SENHA', grupo('senha') ? grupo('senha')[1].join(', ') : '']]
     .filter(([, v]) => v).map(([k, v]) => ({ k, vl: quebrar(ctx, v, tw - 78) }));
   const alturaLinhas = linhas.reduce((a, l) => a + l.vl.length * 26 + 4, 0);
-  const hh = Math.max(P + 22 + tl.length * 40 + 26 + (linhas.length ? 10 + alturaLinhas : 0) + P, logo ? 2 * P + 2 * R + 5 : 0);
+  // Escala com remanejamento (faltas de última hora): aviso no cabeçalho e os remanejados destacados na lista.
+  const remanejada = lista.some((x) => x.cams.some((p) => p.remanejado) || x.passes.some((p) => p.remanejado));
+  const hh = Math.max(P + 22 + tl.length * 40 + 26 + (linhas.length ? 10 + alturaLinhas : 0) + (remanejada ? 40 : 0) + P, logo ? 2 * P + 2 * R + 5 : 0);
   if (desenhar) {
     const gr = ctx.createLinearGradient(0, 0, W, hh);
     gr.addColorStop(0, C.navy); gr.addColorStop(1, C.navy2);
@@ -107,6 +109,13 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
       y += l.vl.length * 26 + 4;
     });
   }
+  if (remanejada && desenhar) {
+    fonte(700, 13); espaco('1.5px');
+    const t = 'ESCALA REMANEJADA ↻';
+    const w = ctx.measureText(t).width + 26;
+    retangulo(ctx, tx, y + 8, w, 28, 14); ctx.fillStyle = '#e8862a'; ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.fillText(t, tx + 13, y + 15); espaco('0px');
+  }
   y = hh + 22;
 
   // ---- seções em duas colunas, com linhas alternadas; o médium de passe vai embaixo do nome do médium
@@ -115,12 +124,16 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
     const ix = P + 20, leftW = CW * 0.42 - 26, rx = P + CW * 0.42 + 6, rightW = CW * 0.58 - 28;
     const rs = itens.map((r) => {
       fonte(700, 20); const ll = quebrar(ctx, r.l, leftW);
+      fonte('italic 500', 17); const gl = r.guia ? quebrar(ctx, r.guia, leftW) : [];
       fonte(600, 17); const pl = r.passe ? quebrar(ctx, 'Passe · ' + r.passe, leftW) : [];
       // Dois cambones na mesma linha, separados por " / "; se não couber, um embaixo do outro (com a barra no fim).
+      // Cambone remanejado: destacado (fundo laranja e ↻).
       fonte(r.vazio ? 'italic 400' : 400, 20);
-      const juntos = r.r.join(' / ');
-      const rl = ctx.measureText(juntos).width <= rightW ? [juntos] : r.r.flatMap((t, i) => quebrar(ctx, i < r.r.length - 1 ? t + ' /' : t, rightW));
-      return { ...r, ll, pl, rl, h: Math.max(ll.length * LH + pl.length * 23 + (pl.length ? 2 : 0), rl.length * LH) + 20 };
+      const sepW = ctx.measureText(' / ').width;
+      const larg = (t) => ctx.measureText(t.n + (t.re ? ' ↻' : '')).width + (t.re ? 12 : 0);
+      const total = r.r.reduce((a, t, i) => a + larg(t) + (i ? sepW : 0), 0);
+      const rl = total <= rightW ? [r.r] : r.r.map((t, i) => [{ ...t, fim: i < r.r.length - 1 ? ' /' : '' }]);
+      return { ...r, ll, gl, pl, rl, sepW, larg, h: Math.max(ll.length * LH + gl.length * 22 + pl.length * 23 + (pl.length ? 2 : 0), rl.length * LH) + 20 };
     });
     const ch = 22 + 30 + 26 + rs.reduce((a, r) => a + r.h, 0) + 14;
     if (desenhar) cartao(ctx, P, y, CW, ch, cor);
@@ -139,16 +152,33 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
         if (i % 2 === 0) { ctx.fillStyle = C.zebra; retangulo(ctx, ix - 10, yy, CW - 2 * (ix - P) + 20, r.h, 8); ctx.fill(); }
         let ly = yy + 10; fonte(700, 20); ctx.fillStyle = C.ink;
         r.ll.forEach((l) => { ctx.fillText(l, ix, ly); ly += LH; });
-        if (r.pl.length) { ly += 2; fonte(600, 17); ctx.fillStyle = COR.passe; r.pl.forEach((l) => { ctx.fillText(l, ix, ly); ly += 23; }); }
-        let ry = yy + 10; fonte(r.vazio ? 'italic 400' : 400, 20); ctx.fillStyle = r.vazio ? C.muted : C.ink;
-        r.rl.forEach((l) => { ctx.fillText(l, rx, ry); ry += LH; });
+        if (r.gl.length) { fonte('italic 500', 17); ctx.fillStyle = C.guia; r.gl.forEach((l) => { ctx.fillText(l, ix, ly); ly += 22; }); }
+        if (r.pl.length) { ly += 2; fonte(600, 17); ctx.fillStyle = r.passeRe ? C.re : COR.passe; r.pl.forEach((l) => { ctx.fillText(l, ix, ly); ly += 23; }); }
+        let ry = yy + 10;
+        r.rl.forEach((linha) => {
+          let x = rx;
+          linha.forEach((t, k) => {
+            fonte(r.vazio ? 'italic 400' : 400, 20);
+            if (k) { ctx.fillStyle = C.muted; ctx.fillText(' / ', x, ry); x += r.sepW; }
+            if (t.re) {
+              const w = r.larg(t);
+              retangulo(ctx, x, ry - 4, w, LH + 2, 8); ctx.fillStyle = C.reSoft; ctx.fill();
+              fonte(600, 20); ctx.fillStyle = C.re; ctx.fillText(t.n + ' ↻', x + 6, ry); x += w;
+            } else {
+              ctx.fillStyle = r.vazio ? C.muted : C.ink; ctx.fillText(t.n, x, ry); x += ctx.measureText(t.n).width;
+            }
+            if (t.fim) { fonte(400, 20); ctx.fillStyle = C.muted; ctx.fillText(t.fim, x, ry); }
+          });
+          ry += LH;
+        });
       }
       yy += r.h;
     });
     y += ch + 18;
   };
-  const linhaCambone = (x) => ({ l: x.m.nome, r: x.cams.length ? x.cams.map((p) => nome(p.c)) : ['sem cambone'], vazio: !x.cams.length,
-    passe: x.passes.map((p) => nome(p.c)).join(' e ') });
+  const linhaCambone = (x) => ({ l: x.m.nome, guia: guiaNaGira(x.m, g),
+    r: x.cams.length ? x.cams.map((p) => ({ n: nome(p.c), re: !!p.remanejado })) : [{ n: 'sem cambone' }], vazio: !x.cams.length,
+    passe: x.passes.map((p) => nome(p.c)).join(' e ') + (x.passes.some((p) => p.remanejado) ? ' ↻' : ''), passeRe: x.passes.some((p) => p.remanejado) });
   secao('Médiuns', COR.medium, 'MÉDIUM', 'CAMBONE', lista.filter((x) => x.m.funcao !== 'extra').map(linhaCambone));
   secao('At. Extras', COR.extra, 'AT. EXTRA', 'CAMBONE', lista.filter((x) => x.m.funcao === 'extra').map(linhaCambone));
 
@@ -240,7 +270,7 @@ async function carregarLogo() {
 export async function gerarImagem(pessoas, g, giras = []) {
   try {
     await Promise.all(['700 34px Alegreya', 'italic 700 20px Alegreya', '700 24px Alegreya', '400 20px "Alegreya Sans"', 'italic 400 20px "Alegreya Sans"',
-      '700 20px "Alegreya Sans"', '600 17px "Alegreya Sans"', '500 13px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
+      '700 20px "Alegreya Sans"', '600 17px "Alegreya Sans"', 'italic 500 17px "Alegreya Sans"', '500 13px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
   } catch { /* usa as fontes do sistema */ }
   const logo = await carregarLogo();
   const S = LARGURA_PNG / W;

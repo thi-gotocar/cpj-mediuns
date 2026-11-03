@@ -1,6 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
-import { giraEspecial, nomeGira, orixaDaGira, limpezaDaGira, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira } from '/shared/regras.js';
+import { giraEspecial, nomeGira, orixaDaGira, limpezaDaGira, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira } from '/shared/regras.js';
 import { pd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -63,20 +63,25 @@ export function textoWhats(pessoas, g, fmt, giras = []) {
   if (cab.orixa) L.push(`👑 *Orixá:* ${cab.orixa}`);
   if (cab.gira) L.push(`🕯️ *${cab.gira}*`);
   if (grupo('senha')) L.push(`${ICONE.senha} *Senha:* ${grupo('senha')[1].join(', ')}`);
+  if (lista.some((x) => x.cams.some((p) => p.remanejado) || x.passes.some((p) => p.remanejado))) L.push('🔄 *Escala remanejada* (faltas de última hora)');
   L.push(LINHA);
   const tab = fmt === 'tabela';
   // Médiuns e At. Extras em seções separadas (como na planilha da casa); quem está sem cambone aparece também.
   // Na lista, o médium de passe vai na linha de baixo do médium, recuado.
-  const cams = (x) => (x.cams.length ? x.cams.map((p) => nome(p.c)).join(' e ') : '_sem cambone_');
+  // Quem entrou no Remanejar faltas vem com 🔄.
+  const re = (p) => (p.remanejado ? '🔄 ' : '') + nome(p.c);
+  const cams = (x) => (x.cams.length ? x.cams.map(re).join(' e ') : '_sem cambone_');
   const RECUO = '  ';   // espaço largo: o WhatsApp não some com ele no começo da linha
   const secao = (titulo, itens) => {
     if (!itens.length) return;
     L.push('', titulo);
     if (tab) tabela(L, 'MÉDIUM', 'CAMBONE', itens.map((x) => [x.m.nome, x.cams.length ? x.cams.map((p) => nome(p.c)) : ['—']]));
     else {
+      // O guia de atendimento do médium na linha da gira (do Perfil) vai entre parênteses, em itálico.
       itens.forEach((x) => {
-        L.push(`▫️ *${x.m.nome}* → ${cams(x)}`);
-        if (x.passes.length) L.push(`${RECUO}🙌 _Passe:_ ${x.passes.map((p) => nome(p.c)).join(' e ')}`);
+        const guia = guiaNaGira(x.m, g);
+        L.push(`▫️ *${x.m.nome}*${guia ? ` _(${guia})_` : ''} → ${cams(x)}`);
+        if (x.passes.length) L.push(`${RECUO}🙌 _Passe:_ ${x.passes.map(re).join(' e ')}`);
       });
     }
   };
