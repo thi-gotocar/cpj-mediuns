@@ -1,6 +1,6 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -148,20 +148,39 @@ function blocoMediuns(of, admin) {
   return h + `</div>`;
 }
 
-// Primeiro bloco da oferenda: quem está logado e o que se comprometeu a doar.
+// Admin, dentro de "Seus compromissos": tabela das oferendas com uma linha por pessoa (não encerradas) —
+// quantas pessoas vão, quantas faltam pagar e quantas faltam entregar. Tocar no número mostra os nomes.
+function tabelaPorPessoa() {
+  const L = estatisticasPorPessoa(estado.oferendas.oferendas);
+  if (!L.length) return '';
+  const olho = U().estOlho;
+  const cel = (of, k, lista, cls) => `<td><button class="of-est-n ${cls}${lista.length ? '' : ' zero'}" data-act="estolho" data-k="${of.id}:${k}" aria-expanded="${olho === of.id + ':' + k}" ${lista.length ? '' : 'disabled'}>${lista.length}</button></td>`;
+  const TIT = { pessoas: 'Vão', pagar: 'Faltam pagar', entregar: 'Faltam entregar' };
+  return `<div class="of-est"><span class="eyebrow">Oferendas por pessoa (admin)</span>
+    <table class="of-est-t"><thead><tr><th>Oferenda</th><th>Vão</th><th>Falta pagar</th><th>Falta entregar</th></tr></thead><tbody>
+    ${L.map(({ of, pessoas, naoPagos, naoEntregues }) => {
+      const [, k] = olho && olho.startsWith(of.id + ':') ? olho.split(':') : [];
+      const lista = k === 'pessoas' ? pessoas : k === 'pagar' ? naoPagos : k === 'entregar' ? naoEntregues : null;
+      return `<tr><td><button class="btn link of-est-of" data-act="vercomp" data-id="${of.id}"><span class="eyebrow">${dataBR(of.data)}</span>${esc(of.titulo)}</button></td>
+          ${cel(of, 'pessoas', pessoas, '')}${cel(of, 'pagar', naoPagos, 'pagar')}${cel(of, 'entregar', naoEntregues, 'entregar')}</tr>
+        ${lista ? `<tr class="of-est-nomes"><td colspan="4"><span class="muted">${TIT[k]} (${lista.length}):</span> ${lista.map((m) => esc(m.nome)).join(', ')}</td></tr>` : ''}`;
+    }).join('')}</tbody></table></div>`;
+}
+
 // Topo da aba: tudo o que a pessoa se comprometeu a levar, por oferenda (data do evento, nome e o que levar).
-// Tocar no nome abre a oferenda lá embaixo.
+// Tocar no nome abre a oferenda lá embaixo. Para o admin, embaixo, a tabela das oferendas por pessoa.
 function cardMeusCompromissos() {
   const eu = estado.oferendas.eu || {};
   if (!eu.chave) return '';
   const grupos = compromissosDe(estado.oferendas.oferendas, eu.chave, hoje());
+  const tabela = pode('oferendas:gerenciar') ? tabelaPorPessoa() : '';
   let h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${grupos.length ? `<span class="count">${grupos.length}</span>` : ''}</div>`;
-  if (!grupos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
+  if (!grupos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p>${tabela}</div>`;
   return h + grupos.map(({ of, itens, linha }) => `<div class="of-meus-g">
       <span class="of-meus-data"><span class="eyebrow">${dataBR(of.data)}</span><span class="ent">${esc(Dia(of.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="vercomp" data-id="${of.id}">${esc(of.titulo)} ›</button>
       ${linha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('') + '</div>';
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('') + tabela + '</div>';
 }
 
 // Percentual das doações e, quando completa, até quando dá para alterar.
@@ -387,6 +406,8 @@ export const cliques = {
   editarof(el) { U().editar = el.dataset.id; avisar(); },
   cancelarof() { U().editar = null; avisar(); },
   olhomed(el) { U().olho = U().olho === el.dataset.k ? null : el.dataset.k; avisar(); },
+  // Tabela do admin: tocar no número mostra (ou esconde) as pessoas.
+  estolho(el) { U().estOlho = U().estOlho === el.dataset.k ? null : el.dataset.k; avisar(); },
   // Seus compromissos → abre a oferenda e rola até ela.
   vercomp(el) {
     const id = el.dataset.id;

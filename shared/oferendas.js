@@ -51,6 +51,17 @@ export function compromissosDe(oferendas, chave, hoje) {
   }).filter((x) => x.itens.length || x.linha).sort((a, b) => a.of.data.localeCompare(b.of.data));
 }
 
+// Admin: oferendas com uma linha por pessoa ainda não encerradas, da mais próxima à mais distante,
+// com quem vai, quem falta pagar e quem falta entregar (os nomes, para mostrar ao tocar no número).
+export function estatisticasPorPessoa(oferendas) {
+  return (oferendas || []).filter((of) => of.porMedium && of.status !== 'encerrado' && !of.bloqueada)
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map((of) => {
+      const ms = of.mediuns || [];
+      return { of, pessoas: ms, naoPagos: ms.filter((m) => m.pagamento !== 'pago'), naoEntregues: ms.filter((m) => m.entrega !== 'entregue') };
+    });
+}
+
 // Cor do percentual: verde com 100%, amarelo de 50% a 99%, vermelho abaixo de 50%.
 export const faixaPct = (pct) => (pct >= 100 ? 'cheio' : pct >= 50 ? 'meio' : 'baixo');
 

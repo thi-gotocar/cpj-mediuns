@@ -311,6 +311,22 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-meus-data{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .of-meus-data .eyebrow{color:var(--accent)}
 .of-meus-data .ent{color:var(--gold);font-weight:700;font-size:.92rem}
+/* Admin: tabela das oferendas por pessoa (moldura dourada de "só admin vê") */
+.of-est{display:grid;gap:6px;padding:10px;border:1px dashed var(--gold);border-radius:10px}
+.of-est .eyebrow{color:var(--gold)}
+.of-est-t{width:100%;border-collapse:collapse;font-size:.88rem}
+.of-est-t th{font-size:.72rem;font-weight:700;color:var(--muted);text-align:center;padding:4px 2px;line-height:1.15}
+.of-est-t th:first-child{text-align:left}
+.of-est-t td{border-top:1px solid var(--line);padding:6px 2px;text-align:center;vertical-align:middle}
+.of-est-t td:first-child{text-align:left;width:100%}
+.btn.link.of-est-of{display:grid;padding:0;text-align:left;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.of-est-of .eyebrow{color:var(--accent);font-size:.68rem}
+.of-est-n{min-width:40px;font:800 1rem var(--f-display);border-radius:20px;padding:2px 8px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.of-est-n.pagar{color:var(--off);border-color:color-mix(in srgb,var(--off) 45%,var(--line));background:color-mix(in srgb,var(--off) 12%,transparent)}
+.of-est-n.entregar{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:color-mix(in srgb,var(--warn) 12%,transparent)}
+.of-est-n.zero{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line));background:color-mix(in srgb,var(--ok) 10%,transparent);cursor:default}
+.of-est-n[aria-expanded="true"]{outline:2px solid currentColor;outline-offset:1px}
+.of-est-nomes td{text-align:left!important;border-top:0;padding-top:0;font-size:.85rem;overflow-wrap:anywhere}
 .btn.link.of-meus-tit{justify-self:start;padding:0;font:700 1.08rem var(--f-display);text-align:left;color:var(--ink)}
 /* Aba Gira: compromissos nas oferendas (último bloco) */
 .card.comp-of{border-left:4px solid var(--warn)}
