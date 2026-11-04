@@ -26,18 +26,19 @@ export const estado = {
   manual: null,
   renomear: null,
   editLic: null,
-  renomearUsuario: null, // id do usuário com o nome em edição (aba Usuários)
+  renomearUsuario: null, // id do usuário com o nome em edição (aba Admin root)
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
   fotosPessoa: {},     // aba Perfil: pessoaId → foto (data URL; '' = sem foto; null = buscando)
   pfUi: { abertos: {}, faltam: false },
-  perfisCfg: null,     // aba Usuários: perfis e as abas de cada um
-  senhas: null,        // aba Usuários: quem tem senha (PIN) no acesso da corrente
+  perfisCfg: null,     // aba Admin root: perfis e as abas de cada um
+  senhas: null,        // aba Admin root: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
   stPerfis: null,      // Histórico → Estatísticas: contagens do Perfil { total, chefe, frente, orixa } (undefined = carregando)
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
   oracoes: [],         // aba Gira: orações dos últimos 7 dias
+  ausPrevias: null,    // aba Gira (admin): ausências antecipadas, de datas ainda sem gira — [{ data, pessoaId }]
   curimba: null,       // aba Curimba: { alunos, aulas, presencas }
   minhaCurimba: null,  // aba Gira: { aulas } de quem está logado, se for aluno da curimba
   videos: null,        // aba Vídeos: [{ id, data, evento, youtube, classes }]
@@ -358,6 +359,19 @@ export async function acaoUsuarios(acao, dados = {}) {
 }
 
 // ---------- eventos da casa ----------
+// ---------- ausência antecipada (aba Gira, admin: data de hoje em diante ainda sem gira) ----------
+export async function carregarAusPrevias() {
+  try { estado.ausPrevias = await api('GET', '/giras?lista=ausencias'); } catch (e) { toast(e.message); estado.ausPrevias = estado.ausPrevias || []; }
+  avisar();
+}
+export async function acaoAusPrevia(data, pessoaId, ausente) {
+  try {
+    estado.ausPrevias = await api('POST', '/giras', { acao: 'ausenciaPrevia', data, pessoaId, ausente });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
 // ---------- orações (aba Gira) ----------
 export async function acaoOracoes(acao, dados = {}) {
   try {

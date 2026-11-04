@@ -1,5 +1,6 @@
 // GET    /api/giras/:data
 // PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
+//                            (gira nova: quem tinha ausência antecipada na data já entra Ausente)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala: só o root)
 // POST   /api/giras/:data   { acao: 'publicar', publicada?: false } → a escala fica visível para todos (ou volta a ficar só para os admins)
 //                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
@@ -118,7 +119,13 @@ export default rota({
     }
     if ('orixa' in b) p.orixa = validarOrixa(b.orixa);
     if (b.encerrada === true) p.encerrada = true;
-    return db.rpc('gira_salvar', p);
+    // Gira nova: quem tinha ausência antecipada nesta data já entra como Ausente (o que veio no pedido vale mais).
+    const nova = b.encerrada !== true && !(await db.rpc('gira_obter', { data }));
+    const previas = nova ? (await db.rpc('ausencias_previas_listar')).filter((x) => x.data === data).map((x) => x.pessoaId) : [];
+    if (previas.length) p.presenca = { ...Object.fromEntries(previas.map((id) => [id, 'a'])), ...(p.presenca || {}) };
+    const gira = await db.rpc('gira_salvar', p);
+    if (nova) await db.rpc('ausencias_previas_usar', { data });
+    return gira;
   },
   POST: async (req) => {
     const b = corpo(req);

@@ -5,7 +5,6 @@ import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, 
 import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
-import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
 
 // Resultado da leitura da mensagem. Tudo o que ficou em dúvida aparece em vermelho, com opção de
 // corrigir e um botão Aceitar; só dá para gravar depois de aceitar todos.
@@ -52,7 +51,7 @@ const somaAt = (a) => ATEND.reduce((s, [k]) => s + (Number(a?.[k]) || 0), 0);
 const linhaAt = (a) => `Atendidos: ${ATEND.map(([k, t]) => `${t} <b>${Number(a[k]) || 0}</b>`).join(' · ')} · Total <b>${somaAt(a)}</b>`;
 
 // ---- Cadastrar gira antiga (só para alimentar o histórico: sem escala de médiuns)
-function cardGiraAntiga(ps) {
+export function cardGiraAntiga(ps) {
   const F = estado.giraAntiga;
   if (!F) return `<div class="row"><button class="btn" data-act="gaabrir">+ Cadastrar gira antiga</button></div>`;
   const g = { data: F.data, presenca: F.presenca };
@@ -263,14 +262,7 @@ function blocoGirasSalvas(gs, ps) {
   let h = `<div class="card"><button class="grp-h dobra" data-act="dobrarsalvas" aria-expanded="${ab}" aria-label="${ab ? 'Minimizar' : 'Expandir'} Giras salvas">
     <h2><span aria-hidden="true">🗂️</span> Giras salvas</h2><span class="count">${gs.length} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
   if (!ab) return h + '</div>';
-  // Cadastrar gira antiga e Cadastrar escala: só o admin root.
-  const root = pode('usuarios:gerenciar');
-  if (root && !estado.giraAntiga && !estado.escalaTxt) {
-    h += '<div class="row"><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button><button class="btn small" data-act="esabrir">＋ Cadastrar escala</button></div>';
-  }
-  // Cadastrar gira antiga / escala: dentro do bloco (o formulário abre aqui).
-  if (root && estado.giraAntiga) h += cardGiraAntiga(ps).replace('<div class="card adm" id="card-ga">', '<div class="ga-box" id="card-ga">');
-  if (root && estado.escalaTxt) h += cardEscala();
+  // (Cadastrar gira antiga e Cadastrar escala, só do admin root, ficam na aba Admin root.)
   // Soma dos atendidos de todas as giras que têm o registro.
   const comAt = gs.filter((g) => g.atendimentos);
   if (comAt.length) {
@@ -308,7 +300,6 @@ function blocoGirasSalvas(gs, ps) {
 
 export const cliques = {
   ...cliquesResumo,
-  ...cliquesEscala,
   stedit(el) { estado.stEdit = el.dataset.k; avisar(); },
   stedcancel() { estado.stEdit = null; avisar(); },
   async stedok(el) {
@@ -319,6 +310,21 @@ export const cliques = {
   },
   dobrarcamb() { estado.cambAberto = !estado.cambAberto; avisar(); },
   dobrarsalvas() { estado.salvasAberto = !estado.salvasAberto; avisar(); },
+  stpessoa(el) { estado.stPessoa = estado.stPessoa === el.dataset.k ? null : el.dataset.k; avisar(); },
+  stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
+  abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'gira'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
+  delgira(el) { estado.confirm = null; excluirGira(el.dataset.d); },
+  backup() {
+    baixar(new Blob([JSON.stringify(montarBackup(), null, 1)], { type: 'application/json' }), 'sort-mediuns-backup-' + hoje() + '.json');
+  },
+};
+
+export const mudancas = {
+  stano(t) { estado.stAno = t.value; estado.stMais = {}; avisar(); },
+};
+
+// Cadastrar gira antiga (só o admin root): a tela fica na aba Admin root (usuarios.js), que usa estes handlers.
+export const cliquesGiraAntiga = {
   gaabrir() {
     estado.giraAntiga = { data: '', entidade: '', orixa: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
     avisar();
@@ -383,18 +389,9 @@ export const cliques = {
     const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, ...(temOrixa(F) && F.orixa ? { orixa: F.orixa } : {}), presenca, atendimentos: F.at });
     if (ok) { toast('Gira antiga cadastrada.'); estado.giraAntiga = null; avisar(); }
   },
-  stpessoa(el) { estado.stPessoa = estado.stPessoa === el.dataset.k ? null : el.dataset.k; avisar(); },
-  stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
-  abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'gira'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
-  delgira(el) { estado.confirm = null; excluirGira(el.dataset.d); },
-  backup() {
-    baixar(new Blob([JSON.stringify(montarBackup(), null, 1)], { type: 'application/json' }), 'sort-mediuns-backup-' + hoje() + '.json');
-  },
 };
 
-export const mudancas = {
-  ...mudancasEscala,
-  stano(t) { estado.stAno = t.value; estado.stMais = {}; avisar(); },
+export const mudancasGiraAntiga = {
   gacampo(t) { estado.giraAntiga[t.dataset.k] = t.value; avisar(); },
   gastatus(t) {
     const F = estado.giraAntiga;

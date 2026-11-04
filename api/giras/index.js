@@ -6,6 +6,8 @@
 //      (quem não tem a aba no perfil só vê com a aba publicada)
 // POST /api/giras  { acao: 'video', id?, data, evento, youtube: link ou código, classes: [..] } · { acao: 'excluirVideo', id }  → vídeos
 //                  { acao: 'videosPublicar', publicada: true|false }  → { publicada }
+// GET  /api/giras?lista=ausencias — ausências antecipadas (datas de hoje em diante ainda sem gira; admin)  → [{ data, pessoaId }]
+// POST /api/giras  { acao: 'ausenciaPrevia', data, pessoaId, ausente: true|false } (admin)  → ausências antecipadas
 // GET  /api/giras?lista=oracoes — orações dos últimos 7 dias (todos logados)  → [{ id, texto, criadoEm, expiraEm, apagar, reacoes, reagi }]
 // POST /api/giras  { acao: 'oracao', texto } (qualquer um logado) · { acao: 'excluirOracao', id } (quem pediu ou admin)
 //                  { acao: 'reagirOracao', id } (qualquer um logado; liga/desliga a 🕯️)  → orações
@@ -140,6 +142,10 @@ export default rota({
       return db.rpc('videos_listar');
     }
     if (req.query.lista === 'oracoes') return oracoes(await exigir(req));
+    if (req.query.lista === 'ausencias') {
+      await exigir(req, 'giras:editar');
+      return db.rpc('ausencias_previas_listar');
+    }
     if (req.query.lista === 'fotos') {
       exigirFotosAtiva();
       return fotosEstado(await exigir(req, 'fotos:ver'));
@@ -157,6 +163,13 @@ export default rota({
       await exigir(req, 'videos:editar');
       if (typeof b.publicada !== 'boolean') throw new HttpError(400, 'Informe se a aba fica publicada.');
       return { publicada: await db.rpc('videos_publicar', { publicada: b.publicada }) };
+    }
+    if (b.acao === 'ausenciaPrevia') {
+      await exigir(req, 'giras:editar');
+      const data = validarData(String(b.data || ''));
+      if (data < new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })) throw new HttpError(400, 'Ausência antecipada só para hoje em diante.');
+      if (await db.rpc('gira_obter', { data })) throw new HttpError(409, 'A gira desta data já foi criada: marque a ausência na Presença.');
+      return db.rpc('ausencia_previa_salvar', { data, pessoaId: validarId(b.pessoaId, 'Pessoa'), ausente: b.ausente !== false });
     }
     if (['oracao', 'excluirOracao', 'reagirOracao'].includes(b.acao)) return acaoOracao(await exigir(req), b);
     if (ACOES_FOTOS.includes(b.acao)) {

@@ -1,10 +1,10 @@
 // O que cada perfil pode fazer. O backend é quem garante (devolve 403);
 // o frontend só usa a lista para esconder abas e botões.
 //
-// Os perfis ficam no banco (tabela perfis): o admin root cria e edita na aba Usuários,
+// Os perfis ficam no banco (tabela perfis): o admin root cria e edita na aba Admin root,
 // marcando por aba se o perfil pode Ver e/ou Editar. As permissões saem dessas marcações.
 
-// Abas que entram na tabela de perfis (a aba Usuários é sempre só do admin root).
+// Abas que entram na tabela de perfis (a aba Admin root, chave "usuarios", é sempre só do admin root).
 export const ABAS = [
   { k: 'gira', nome: 'Gira', ver: 'A escala. Sem o Histórico, vê só o resultado do sorteio.', editar: 'Presença, entidade, sorteio e encerrar.' },
   { k: 'pessoas', nome: 'Pessoas', ver: 'A corrente, licenças e turmas da limpeza.', editar: 'Cadastrar, editar e excluir pessoas e licenças.' },

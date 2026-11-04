@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 68;  // v68: oferenda por pessoa "Exibir no resumo"
+export const VERSAO = 69;  // v69: ausência antecipada (data futura ainda sem gira)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2214,5 +2214,40 @@ export const MIGRACOES = [
      if not found then raise exception 'Oferenda não encontrada.'; end if;
      return oferendas_estado();
    end;
+   $$`,
+
+  // ================================================== v69: ausência antecipada (data futura ainda sem gira)
+  // O admin marca quem não vai numa data em que a gira ainda não foi criada; ao criar a gira, essas pessoas
+  // já entram como Ausente (e as linhas da data saem daqui).
+  `create table if not exists ausencias_previas (
+     data      date not null,
+     pessoa_id uuid not null references pessoas (id) on delete cascade,
+     criado_em timestamptz not null default now(),
+     primary key (data, pessoa_id)
+   )`,
+  // De hoje em diante (as passadas não servem mais para nada).
+  `create or replace function ausencias_previas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('data', data, 'pessoaId', pessoa_id) order by data), '[]'::jsonb)
+     from ausencias_previas where data >= (now() at time zone 'America/Sao_Paulo')::date;
+   $$`,
+  // p = { data, pessoaId, ausente } — marca ou desmarca.
+  `create or replace function ausencia_previa_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if not exists (select 1 from pessoas where id = (p ->> 'pessoaId')::uuid) then raise exception 'Pessoa não encontrada.'; end if;
+     if coalesce((p ->> 'ausente')::boolean, true) then
+       insert into ausencias_previas (data, pessoa_id) values ((p ->> 'data')::date, (p ->> 'pessoaId')::uuid) on conflict do nothing;
+     else
+       delete from ausencias_previas where data = (p ->> 'data')::date and pessoa_id = (p ->> 'pessoaId')::uuid;
+     end if;
+     return ausencias_previas_listar();
+   end;
+   $$`,
+  // Ao criar a gira: devolve quem tinha ausência antecipada na data e apaga essas linhas.
+  `create or replace function ausencias_previas_usar(p jsonb)
+   returns jsonb language sql as $$
+     with d as (delete from ausencias_previas where data = (p ->> 'data')::date returning pessoa_id)
+     select coalesce(jsonb_agg(pessoa_id), '[]'::jsonb) from d;
    $$`,
 ];

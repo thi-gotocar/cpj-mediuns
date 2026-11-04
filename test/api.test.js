@@ -1212,3 +1212,18 @@ test('oferenda por pessoa: escolhe os grupos (funções e alunos); doação por 
   assert.deepEqual([d.chave, d.nome], ['a:' + alunos[0].id, alunos[0].nome]);
   await of({ acao: 'excluir', id: o.id });
 });
+
+test('ausência antecipada: data futura ainda sem gira; ao criar a gira, a pessoa já entra Ausente', async () => {
+  const d = '2031-02-05';
+  const p = (await api('GET', '/api/pessoas', ADMIN)).json[0];
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'ausenciaPrevia', data: d, pessoaId: p.id })).status, 403);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'ausenciaPrevia', data: '2020-01-01', pessoaId: p.id })).status, 400, 'data passada não');
+  let r = (await api('POST', '/api/giras', ADMIN, { acao: 'ausenciaPrevia', data: d, pessoaId: p.id })).json;
+  assert.ok(r.some((x) => x.data === d && x.pessoaId === p.id));
+  const g = (await api('PUT', '/api/giras/' + d, ADMIN, { entidade: '' })).json;
+  assert.equal(g.presenca[p.id], 'a', 'entra Ausente ao criar a gira');
+  r = (await api('GET', '/api/giras?lista=ausencias', ADMIN)).json;
+  assert.ok(!r.some((x) => x.data === d), 'as antecipadas da data saem');
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'ausenciaPrevia', data: d, pessoaId: p.id })).status, 409, 'com gira, marca na Presença');
+  await api('DELETE', '/api/giras/' + d, ADMIN);
+});

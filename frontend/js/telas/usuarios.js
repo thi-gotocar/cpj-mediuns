@@ -1,8 +1,12 @@
-// Tela "Usuários" (só admin): quem acessa o app e com qual perfil.
+// Aba "Admin root" (só o admin root): quem acessa o app e com qual perfil, os perfis e, do Histórico,
+// Cadastrar gira antiga e Cadastrar escala.
 
 import { SEM_CADASTRO, ABAS, PERFIS_SISTEMA, PIN_VALIDO, normalizarAbas } from '/shared/permissoes.js';
 import { estado, pessoasOrd, carregarUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, avisar } from '../estado.js';
 import { esc, toast } from '../util.js';
+import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga } from './historico.js';
+import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
+import { contaNaPresenca } from '/shared/regras.js';
 
 
 // Perfis que podem ser dados a um usuário com e-mail (o "Corrente" é só do acesso pelo nome).
@@ -13,10 +17,10 @@ const opcoesPapel = (atual) => papeis().map((f) => `<option value="${esc(f.chave
 function cardPerfis() {
   const lista = estado.perfisCfg || [];
   const aberto = estado.perfisAberto ?? true;
-  let h = `<div class="card adm"><button class="grp-h dobra" data-act="dobrarperfis" aria-expanded="${aberto}"><h2>Perfis e acessos</h2><span class="count">${lista.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  let h = `<div class="card adm root"><button class="grp-h dobra" data-act="dobrarperfis" aria-expanded="${aberto}"><h2>Perfis e acessos</h2><span class="count">${lista.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
   if (!aberto) return h + '</div>';
   const sel = lista.find((f) => f.chave === estado.perfilSel) || lista.find((f) => f.chave === 'admin') || lista[0];
-  h += `<p class="muted" style="margin:0;font-size:.85rem">Escolha o perfil e marque, em cada aba, se ele pode <b>Ver</b> e/ou <b>Editar</b>. Vale na hora para todos os usuários desse perfil (eles veem a mudança ao abrir o app de novo). A aba Usuários é sempre só do Admin root.</p>
+  h += `<p class="muted" style="margin:0;font-size:.85rem">Escolha o perfil e marque, em cada aba, se ele pode <b>Ver</b> e/ou <b>Editar</b>. Vale na hora para todos os usuários desse perfil (eles veem a mudança ao abrir o app de novo). A aba Admin root é sempre só do Admin root.</p>
     <div class="row" style="gap:6px;align-items:flex-end">
       <label class="field grow">Perfil<select data-act="perfilsel">${lista.map((f) => `<option value="${esc(f.chave)}" ${f === sel ? 'selected' : ''}>${esc(f.nome)}${f.usuarios ? ` (${f.usuarios})` : ''}</option>`).join('')}</select></label>
       <button class="btn small" data-act="novoperfil">＋ Novo perfil</button>
@@ -27,7 +31,7 @@ function cardPerfis() {
       <button class="btn small primary" type="submit">Criar</button><button class="btn small" type="button" data-act="cancelanovoperfil">Cancelar</button></form>`;
   }
   if (!sel) return h + '</div>';
-  if (sel.chave === 'root') return h + `<p class="leitura" style="margin:0">O Admin root pode tudo, inclusive a aba Usuários, e não precisa estar no cadastro da corrente.</p></div>`;
+  if (sel.chave === 'root') return h + `<p class="leitura" style="margin:0">O Admin root pode tudo, inclusive a aba Admin root, e não precisa estar no cadastro da corrente.</p></div>`;
   const a = normalizarAbas(sel.abas);
   const fixo = sel.chave === 'corrente';
   h += `${fixo ? '<p class="muted" style="margin:0;font-size:.85rem">Este é o acesso de quem entra com a palavra-chave da corrente e o próprio nome.</p>' : `<form id="f-perfilnome" class="row" data-chave="${esc(sel.chave)}" autocomplete="off" style="gap:6px;align-items:flex-end">
@@ -61,7 +65,7 @@ export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   const livres = pessoasLivres();
   let h = `<section class="panel">
-  <div class="card adm"><h2>Novo usuário</h2>
+  <div class="card adm root"><h2>Novo usuário</h2>
     <form id="f-user" class="row" autocomplete="off">
       <label class="field" style="flex:0 1 170px">Perfil<select id="u-papel" data-act="papelnovo">${opcoesPapel('usuario')}</select></label>
       <label class="field grow" id="u-pessoa-campo"><span id="u-pessoa-rotulo">Pessoa da corrente</span><select id="u-pessoa"><option value="">— escolha a pessoa —</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
@@ -72,7 +76,7 @@ export function render() {
     </form>
     <p class="muted" style="margin:0;font-size:.85rem">O usuário é uma pessoa da corrente: o nome vem do cadastro em Pessoas (quem não está lá, cadastre antes). No <b>Admin root</b> a pessoa é opcional: sem ela, vale o nome digitado. Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>
   </div>
-  <div class="card adm"><div class="grp-h"><h2>Quem tem acesso</h2><span class="count">${estado.usuarios.length}</span></div><div>`;
+  <div class="card adm root"><div class="grp-h"><h2>Quem tem acesso</h2><span class="count">${estado.usuarios.length}</span></div><div>`;
   estado.usuarios.forEach((u) => {
     const eu = u.id === estado.me.id;
     const conf = estado.confirm === 'u:' + u.id;
@@ -101,11 +105,24 @@ export function render() {
       <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
       ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
   });
-  h += `</div></div>${cardPerfis()}<p class="muted" style="margin:0;font-size:.85rem">Entrada na corrente e senhas agora ficam na aba <b>Perfil</b>, no bloco <b>Ajustes</b>.</p></section>`;
+  h += `</div></div>${cardPerfis()}${cardRegistros()}<p class="muted" style="margin:0;font-size:.85rem">Entrada na corrente e senhas agora ficam na aba <b>Perfil</b>, no bloco <b>Ajustes</b>.</p></section>`;
   return h;
 }
 
+// Do Histórico: cadastrar gira antiga (já encerrada, só para o histórico) e cadastrar a escala de uma gira salva.
+function cardRegistros() {
+  let h = `<div class="card adm root"><h2><span aria-hidden="true">🗂️</span> Giras antigas e escalas</h2>`;
+  if (!estado.giraAntiga && !estado.escalaTxt) {
+    h += '<div class="row"><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button><button class="btn small" data-act="esabrir">＋ Cadastrar escala</button></div>';
+  }
+  if (estado.giraAntiga) h += cardGiraAntiga(pessoasOrd().filter(contaNaPresenca)).replace('<div class="card adm" id="card-ga">', '<div class="ga-box" id="card-ga">');
+  if (estado.escalaTxt) h += cardEscala();
+  return h + '</div>';
+}
+
 export const cliques = {
+  ...cliquesGiraAntiga,
+  ...cliquesEscala,
   novasenha(el) {
     const u = estado.usuarios.find((x) => x.id === el.dataset.id);
     const s = prompt(`Nova senha para ${u?.nome || 'o usuário'} (mínimo 8 caracteres):`);
@@ -182,6 +199,8 @@ export async function renomear(form) {
 }
 
 export const mudancas = {
+  ...mudancasGiraAntiga,
+  ...mudancasEscala,
   perfilsel(t) { estado.perfilSel = t.value; estado.confirm = null; avisar(); },
   // Editar inclui ver; tirar o ver tira o editar.
   pfaba(t) {

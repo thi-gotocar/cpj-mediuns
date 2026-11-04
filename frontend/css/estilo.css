@@ -508,8 +508,6 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 /* Reiniciar fica na mesma linha da data (sem abrir espaço no topo do card) */
 .dh-linha{display:flex;align-items:center;justify-content:space-between;gap:8px}
 /* Data da gira tocável (admin): abre a janela para alterar a data */
-.data-bt{background:none;border:0;padding:2px 0;margin:0;font:inherit;cursor:pointer;text-align:left;color:var(--accent);text-decoration:underline dotted;text-underline-offset:3px}
-.data-bt span{text-decoration:none;display:inline-block;margin-left:2px}
 .add-seg{display:flex;width:100%}
 .add-seg button{flex:1 1 0;padding:8px 10px}
 .pres select.st.papel-dia{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
@@ -723,7 +721,14 @@ body.deslogado .rodape{display:none}
 .mp-l{min-height:2.4rem;box-sizing:border-box}
 .mp-gira{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Blocos que só o admin vê: borda dourada */
-.card.adm{border:2px solid var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 12%,transparent)}
+/* Blocos de admin: moldura dourada com "ADMIN" escrito na borda (o mesmo jeito da aba Perfil);
+   na aba Admin root, "ADMIN ROOT". Bloco de admin dentro de outro não repete o rótulo. */
+.card.adm{position:relative;border:2px solid var(--gold);border-radius:calc(var(--r) + 4px);background:color-mix(in srgb,var(--gold) 5%,var(--surface));box-shadow:none;margin-top:10px;padding-top:22px}
+.card.adm::before{content:"ADMIN";position:absolute;top:0;left:16px;transform:translateY(-50%);background:var(--bg);color:var(--gold);font-weight:800;font-size:.75rem;letter-spacing:.14em;padding:0 8px;line-height:1.4}
+.card.adm.root::before{content:"ADMIN ROOT"}
+.card.adm .card.adm{margin-top:0;padding-top:16px;background:var(--surface)}
+.ev-grupo>.card.adm{margin-top:0;padding-top:12px;background:var(--bg)}
+.card.adm .card.adm::before{content:none}
 /* Perfil: Ajustes */
 .aj-sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .aj-form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
@@ -1144,8 +1149,6 @@ section.panel.pf-tela{gap:14px}
 .es-l{display:flex;gap:8px;padding:3px 0;border-top:1px solid var(--line)}
 .es-m{flex:0 0 42%;min-width:0;font-weight:700;overflow-wrap:anywhere}
 .limp-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.limp-wa{display:inline-flex;align-items:center;gap:4px;text-decoration:none}
-.limp-wa .wa-ico svg{width:18px;height:18px}
 .limp-nao{color:var(--off);text-decoration-thickness:2px}
 
 /* Perfil: foto da pessoa no canto do bloco Informações (e no "Informações da corrente" do admin) */
@@ -1196,3 +1199,25 @@ button.eu-av{cursor:zoom-in}
 .esc-fundo{background:rgba(0,0,0,.85);align-items:flex-start;justify-content:flex-start;overflow:auto;cursor:zoom-out;padding:12px}
 .esc-grande{margin:0 auto}   /* no tamanho em que a imagem foi desenhada (560 px, W em imagem.js): no celular rola um pouco para os lados */
 .esc-grande img{display:block;width:560px;max-width:none;height:auto;border-radius:8px}
+
+/* Aba Gira, admin: Presença, Sorteio de escala e Sugestão Mi/Mãe Vê num card só, separados por uma linha dourada */
+.card.adm-gira{gap:0}
+.adm-sec{display:grid;gap:14px;min-width:0;padding:16px 0}
+.adm-sec:first-child{padding-top:0}
+.adm-sec:last-child{padding-bottom:0}
+.adm-sec + .adm-sec{border-top:1px dashed color-mix(in srgb,var(--gold) 55%,var(--line))}
+/* Parte "⚙️ Evento" (primeira do card do admin): entidade, orixá, turma da limpeza e, embaixo, os botões —
+   Compartilhar escala e Compartilhar turma da limpeza lado a lado (menores); Alterar data e Encerrar gira lado a lado */
+.adm-ev-wa{display:flex;gap:8px}
+.adm-ev-wa:empty{display:none}
+.adm-ev-wa .wa-bt{flex:1 1 0;min-width:0;width:auto;white-space:normal;min-height:40px;padding:4px 8px;font-size:.82rem;line-height:1.15;text-align:center;border-width:1px;gap:5px}
+.adm-ev-wa .wa-ico svg{width:18px;height:18px;flex:none}
+.adm-ev-wa a.wa-bt{text-decoration:none}
+.adm-ev-bts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.adm-ev-bts .btn{width:100%;margin:0;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px}
+/* Ausência antecipada (data ainda sem gira) */
+.aus-prev-l{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.aus-prev-l .lock-x{width:28px;height:28px;padding:0;flex:none}
+.aus-prev-add{display:flex;gap:6px;align-items:center;margin-top:4px}
+.aus-prev-add select{flex:1;min-width:0}
+.adm-evento .row{margin:0}
