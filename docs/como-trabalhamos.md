@@ -63,7 +63,7 @@ node test/e2e-servidor.js             # servidor de teste na porta 4310 (banco s
 ### Banco / migrações (`db/esquema.js`)
 
 - **Toda** a lista `MIGRACOES` roda de novo a cada aumento de `VERSAO` → todo comando precisa ser **idempotente** (`create … if not exists`, `create or replace function`, `alter … add column if not exists`).
-- Coisa nova vai **no fim da lista**; uma função redefinida depois substitui a anterior.
+- Coisa nova vai **no fim da lista**; uma função redefinida depois substitui a anterior. Ao redefinir, apague a versão antiga se nenhum comando entre as duas a usa (só a última vale; a lista fica menor e a migração mais rápida).
 - Backfill que só pode rodar uma vez usa marcador (ex.: `publicada is null`, ou chave na tabela `sistema` como em v47 `v47_linhas_todas`).
 - Em template string JS, regex SQL **não** usa `\d` (vira `d`): usar `[0-9]`.
 

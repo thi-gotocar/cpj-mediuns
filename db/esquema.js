@@ -126,13 +126,6 @@ export const MIGRACOES = [
    $$`,
 
   // --------------------------------------------------------------- usuários
-  // O nome do usuário é o do cadastro de pessoas (o root, sem cadastro, usa o próprio nome).
-  `create or replace function usuario_json(u usuarios)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('id', u.id, 'nome', coalesce((select nome from pessoas where id = u.pessoa_id), u.nome),
-                               'pessoaId', u.pessoa_id, 'email', u.email, 'papel', u.papel,
-                               'sessaoVersao', u.sessao_versao, 'criadoEm', u.criado_em);
-   $$`,
   `create or replace function usuario_obter(p jsonb)
    returns jsonb language sql stable as $$
      select usuario_json(u) from usuarios u where u.id = (p ->> 'id')::uuid;
@@ -243,15 +236,6 @@ export const MIGRACOES = [
    $$`,
 
   // ---------------------------------------------------------------- pessoas
-  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza, p.entrada,
-              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
-                        from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas
-       from pessoas p
-     ) x;
-   $$`,
   `create or replace function licenca_salvar(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -296,24 +280,6 @@ export const MIGRACOES = [
      return jsonb_build_object('criadas', v_n);
    end;
    $$`,
-  `create or replace function pessoas_atualizar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := (p ->> 'id')::uuid;
-   begin
-     update pessoas set
-       nome       = case when p ? 'nome'       then btrim(p ->> 'nome')            else nome end,
-       funcao     = case when p ? 'funcao'     then p ->> 'funcao'                 else funcao end,
-       experiente = case when p ? 'experiente' then (p ->> 'experiente')::boolean else experiente end,
-       linhas     = case when p ? 'linhas'
-                         then array(select distinct jsonb_array_elements_text(p -> 'linhas') order by 1)
-                         else linhas end,
-       limpeza    = case when p ? 'limpeza' then nullif(p ->> 'limpeza', '')::smallint else limpeza end,
-       entrada    = case when p ? 'entrada' then nullif(p ->> 'entrada', '')::date else entrada end
-     where id = v_id;
-     if not found then raise exception 'Pessoa não encontrada.'; end if;
-     return (select to_jsonb(x) from (select id, nome, funcao, experiente, linhas, limpeza, entrada from pessoas where id = v_id) x);
-   end;
-   $$`,
   `create or replace function pessoas_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -323,30 +289,6 @@ export const MIGRACOES = [
    $$`,
 
   // ------------------------------------------------------------------ giras
-  `create or replace function gira_json(d date)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'data', g.data,
-       'entidade', g.entidade,
-       'encerrada', g.encerrada,
-       'suporteAuto', g.suporte_auto,
-       'atendimentos', g.atendimentos,
-       'limpeza', g.limpeza,
-       'orixa', g.orixa,
-       'pendentePadrao', g.pendente_padrao,
-       'papeis', g.papeis,
-       'atualizadoEm', g.atualizado_em,
-       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
-                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
-       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
-       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
-     )
-     from giras g where g.data = d;
-   $$`,
   `create or replace function giras_listar(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(gira_json(data) order by data desc), '[]'::jsonb) from giras;
@@ -443,39 +385,6 @@ export const MIGRACOES = [
   // v9: nome da gira e data do evento do pedido (só o admin altera)
   `insert into sistema (chave, valor) values ('ervas_gira', '') on conflict (chave) do nothing`,
   `insert into sistema (chave, valor) values ('ervas_data', '') on conflict (chave) do nothing`,
-  `create or replace function ervas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'frete', coalesce((select valor::numeric from sistema where chave = 'ervas_frete'), 0),
-       'aberta', coalesce((select valor = 'true' from sistema where chave = 'ervas_aberta'), true),
-       'gira', coalesce((select valor from sistema where chave = 'ervas_gira'), ''),
-       'data', coalesce((select valor from sistema where chave = 'ervas_data'), ''),
-       'ervas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'preco', e.preco) order by lower(e.nome))
-                          from ervas e), '[]'::jsonb),
-       -- Quem tem conta aparece sempre com o nome cadastrado atual.
-       'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave,
-                                                                 'nome', coalesce(u.nome, pe.nome, x.pessoa_nome),
-                                                                 'ervaId', x.erva_id, 'quantidade', x.quantidade)
-                                              order by lower(coalesce(u.nome, pe.nome, x.pessoa_nome)))
-                             from ervas_escolhas x
-                             left join usuarios u on x.pessoa_chave = 'u:' || u.id::text
-                             left join pessoas pe on x.pessoa_chave = 'p:' || pe.id::text), '[]'::jsonb)
-     );
-   $$`,
-  `create or replace function erva_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into ervas (nome, preco) values (btrim(p ->> 'nome'), (p ->> 'preco')::numeric);
-     else
-       update ervas set nome = btrim(p ->> 'nome'), preco = (p ->> 'preco')::numeric where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Erva não encontrada.'; end if;
-     end if;
-     return ervas_estado();
-   exception when unique_violation then
-     raise exception 'Já existe uma erva com esse nome.';
-   end;
-   $$`,
   `create or replace function erva_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -520,15 +429,6 @@ export const MIGRACOES = [
      return ervas_estado();
    end;
    $$`,
-  // Nova compra: apaga todas as escolhas e reabre a lista (o catálogo e o frete ficam).
-  `create or replace function ervas_nova_compra(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     delete from ervas_escolhas;
-     update sistema set valor = 'true' where chave = 'ervas_aberta';
-     return ervas_estado();
-   end;
-   $$`,
 
   // ================================================== v13: oferendas
   `create table if not exists oferendas (
@@ -569,36 +469,6 @@ export const MIGRACOES = [
      atualizado_em  timestamptz not null default now(),
      primary key (item_id, pessoa_chave)
    )`,
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
-       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
-  `create or replace function oferenda_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into oferendas (titulo, data, responsavel_id)
-       values (btrim(p ->> 'titulo'), (p ->> 'data')::date, nullif(p ->> 'responsavelId', '')::uuid);
-     else
-       update oferendas set titulo = btrim(p ->> 'titulo'), data = (p ->> 'data')::date,
-              responsavel_id = case when p ? 'responsavelId' then nullif(p ->> 'responsavelId', '')::uuid else responsavel_id end
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Oferenda não encontrada.'; end if;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
   `create or replace function oferenda_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -638,35 +508,6 @@ export const MIGRACOES = [
    begin
      update oferenda_itens set entregue = (p ->> 'entregue')::boolean where id = (p ->> 'id')::uuid;
      if not found then raise exception 'Item não encontrado.'; end if;
-     return oferendas_estado();
-   end;
-   $$`,
-  // Doação de uma pessoa num item (0 = desiste). Não deixa passar da quantidade pedida.
-  `create or replace function oferenda_doar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_item uuid := (p ->> 'itemId')::uuid;
-     v_chave text := p ->> 'chave';
-     v_qtd int := (p ->> 'quantidade')::int;
-     v_total int; v_entregue boolean; v_outros int;
-   begin
-     select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
-     if not found then raise exception 'Item não encontrado.'; end if;
-     if not coalesce((p ->> 'forcar')::boolean, false)
-        and (select o.status from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item) <> 'publicado' then
-       raise exception 'Esta oferenda não está aberta para doações.';
-     end if;
-     if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
-     select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
-     if v_qtd > 0 and v_outros + v_qtd > v_total then
-       if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;
-       raise exception 'Só faltam % deste item.', v_total - v_outros;
-     end if;
-     delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
-     if v_qtd > 0 then
-       insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
-       values (v_item, v_chave, btrim(p ->> 'nome'), v_qtd);
-     end if;
      return oferendas_estado();
    end;
    $$`,
@@ -744,26 +585,6 @@ export const MIGRACOES = [
    )`,
   // v31: médium tirado da lista da oferenda (continua marcado para não voltar com "Incluir novos médiuns")
   `alter table oferenda_mediuns add column if not exists excluido boolean not null default false`,
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
-       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
-       'porMedium', o.por_medium,
-       'mediuns', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pe.id, 'nome', pe.nome, 'status', om.status)
-                                             order by lower(pe.nome))
-                            from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
-                            where om.oferenda_id = o.id and not om.excluido), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
   `create or replace function oferenda_salvar(p jsonb)
    returns jsonb language plpgsql as $$
    declare v_id uuid;
@@ -786,27 +607,6 @@ export const MIGRACOES = [
      return oferendas_estado();
    end;
    $$`,
-  `create or replace function oferenda_medium_status(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     update oferenda_mediuns set status = p ->> 'status', atualizado_em = now()
-     where oferenda_id = (p ->> 'oferendaId')::uuid and pessoa_id = (p ->> 'pessoaId')::uuid;
-     if not found then raise exception 'Médium não está nesta oferenda.'; end if;
-     return oferendas_estado();
-   end;
-   $$`,
-  // Acrescenta os médiuns cadastrados depois (quem já está fica como está).
-  `create or replace function oferenda_mediuns_atualizar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     update oferendas set por_medium = true where id = (p ->> 'id')::uuid;
-     if not found then raise exception 'Oferenda não encontrada.'; end if;
-     insert into oferenda_mediuns (oferenda_id, pessoa_id)
-     select (p ->> 'id')::uuid, id from pessoas
-     on conflict do nothing;
-     return oferendas_estado();
-   end;
-   $$`,
 
   // v28: giras ainda em aberto, de hoje em diante, passam a usar "pendente" como padrão
   // (quem não foi marcado deixa de contar como presente até o admin confirmar).
@@ -823,16 +623,6 @@ export const MIGRACOES = [
 
   // v33: perfil da pessoa (orixás, guias e outros guias) — só ela vê e edita, na aba Perfil.
   `alter table pessoas add column if not exists perfil jsonb not null default '{}'::jsonb`,
-  `create or replace function perfil_ler(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare r jsonb;
-   begin
-     select jsonb_build_object('pessoaId', id, 'nome', nome, 'perfil', perfil) into r
-     from pessoas where id = (p ->> 'pessoaId')::uuid;
-     if r is null then raise exception 'Pessoa não encontrada.'; end if;
-     return r;
-   end;
-   $$`,
   `create or replace function perfil_salvar(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -1059,27 +849,6 @@ export const MIGRACOES = [
      and exists (select 1 from oferenda_itens i where i.oferenda_id = o.id)
      and not exists (select 1 from oferenda_itens i where i.oferenda_id = o.id
                      and i.quantidade > coalesce((select sum(d.quantidade) from oferenda_doacoes d where d.item_id = i.id), 0))`,
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
-       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
-       'porMedium', o.por_medium,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'mediuns', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pe.id, 'nome', pe.nome, 'status', om.status)
-                                             order by lower(pe.nome))
-                            from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
-                            where om.oferenda_id = o.id and not om.excluido), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
   `create or replace function oferenda_doar(p jsonb)
    returns jsonb language plpgsql as $$
    declare
@@ -1144,22 +913,6 @@ export const MIGRACOES = [
   `create index if not exists eventos_por_data on eventos (data)`,
   // O Admin já cuida da aba Eventos (os outros perfis, o root libera na aba Usuários).
   `update perfis set abas = abas || '{"eventos": {"ver": true, "editar": true}}'::jsonb where chave = 'admin' and not (abas ? 'eventos')`,
-  `create or replace function eventos_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'data', data, 'nome', nome) order by data, lower(nome)), '[]'::jsonb) from eventos
-   $$`,
-  `create or replace function evento_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     if coalesce(p ->> 'id', '') = '' then
-       insert into eventos (data, nome) values ((p ->> 'data')::date, btrim(p ->> 'nome'));
-     else
-       update eventos set data = (p ->> 'data')::date, nome = btrim(p ->> 'nome') where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Evento não encontrado.'; end if;
-     end if;
-     return eventos_listar();
-   end;
-   $$`,
   `create or replace function evento_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -1180,27 +933,6 @@ export const MIGRACOES = [
      status    = 'v39'
    where status in ('pendente', 'entregue', 'pago', 'nao_pago', 'nao_vai')`,
   `alter table oferenda_mediuns alter column status set default 'v39'`,
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
-       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
-       'porMedium', o.por_medium,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'mediuns', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pe.id, 'nome', pe.nome, 'pagamento', om.pagamento, 'entrega', om.entrega)
-                                             order by lower(pe.nome))
-                            from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
-                            where om.oferenda_id = o.id and not om.excluido), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
   `create or replace function oferenda_medium_status(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -1302,16 +1034,6 @@ export const MIGRACOES = [
    $$`,
 
   // ================================================== v43: a lista de pessoas leva o nome dos guias de atendimento (todos veem)
-  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza, p.entrada,
-              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
-                        from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas,
-              coalesce(p.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento"
-       from pessoas p
-     ) x;
-   $$`,
 
   // ================================================== v44: oferenda "uma linha por pessoa" com os grupos escolhidos
   // grupos: funções da corrente ('medium', 'extra', 'passe', 'cambone', 'senha', 'curimba') e/ou 'alunos'. Nulo = toda a corrente (as antigas).
@@ -1325,61 +1047,6 @@ export const MIGRACOES = [
      atualizado_em  timestamptz not null default now(),
      primary key (oferenda_id, aluno_id)
    )`,
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
-       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
-       'porMedium', o.por_medium,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'grupos', to_jsonb(o.grupos),
-       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
-           select pe.nome, jsonb_build_object('pessoaId', pe.id::text, 'nome', pe.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
-           from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
-           where om.oferenda_id = o.id and not om.excluido
-           union all
-           select al.nome, jsonb_build_object('pessoaId', 'a:' || al.id::text, 'nome', al.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
-           from oferenda_alunos oa join alunos al on al.id = oa.aluno_id
-           where oa.oferenda_id = o.id and not oa.excluido) x), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, al.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
-  // Inclui quem é dos grupos escolhidos (e ainda não está); com grupos novos, tira quem não é mais de nenhum.
-  `create or replace function oferenda_mediuns_atualizar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid := (p ->> 'id')::uuid;
-     v_g text[];
-   begin
-     if p ? 'grupos' then
-       update oferendas set por_medium = true, grupos = array(select jsonb_array_elements_text(p -> 'grupos')) where id = v_id;
-     else
-       update oferendas set por_medium = true where id = v_id;
-     end if;
-     if not found then raise exception 'Oferenda não encontrada.'; end if;
-     select grupos into v_g from oferendas where id = v_id;
-     if p ? 'grupos' then
-       delete from oferenda_mediuns om using pessoas pe
-       where om.oferenda_id = v_id and pe.id = om.pessoa_id and not (pe.funcao = any(v_g));
-       if not ('alunos' = any(v_g)) then delete from oferenda_alunos where oferenda_id = v_id; end if;
-     end if;
-     insert into oferenda_mediuns (oferenda_id, pessoa_id)
-     select v_id, id from pessoas where v_g is null or funcao = any(v_g)
-     on conflict do nothing;
-     if v_g is not null and 'alunos' = any(v_g) then
-       insert into oferenda_alunos (oferenda_id, aluno_id) select v_id, id from alunos on conflict do nothing;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
   `create or replace function oferenda_aluno_status(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -1403,19 +1070,6 @@ export const MIGRACOES = [
    $$`,
 
   // ================================================== v45: pessoas com afinidade (sugestão de passe/atendimento extra) e aniversário (só dia/mês)
-  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select p.id, p.nome, p.funcao, p.experiente, p.linhas, p.limpeza, p.entrada,
-              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
-                        from licencas l where l.pessoa_id = p.id), '[]'::jsonb) as licencas,
-              coalesce(p.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento",
-              p.afinidade_extra as "afinidadeExtra", p.afinidade_passe as "afinidadePasse",
-              case when (p.perfil -> 'info' ->> 'nascimento') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-                   then substring(p.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario
-       from pessoas p
-     ) x;
-   $$`,
 
   // ================================================== v46: na aba Pessoas, o admin também altera as afinidades
   `create or replace function pessoas_atualizar(p jsonb)
@@ -1456,27 +1110,6 @@ export const MIGRACOES = [
    end $$`,
 
   // ================================================== v48: "Incluir novos cadastrados" com a escolha dos grupos
-  // Só acrescenta (quem foi tirado continua fora); os grupos escolhidos passam a fazer parte da oferenda.
-  `create or replace function oferenda_mediuns_incluir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid := (p ->> 'id')::uuid;
-     v_novos text[] := array(select jsonb_array_elements_text(p -> 'grupos'));
-     v_g text[];
-   begin
-     select coalesce(grupos, array['medium', 'extra', 'passe', 'cambone', 'senha', 'curimba']) into v_g
-       from oferendas where id = v_id and por_medium;
-     if not found then raise exception 'Oferenda não encontrada.'; end if;
-     update oferendas set grupos = v_g || array(select g from unnest(v_novos) g where not (g = any(v_g))) where id = v_id;
-     insert into oferenda_mediuns (oferenda_id, pessoa_id)
-     select v_id, id from pessoas where funcao = any(v_novos)
-     on conflict do nothing;
-     if 'alunos' = any(v_novos) then
-       insert into oferenda_alunos (oferenda_id, aluno_id) select v_id, id from alunos on conflict do nothing;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
 
   // ================================================== v49: oferenda por pessoa: acrescentar uma pessoa do cadastro (ou aluno) na lista
   `create or replace function oferenda_pessoa_incluir(p jsonb)
@@ -1502,45 +1135,6 @@ export const MIGRACOES = [
   // e quantas pessoas uma porção serve (vazio = uma porção atende todos). O preço passa a ser o de uma porção.
   `alter table ervas add column if not exists qtd_compra integer not null default 0 check (qtd_compra between 0 and 999)`,
   `alter table ervas add column if not exists pessoas_porcao integer check (pessoas_porcao between 1 and 999)`,
-  `create or replace function ervas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'frete', coalesce((select valor::numeric from sistema where chave = 'ervas_frete'), 0),
-       'aberta', coalesce((select valor = 'true' from sistema where chave = 'ervas_aberta'), true),
-       'gira', coalesce((select valor from sistema where chave = 'ervas_gira'), ''),
-       'data', coalesce((select valor from sistema where chave = 'ervas_data'), ''),
-       'ervas', coalesce((select jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'preco', e.preco, 'qtdCompra', e.qtd_compra,
-                                                     'pessoasPorcao', e.pessoas_porcao) order by lower(e.nome))
-                          from ervas e), '[]'::jsonb),
-       -- Quem tem conta aparece sempre com o nome cadastrado atual.
-       'escolhas', coalesce((select jsonb_agg(jsonb_build_object('chave', x.pessoa_chave,
-                                                                 'nome', coalesce(u.nome, pe.nome, x.pessoa_nome),
-                                                                 'ervaId', x.erva_id, 'quantidade', x.quantidade)
-                                              order by lower(coalesce(u.nome, pe.nome, x.pessoa_nome)))
-                             from ervas_escolhas x
-                             left join usuarios u on x.pessoa_chave = 'u:' || u.id::text
-                             left join pessoas pe on x.pessoa_chave = 'p:' || pe.id::text), '[]'::jsonb)
-     );
-   $$`,
-  // O preço agora é preenchido no bloco Compra: sem "preco", o cadastro só muda o nome e as pessoas por porção.
-  `create or replace function erva_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into ervas (nome, preco, pessoas_porcao)
-       values (btrim(p ->> 'nome'), (p ->> 'preco')::numeric, (p ->> 'pessoasPorcao')::integer);
-     else
-       update ervas set nome = btrim(p ->> 'nome'),
-                        preco = case when p ? 'preco' then (p ->> 'preco')::numeric else preco end,
-                        pessoas_porcao = case when p ? 'pessoasPorcao' then (p ->> 'pessoasPorcao')::integer else pessoas_porcao end
-        where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Erva não encontrada.'; end if;
-     end if;
-     return ervas_estado();
-   exception when unique_violation then
-     raise exception 'Já existe uma erva com esse nome.';
-   end;
-   $$`,
   // Salva o bloco Compra de uma vez: gira, data, frete e a quantidade/preço de cada erva.
   `create or replace function ervas_compra_salvar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -1596,21 +1190,6 @@ export const MIGRACOES = [
      resumo       jsonb not null,                       -- shared/ervas.js resumoCompra (valores em centavos)
      encerrada_em timestamptz not null default now()
    )`,
-  `create or replace function ervas_historico(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'gira', c.gira, 'data', c.data, 'resumo', c.resumo, 'encerradaEm', c.encerrada_em)
-                               order by c.encerrada_em desc), '[]'::jsonb)
-     from ervas_compras c
-   $$`,
-  // Encerrar: guarda o retrato e começa a nova compra (a mesma coisa de "Nova compra").
-  `create or replace function ervas_compra_encerrar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     insert into ervas_compras (gira, data, resumo)
-     values (coalesce(p ->> 'gira', ''), coalesce(p ->> 'data', ''), p -> 'resumo');
-     return ervas_nova_compra();
-   end;
-   $$`,
 
   // ================================================== v54: ervas: fechar a lista já guarda a compra atual no histórico
   // ervas_compra_atual: id da linha do histórico da compra em andamento ('' = ainda não guardada).
@@ -1622,23 +1201,6 @@ export const MIGRACOES = [
                                                   'atual', c.id::text = (select valor from sistema where chave = 'ervas_compra_atual'))
                                order by c.encerrada_em desc), '[]'::jsonb)
      from ervas_compras c
-   $$`,
-  `create or replace function ervas_compra_guardar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid;
-   begin
-     select c.id into v_id from ervas_compras c
-      where c.id::text = (select valor from sistema where chave = 'ervas_compra_atual');
-     if v_id is null then
-       insert into ervas_compras (gira, data, resumo)
-       values (coalesce(p ->> 'gira', ''), coalesce(p ->> 'data', ''), p -> 'resumo') returning id into v_id;
-       update sistema set valor = v_id::text where chave = 'ervas_compra_atual';
-     else
-       update ervas_compras set gira = coalesce(p ->> 'gira', ''), data = coalesce(p ->> 'data', ''), resumo = p -> 'resumo', encerrada_em = now()
-        where id = v_id;
-     end if;
-     return ervas_estado();
-   end;
    $$`,
   `create or replace function ervas_compra_encerrar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -2088,15 +1650,6 @@ export const MIGRACOES = [
      autor_nome text not null default '',
      criado_em  timestamptz not null default now()
    )`,
-  `create or replace function oracoes_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     delete from oracoes where criado_em < now() - interval '7 days';
-     return coalesce((select jsonb_agg(jsonb_build_object('id', id, 'texto', texto, 'autor', autor,
-                                                         'criadoEm', criado_em, 'expiraEm', criado_em + interval '7 days') order by criado_em desc)
-                      from oracoes), '[]'::jsonb);
-   end;
-   $$`,
   `create or replace function oracao_salvar(p jsonb)
    returns jsonb language plpgsql as $$
    begin

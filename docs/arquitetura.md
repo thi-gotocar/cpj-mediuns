@@ -26,7 +26,7 @@ Tudo isso para caber no plano gratuito (Vercel Hobby + Neon) e não ter dependê
 |---|---|
 | `frontend/js/telas/` | Uma tela por aba (ver padrão em [como-trabalhamos.md](como-trabalhamos.md)) |
 | `frontend/js/` | `main.js` (boot, abas, roteamento de eventos), `estado.js` (estado + chamadas à API), exportação para WhatsApp (texto e PNG) |
-| `api/` | Endpoints; `api/_lib/` tem banco, sessão/permissão, senhas, HTTP e `escala.js` (esconde escala não publicada) |
+| `api/` | Endpoints; `api/_lib/` tem banco, sessão/permissão, senhas, HTTP, `escala.js` (esconde escala não publicada) e a lógica que sai dos arquivos de rota grandes (`videos.js`, `oracoes.js`, `fotos.js`, usados por `api/giras`) |
 | `db/esquema.js` | `VERSAO` + lista `MIGRACOES`: todas as tabelas e funções SQL |
 | `shared/` | Regras de negócio: `regras.js` (sorteio, remanejar, encerrar, trocas do dia, sugestões), `permissoes.js`, `perfil.js`, eventos, oferendas, ervas, resumos |
 | `scripts/` | Servidor local (`npm run dev`) e build |
