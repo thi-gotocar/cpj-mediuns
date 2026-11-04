@@ -30,6 +30,7 @@ export const estado = {
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
+  anamnese: null,      // GET /api/auth/anamnese: { perguntas, minhas, todas? } (ou { erro })
   fotosPessoa: {},     // aba Perfil: pessoaId → foto (data URL; '' = sem foto; null = buscando)
   pfUi: { abertos: {}, faltam: false },
   perfisCfg: null,     // aba Admin root: perfis e as abas de cada um
@@ -560,6 +561,19 @@ export async function acaoErvas(acao, dados = {}) {
 export async function carregarPerfil() {
   try { estado.perfil = await api('GET', '/auth/perfil'); } catch (e) { estado.perfil = { erro: e.message }; }
   avisar();
+}
+
+// ---------- anamnese (aba Perfil) ----------
+export async function carregarAnamnese() {
+  try { estado.anamnese = await api('GET', '/auth/anamnese'); } catch (e) { estado.anamnese = { erro: e.message }; }
+  avisar();
+}
+export async function acaoAnamnese(acao, dados = {}) {
+  try {
+    estado.anamnese = await api('POST', '/auth/anamnese', { acao, ...dados });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
 }
 
 // Aba Perfil: entidades com que a pessoa tem afinidade (atendimento extra / passe).

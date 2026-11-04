@@ -117,3 +117,44 @@ export function normalizarPerfil(p) {
   };
   return { orixas, guias, outros, info };
 }
+
+// ---------- Anamnese (aba Perfil) ----------
+// O admin do perfil cadastra as perguntas (cabem numa linha); a resposta é texto (até 2 linhas) ou sim/não.
+export const ANAMNESE_TIPOS = [['texto', 'Texto'], ['simnao', 'Sim / Não']];
+export const ANAMNESE_PERGUNTA_MAX = 90;
+export const ANAMNESE_TEXTO_MAX = 200;
+export const ANAMNESE_SIMNAO = [['sim', 'Sim'], ['nao', 'Não']];
+
+// Resposta de texto: espaços arrumados, até 2 linhas e ANAMNESE_TEXTO_MAX letras (null = inválida).
+export function limparRespostaTexto(v) {
+  const linhas = String(v ?? '').replace(/\r/g, '').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const t = linhas.join('\n');
+  return linhas.length > 2 || t.length > ANAMNESE_TEXTO_MAX ? null : t;
+}
+
+// Preenchida: há perguntas e todas têm resposta.
+export const anamnesePreenchida = (perguntas, respostas) =>
+  perguntas.length > 0 && perguntas.every((q) => String((respostas || {})[q.id] ?? '').trim() !== '');
+
+// Respostas de cada pessoa: { pessoaId: { perguntaId: resposta } }.
+export function respostasPorPessoa(lista) {
+  const r = {};
+  (lista || []).forEach((x) => { (r[x.pessoaId] ||= {})[x.perguntaId] = x.resposta; });
+  return r;
+}
+
+// Arquivo para compartilhar (texto): todas as respostas, pessoa por pessoa (quem não respondeu nada fica de fora).
+export function textoAnamnese(perguntas, pessoas, respostas, hoje) {
+  const [y, m, d] = String(hoje).split('-');
+  const val = (q, v) => (q.tipo === 'simnao' ? ({ sim: 'Sim', nao: 'Não' }[v] || '—') : v || '—');
+  const com = pessoas.filter((p) => Object.keys(respostas[p.id] || {}).length);
+  const ok = pessoas.filter((p) => anamnesePreenchida(perguntas, respostas[p.id])).length;
+  const L = ['ANAMNESE · Casa do Pai João', `Gerado em ${d}/${m}/${y}`, `Preenchidas: ${ok} de ${pessoas.length}`, ''];
+  com.forEach((p) => {
+    L.push(`== ${p.nome} ==`);
+    perguntas.forEach((q, i) => L.push(`${i + 1}. ${q.texto}`, `   ${val(q, (respostas[p.id] || {})[q.id]).replace(/\n/g, '\n   ')}`));
+    L.push('');
+  });
+  if (!com.length) L.push('Ninguém respondeu ainda.');
+  return L.join('\n').trimEnd() + '\n';
+}

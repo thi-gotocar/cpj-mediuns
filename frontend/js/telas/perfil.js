@@ -2,9 +2,10 @@
 // O admin também acompanha a corrente: quem já respondeu, os guias de todos e as oferendas pendentes.
 
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
-import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa, carregarFoto, salvarFoto } from '../estado.js';
-import { esc, toast, iniciais } from '../util.js';
+import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual,
+  ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, anamnesePreenchida, respostasPorPessoa, textoAnamnese } from '/shared/perfil.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
+import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
 const ROT_ORIXA = { frente: 'frente', ancestral: 'ancestral', adjunto: 'adjunto' };
@@ -147,7 +148,7 @@ function cardInfo(eu) {
 
 // Selo ao lado do título: "não preenchido" (amarelo) ou "preenchido" (verde).
 // ok: true/false, ou um estado: 'oferenda' (laranja) / 'andamento' (azul).
-const SELOS = { true: ['ok', 'preenchido'], false: ['', 'não preenchido'], oferenda: ['oferenda', 'pendências'], andamento: ['andamento', 'em andamento'] };
+const SELOS = { true: ['ok', 'preenchido'], false: ['', 'não preenchido'], oferenda: ['oferenda', 'pendências'], andamento: ['andamento', 'em andamento'], apreencher: ['', 'a preencher'] };
 const selo = (ok) => { const [c, t] = SELOS[ok] || SELOS.false; return `<span class="selo-preench ${c}">${t}</span>`; };
 // Orixás / Guias: todos escolhidos e todas as oferendas marcadas = preenchido;
 // tudo escolhido mas falta alguma oferenda = pendências.
@@ -226,6 +227,78 @@ function meusCards(eu) {
     </div>`).join('')}`, true);
 }
 
+// ---------- Anamnese ----------
+// Pessoa: as perguntas que o admin cadastrou. Fica travado; "Editar" libera os campos e "Salvar" grava
+// (os dois pedem confirmação numa janela). Selo "preenchido" com todas respondidas, senão "a preencher".
+function campoAnamnese(q, i, v, ed) {
+  const rot = `<span class="ana-q">${i + 1}. ${esc(q.texto)}</span>`;
+  if (q.tipo === 'simnao') {
+    return `<fieldset class="ana-item"${ed ? '' : ' disabled'}><legend>${rot}</legend><span class="ana-sn">${ANAMNESE_SIMNAO.map(([k, l]) => `<label class="check"><input type="radio" name="ana-${q.id}" value="${k}" data-act="anaresp" data-q="${q.id}" ${v === k ? 'checked' : ''}> ${l}</label>`).join('')}</span></fieldset>`;
+  }
+  return `<label class="ana-item">${rot}<textarea rows="2" maxlength="${ANAMNESE_TEXTO_MAX}" data-act="anaresp" data-q="${q.id}"${ed ? ' placeholder="Sua resposta (até 2 linhas)"' : ' readonly placeholder="—"'}>${esc(v)}</textarea></label>`;
+}
+function cardAnamnese() {
+  const A = estado.anamnese;
+  if (!A || A.erro) return card('anamnese', 'Anamnese', '', false, () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>`, true);
+  const ok = anamnesePreenchida(A.perguntas, A.minhas);
+  const ed = !!U().anaEdit;
+  const vals = ed ? U().anaRasc || {} : A.minhas || {};
+  return card('anamnese', 'Anamnese', A.perguntas.length ? selo(ok ? true : 'apreencher') : '', false, () => (!A.perguntas.length
+    ? '<p class="muted" style="margin:0">Nenhuma pergunta cadastrada ainda.</p>'
+    : `<div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, vals[q.id] || '', ed)).join('')}</div>
+      <div class="row ana-bts">${ed ? '<button class="btn primary" data-act="anasalvar">Salvar</button><button class="btn" data-act="anacancelar">Cancelar</button>'
+        : '<button class="btn" data-act="anaeditar">Editar</button>'}</div>`), true);
+}
+// Os valores que estão na tela (antes de abrir a janela de Salvar).
+function lerAnamneseTela() {
+  const r = { ...(U().anaRasc || {}) };
+  document.querySelectorAll('.ana-lista textarea[data-q]').forEach((t) => { r[t.dataset.q] = t.value; });
+  document.querySelectorAll('.ana-lista input[type=radio][data-q]:checked').forEach((t) => { r[t.dataset.q] = t.value; });
+  return r;
+}
+function janelaAnamnese() {
+  const c = U().anaConf;
+  if (!c) return '';
+  const [t, txt, bt] = c === 'editar'
+    ? ['Editar a anamnese?', 'Os campos ficam liberados para alterar. Nada muda até tocar em Salvar.', 'Editar']
+    : ['Salvar as respostas?', 'As respostas da sua anamnese serão gravadas.', 'Salvar'];
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ana-t"><div class="modal">
+    <h3 id="ana-t">${t}</h3><p style="margin:0">${txt}</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="anaconfnao">Cancelar</button><button class="btn primary" data-act="anaconfsim">${bt}</button></div>
+  </div></div>`;
+}
+
+// Admin: % de quem já preencheu, as perguntas (＋ Adicionar pergunta, excluir), as respostas de uma pessoa
+// e o arquivo com todas as respostas para mandar no WhatsApp.
+function cardAnamneseAdmin(todos) {
+  const A = estado.anamnese;
+  if (!A || A.erro) return '';
+  const R = respostasPorPessoa(A.todas);
+  const sim = todos.filter((x) => anamnesePreenchida(A.perguntas, R[x.pessoaId])).length;
+  const pct = todos.length && A.perguntas.length ? Math.round((sim / todos.length) * 100) : 0;
+  const u = U();
+  const x = todos.find((t) => t.pessoaId === u.anaPessoa);
+  const val = (q, v) => (q.tipo === 'simnao' ? ({ sim: 'Sim', nao: 'Não' }[v] || '') : v || '');
+  return card('anamnese-adm', 'Anamnese', `${sim} de ${todos.length}`, false, () => `
+    <div class="pf-resp"><b>${pct}%</b><span>${sim} ${sim === 1 ? 'pessoa preencheu' : 'pessoas preencheram'} · ${todos.length - sim} ${todos.length - sim === 1 ? 'falta' : 'faltam'}</span></div>
+    <div class="pf-barra" role="img" aria-label="${pct}% preencheram"><span style="width:${pct}%"></span></div>
+    <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
+      ${u.anaNova ? '' : '<button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button>'}</div>
+    ${u.anaNova ? `<div class="ana-nova">
+      <label class="field">Pergunta<input type="text" id="ana-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" placeholder="Cabe numa linha" autocomplete="off"></label>
+      <span class="ana-sn"><span class="muted">Resposta:</span>${ANAMNESE_TIPOS.map(([k, l], i) => `<label class="check"><input type="radio" name="ana-tipo" value="${k}" ${i ? '' : 'checked'}> ${l}</label>`).join('')}</span>
+      <span class="row"><button class="btn small primary" data-act="anaperg">Salvar pergunta</button><button class="btn small" data-act="ananova">Cancelar</button></span></div>` : ''}
+    ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q) => `<li><span>${esc(q.texto)} <span class="tag">${q.tipo === 'simnao' ? 'Sim / Não' : 'Texto'}</span></span>
+      ${estado.confirm === 'anaq:' + q.id ? `<button class="btn small danger" data-act="anaexcluir" data-id="${q.id}">Excluir</button>`
+        : `<button class="btn small lock-x" data-act="askdel" data-k="anaq:${q.id}" title="Excluir a pergunta (as respostas dela também saem)" aria-label="Excluir a pergunta">✕</button>`}</li>`).join('')}</ol>`
+      : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma pergunta ainda.</p>'}
+    <label class="field">Ver as respostas de<select data-act="anapessoa" aria-label="De quem são as respostas">
+      <option value="">— escolha a pessoa —</option>
+      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === u.anaPessoa ? 'selected' : ''}>${esc(t.nome)}${anamnesePreenchida(A.perguntas, R[t.pessoaId]) ? ' ✓' : ''}</option>`).join('')}</select></label>
+    ${x ? `<div class="ana-ver">${A.perguntas.map((q, i) => { const v = val(q, (R[x.pessoaId] || {})[q.id]); return `<div><span class="ana-q">${i + 1}. ${esc(q.texto)}</span><span class="${v ? 'ana-r' : 'muted'}">${esc(v || 'sem resposta')}</span></div>`; }).join('')}</div>` : ''}
+    <button class="btn" data-act="anacompartilhar"><span aria-hidden="true">📄</span> Compartilhar todas as respostas (arquivo)</button>`, true, true);
+}
+
 // ---------- admin: a corrente ----------
 function cardRespostas(todos) {
   const sim = todos.filter((x) => respondeu(x.perfil));
@@ -271,21 +344,65 @@ export function render() {
   if (estado.perfil === null) { carregarPerfil(); return `<div class="loading">Carregando perfil…</div>`; }
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;
+  if (estado.anamnese === null) { estado.anamnese = undefined; carregarAnamnese(); }
   let h = '';
   // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".
   if (admin()) {
     // Respostas e oferendas pendentes contam só quem cadastra orixás e guias (a curimba fica fora).
     const comOrixas = todos.filter((x) => cadastraEspiritual(x.funcao));
     h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
-      ${cardAjustes(todos)}${cardInfoAdmin(todos)}${cardRespostas(comOrixas)}${cardOferendas(comOrixas)}</div>`;
+      ${cardAjustes(todos)}${cardInfoAdmin(todos)}${cardRespostas(comOrixas)}${cardOferendas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
   }
-  if (eu) h += meusCards(eu);
+  if (eu) h += meusCards(eu) + cardAnamnese();
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
   h += cardGuiasCorrente(estado.perfil.guias || []);
-  return `<section class="panel pf-tela">${h}</section>`;
+  return `<section class="panel pf-tela">${h}${janelaAnamnese()}</section>`;
 }
 
 export const cliques = {
+  // Anamnese (pessoa): Editar e Salvar abrem a janela de confirmação.
+  anaeditar() { U().anaConf = 'editar'; avisar(); },
+  anasalvar() { U().anaRasc = lerAnamneseTela(); U().anaConf = 'salvar'; avisar(); },
+  anacancelar() { U().anaEdit = false; U().anaRasc = null; avisar(); },
+  anaconfnao() { U().anaConf = null; avisar(); },
+  async anaconfsim() {
+    const u = U();
+    const A = estado.anamnese;
+    if (u.anaConf === 'editar') {
+      u.anaConf = null; u.anaEdit = true; u.anaRasc = { ...(A.minhas || {}) }; u.abertos.anamnese = true;
+      avisar();
+      return;
+    }
+    u.anaConf = null;
+    const r = u.anaRasc || {};
+    if (await acaoAnamnese('responder', { respostas: Object.fromEntries(A.perguntas.map((q) => [q.id, r[q.id] || ''])) })) {
+      u.anaEdit = false; u.anaRasc = null;
+      toast('Anamnese salva.');
+      avisar();
+    }
+  },
+  // Anamnese (admin): perguntas, respostas de uma pessoa e o arquivo para o WhatsApp.
+  ananova() { U().anaNova = !U().anaNova; avisar(); if (U().anaNova) document.getElementById('ana-texto')?.focus(); },
+  async anaperg() {
+    const texto = (document.getElementById('ana-texto')?.value || '').replace(/\s+/g, ' ').trim();
+    const tipo = document.querySelector('input[name=ana-tipo]:checked')?.value;
+    if (!texto) { toast('Escreva a pergunta.'); return; }
+    if (await acaoAnamnese('pergunta', { texto, tipo })) { U().anaNova = false; toast('Pergunta adicionada.'); avisar(); }
+  },
+  async anaexcluir(el) { estado.confirm = null; if (await acaoAnamnese('excluirPergunta', { id: el.dataset.id })) toast('Pergunta excluída.'); },
+  // Um arquivo de texto com as respostas de todos: o celular oferece o WhatsApp; sem isso, baixa o arquivo.
+  async anacompartilhar() {
+    const A = estado.anamnese;
+    const pessoas = (estado.perfil.todos || []).map((t) => ({ id: t.pessoaId, nome: t.nome }));
+    const txt = textoAnamnese(A.perguntas, pessoas, respostasPorPessoa(A.todas), hoje());
+    const nome = `anamnese-${hoje()}.txt`;
+    try {
+      const f = new File([txt], nome, { type: 'text/plain' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: 'Anamnese' }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    baixar(new Blob([txt], { type: 'text/plain' }), nome);
+    toast('Arquivo baixado: anexe no WhatsApp.');
+  },
   async pftirafoto(el) {
     if (!confirm('Remover a foto?')) return;
     if (await salvarFoto(el.dataset.id, null)) toast('Foto removida.');
@@ -327,6 +444,7 @@ export async function enviarInfo(form) {
 
 // Enquanto digita: guarda e salva sozinho (sem esperar sair do campo), se o valor já estiver completo.
 export function digitando(el) {
+  if (el.dataset.act === 'anaresp') { mudancas.anaresp(el); return; }
   const k = el.dataset.k;
   let v = el.value.replace(/\s+/g, ' ').trim();
   if (el.dataset.act === 'pfnome') {
@@ -339,6 +457,9 @@ export function digitando(el) {
 }
 
 export const mudancas = {
+  // Anamnese: guarda o que foi escolhido/digitado (sem redesenhar).
+  anaresp(t) { if (U().anaEdit) (U().anaRasc ||= {})[t.dataset.q] = t.value; },
+  anapessoa(t) { U().anaPessoa = t.value; avisar(); },
   // Foto: a escolhida no aparelho vira um quadrado pequeno e já é salva.
   async pffoto(t) {
     const arq = t.files && t.files[0];

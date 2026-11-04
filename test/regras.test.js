@@ -562,3 +562,21 @@ test('oferendas: estatísticas das oferendas por pessoa (admin)', async () => {
   assert.deepEqual(r.map((x) => x.of.id), ['a', 'b'], 'só por pessoa, marcadas "Exibir no resumo" e não encerradas, da mais próxima');
   assert.deepEqual([r[1].pessoas.length, r[1].naoPagos.map((x) => x.nome), r[1].naoEntregues.map((x) => x.nome)], [3, ['Bia'], ['Bia', 'Caio']]);
 });
+
+test('anamnese: respostas, preenchida e arquivo', async () => {
+  const { limparRespostaTexto, anamnesePreenchida, respostasPorPessoa, textoAnamnese } = await import('../shared/perfil.js');
+  assert.equal(limparRespostaTexto('  tomo   remédio \n\n para pressão '), 'tomo remédio\npara pressão');
+  assert.equal(limparRespostaTexto('a\nb\nc'), null, 'até 2 linhas');
+  assert.equal(limparRespostaTexto('x'.repeat(201)), null, 'até 200 letras');
+  const P = [{ id: 'q1', texto: 'Tem alergia?', tipo: 'simnao' }, { id: 'q2', texto: 'Quais remédios?', tipo: 'texto' }];
+  assert.ok(!anamnesePreenchida([], {}), 'sem perguntas não conta como preenchida');
+  assert.ok(!anamnesePreenchida(P, { q1: 'sim' }));
+  assert.ok(anamnesePreenchida(P, { q1: 'nao', q2: 'nenhum' }));
+  const R = respostasPorPessoa([{ pessoaId: 'a', perguntaId: 'q1', resposta: 'sim' }, { pessoaId: 'a', perguntaId: 'q2', resposta: 'dipirona' }, { pessoaId: 'b', perguntaId: 'q1', resposta: 'nao' }]);
+  const txt = textoAnamnese(P, [{ id: 'a', nome: 'Ana' }, { id: 'b', nome: 'Bia' }, { id: 'c', nome: 'Caio' }], R, '2026-11-04');
+  assert.match(txt, /Gerado em 04\/11\/2026/);
+  assert.match(txt, /Preenchidas: 1 de 3/);
+  assert.match(txt, /== Ana ==\n1\. Tem alergia\?\n {3}Sim\n2\. Quais remédios\?\n {3}dipirona/);
+  assert.match(txt, /== Bia ==[\s\S]*Não[\s\S]*—/);
+  assert.ok(!txt.includes('Caio'), 'quem não respondeu nada fica de fora');
+});

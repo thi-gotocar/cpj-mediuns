@@ -1227,3 +1227,30 @@ test('ausência antecipada: data futura ainda sem gira; ao criar a gira, a pesso
   assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'ausenciaPrevia', data: d, pessoaId: p.id })).status, 409, 'com gira, marca na Presença');
   await api('DELETE', '/api/giras/' + d, ADMIN);
 });
+
+test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as suas', async () => {
+  const pq = (t, b) => api('POST', '/api/auth/anamnese', t, b);
+  assert.equal((await pq(USER, { acao: 'pergunta', texto: 'Tem alergia?', tipo: 'simnao' })).status, 403);
+  assert.equal((await pq(ADMIN, { acao: 'pergunta', texto: 'x'.repeat(91), tipo: 'texto' })).status, 400, 'cabe numa linha');
+  assert.equal((await pq(ADMIN, { acao: 'pergunta', texto: 'Tem alergia?', tipo: 'outro' })).status, 400);
+  let r = (await pq(ADMIN, { acao: 'pergunta', texto: '  Tem   alergia? ', tipo: 'simnao' })).json;
+  r = (await pq(ADMIN, { acao: 'pergunta', texto: 'Toma algum remédio?', tipo: 'texto' })).json;
+  const [q1, q2] = r.perguntas.slice(-2);
+  assert.deepEqual([q1.texto, q1.tipo, q2.tipo], ['Tem alergia?', 'simnao', 'texto']);
+  assert.ok(Array.isArray(r.todas), 'o admin recebe as respostas de todos');
+  // Acesso da corrente: responde as próprias; não vê as dos outros.
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const ent = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: ps[0].nome })).json;
+  const C = ent.token;
+  if (C) {
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [q1.id]: 'talvez' } })).status, 400);
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: 'a\nb\nc' } })).status, 400, 'até 2 linhas');
+    const m = (await pq(C, { acao: 'responder', respostas: { [q1.id]: 'sim', [q2.id]: ' dipirona ' } })).json;
+    assert.deepEqual([m.minhas[q1.id], m.minhas[q2.id]], ['sim', 'dipirona']);
+    assert.equal(m.todas, undefined, 'a corrente não vê as respostas dos outros');
+  }
+  // Excluir a pergunta tira as respostas dela.
+  r = (await pq(ADMIN, { acao: 'excluirPergunta', id: q1.id })).json;
+  assert.ok(!r.perguntas.some((q) => q.id === q1.id) && !r.todas.some((x) => x.perguntaId === q1.id));
+  await pq(ADMIN, { acao: 'excluirPergunta', id: q2.id });
+});

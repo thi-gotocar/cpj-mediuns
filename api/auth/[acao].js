@@ -12,6 +12,9 @@
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
 //   GET  /api/auth/foto?pessoaId=…  → { foto: base64 JPEG | null }  (qualquer um logado: a aba Gira mostra a foto de com quem você trabalha)
 //   POST /api/auth/foto     { pessoaId?, foto: base64 JPEG | null }  troca ou tira a foto (a própria, ou de qualquer um: admin)
+//   GET  /api/auth/anamnese → { perguntas: [{ id, texto, tipo }], minhas: { perguntaId: resposta } | null, todas?: [{ pessoaId, perguntaId, resposta }] (admin do perfil) }
+//   POST /api/auth/anamnese { acao: 'responder', respostas: { perguntaId: resposta } }  a própria pessoa
+//                           { acao: 'pergunta', texto, tipo: 'texto'|'simnao' } · { acao: 'excluirPergunta', id }  (admin do perfil)  → como o GET
 
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
@@ -19,7 +22,7 @@ import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { permissoesDe, ehAcessoCorrente, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
-import { normalizarPerfil, perfilDaFuncao, blocosAfinidade } from '../../shared/perfil.js';
+import { normalizarPerfil, perfilDaFuncao, blocosAfinidade, ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_SIMNAO, limparRespostaTexto } from '../../shared/perfil.js';
 import { LINHA_KEYS } from '../../shared/regras.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -102,6 +105,47 @@ const acoes = {
       if (!buf || buf.length < 100 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) throw new HttpError(400, 'Foto inválida (envie uma imagem JPEG pequena).');
     }
     return { foto: await db.rpc('pessoa_foto_salvar', { pessoaId, foto: foto || '' }) };
+  },
+
+  // Anamnese: o admin do perfil (perfil:corrente; o root também) cadastra as perguntas e lê as respostas de todos;
+  // cada pessoa da corrente responde as suas.
+  async anamnese(req) {
+    const eu = await exigir(req);
+    const admin = pode(eu, 'perfil:corrente');
+    const resposta = (E) => ({
+      perguntas: E.perguntas,
+      minhas: eu.pessoaId ? Object.fromEntries(E.respostas.filter((r) => r.pessoaId === eu.pessoaId).map((r) => [r.perguntaId, r.resposta])) : null,
+      ...(admin ? { todas: E.respostas } : {}),
+    });
+    if (req.method === 'GET') return resposta(await db.rpc('anamnese_estado'));
+    if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
+    const b = corpo(req);
+    if (b.acao === 'pergunta' || b.acao === 'excluirPergunta') {
+      if (!admin) throw new HttpError(403, 'Só o admin do perfil mexe nas perguntas.');
+      if (b.acao === 'excluirPergunta') return resposta(await db.rpc('anamnese_pergunta_excluir', { id: validarId(b.id, 'Pergunta') }));
+      const texto = String(b.texto ?? '').replace(/\s+/g, ' ').trim();
+      if (!texto || texto.length > ANAMNESE_PERGUNTA_MAX) throw new HttpError(400, `Escreva a pergunta numa linha (até ${ANAMNESE_PERGUNTA_MAX} letras).`);
+      if (!ANAMNESE_TIPOS.some(([k]) => k === b.tipo)) throw new HttpError(400, 'Escolha o tipo da resposta (texto ou sim/não).');
+      return resposta(await db.rpc('anamnese_pergunta_salvar', { texto, tipo: b.tipo }));
+    }
+    if (b.acao !== 'responder') throw new HttpError(400, 'Ação inválida.');
+    if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
+    if (!b.respostas || typeof b.respostas !== 'object' || Array.isArray(b.respostas)) throw new HttpError(400, 'Respostas inválidas.');
+    const { perguntas } = await db.rpc('anamnese_estado');
+    const respostas = {};
+    for (const [id, v] of Object.entries(b.respostas)) {
+      const q = perguntas.find((x) => x.id === id);
+      if (!q) throw new HttpError(400, 'Pergunta não encontrada (a lista pode ter mudado: abra a aba de novo).');
+      if (q.tipo === 'simnao') {
+        if (v !== '' && !ANAMNESE_SIMNAO.some(([k]) => k === v)) throw new HttpError(400, `Responda sim ou não: ${q.texto}`);
+        respostas[id] = v;
+      } else {
+        const t = limparRespostaTexto(v);
+        if (t === null) throw new HttpError(400, `Resposta longa demais (até 2 linhas): ${q.texto}`);
+        respostas[id] = t;
+      }
+    }
+    return resposta(await db.rpc('anamnese_responder', { pessoaId: eu.pessoaId, respostas }));
   },
 
   async estado(req) {

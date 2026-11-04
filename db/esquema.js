@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 69;  // v69: ausência antecipada (data futura ainda sem gira)
+export const VERSAO = 70;  // v70: anamnese (aba Perfil)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2250,4 +2250,56 @@ export const MIGRACOES = [
      with d as (delete from ausencias_previas where data = (p ->> 'data')::date returning pessoa_id)
      select coalesce(jsonb_agg(pessoa_id), '[]'::jsonb) from d;
    $$`,
+
+  // ================================================== v70: anamnese (aba Perfil)
+  // Perguntas que o admin do perfil cadastra (texto numa linha; resposta em texto ou sim/não) e as respostas de cada pessoa.
+  `create table if not exists anamnese_perguntas (
+     id        uuid primary key default gen_random_uuid(),
+     texto     text not null check (length(btrim(texto)) between 1 and 120),
+     tipo      text not null check (tipo in ('texto', 'simnao')),
+     criado_em timestamptz not null default now()
+   )`,
+  `create table if not exists anamnese_respostas (
+     pessoa_id     uuid not null references pessoas (id) on delete cascade,
+     pergunta_id   uuid not null references anamnese_perguntas (id) on delete cascade,
+     resposta      text not null,
+     atualizado_em timestamptz not null default now(),
+     primary key (pessoa_id, pergunta_id)
+   )`,
+  `create or replace function anamnese_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'perguntas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'texto', texto, 'tipo', tipo) order by criado_em) from anamnese_perguntas), '[]'::jsonb),
+       'respostas', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pessoa_id, 'perguntaId', pergunta_id, 'resposta', resposta)) from anamnese_respostas), '[]'::jsonb));
+   $$`,
+  `create or replace function anamnese_pergunta_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into anamnese_perguntas (texto, tipo) values (btrim(p ->> 'texto'), p ->> 'tipo');
+     return anamnese_estado();
+   end;
+   $$`,
+  `create or replace function anamnese_pergunta_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from anamnese_perguntas where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Pergunta não encontrada.'; end if;
+     return anamnese_estado();
+   end;
+   $$`,
+  // p = { pessoaId, respostas: { perguntaId: resposta } } — resposta vazia apaga.
+  `create or replace function anamnese_responder(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_p uuid := (p ->> 'pessoaId')::uuid;
+   begin
+     delete from anamnese_respostas r using jsonb_each_text(coalesce(p -> 'respostas', '{}'::jsonb)) e
+      where r.pessoa_id = v_p and r.pergunta_id = e.key::uuid and btrim(e.value) = '';
+     insert into anamnese_respostas (pessoa_id, pergunta_id, resposta)
+     select v_p, e.key::uuid, e.value from jsonb_each_text(coalesce(p -> 'respostas', '{}'::jsonb)) e
+      where btrim(e.value) <> '' and exists (select 1 from anamnese_perguntas q where q.id = e.key::uuid)
+     on conflict (pessoa_id, pergunta_id) do update set resposta = excluded.resposta, atualizado_em = now();
+     return anamnese_estado();
+   end;
+   $$`,
 ];
+
