@@ -326,6 +326,17 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-est-n.entregar{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,var(--line));background:color-mix(in srgb,var(--warn) 12%,transparent)}
 .of-est-n.zero{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line));background:color-mix(in srgb,var(--ok) 10%,transparent);cursor:default}
 .of-est-n[aria-expanded="true"]{outline:2px solid currentColor;outline-offset:1px}
+.of-est-t tfoot th,.of-est-t tfoot td{border-top:2px solid var(--gold);padding:6px 2px;font:800 1rem var(--f-display);color:var(--ink);text-align:center}
+.of-est-t tfoot th{text-align:left;font-size:.9rem;color:var(--gold)}
+/* Interruptor "Exibir no resumo" (oferenda por pessoa, admin) */
+.of-sw{display:flex;align-items:center;gap:8px;font-size:.9rem;cursor:pointer;flex-wrap:wrap}
+.of-sw input{position:absolute;opacity:0;width:1px;height:1px}
+.of-sw-t{flex:none;width:38px;height:22px;border-radius:22px;background:var(--line);position:relative;transition:background .15s}
+.of-sw-t::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.of-sw input:checked + .of-sw-t{background:var(--ok)}
+.of-sw input:checked + .of-sw-t::after{transform:translateX(16px)}
+.of-sw input:focus-visible + .of-sw-t{outline:2px solid var(--accent);outline-offset:2px}
+.of-sw .muted{font-size:.8rem}
 .of-est-nomes td{text-align:left!important;border-top:0;padding-top:0;font-size:.85rem;overflow-wrap:anywhere}
 .btn.link.of-meus-tit{justify-self:start;padding:0;font:700 1.08rem var(--f-display);text-align:left;color:var(--ink)}
 /* Aba Gira: compromissos nas oferendas (último bloco) */

@@ -1167,6 +1167,11 @@ test('oferenda por pessoa: escolhe os grupos (funções e alunos); doação por 
   let o = r.oferendas.find((x) => x.titulo === 'Grupos');
   const cambones = ps.filter((p) => p.funcao === 'cambone');
   assert.deepEqual(o.grupos, ['cambone', 'alunos']);
+  // "Exibir no resumo": começa desligado; só o admin liga.
+  assert.equal(o.noResumo, false);
+  assert.equal((await of({ acao: 'resumo', id: o.id, noResumo: 'sim' })).status, 400);
+  assert.equal((await api('POST', '/api/oferendas', USER, { acao: 'resumo', id: o.id, noResumo: true })).status, 403);
+  assert.equal((await of({ acao: 'resumo', id: o.id, noResumo: true })).json.oferendas.find((x) => x.id === o.id).noResumo, true);
   assert.equal(o.mediuns.filter((m) => !m.aluno).length, cambones.length, 'só os cambones da corrente');
   assert.equal(o.mediuns.filter((m) => m.aluno).length, alunos.length, 'e todos os alunos');
   const la = o.mediuns.find((m) => m.aluno);

@@ -152,7 +152,12 @@ function blocoMediuns(of, admin) {
 // quantas pessoas vão, quantas faltam pagar e quantas faltam entregar. Tocar no número mostra os nomes.
 function tabelaPorPessoa() {
   const L = estatisticasPorPessoa(estado.oferendas.oferendas);
-  if (!L.length) return '';
+  if (!L.length) {
+    // Há oferenda por pessoa aberta, mas nenhuma marcada: explica como fazer aparecer.
+    const temPorPessoa = estado.oferendas.oferendas.some((of) => of.porMedium && of.status !== 'encerrado');
+    return temPorPessoa ? `<div class="of-est"><span class="eyebrow">Oferendas por pessoa (admin)</span><p class="muted" style="margin:0;font-size:.85rem">Nenhuma oferenda no resumo. Abra a oferenda e ligue <b>Exibir no resumo</b>.</p></div>` : '';
+  }
+  const soma = (k) => L.reduce((s, x) => s + x[k].length, 0);
   const olho = U().estOlho;
   const cel = (of, k, lista, cls) => `<td><button class="of-est-n ${cls}${lista.length ? '' : ' zero'}" data-act="estolho" data-k="${of.id}:${k}" aria-expanded="${olho === of.id + ':' + k}" ${lista.length ? '' : 'disabled'}>${lista.length}</button></td>`;
   const TIT = { pessoas: 'Vão', pagar: 'Faltam pagar', entregar: 'Faltam entregar' };
@@ -164,7 +169,8 @@ function tabelaPorPessoa() {
       return `<tr><td><button class="btn link of-est-of" data-act="vercomp" data-id="${of.id}"><span class="eyebrow">${dataBR(of.data)}</span>${esc(of.titulo)}</button></td>
           ${cel(of, 'pessoas', pessoas, '')}${cel(of, 'pagar', naoPagos, 'pagar')}${cel(of, 'entregar', naoEntregues, 'entregar')}</tr>
         ${lista ? `<tr class="of-est-nomes"><td colspan="4"><span class="muted">${TIT[k]} (${lista.length}):</span> ${lista.map((m) => esc(m.nome)).join(', ')}</td></tr>` : ''}`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}</tbody>
+    <tfoot><tr><th>Total</th><td>${soma('pessoas')}</td><td>${soma('naoPagos')}</td><td>${soma('naoEntregues')}</td></tr></tfoot></table></div>`;
 }
 
 // Topo da aba: tudo o que a pessoa se comprometeu a levar, por oferenda (data do evento, nome e o que levar).
@@ -282,7 +288,8 @@ function cardOferenda(of, admin) {
       ${!admin && of.status === 'rascunho' ? `<div class="of-topo">${etiqueta('rascunho')}</div>` : ''}
       ${barraDoacoes(of)}
       ${of.porMedium && !of.bloqueada ? barrasMediuns(of) : ''}
-      <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa · ${(of.mediuns || []).length} pessoas${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
+      ${admin && of.porMedium ? `<label class="of-sw"><input type="checkbox" role="switch" data-act="ofresumo" data-id="${of.id}" ${of.noResumo ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir no resumo <span class="muted">(tabela em Seus compromissos)</span></label>` : ''}
+      <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa ·${(of.mediuns || []).length} pessoas${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   // Bloqueada: para a corrente, itens ocultos. O admin continua vendo e alterando.
   const bloqueada = of.status === 'rascunho' && !admin;
@@ -494,6 +501,10 @@ async function porAlguem(el, delta) {
 }
 
 export const mudancas = {
+  // "Exibir no resumo": a oferenda por pessoa entra (ou sai) da tabela do admin.
+  async ofresumo(t) {
+    if (await acaoOferendas('resumo', { id: t.dataset.id, noResumo: t.checked })) toast(t.checked ? 'A oferenda aparece no resumo.' : 'A oferenda saiu do resumo.');
+  },
   // "Uma linha para cada pessoa": mostra os grupos (sem redesenhar, para não perder o que foi digitado).
   pormedium(t) { U().novaPorMedium = t.checked; const g = document.getElementById('of-grupos'); if (g) g.hidden = !t.checked; },
   grupoof(t) { U().novaGrupos = [...t.form.querySelectorAll('input[name=grupo]:checked')].map((x) => x.value); },

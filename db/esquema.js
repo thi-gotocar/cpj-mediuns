@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 67;  // v67: renomear turma dos alunos
+export const VERSAO = 68;  // v68: oferenda por pessoa "Exibir no resumo"
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2174,6 +2174,45 @@ export const MIGRACOES = [
      return alunos_estado();
    exception when unique_violation then
      raise exception 'Essa turma já existe.';
+   end;
+   $$`,
+
+  // ================================================== v68: oferenda por pessoa "Exibir no resumo" (tabela do admin em Seus compromissos)
+  `alter table oferendas add column if not exists no_resumo boolean not null default false`,
+  // Igual à v44, com 'noResumo'.
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
+       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
+       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'grupos', to_jsonb(o.grupos),
+       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
+           select pe.nome, jsonb_build_object('pessoaId', pe.id::text, 'nome', pe.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
+           from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
+           where om.oferenda_id = o.id and not om.excluido
+           union all
+           select al.nome, jsonb_build_object('pessoaId', 'a:' || al.id::text, 'nome', al.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
+           from oferenda_alunos oa join alunos al on al.id = oa.aluno_id
+           where oa.oferenda_id = o.id and not oa.excluido) x), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, al.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
+                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  `create or replace function oferenda_resumo(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferendas set no_resumo = (p ->> 'noResumo')::boolean where id = (p ->> 'id')::uuid and por_medium;
+     if not found then raise exception 'Oferenda não encontrada.'; end if;
+     return oferendas_estado();
    end;
    $$`,
 ];

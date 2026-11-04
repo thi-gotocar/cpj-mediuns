@@ -3,7 +3,7 @@
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
 //        admin:  salvar { id?, titulo, data, responsavelId, porMedium? (só ao criar) } · excluir { id }
-//                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? }  (oferenda com uma linha por médium)
+//                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? } · resumo { id, noResumo }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
@@ -157,6 +157,11 @@ export default rota({
         estado = b.grupos !== undefined
           ? await db.rpc('oferenda_mediuns_incluir', { id: validarId(b.id, 'Oferenda'), grupos: validarGrupos(b.grupos) })
           : await db.rpc('oferenda_mediuns_atualizar', { id: validarId(b.id, 'Oferenda') });
+        break;
+      case 'resumo':
+        // Oferenda por pessoa: entra (ou sai) da tabela do admin em "Seus compromissos".
+        if (typeof b.noResumo !== 'boolean') throw new HttpError(400, 'Informe se a oferenda aparece no resumo.');
+        estado = await db.rpc('oferenda_resumo', { id: validarId(b.id, 'Oferenda'), noResumo: b.noResumo });
         break;
       case 'excluirItem':
         estado = await db.rpc('oferenda_item_excluir', { id: validarId(b.id, 'Item') });

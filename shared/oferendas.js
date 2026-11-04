@@ -51,10 +51,10 @@ export function compromissosDe(oferendas, chave, hoje) {
   }).filter((x) => x.itens.length || x.linha).sort((a, b) => a.of.data.localeCompare(b.of.data));
 }
 
-// Admin: oferendas com uma linha por pessoa ainda não encerradas, da mais próxima à mais distante,
-// com quem vai, quem falta pagar e quem falta entregar (os nomes, para mostrar ao tocar no número).
+// Admin: oferendas com uma linha por pessoa marcadas "Exibir no resumo" e ainda não encerradas, da mais próxima
+// à mais distante, com quem vai, quem falta pagar e quem falta entregar (os nomes, para mostrar ao tocar no número).
 export function estatisticasPorPessoa(oferendas) {
-  return (oferendas || []).filter((of) => of.porMedium && of.status !== 'encerrado' && !of.bloqueada)
+  return (oferendas || []).filter((of) => of.porMedium && of.noResumo && of.status !== 'encerrado' && !of.bloqueada)
     .sort((a, b) => a.data.localeCompare(b.data))
     .map((of) => {
       const ms = of.mediuns || [];

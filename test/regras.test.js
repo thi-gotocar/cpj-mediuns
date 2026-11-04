@@ -552,12 +552,13 @@ test('oferendas: estatísticas das oferendas por pessoa (admin)', async () => {
   const { estatisticasPorPessoa } = await import('../shared/oferendas.js');
   const m = (nome, pagamento, entrega) => ({ nome, pagamento, entrega });
   const ofs = [
-    { id: 'b', data: '2026-12-01', status: 'publicado', porMedium: true, mediuns: [m('Ana', 'pago', 'entregue'), m('Bia', 'nao_pago', 'pendente'), m('Caio', 'pago', 'pendente')] },
-    { id: 'a', data: '2026-11-10', status: 'aguardando', porMedium: true, mediuns: [] },
-    { id: 'enc', data: '2026-11-05', status: 'encerrado', porMedium: true, mediuns: [m('Duda', 'nao_pago', 'pendente')] },
+    { id: 'b', data: '2026-12-01', status: 'publicado', porMedium: true, noResumo: true, mediuns: [m('Ana', 'pago', 'entregue'), m('Bia', 'nao_pago', 'pendente'), m('Caio', 'pago', 'pendente')] },
+    { id: 'a', data: '2026-11-10', status: 'aguardando', porMedium: true, noResumo: true, mediuns: [] },
+    { id: 'fora', data: '2026-11-08', status: 'publicado', porMedium: true, noResumo: false, mediuns: [m('Eva', 'nao_pago', 'pendente')] },
+    { id: 'enc', data: '2026-11-05', status: 'encerrado', porMedium: true, noResumo: true, mediuns: [m('Duda', 'nao_pago', 'pendente')] },
     { id: 'itens', data: '2026-11-06', status: 'publicado', porMedium: false, mediuns: [] },
   ];
   const r = estatisticasPorPessoa(ofs);
-  assert.deepEqual(r.map((x) => x.of.id), ['a', 'b'], 'só por pessoa e não encerradas, da mais próxima');
+  assert.deepEqual(r.map((x) => x.of.id), ['a', 'b'], 'só por pessoa, marcadas "Exibir no resumo" e não encerradas, da mais próxima');
   assert.deepEqual([r[1].pessoas.length, r[1].naoPagos.map((x) => x.nome), r[1].naoEntregues.map((x) => x.nome)], [3, ['Bia'], ['Bia', 'Caio']]);
 });
