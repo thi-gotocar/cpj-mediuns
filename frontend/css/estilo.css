@@ -1111,3 +1111,18 @@ button.eu-av{cursor:zoom-in}
 .foto-grande b{font-size:1.15rem}
 
 .eu-pessoa + .eu-guia{padding-left:44px}
+
+/* Aba Gira: Orações (mesmo jeito dos Eventos; no lugar da data, as mãos em oração) */
+.or-card{border-top-color:#a78bfa}
+.or-l{align-items:flex-start}
+.or-ico{font-size:1.6rem;padding:6px 0;background:color-mix(in srgb,#a78bfa 16%,transparent)}
+.or-txt{white-space:pre-line;font-weight:500;align-self:center}
+.or-dir{flex:none;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin-left:auto}
+.or-dir .evs-tipo{margin-left:0;text-align:center;align-self:stretch}
+/* Excluir do mesmo tamanho do selo Oração */
+.btn.or-bt{font-size:.72rem;font-weight:700;line-height:inherit;border-radius:20px;padding:1px 8px;min-height:0}
+.evs-tipo.oracao{background:color-mix(in srgb,#a78bfa 16%,transparent);color:#a78bfa;border-color:color-mix(in srgb,#a78bfa 40%,var(--line))}
+.or-form{display:grid;gap:8px}
+.or-form textarea{resize:none}
+.or-nova{justify-self:start}
+

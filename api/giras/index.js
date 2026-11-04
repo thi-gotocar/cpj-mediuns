@@ -6,6 +6,8 @@
 //      (quem não tem a aba no perfil só vê com a aba publicada)
 // POST /api/giras  { acao: 'video', id?, data, evento, youtube: link ou código, classes: [..] } · { acao: 'excluirVideo', id }  → vídeos
 //                  { acao: 'videosPublicar', publicada: true|false }  → { publicada }
+// GET  /api/giras?lista=oracoes — orações dos últimos 7 dias (todos logados)  → [{ id, texto, criadoEm, expiraEm, apagar }]
+// POST /api/giras  { acao: 'oracao', texto } (qualquer um logado) · { acao: 'excluirOracao', id } (quem pediu ou admin)  → orações
 // GET  /api/giras?lista=fotos — álbuns e fotos (aba Fotos), com links assinados do R2  → { albuns, fotos, usado, limite, configurado }
 // POST /api/giras  { acao: 'fotoAlbum', id?, data, nome }  → { ...fotos, albumId } (com id = editar: só admin)
 //                  { acao: 'fotoEnviar', albumId, foto, miniatura (JPEG em base64), largura, altura }  → { ok }
@@ -38,6 +40,23 @@ const ACOES_FOTOS = ['fotoAlbum', 'fotoEnviar', 'fotoExcluir', 'fotoExcluirAlbum
 const autorDe = (eu) => (eu.pessoaId ? 'p:' + eu.pessoaId : 'u:' + eu.id);
 
 const exigirFotosAtiva = () => { if (!FOTOS_ATIVA) throw new HttpError(404, 'A aba Fotos ainda não está ligada.'); };
+
+// ---------- orações ----------
+// Admin dos eventos exclui qualquer oração; os outros, só a que pediram.
+async function oracoes(eu, lista) {
+  const L = lista || (await db.rpc('oracoes_listar'));
+  const admin = pode(eu, 'eventos:editar');
+  return L.map(({ autor, ...o }) => ({ ...o, apagar: admin || autor === autorDe(eu) }));
+}
+async function acaoOracao(eu, b) {
+  if (b.acao === 'excluirOracao') {
+    return oracoes(eu, await db.rpc('oracao_excluir', { id: validarId(b.id, 'Oração'), autor: autorDe(eu), admin: pode(eu, 'eventos:editar') }));
+  }
+  const texto = String(b.texto ?? '').replace(/\r/g, '').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+  if (!texto) throw new HttpError(400, 'Escreva a oração.');
+  if (texto.split('\n').length > 3 || texto.length > 200) throw new HttpError(400, 'A oração pode ter até 3 linhas (200 letras).');
+  return oracoes(eu, await db.rpc('oracao_salvar', { texto, autor: autorDe(eu), autorNome: eu.nome || '' }));
+}
 
 async function fotosEstado(eu) {
   const E = await db.rpc('fotos_estado');
@@ -117,6 +136,7 @@ export default rota({
       if (!pode(eu, 'videos:ver') && !(await db.rpc('videos_publicada'))) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
       return db.rpc('videos_listar');
     }
+    if (req.query.lista === 'oracoes') return oracoes(await exigir(req));
     if (req.query.lista === 'fotos') {
       exigirFotosAtiva();
       return fotosEstado(await exigir(req, 'fotos:ver'));
@@ -135,6 +155,7 @@ export default rota({
       if (typeof b.publicada !== 'boolean') throw new HttpError(400, 'Informe se a aba fica publicada.');
       return { publicada: await db.rpc('videos_publicar', { publicada: b.publicada }) };
     }
+    if (b.acao === 'oracao' || b.acao === 'excluirOracao') return acaoOracao(await exigir(req), b);
     if (ACOES_FOTOS.includes(b.acao)) {
       exigirFotosAtiva();
       return acaoFoto(await exigir(req, 'fotos:ver'), b);

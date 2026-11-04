@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, carregarFoto, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, carregarFoto, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd, ajustarRolagem, iniciais } from '../util.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 import { textoWhats, gruposExtras } from '../exportar.js';
@@ -443,38 +443,45 @@ function cardSemana() {
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum evento nos próximos 30 dias.</p>'}</div>`;
 }
 
+// Orações (logo abaixo dos Eventos): qualquer pessoa logada pede; cada uma vale 7 dias e depois some.
+// Quem pediu (ou o admin dos eventos) exclui, com confirmação.
+function cardOracoes() {
+  const L = estado.oracoes || [];
+  const aberto = !!estado.oraNova;
+  let h = `<div class="card ev-semana or-card"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">🙏</span> Orações</h2>${L.length ? `<span class="evs-qtd">${L.length}</span>` : ''}</div>`;
+  if (L.length) {
+    h += `<div class="evs-lista">${L.map((o) => {
+      const conf = estado.confirm === 'or:' + o.id;
+      const bt = !o.apagar ? '' : conf
+        ? `<button class="btn danger or-bt" data-act="oraexcluir" data-id="${o.id}">Confirmar</button>`
+        : `<button class="btn or-bt" data-act="askdel" data-k="or:${o.id}">Excluir</button>`;
+      return `<div class="evs-l or-l"><span class="evs-data or-ico" aria-hidden="true">🙏</span>
+        <span class="evs-nome or-txt">${esc(o.texto)}</span>
+        <span class="or-dir"><span class="evs-tipo oracao">Oração</span>${bt}</span></div>`;
+    }).join('')}</div>`;
+  } else h += '<p class="muted" style="margin:0;font-size:.88rem">Nenhum pedido de oração nos últimos 7 dias.</p>';
+  h += aberto
+    ? `<form id="f-oracao" class="or-form" autocomplete="off"><textarea id="or-texto" rows="3" maxlength="200" placeholder="Por quem ou pelo que rezar (até 3 linhas)">${esc(estado.oraTexto || '')}</textarea>
+        <span class="row"><button class="btn primary" type="submit">Pedir oração</button><button class="btn" type="button" data-act="oranova">Cancelar</button></span>
+        <p class="muted" style="margin:0;font-size:.8rem">Fica 7 dias na lista e depois some.</p></form>`
+    : '<button class="btn small or-nova" data-act="oranova">＋ Pedir oração</button>';
+  return h + '</div>';
+}
+
+// Pedido de oração: até 3 linhas.
+export async function enviarOracao(form) {
+  const texto = form.querySelector('textarea').value.replace(/\r/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!texto.length) { toast('Escreva a oração.'); return; }
+  if (texto.length > 3) { toast('A oração pode ter até 3 linhas.'); return; }
+  if (await acaoOracoes('oracao', { texto: texto.join('\n') })) { estado.oraNova = false; estado.oraTexto = ''; toast('Pedido de oração publicado.'); avisar(); }
+}
+
 function aniversariosDaSemana(hj) {
   const d0 = pd(hj); d0.setDate(d0.getDate() - d0.getDay());
   const dias = Array.from({ length: 7 }, (_, i) => { const d = new Date(d0); d.setDate(d0.getDate() + i); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
   const out = [];
   dias.forEach((d) => estado.pessoas.filter((p) => p.aniversario === d.slice(5)).forEach((p) => out.push({ data: d, nome: p.nome, niver: true })));
   return out.sort((a, b) => a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
-}
-
-// A presença de quem está logado no ano, logo depois de "Você nesta gira" (giras até hoje; licença e pendente não contam).
-function cardMinhaPresenca() {
-  const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
-  if (!p || !contaNaPresenca(p)) return '';
-  const hj = hoje();
-  const ano = hj.slice(0, 4);
-  const gs = girasLista().filter((g) => g.data.startsWith(ano) && g.data <= hj && naCorrenteEm(p, g.data));
-  let pres = 0, base = 0;
-  const faltas = [];
-  gs.forEach((g) => {
-    const st = presencaDe(p, g);
-    if (st === 'lic' || st === 'pend') return;
-    base++;
-    if (st === 'f' || st === 'a') faltas.push([g, st]); else pres++;
-  });
-  if (!base) return '';
-  faltas.sort(([a], [b]) => b.data.localeCompare(a.data));
-  const pct = Math.round((pres / base) * 100);
-  // Verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.
-  const cor = pct >= 90 ? 'ok' : pct >= 50 ? 'medio' : 'baixo';
-  return `<div class="card mp ${cor}"><div class="grp-h"><span class="eyebrow">Sua presença em ${ano}</span><span class="count">${pres} de ${base} gira${base > 1 ? 's' : ''}</span></div>
-    <div class="mp-pct ${cor}"><b>${pct}%</b><span>${pct === 100 ? 'de presença · veio em todas! 🙌' : 'de presença'}</span></div>
-    <div class="mp-barra ${cor}"><span style="width:${pct}%"></span></div>
-    ${faltas.length ? `<div class="mp-lista">${faltas.map(([g, st]) => `<div class="mp-l"><span class="mp-dia">${dDM(g.data)}</span><span class="mp-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span><span class="mp-st ${st}">${st === 'f' ? 'Falta' : 'Ausência'}</span></div>`).join('')}</div>` : ''}</div>`;
 }
 
 // Aula de curimba (só para quem está nos alunos da aba Curimba): presença e faltas nas aulas até hoje.
@@ -531,7 +538,7 @@ function cardEventosAdmin() {
 }
 
 export function render() {
-  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardEventosAdmin());
+  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardOracoes() + cardEventosAdmin());
 }
 
 function renderGira() {
@@ -547,7 +554,7 @@ function renderGira() {
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return `<section class="panel">${cardCompromissos()}${cardAulaCurimba()}${cardMinhaPresenca()}<div class="card card-novo adm">
+    return `<section class="panel">${cardCompromissos()}${cardAulaCurimba()}<div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       <div class="row">${navegarGiras(g)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button></div></section>`;
@@ -558,7 +565,7 @@ function renderGira() {
   const whats = pode('escala:completa') && existe;
   const eu = existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
   // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Aula de curimba, Sua presença e só depois a gira (próximo evento).
-  let h = `<section class="panel">${eu}${cardCompromissos()}${cardAulaCurimba()}${cardMinhaPresenca()}
+  let h = `<section class="panel">${eu}${cardCompromissos()}${cardAulaCurimba()}
   <div class="card card-gira${existe && !encerrada ? ' aberta' : ''}">
     <div class="datehead"><div class="dh-linha">${editar && existe && !encerrada
       ? `<button class="eyebrow data-bt" data-act="mudardata" title="Alterar a data da gira">${esc(dLong(g.data))} <span aria-hidden="true">✎</span></button>`
@@ -903,6 +910,8 @@ export const cliques = {
     editarGira({ [k]: (g[k] || []).map((p, i) => (i === +el.dataset.i ? { ...p, fixo: !p.fixo } : p)) });
     avisar();
   },
+  oranova() { estado.oraNova = !estado.oraNova; avisar(); if (estado.oraNova) document.getElementById('or-texto')?.focus(); },
+  async oraexcluir(el) { estado.confirm = null; if (await acaoOracoes('excluirOracao', { id: el.dataset.id })) toast('Oração excluída.'); },
   eufoto(el) { estado.fotoVer = el.dataset.id; atualizarJanela(); },
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).

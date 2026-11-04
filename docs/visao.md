@@ -37,6 +37,8 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - **Preço estimado das ervas não foi testado no banco.** A migração v61 (`preco_estimado`, copiada uma vez do preço atual) não rodou no Postgres; a tela foi conferida com banco falso.
 - **Alunos por turma nas oferendas não foi testado no banco.** A migração v62 (`aluno_no_grupo`) não rodou no Postgres; tela e validação conferidas com banco falso.
 - **Foto da pessoa no Perfil não foi testada no banco.** A migração v63 (`pessoas_fotos`) não rodou no Postgres; tela e permissões conferidas com banco falso.
+- **Orações não foram testadas no banco.** A migração v64 (`oracoes`, apagadas depois de 7 dias) não rodou no Postgres; tela e permissões conferidas com banco falso.
+- **Guia da Corrente (PDF) desatualizado:** ainda fala de "Sua presença no ano" (saiu da aba Gira) e não fala das Orações.
 - **Aba Vídeos não foi testada no banco.** A migração v58 não rodou (sem Postgres local); a tela foi conferida com uma API falsa. Conferir no app publicado.
 - **Afinidade de passe do At. Extra** só existe na aba Pessoas (não no Perfil dele) e não entra na Sugestão Mi/Mãe Vê.
 - **Testes no Windows.** `npm test` depende de Linux (`runuser`) e de Postgres local; na pasta atual não roda.

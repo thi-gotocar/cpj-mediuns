@@ -58,9 +58,9 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
   - Turma da limpeza e quem ajuda: quem já está com **ausência ou falta** nesta gira aparece **riscado** — na imagem em vermelho, no texto com ❌ e ~riscado~ do WhatsApp (o texto não tem cor). Sem legenda.
   - Texto (Lista): ícones e o negrito/itálico do WhatsApp; o passe vai recuado na linha de baixo; Suporte e Cambones de apoio com uma linha em branco depois de cada; a limpeza com os nomes em tópico e, na linha de baixo (sem tópico), quem ajuda. O formato Tabela continua opcional (com a tabela de passes).
 - **Você nesta gira**: ao lado de cada pessoa com quem você trabalha (médium, cambones, médium de passe), a **foto do Perfil** pequena (ou as iniciais); tocar na foto abre ela grande, com o nome, e tocar de novo fecha.
-- Ordem (todos, admin também): Eventos → Você nesta gira → Seus compromissos → Aula de curimba (só aluno) → Sua presença no ano → a gira (data, navegação) e o resto.
+- Ordem (todos, admin também): Eventos → Orações → Você nesta gira → Seus compromissos → Aula de curimba (só aluno) → a gira (data, navegação) e o resto. (O bloco "Sua presença no ano" saiu da aba Gira.)
+- **🙏 Orações** (logo abaixo dos Eventos): qualquer pessoa logada pede uma oração (**＋ Pedir oração**, até 3 linhas / 200 letras). Cada pedido aparece como os eventos, com as mãos em oração no lugar da data e o selo **Oração**; fica **7 dias** e depois some e é apagado do banco. Embaixo do selo, **Excluir** (pede **Confirmar**) para quem pediu e para o admin dos eventos. O nome de quem pediu não aparece.
 - Logo depois de "Você nesta gira": **⚠️ Seus compromissos nas oferendas** — os itens que a pessoa vai doar e ainda não foram entregues (oferendas de hoje em diante, não encerradas) e, na oferenda com uma linha por pessoa, "Pagamento" e "Entrega" quando falta algum dos dois (enquanto a oferenda não for encerrada, mesmo com a data passada). Link para a aba Oferendas. Só aparece quando há algum.
-- **Sua presença no ano** (licença e pendente não contam), com borda grossa na cor da faixa: verde a partir de 90%, amarelo de 50% a 89%, vermelho abaixo de 50%.
 
 ## Perfil
 
@@ -77,7 +77,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **🗓️ Aulas - curimba**: cadastrar aula (data e nome opcional, **uma aula por dia**) e aulas cadastradas por mês, do mais recente ao mais antigo (editar/excluir). Excluir aula ou aluno leva as presenças junto.
 - **📋 Presença da aula**: escolhe a data da aula (abre na mais recente até hoje) e marca cada aluno como **Presente** ou **Falta** (ou "—", sem marcação). Toda mudança pede confirmação numa janela.
 - **📊 Gráficos**: % de presença de cada aluno sobre as aulas **marcadas** (sem marcação não conta), com barra verde/amarela/vermelha (90% / 50%); tocar no nome abre as aulas (dia, Presente/Ausente) e **Recolher** fecha.
-- Único ponto em comum com o app: quem está logado e é aluno da corrente vê na aba Gira, logo acima de "Sua presença" (depois de "Seus compromissos"), o bloco **🥁 Aula de curimba** no mesmo padrão de "Seus compromissos" (faixa à esquerda, na cor da % de presença), com a % e as aulas até hoje (Presente/Falta).
+- Único ponto em comum com o app: quem está logado e é aluno da corrente vê na aba Gira, depois de "Seus compromissos", o bloco **🥁 Aula de curimba** no mesmo padrão de "Seus compromissos" (faixa à esquerda, na cor da % de presença), com a % e as aulas até hoje (Presente/Falta).
 
 ## Fotos (aba própria)
 

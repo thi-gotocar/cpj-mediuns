@@ -37,6 +37,7 @@ export const estado = {
   alunos: null,        // aba Pessoas: { turmas, alunos }
   stPerfis: null,      // Histórico → Estatísticas: contagens do Perfil { total, chefe, frente, orixa } (undefined = carregando)
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
+  oracoes: [],         // aba Gira: orações dos últimos 7 dias
   curimba: null,       // aba Curimba: { alunos, aulas, presencas }
   minhaCurimba: null,  // aba Gira: { aulas } de quem está logado, se for aluno da curimba
   videos: null,        // aba Vídeos: [{ id, data, evento, youtube, classes }]
@@ -77,9 +78,10 @@ function definirGiras(lista) {
 }
 
 export async function carregarTudo() {
-  const [me, pessoas, giras, eventos, minhaCurimba] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
-    api('GET', '/giras?lista=eventos').catch(() => []), api('GET', '/pessoas?lista=minhaCurimba').catch(() => null)]);
+  const [me, pessoas, giras, eventos, minhaCurimba, oracoes] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
+    api('GET', '/giras?lista=eventos').catch(() => []), api('GET', '/pessoas?lista=minhaCurimba').catch(() => null), api('GET', '/giras?lista=oracoes').catch(() => [])]);
   estado.me = me;
+  estado.oracoes = oracoes || [];
   estado.eventos = eventos;
   estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
   estado.pessoas = pessoas;
@@ -117,8 +119,9 @@ export async function atualizarDoServidor() {
   if (Date.now() - ultimaAtualizacao < 15000) return;
   ultimaAtualizacao = Date.now();
   try {
-    const [pessoas, giras, eventos, minhaCurimba] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos),
-      api('GET', '/pessoas?lista=minhaCurimba').catch(() => estado.minhaCurimba)]);
+    const [pessoas, giras, eventos, minhaCurimba, oracoes] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos),
+      api('GET', '/pessoas?lista=minhaCurimba').catch(() => estado.minhaCurimba), api('GET', '/giras?lista=oracoes').catch(() => estado.oracoes)]);
+    estado.oracoes = oracoes || [];
     estado.pessoas = pessoas;
     estado.eventos = eventos || [];
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
@@ -355,6 +358,15 @@ export async function acaoUsuarios(acao, dados = {}) {
 }
 
 // ---------- eventos da casa ----------
+// ---------- orações (aba Gira) ----------
+export async function acaoOracoes(acao, dados = {}) {
+  try {
+    estado.oracoes = await api('POST', '/giras', { acao, ...dados });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
 export async function acaoEventos(acao, dados = {}) {
   try {
     estado.eventos = await api('POST', '/giras', { acao, ...dados });

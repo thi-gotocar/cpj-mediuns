@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 63;  // v63: foto da pessoa (aba Perfil)
+export const VERSAO = 64;  // v64: orações (aba Gira): pedidos que somem em 7 dias
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2075,6 +2075,42 @@ export const MIGRACOES = [
        on conflict (pessoa_id) do update set foto = excluded.foto, atualizado_em = now();
      end if;
      return pessoa_foto_ler(p);
+   end;
+   $$`,
+
+  // ================================================== v64: orações (aba Gira, logo abaixo dos Eventos)
+  // Qualquer pessoa logada pede uma oração; ela vale 7 dias e depois é apagada (a cada leitura da lista).
+  // autor = 'p:<pessoa>' ou 'u:<usuário>': quem pediu pode excluir (o admin também).
+  `create table if not exists oracoes (
+     id         uuid primary key default gen_random_uuid(),
+     texto      text not null check (length(btrim(texto)) between 1 and 200),
+     autor      text not null,
+     autor_nome text not null default '',
+     criado_em  timestamptz not null default now()
+   )`,
+  `create or replace function oracoes_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from oracoes where criado_em < now() - interval '7 days';
+     return coalesce((select jsonb_agg(jsonb_build_object('id', id, 'texto', texto, 'autor', autor,
+                                                         'criadoEm', criado_em, 'expiraEm', criado_em + interval '7 days') order by criado_em desc)
+                      from oracoes), '[]'::jsonb);
+   end;
+   $$`,
+  `create or replace function oracao_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into oracoes (texto, autor, autor_nome) values (btrim(p ->> 'texto'), p ->> 'autor', coalesce(p ->> 'autorNome', ''));
+     return oracoes_listar();
+   end;
+   $$`,
+  // p = { id, autor, admin } — quem não é admin só exclui a própria.
+  `create or replace function oracao_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from oracoes where id = (p ->> 'id')::uuid and (coalesce((p ->> 'admin')::boolean, false) or autor = p ->> 'autor');
+     if not found then raise exception 'Oração não encontrada, ou só quem pediu pode excluir.'; end if;
+     return oracoes_listar();
    end;
    $$`,
 ];

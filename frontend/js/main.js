@@ -253,6 +253,12 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
   if (e.target.id === 'vid-busca') videos.buscar(e.target);
+  // Pedido de oração: até 3 linhas (não deixa passar da 3ª) e guardado para um redesenho não apagar.
+  if (e.target.id === 'or-texto') {
+    const linhas = e.target.value.split('\n');
+    if (linhas.length > 3) e.target.value = linhas.slice(0, 3).join('\n');
+    estado.oraTexto = e.target.value;
+  }
   // Texto colado da escala (Histórico): guardado já, para um redesenho não apagar antes de tocar em "Ler escala".
   if (e.target.id === 'es-msg' && estado.escalaTxt) estado.escalaTxt.msg = e.target.value;
   if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
@@ -329,6 +335,8 @@ main.addEventListener('submit', async (e) => {
     await curimba.enviarAluno(e.target);
   } else if (id === 'f-cur-aula' || id === 'f-cur-aula-ed') {
     await curimba.enviarAula(e.target);
+  } else if (id === 'f-oracao') {
+    await gira.enviarOracao(e.target);
   } else if (id === 'f-ft-album') {
     await fotos.enviarAlbum(e.target);
   } else if (id === 'f-video' || id === 'f-video-ed') {
