@@ -1244,3 +1244,17 @@ button.eu-av{cursor:zoom-in}
 .ana-ver{display:grid;gap:10px;font-size:.92rem;border-left:3px solid var(--accent);padding-left:10px}
 .ana-ver > div{display:grid;gap:2px}
 .ana-r{white-space:pre-line}
+/* Aba Admin root: bloco minimizado não deixa espaço vazio */
+.card.adm.root > div:empty{display:none}
+/* Orações (admin): WhatsApp no título e a janela com a prévia da imagem */
+.or-cab-d{display:flex;align-items:center;gap:8px}
+.btn.or-wa{display:inline-flex;align-items:center;gap:5px;border-color:#25D366;font-size:.8rem;padding:4px 10px}
+.btn.or-wa .wa-ico svg{width:16px;height:16px}
+.or-modal{max-width:420px}
+.or-modal h3{display:flex;align-items:center;gap:8px}
+.or-previa{max-height:55vh;overflow:auto;border-radius:10px;border:1px solid var(--line)}
+.or-previa img{display:block;width:100%;height:auto}
+/* Parte ⚙️ Evento: a data é um botão que abre o calendário para ir a outro dia */
+.ev-data-adm{position:relative;display:inline-flex;align-items:center;gap:5px;font-size:.82rem;font-weight:700;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--accent-soft);border-radius:20px;padding:3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden}
+.ev-data-adm .seta{font-size:.75rem}
+.ev-data-adm input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0}

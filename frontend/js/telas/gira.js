@@ -4,6 +4,7 @@ import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEsp
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, carregarOferendas, carregarPerfil, carregarFoto, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd, iniciais } from '../util.js';
 import { textoWhats } from '../exportar.js';
+import { gerarImagemOracoes } from '../imagemOracoes.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
@@ -454,7 +455,9 @@ function cardSemana() {
 function cardOracoes() {
   const L = estado.oracoes || [];
   const aberto = !!estado.oraNova;
-  let h = `<div class="card ev-semana or-card"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">❤️</span> Orações</h2>${L.length ? `<span class="evs-qtd">${L.length}</span>` : ''}</div>`;
+  // Admin da aba Gira: WhatsApp com a imagem dos pedidos (abre uma janela com a prévia).
+  const wa = L.length && pode('giras:editar') ? `<button class="btn small or-wa" data-act="oraabrir" title="Mandar os pedidos de oração no WhatsApp"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</button>` : '';
+  let h = `<div class="card ev-semana or-card"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">❤️</span> Orações</h2><span class="or-cab-d">${wa}${L.length ? `<span class="evs-qtd">${L.length}</span>` : ''}</span></div>`;
   if (L.length) {
     h += `<div class="evs-lista">${L.map((o) => {
       const conf = estado.confirm === 'or:' + o.id;
@@ -475,6 +478,37 @@ function cardOracoes() {
         <p class="muted" style="margin:0;font-size:.8rem">Fica 7 dias na lista e depois some.</p></form>`
     : '<button class="btn small or-nova" data-act="oranova">＋ Pedir oração</button>';
   return h + '</div>';
+}
+
+// ---------- janela do WhatsApp das orações: prévia da imagem, Compartilhar e Salvar ----------
+const chaveOracoes = () => JSON.stringify((estado.oracoes || []).map((o) => [o.id, o.texto, o.reacoes || 0]));
+const imagemOracoesPronta = () => !!(estado.oraImg && estado.oraImg.key === chaveOracoes());
+async function prepararOracoes() {
+  if (imagemOracoesPronta() || estado.oraGerando) return;
+  estado.oraGerando = true;
+  const key = chaveOracoes();
+  try {
+    const blob = await gerarImagemOracoes(estado.oracoes || [], hoje());
+    if (estado.oraImg) URL.revokeObjectURL(estado.oraImg.url);
+    estado.oraImg = { url: URL.createObjectURL(blob), blob, key, nome: `pedidos-de-oracao-${hoje()}.png` };
+  } catch (e) { toast(e.message); }
+  estado.oraGerando = false;
+  atualizarJanela();
+}
+function podeCompartilharOracoes() {
+  try {
+    return !!(imagemOracoesPronta() && navigator.canShare && navigator.canShare({ files: [new File([estado.oraImg.blob], estado.oraImg.nome, { type: 'image/png' })] }));
+  } catch { return false; }
+}
+function janelaOracoes() {
+  if (!estado.oraJanela) return '';
+  const pronta = imagemOracoesPronta();
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ora-t"><div class="modal or-modal">
+    <h3 id="ora-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Pedidos de oração</h3>
+    ${pronta ? `<div class="or-previa"><img src="${estado.oraImg.url}" alt="Imagem dos pedidos de oração"></div>` : '<div class="loading">Preparando a imagem…</div>'}
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="orafechar">Fechar</button>
+      ${pronta ? `<button class="btn" data-act="orasalvar">Salvar imagem</button>${podeCompartilharOracoes() ? '<button class="btn primary" data-act="oracompartilhar">Compartilhar</button>' : ''}` : ''}</div>
+  </div></div>`;
 }
 
 // Pedido de oração: até 3 linhas.
@@ -566,7 +600,7 @@ function renderGira() {
   // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Aula de curimba, Sua presença e só depois a gira (próximo evento).
   // Admin com a gira em aberto: os comandos do evento (entidade, orixá, turma da limpeza, data, WhatsApp e
   // Encerrar gira) ficam na parte "⚙️ Evento" do card do admin, não no card da gira.
-  const secaoEvento = !editar ? '' : `<div class="adm-sec adm-evento"><div class="grp-h"><h2>⚙️ Evento</h2><span class="count ev-data-adm">${esc(dLong(g.data))}</span></div>
+  const secaoEvento = !editar ? '' : `<div class="adm-sec adm-evento"><div class="grp-h"><h2>⚙️ Evento</h2><label class="ev-data-adm" title="Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dLong(g.data))} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label></div>
       <div class="row">
         <label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>
         ${temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
@@ -986,6 +1020,21 @@ export const cliques = {
   eufoto(el) { estado.fotoVer = el.dataset.id; atualizarJanela(); },
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
   escimg() { estado.escImgVer = true; atualizarJanela(); },
+  // Orações (admin): janela com a prévia da imagem; "Compartilhar" abre a lista do aparelho (WhatsApp); sem ela, salva.
+  oraabrir() { estado.oraJanela = true; atualizarJanela(); prepararOracoes(); },
+  orafechar() { estado.oraJanela = null; atualizarJanela(); },
+  orasalvar() {
+    if (!imagemOracoesPronta()) return;
+    baixar(estado.oraImg.url, estado.oraImg.nome);
+    toast('Imagem salva. Abra o WhatsApp e anexe a imagem no grupo.');
+  },
+  oracompartilhar() {
+    if (!imagemOracoesPronta()) return;
+    const { blob, nome: arq } = estado.oraImg;
+    navigator.share({ files: [new File([blob], arq, { type: 'image/png' })], title: 'Pedidos de oração' })
+      .then(() => cliques.orafechar())
+      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagem.'); });
+  },
   escimgfechar() { estado.escImgVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).
   waabrir() { estado.waJanela = true; atualizarJanela(); prepararImagem(); },
@@ -1067,7 +1116,7 @@ function gravarRapida(c) {
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
-  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala() : '';
+  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala() || janelaOracoes() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
@@ -1076,7 +1125,7 @@ function atualizarJanela() {
     raizJanela.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
-      else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : estado.escImgVer ? cliques.escimgfechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
+      else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : estado.escImgVer ? cliques.escimgfechar : estado.oraJanela && e.target.classList.contains('modal-fundo') ? cliques.orafechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
     });
     // Data nova escolhida no calendário: salva e fecha.
     raizJanela.addEventListener('change', async (e) => {
@@ -1168,6 +1217,8 @@ export const mudancas = {
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },
   entidade(t) { editarGira({ entidade: t.value }); avisar(); },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
+  // Data na parte ⚙️ Evento do card do admin: vai para o dia escolhido (como o 📅 da navegação).
+  irdata(t) { mudancas.data(t); },
   // Quem estava Pendente: pede confirmação antes de gravar.
   status(t) {
     const g = giraAtual();

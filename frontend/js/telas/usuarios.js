@@ -14,11 +14,15 @@ import { contaNaPresenca } from '/shared/regras.js';
 const papeis = () => (estado.perfisCfg || []).filter((f) => f.chave !== 'corrente');
 const opcoesPapel = (atual) => papeis().map((f) => `<option value="${esc(f.chave)}" ${f.chave === atual ? 'selected' : ''}>${esc(f.nome)}</option>`).join('');
 
+// Todos os blocos da aba começam minimizados; tocar no título expande e recolhe (enquanto o app estiver aberto).
+const abertosRoot = new Set();
+const cabRoot = (k, titulo, count = '', ab = abertosRoot.has(k)) => `<button class="grp-h dobra" data-act="dobrarroot" data-k="${k}" aria-expanded="${ab}"><h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
+
 // ---------- perfis: o que cada um vê e edita, por aba ----------
 function cardPerfis() {
   const lista = estado.perfisCfg || [];
-  const aberto = estado.perfisAberto ?? true;
-  let h = `<div class="card adm root"><button class="grp-h dobra" data-act="dobrarperfis" aria-expanded="${aberto}"><h2>Perfis e acessos</h2><span class="count">${lista.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  const aberto = abertosRoot.has('perfis');
+  let h = `<div class="card adm root">${cabRoot('perfis', 'Perfis e acessos', lista.length)}`;
   if (!aberto) return h + '</div>';
   const sel = lista.find((f) => f.chave === estado.perfilSel) || lista.find((f) => f.chave === 'admin') || lista[0];
   h += `<p class="muted" style="margin:0;font-size:.85rem">Escolha o perfil e marque, em cada aba, se ele pode <b>Ver</b> e/ou <b>Editar</b>. Vale na hora para todos os usuários desse perfil (eles veem a mudança ao abrir o app de novo). A aba Admin root é sempre só do Admin root.</p>
@@ -66,7 +70,7 @@ export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   const livres = pessoasLivres();
   let h = `<section class="panel">
-  <div class="card adm root"><h2>Novo usuário</h2>
+  <div class="card adm root">${cabRoot('novo', 'Novo usuário')}${!abertosRoot.has('novo') ? '' : `
     <form id="f-user" class="row" autocomplete="off">
       <label class="field" style="flex:0 1 170px">Perfil<select id="u-papel" data-act="papelnovo">${opcoesPapel('usuario')}</select></label>
       <label class="field grow" id="u-pessoa-campo"><span id="u-pessoa-rotulo">Pessoa da corrente</span><select id="u-pessoa"><option value="">— escolha a pessoa —</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
@@ -75,10 +79,10 @@ export function render() {
       <label class="field" style="flex:1 1 140px">Senha inicial<input type="password" id="u-senha" required minlength="8" autocomplete="new-password"></label>
       <button class="btn primary" type="submit">Criar</button>
     </form>
-    <p class="muted" style="margin:0;font-size:.85rem">O usuário é uma pessoa da corrente: o nome vem do cadastro em Pessoas (quem não está lá, cadastre antes). No <b>Admin root</b> a pessoa é opcional: sem ela, vale o nome digitado. Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>
+    <p class="muted" style="margin:0;font-size:.85rem">O usuário é uma pessoa da corrente: o nome vem do cadastro em Pessoas (quem não está lá, cadastre antes). No <b>Admin root</b> a pessoa é opcional: sem ela, vale o nome digitado. Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>`}
   </div>
-  <div class="card adm root"><div class="grp-h"><h2>Quem tem acesso</h2><span class="count">${estado.usuarios.length}</span></div><div>`;
-  estado.usuarios.forEach((u) => {
+  <div class="card adm root">${cabRoot('acesso', 'Quem tem acesso', estado.usuarios.length)}<div>`;
+  if (abertosRoot.has('acesso')) estado.usuarios.forEach((u) => {
     const eu = u.id === estado.me.id;
     const conf = estado.confirm === 'u:' + u.id;
     const nome = nomeDe(u);
@@ -114,12 +118,16 @@ export function render() {
 // A corrente continua vendo os eventos da semana no card 📅 Eventos da aba Gira.
 function cardEventos() {
   setTimeout(ajustarRolagem, 0);
-  return `<div class="card adm root ev-grupo"><h2><span aria-hidden="true">🗓️</span> Eventos</h2>${blocosEventos()}</div>`;
+  const ab = abertosRoot.has('eventos');
+  return `<div class="card adm root ev-grupo">${cabRoot('eventos', '<span aria-hidden="true">🗓️</span> Eventos', (estado.eventos || []).length)}${ab ? blocosEventos() : ''}</div>`;
 }
 
 // Do Histórico: cadastrar gira antiga (já encerrada, só para o histórico) e cadastrar a escala de uma gira salva.
 function cardRegistros() {
-  let h = `<div class="card adm root"><h2><span aria-hidden="true">🗂️</span> Giras antigas e escalas</h2>`;
+  // Com um cadastro em andamento, fica aberto.
+  const ab = abertosRoot.has('registros') || !!estado.giraAntiga || !!estado.escalaTxt;
+  let h = `<div class="card adm root">${cabRoot('registros', '<span aria-hidden="true">🗂️</span> Giras antigas e escalas', '', ab)}`;
+  if (!ab) return h + '</div>';
   if (!estado.giraAntiga && !estado.escalaTxt) {
     h += '<div class="row"><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button><button class="btn small" data-act="esabrir">＋ Cadastrar escala</button></div>';
   }
@@ -148,7 +156,7 @@ export const cliques = {
     if (inp) { inp.focus(); if (inp.tagName === 'INPUT') inp.select(); }
   },
   cancelauren() { estado.renomearUsuario = null; avisar(); },
-  dobrarperfis() { estado.perfisAberto = !(estado.perfisAberto ?? true); avisar(); },
+  dobrarroot(el) { const k = el.dataset.k; if (abertosRoot.has(k)) abertosRoot.delete(k); else abertosRoot.add(k); avisar(); },
   novoperfil() { estado.novoPerfil = true; avisar(); document.getElementById('pn-nome')?.focus(); },
   cancelanovoperfil() { estado.novoPerfil = false; avisar(); },
   async delperfil(el) {

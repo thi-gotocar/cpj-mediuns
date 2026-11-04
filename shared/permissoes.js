@@ -13,7 +13,7 @@ export const ABAS = [
   { k: 'ervas', nome: 'Ervas', ver: 'Escolher as próprias ervas.', editar: 'Ervas, preços, frete, pedidos e cobrança.' },
   { k: 'oferendas', nome: 'Oferendas', ver: 'Escolher o que doar.', editar: 'Criar oferendas, itens e marcar entregas.' },
   { k: 'eventos', nome: 'Eventos', ver: 'O bloco Eventos na aba Gira (a lista do mês).', editar: 'Cadastrar, editar e excluir eventos.' },
-  { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás e guias).', editar: 'Ver o perfil de todos e as pendências.' },
+  { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás, guias e a própria Anamnese).', editar: 'Admin do perfil: ver o perfil de todos e as pendências, e a Anamnese (cadastrar perguntas, ver as respostas de todos e compartilhar).' },
   { k: 'curimba', nome: 'Curimba', ver: 'A aba Curimba: alunos, aulas e presença.', editar: 'Cadastrar alunos e aulas e marcar presença.' },
   { k: 'videos', nome: 'Vídeos', ver: 'A aba Vídeos: assistir aos vídeos das giras.', editar: 'Publicar, classificar e excluir vídeos.' },
   { k: 'fotos', nome: 'Fotos', ver: 'Ver os álbuns e enviar fotos (quem entra pela corrente precisa ter senha).', editar: 'Apagar fotos de qualquer pessoa; editar e excluir álbuns.' },
