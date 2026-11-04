@@ -33,10 +33,10 @@ function blocoMes(chave, lista, editar) {
     ${aberto ? `<div class="ev-lista">${lista.map((e) => linha(e, editar)).join('')}</div>` : ''}</div>`;
 }
 
-// Blocos de eventos (ficam na aba Gira, abaixo do card 📅 Eventos): 1) cadastrar evento (admin); 2) eventos cadastrados, por mês.
+// Blocos de eventos (ficam na aba Admin root): 1) cadastrar evento (admin); 2) eventos cadastrados, por mês.
 // Os dois começam minimizados. Na lista aparecem até 3 meses; o resto rola dentro do bloco.
 export function blocosEventos() {
-  const editar = pode('eventos:editar');
+  const editar = pode('usuarios:gerenciar');   // só o admin root (o servidor confere)
   const evs = estado.eventos || [];
   const u = U();
   let h = '';

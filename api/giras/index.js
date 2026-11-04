@@ -1,7 +1,7 @@
 // GET  /api/giras — todas as giras (com presença e duplas), da mais recente para a mais antiga.
 //      O frontend usa a lista para o histórico, os selos de rodízio e a tabela "quem já cambonou quem".
 // GET  /api/giras?lista=eventos — eventos da casa (todos veem; a aba Gira mostra os da semana)
-// POST /api/giras  { acao: 'evento', id?, data: 'AAAA-MM-DD', nome, tipo: 'gira'|'amaci'|'aviso'|'evento' } · { acao: 'excluirEvento', id }  → eventos
+// POST /api/giras  { acao: 'evento', id?, data: 'AAAA-MM-DD', nome, tipo: 'gira'|'amaci'|'aviso'|'evento' } · { acao: 'excluirEvento', id }  → eventos (só o admin root)
 // GET  /api/giras?lista=videos — vídeos do YouTube das giras (aba Vídeos), do mais recente ao mais antigo
 //      (quem não tem a aba no perfil só vê com a aba publicada)
 // POST /api/giras  { acao: 'video', id?, data, evento, youtube: link ou código, classes: [..] } · { acao: 'excluirVideo', id }  → vídeos
@@ -176,7 +176,8 @@ export default rota({
       exigirFotosAtiva();
       return acaoFoto(await exigir(req, 'fotos:ver'), b);
     }
-    await exigir(req, 'eventos:editar');
+    // Eventos da casa: só o admin root cadastra, edita e exclui (aba Admin root).
+    await exigir(req, 'usuarios:gerenciar');
     if (b.acao === 'excluirEvento') return db.rpc('evento_excluir', { id: validarId(b.id, 'Evento') });
     if (b.acao !== 'evento') throw new HttpError(400, 'Ação inválida.');
     const nome = String(b.nome ?? '').replace(/\s+/g, ' ').trim();

@@ -2,8 +2,7 @@
 
 import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, carregarOferendas, carregarPerfil, carregarFoto, acaoOracoes, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar, hoje, pd, ajustarRolagem, iniciais } from '../util.js';
-import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
+import { esc, dLong, dDM, toast, baixar, hoje, pd, iniciais } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -83,7 +82,7 @@ function blocoAusPrevia(ps, g) {
   const ids = new Set((estado.ausPrevias || []).filter((x) => x.data === g.data).map((x) => x.pessoaId));
   const marcadas = ps.filter((p) => ids.has(p.id));
   const livres = ps.filter((p) => !ids.has(p.id) && !licencaEm(p, g.data));
-  return `<div class="limpeza ausencia aus-prev"><b><span class="x-vermelho" aria-hidden="true">✖</span> Ausência antecipada${marcadas.length ? ` · ${marcadas.length}` : ''}</b>
+  return `<div class="limpeza ausencia aus-prev"><b><span class="aus-ico" aria-hidden="true">✖</span> Ausência antecipada${marcadas.length ? ` · ${marcadas.length}` : ''}</b>
     <span class="muted" style="font-size:.85rem">Quem já avisou que não vem. Ao adicionar o evento, já entra como Ausente.</span>
     ${marcadas.map((p) => `<span class="aus-prev-l"><span>${esc(p.nome)}</span><button class="btn small lock-x" data-act="ausprevtira" data-id="${p.id}" title="Tirar a ausência de ${esc(p.nome)}" aria-label="Tirar a ausência de ${esc(p.nome)}">✕</button></span>`).join('')}
     ${livres.length ? `<span class="aus-prev-add"><select id="ausprev-pessoa" aria-label="Pessoa que não vem"><option value="">&lt;escolha a pessoa&gt;</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
@@ -93,8 +92,8 @@ function blocoAusPrevia(ps, g) {
 function blocoAusencia(ps, g) {
   const quem = ps.filter((p) => status(p, g) === 'a');
   if (!quem.length) return '';
-  return `<div class="limpeza ausencia"><b><span class="x-vermelho" aria-hidden="true">✖</span> Ausência · ${quem.length}</b>
-    ${quem.map((p) => `<span>${esc(p.nome)}</span>`).join('')}</div>`;
+  return `<div class="limpeza ausencia"><b><span class="aus-ico" aria-hidden="true">✖</span> Ausência · ${quem.length}</b>
+    <span class="aus-nomes">${quem.map((p) => `<span class="aus-nome">${esc(p.nome)}</span>`).join('')}</span></div>`;
 }
 
 // Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
@@ -333,15 +332,17 @@ const duplasAbertas = new Set();
 const botaoDobrar = (aberto) => `<button class="btn link small ver-mais" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : pode('giras:editar') ? '▸ Ver mais' : '▸ Ver escala'}</button>`;
 // Depois do sorteio: Remanejar faltas e Ajuste manual, lado a lado, do mesmo tamanho (amarelos).
 // Remanejar pede confirmação antes.
-function acoesSorteio(g, remanejarOk, manualOk, manual) {
+function acoesSorteio(g, remanejarOk, manualOk, manual, refazerOk = false) {
   const bts = [];
   if (remanejarOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="rem:${g.data}"><span aria-hidden="true">🔄</span> Remanejar faltas</button>`);
   if (manualOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="manual" aria-pressed="${manual}"><span aria-hidden="true">✋</span> ${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>`);
+  // Refazer sorteio: apaga as duplas (também as fixadas) e volta ao Sortear, depois de confirmar.
+  if (refazerOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="csort:${g.data}"><span aria-hidden="true">↻</span> Refazer sorteio</button>`);
   if (!bts.length) return '';
   const conf = estado.confirm === 'rem:' + g.data
     ? `<div class="infobox rem-conf"><span><b>Remanejar faltas?</b> Refaz só as duplas de quem faltou ou mudou de status; as outras ficam como estão.</span>
         <span class="row" style="gap:6px"><button class="btn small primary" data-act="remanejar">Confirmar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>` : '';
-  return `<div class="sort-acoes${bts.length === 1 ? ' um' : ''}">${bts.join('')}</div>${conf}`;
+  return `<div class="sort-acoes n${bts.length}">${bts.join('')}</div>${conf}`;
 }
 // Título do bloco do sorteio: para quem não edita, depois de publicado, "Sorteio realizado!";
 // para o admin, "Sorteio de escala" com o ícone de bingo depois de sorteado.
@@ -453,7 +454,7 @@ function cardSemana() {
 function cardOracoes() {
   const L = estado.oracoes || [];
   const aberto = !!estado.oraNova;
-  let h = `<div class="card ev-semana or-card"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">🙏</span> Orações</h2>${L.length ? `<span class="evs-qtd">${L.length}</span>` : ''}</div>`;
+  let h = `<div class="card ev-semana or-card"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">❤️</span> Orações</h2>${L.length ? `<span class="evs-qtd">${L.length}</span>` : ''}</div>`;
   if (L.length) {
     h += `<div class="evs-lista">${L.map((o) => {
       const conf = estado.confirm === 'or:' + o.id;
@@ -534,16 +535,8 @@ function cardCompromissos() {
     <button class="btn link small" data-act="goto" data-tab="oferendas">Ver oferendas ›</button></div>`;
 }
 
-// Admin: bloco Eventos (cadastrar e eventos cadastrados) logo abaixo do card 📅 Eventos, com a moldura dourada
-// de "só admin vê".
-function cardEventosAdmin() {
-  if (!pode('eventos:ver')) return '';
-  setTimeout(ajustarRolagem, 0);
-  return `<div class="card adm ev-grupo"><h2><span aria-hidden="true">🗓️</span> Eventos</h2>${blocosEventos()}</div>`;
-}
-
 export function render() {
-  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardOracoes() + cardEventosAdmin());
+  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardOracoes());
 }
 
 function renderGira() {
@@ -573,16 +566,16 @@ function renderGira() {
   // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Aula de curimba, Sua presença e só depois a gira (próximo evento).
   // Admin com a gira em aberto: os comandos do evento (entidade, orixá, turma da limpeza, data, WhatsApp e
   // Encerrar gira) ficam na parte "⚙️ Evento" do card do admin, não no card da gira.
-  const secaoEvento = !editar ? '' : `<div class="adm-sec adm-evento"><div class="grp-h"><h2>⚙️ Evento</h2></div>
+  const secaoEvento = !editar ? '' : `<div class="adm-sec adm-evento"><div class="grp-h"><h2>⚙️ Evento</h2><span class="count ev-data-adm">${esc(dLong(g.data))}</span></div>
       <div class="row">
         <label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>
         ${temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
         ${temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
       </div>
       ${avisoEntidade(ps, g, editar, admin)}
-      <div class="adm-ev-wa">${whats ? botaoWhats(temDuplas, 'Compartilhar escala') : ''}${botaoWhatsLimpeza(g)}</div>
+      <div class="adm-ev-wa">${whats ? botaoWhats(temDuplas, 'Escala') : ''}${botaoWhatsLimpeza(g)}</div>
       <div class="adm-ev-bts">
-        <button class="btn" data-act="mudardata" title="Alterar a data da gira"><span aria-hidden="true">📅</span> Alterar data</button>
+        <button class="btn" data-act="mudardata" title="Alterar a data da gira (hoje: ${esc(dLong(g.data))})"><span aria-hidden="true">📅</span> Alterar data · ${esc(dDM(g.data))}</button>
         ${botaoTopo(g, editar, existe)}
       </div>
       ${estado.confirm === 'enc:' + g.data ? caixaEncerrar(g) : ''}</div>`;
@@ -737,11 +730,12 @@ function renderGira() {
     setTimeout(atualizarJanela, 0);
     return fecha();
   }
-  // Depois de sorteado, o quadrado ↻ no canto cancela o sorteio (apaga as duplas e volta ao Sortear).
+  // Depois de sorteado, "Refazer sorteio" (junto de Remanejar faltas e Ajuste manual) apaga as duplas e volta ao Sortear.
   const cancelaOk = temDuplas && sortearOk;
-  h += `<div class="${caixa}"><div class="grp-h${temDuplas && !manual ? ' sort-h' : ''}">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}${cancelaOk ? `<button class="sort-cancel" data-act="askdel" data-k="csort:${g.data}" title="Cancelar o sorteio" aria-label="Cancelar o sorteio">↻</button>` : ''}</div>
-      ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Cancelar o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Depois é só sortear de novo.`, 'cancelsort', 'Sim, cancelar') : ''}
-      ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual) : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
+  h += `<div class="${caixa}"><div class="grp-h">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}</div>
+      ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual, cancelaOk) : ''}
+      ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Refazer o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Depois é só tocar em Sortear de novo.`, 'cancelsort', 'Sim, refazer') : ''}
+      ${temDuplas ? '' : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
         ? confirmaSorteio('<b>Tem certeza que quer sortear?</b> O app monta as duplas agora.', 'sortear', '🎲 Sortear')
         : `<button class="btn primary btn-grande" data-act="askdel" data-k="sort:${g.data}">🎲 Sortear</button>`}
       ${editar && temDuplas ? (g.publicada
@@ -795,7 +789,7 @@ const botaoWhats = (ok, rotulo = 'WhatsApp') => (ok
 // Admin (⚙️ Evento): manda o aviso da turma da limpeza para o WhatsApp (abre o app já com a mensagem).
 function botaoWhatsLimpeza(g) {
   if (!temLimpeza(g) || !limpezaDaGira(estado.pessoas, g, girasLista())) return '';
-  return `<a class="btn btn-grande wa-bt" href="https://wa.me/?text=${encodeURIComponent(textoLimpeza(estado.pessoas, g, girasLista()))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar turma da limpeza</a>`;
+  return `<a class="btn btn-grande wa-bt" title="Mandar a turma da limpeza no WhatsApp" href="https://wa.me/?text=${encodeURIComponent(textoLimpeza(estado.pessoas, g, girasLista()))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Turma da limpeza</a>`;
 }
 
 // ---------- janela do WhatsApp: texto (abre o WhatsApp com a mensagem) ou imagem (compartilhar do aparelho) ----------
@@ -857,7 +851,6 @@ function janelaWhats() {
 // ---------- ações ----------
 export const cliques = {
   ...cliquesResumo,
-  ...cliquesEventos,
   dobrarcard(el) { const k = el.dataset.k; if (abertos.has(k)) abertos.delete(k); else abertos.add(k); avisar(); },
   // Gira nova já vem com a próxima turma da limpeza (depois da última gira encerrada, pulando turmas vazias).
   criargira() {

@@ -1,9 +1,10 @@
 // Aba "Admin root" (só o admin root): quem acessa o app e com qual perfil, os perfis e, do Histórico,
-// Cadastrar gira antiga e Cadastrar escala.
+// Cadastrar gira antiga e Cadastrar escala, e os eventos da casa (cadastrar e eventos cadastrados).
 
 import { SEM_CADASTRO, ABAS, PERFIS_SISTEMA, PIN_VALIDO, normalizarAbas } from '/shared/permissoes.js';
 import { estado, pessoasOrd, carregarUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, avisar } from '../estado.js';
-import { esc, toast } from '../util.js';
+import { esc, toast, ajustarRolagem } from '../util.js';
+import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga } from './historico.js';
 import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
 import { contaNaPresenca } from '/shared/regras.js';
@@ -105,8 +106,15 @@ export function render() {
       <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
       ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
   });
-  h += `</div></div>${cardPerfis()}${cardRegistros()}<p class="muted" style="margin:0;font-size:.85rem">Entrada na corrente e senhas agora ficam na aba <b>Perfil</b>, no bloco <b>Ajustes</b>.</p></section>`;
+  h += `</div></div>${cardPerfis()}${cardEventos()}${cardRegistros()}<p class="muted" style="margin:0;font-size:.85rem">Entrada na corrente e senhas agora ficam na aba <b>Perfil</b>, no bloco <b>Ajustes</b>.</p></section>`;
   return h;
+}
+
+// Eventos da casa (só o root cadastra, edita e exclui): Cadastrar evento e Eventos cadastrados.
+// A corrente continua vendo os eventos da semana no card 📅 Eventos da aba Gira.
+function cardEventos() {
+  setTimeout(ajustarRolagem, 0);
+  return `<div class="card adm root ev-grupo"><h2><span aria-hidden="true">🗓️</span> Eventos</h2>${blocosEventos()}</div>`;
 }
 
 // Do Histórico: cadastrar gira antiga (já encerrada, só para o histórico) e cadastrar a escala de uma gira salva.
@@ -121,6 +129,7 @@ function cardRegistros() {
 }
 
 export const cliques = {
+  ...cliquesEventos,
   ...cliquesGiraAntiga,
   ...cliquesEscala,
   novasenha(el) {
