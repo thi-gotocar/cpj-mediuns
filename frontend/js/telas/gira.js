@@ -1,17 +1,19 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ehCurimba, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade, podeDeclararAusencia, statusMarcado, guiaNaGira, sugestoesDaGira } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, carregarOferendas, carregarPerfil, carregarFoto, acaoOracoes, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar, hoje, pd, iniciais } from '../util.js';
+import { FUNCOES, STATUS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, acaoOracoes, avisar } from '../estado.js';
+import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
-import { eventosDoTopo, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
 import { banhosDaGira } from '/shared/banhos.js';
-import { corDaFaixa } from './curimba.js';
-import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe } from '/shared/oferendas.js';
+import { htmlStatus, abertos, cabDobra, caixaPendente, ICONE_WHATS } from './giraComum.js';
+import { blocoEu } from './giraEu.js';
+import { sugAbertas, blocoSugestao } from './giraSugestao.js';
+import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './giraTopo.js';
+export { enviarOracao } from './giraTopo.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
@@ -163,14 +165,6 @@ function opcoesPapel(p) {
   return [cad, ['sup', 'Suporte'], ['na', 'Não atende']];
 }
 const htmlPapel = (p, papel) => opcoesPapel(p).map(([k, t]) => `<option value="${k}" ${k === papel ? 'selected' : ''}>${t}</option>`).join('');
-// 1º combo da presença: Pendente, Presente, Falta, Ausente. Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
-function htmlStatus(g, sel, s, antesDoDia) {
-  const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a'];
-  // Antes do dia: Presente só no dia; Falta também, a não ser que o sorteio já tenha sido feito.
-  const sorteado = (g.pares || []).length > 0 || (g.passes || []).length > 0;
-  const bloqueada = (k) => antesDoDia && k !== sel && (k === 'p' || (k === 'f' && !sorteado));
-  return ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''} ${bloqueada(k) ? 'disabled' : ''}>${STATUS[k]}${bloqueada(k) ? ' (no dia)' : ''}</option>`).join('');
-}
 
 // Admin, no topo da presença (caixa amarela): escolhe a pessoa, o status e a função; grava no OK, depois de confirmar.
 function presencaRapida(ps, g, antesDoDia) {
@@ -226,107 +220,6 @@ function proximaQuarta() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone', passe: 'Médium de passe', senha: 'Senha', curimba: 'Curimba' };
-// Bloco de quem está logado: com quem trabalha nesta gira e se é da turma da limpeza.
-const ROTULO_PRESENCA = { pend: 'Pendente', p: 'Presente', f: 'Falta', a: 'Ausente', lic: 'Licença' };
-function blocoEu(g) {
-  const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
-  if (!p) return '';
-  if (!naCorrenteEm(p, g.data)) return `<div class="card eu"><div class="grp-h"><span class="eyebrow">Você nesta gira</span></div>
-    <div class="eu-nome"><b>${esc(p.nome)}</b></div><p class="muted" style="margin:0">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}: esta gira ainda não conta para você.</p></div>`;
-  const curimba = ehCurimba(p);
-  const st = curimba ? 'p' : status(p, g);
-  const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
-  const pares = g.pares || [], passes = g.passes || [];
-  const sorteado = pares.length > 0 || passes.length > 0;
-  const camsDe = (m) => pares.filter((x) => x.m === m).map((x) => x.c);
-  const passesDe = (m) => passes.filter((x) => x.m === m).map((x) => x.c);
-  const L = [];
-  const lin = (rot, val) => L.push(`<div class="eu-l"><span class="muted">${rot}:</span> <b>${val}</b></div>`);
-  // Com quem você trabalha (médium, cambone, passe): foto pequena do Perfil, para saber quem é quem; tocar amplia.
-  const comFoto = (rot, id) => {
-    const F = estado.fotosPessoa;
-    if (F[id] === undefined) carregarFoto(id);
-    const n = nome(id);
-    const av = F[id]
-      ? `<button type="button" class="eu-av" data-act="eufoto" data-id="${id}" aria-label="Ver a foto de ${esc(n)}"><img src="${F[id]}" alt=""></button>`
-      : `<span class="eu-av"><span aria-hidden="true">${esc(iniciais(n))}</span></span>`;
-    L.push(`<div class="eu-l eu-pessoa">${av}<span><span class="muted">${rot}:</span> <b>${esc(n)}</b></span></div>`);
-  };
-  const aviso = (t) => L.push(`<p class="muted" style="margin:0">${t}</p>`);
-  const fora = (t) => L.push(`<div class="eu-fora">${t}</div>`);
-  // Abaixo do nome do médium: o guia de atendimento dele na linha desta gira (se cadastrou no Perfil).
-  const guiaDe = (id) => { const gnome = guiaNaGira(estado.pessoas.find((x) => x.id === id), g); if (gnome) L.push(`<div class="eu-l eu-guia"><span class="muted">Guia de atendimento:</span> <b>${esc(gnome)}</b></div>`); };
-  if (st === 'lic') {
-    const l = licencaEm(p, g.data);
-    fora(`📋 Você está <b>de licença</b>${l ? ` de ${dDM(l.inicio)} a ${dDM(l.fim)}` : ''}${l?.motivo ? ` · ${esc(l.motivo)}` : ''}.`);
-  } else if (st === 'a') fora('❌ Você está marcado como <b>ausente</b> nesta gira.');
-  else if (st === 'f') fora('🚫 Você está marcado com <b>falta</b> nesta gira.');
-  else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
-  else if (curimba) lin('Função', 'Curimba');
-  else if (funcao === 'senha') lin('Função', 'Senha');
-  else if (!sorteado) { /* o aviso de sorteio pendente vai no fim do bloco */ }
-  else if (funcao === 'medium' || funcao === 'extra') {
-    const cs = camsDe(p.id);
-    if (!cs.length) aviso('Você ainda está sem cambone.');
-    cs.forEach((c, i) => comFoto(i ? `${i + 1}º cambone` : 'Cambone', c));
-    if (funcao === 'medium') passesDe(p.id).forEach((c) => comFoto('Médium de passe', c));
-  } else if (funcao === 'cambone') {
-    const meus = pares.filter((x) => x.c === p.id).map((x) => x.m);
-    if (!meus.length) aviso('Você não está com nenhum médium nesta escala.');
-    meus.forEach((m, i) => {
-      comFoto(meus.length > 1 ? `Médium ${i + 1}` : 'Médium', m);
-      guiaDe(m);
-      camsDe(m).filter((c) => c !== p.id).forEach((c) => comFoto('Cambone junto', c));
-      passesDe(m).forEach((c) => comFoto('Médium de passe', c));
-    });
-  } else if (funcao === 'passe') {
-    const meus = passes.filter((x) => x.c === p.id).map((x) => x.m);
-    if (!meus.length) aviso('Você ainda está sem médium.');
-    meus.forEach((m) => {
-      comFoto('Médium', m);
-      guiaDe(m);
-      camsDe(m).forEach((c) => comFoto('Cambone do médium', c));
-    });
-  }
-  // Gira em aberto ainda sem sorteio: o aviso "Sorteio de escala pendente" fica dentro deste bloco.
-  if (!sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push(caixaPendente(g));
-  const pr = presencaDe(p, g);
-  // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
-  if (sorteado) { /* nada */ } else if (!curimba && estado.me?.corrente) {
-    // Acesso da corrente (cpj): o combo mostra sempre o status da lista de presença.
-    // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica bloqueado.
-    const gs = estado.giras[g.data];
-    const declara = podeDeclararAusencia(p, gs, hoje());
-    if (declara) aviso('Altere o status para “Ausente” caso não consiga ir no dia, o controle segue com a Michelle. #boa gira');
-    const opts = declara ? [['pend', 'Pendente'], ['a', 'Ausente']] : [[pr, ROTULO_PRESENCA[pr] || pr]];
-    const motivo = declara ? '' : pr === 'pend' && !statusMarcado(p, gs) && gs && hoje() >= g.data
-      ? 'No dia da gira, só a Michelle altera.'
-      : gs?.encerrada ? 'Gira encerrada.' : 'Status definido na lista de presença.';
-    L.push(`<label class="eu-aus"><span class="muted">Seu status:</span>
-      <select id="eu-aus" class="st-${pr}" data-act="ausencia" aria-label="Seu status nesta gira" ${declara ? '' : 'disabled'}>${opts.map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
-      ${declara ? '' : `<span class="muted eu-trava">🔒 ${motivo}</span>`}</label>`);
-  } else if (!curimba && pode('giras:editar') && estado.giras[g.data] && !g.encerrada && st !== 'lic') {
-    // Admin ligado a uma pessoa: muda o próprio status aqui, com as mesmas opções da lista de presença.
-    L.push(`<label class="eu-aus"><span class="muted">Seu status:</span>
-      <select id="eu-aus" class="st-${pr}" data-act="status" data-id="${p.id}" aria-label="Seu status nesta gira">${htmlStatus(g, pr, st, g.pendentePadrao && g.data > hoje())}</select></label>`);
-  } else if (!curimba && pr === 'pend') aviso('Sua presença ainda não foi confirmada.');
-  // Turma da limpeza
-  const Lp = limpezaDaGira(estado.pessoas, g, girasLista());
-  if (Lp && st !== 'lic') {
-    if (Number(p.limpeza) === Lp.turma) L.push(`<div class="eu-limp">🧹 Hoje é sua turma de limpeza.</div>`);
-    else if (Lp.ajudantes.some((x) => x.id === p.id)) {
-      L.push(`<div class="eu-limp">🧹 Hoje você ajuda essa turma, pois faltou na sua turma na gira passada.</div>`);
-    }
-  }
-  const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
-  const nomeDaGira = g.entidade ? `${nomeGira(g.entidade)}${orixaDaGira(g) ? ` · ${orixaDaGira(g)}` : ''}` : '';
-  return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span>${nomeDaGira ? `<span class="eu-gira">${esc(nomeDaGira)}</span>` : ''}</div>
-    <div class="eu-nome"><b>${esc(p.nome)}</b> ${!sorteado && !['medium', 'cambone'].includes(p.funcao) ? '<span class="muted eu-poss">Possivelmente:</span> ' : ''}<span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
-    ${(funcao === 'medium' || funcao === 'extra') && st !== 'lic' && guiaNaGira(p, g) ? `<div class="eu-l eu-guia"><span class="muted">Guia de atendimento:</span> <b>${esc(guiaNaGira(p, g))}</b></div>` : ''}
-    ${L.join('')}</div>`;
-}
-
 // "Médiuns e cambones" começa minimizado; abre enquanto o app estiver aberto.
 const duplasAbertas = new Set();
 // Quem não edita a gira vê "Ver escala"; o admin, "Ver mais".
@@ -352,16 +245,7 @@ const tituloSorteio = (sorteado) => (sorteado && !pode('giras:editar') ? '<h2 cl
 // Confirmação dentro do bloco do sorteio (antes de sortear e antes de cancelar o sorteio).
 const confirmaSorteio = (texto, act, botao) => `<div class="infobox rem-conf"><span>${texto}</span>
   <span class="row" style="gap:6px"><button class="btn small primary" data-act="${act}">${botao}</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`;
-// A Presença também começa minimizada (abre enquanto o app estiver aberto).
-const abertos = new Set();
-const cabDobra = (k, titulo, extra = '') => {
-  const ab = abertos.has(k);
-  return `<button class="grp-h dobra" data-act="dobrarcard" data-k="${k}" aria-expanded="${ab}"><h2>${titulo}</h2><span class="count">${extra} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
-};
 
-// Aviso de sorteio pendente (só para gira em aberto).
-const caixaPendente = (g) => `<div class="sorteio-pend"><span class="sp-icone" aria-hidden="true">⚠️</span><b class="sp-tit">Sorteio de escala pendente da Michelle</b>
-  <span class="muted sp-prev">Previsão: <b>${esc(dLong(g.data))}</b> (${esc(dDM(g.data))})</span></div>`;
 // Quem está logado tem o bloco "Você nesta gira" (lá vai o aviso de pendente).
 const temBlocoEu = () => !!(estado.me?.pessoaId && estado.pessoas.some((x) => x.id === estado.me.pessoaId));
 
@@ -373,111 +257,6 @@ function resultado(g) {
   if (comDuplas) return '';
   if (g.encerrada) return '<div class="card empty"><p class="muted" style="margin:0">Nenhuma escala registrada nesta gira.</p></div>';
   return temBlocoEu() ? '' : `<div class="card">${caixaPendente(g)}</div>`;
-}
-
-// Admin: "Sugestão Mi/Mãe Vê" — quem marcou no Perfil que se sente confiante na entidade da gira,
-// em dois blocos (Passe e Atendimento extra): tabela Nome (com rótulos e entidade) | oferendas feitas (orixá de frente,
-// ancestral, adjunto, guia chefe e guia de frente — só para quem vê o perfil de todos) | % de presença no ano | giras da linha,
-// 5 linhas à vista e o resto com rolagem.
-const corPres = (pct) => (pct >= 80 ? 'ok' : pct >= 60 ? 'medio' : 'baixo');
-const OFERENDAS_SUG = [['frente', 'Fr', 'Orixá de frente'], ['ancestral', 'An', 'Orixá ancestral'], ['adjunto', 'Ad', 'Orixá adjunto'],
-  ['chefe', 'Ch', 'Guia chefe'], ['guiaFrente', 'Fe', 'Guia de frente']];
-// Perfil de todos ({ pessoaId: perfil }) para as colunas de oferendas; busca uma vez se ainda não veio.
-let pedindoPerfil = false;
-function perfisDaCorrente() {
-  if (!pode('perfil:corrente')) return null;
-  if (estado.perfil === null) {
-    if (!pedindoPerfil) { pedindoPerfil = true; carregarPerfil().finally(() => { pedindoPerfil = false; }); }
-    return null;
-  }
-  const t = estado.perfil?.todos;
-  return Array.isArray(t) ? Object.fromEntries(t.map((x) => [x.pessoaId, x.perfil])) : null;
-}
-function linhaSugestao(x, linha, ano) {
-  // Segunda linha do nome: rótulos Guia chefe / Guia de frente e, ao lado, o nome da entidade (cortado com "…" se não couber).
-  const sub = [...x.guias.map((t) => `<span class="sug-tag${t === 'Guia chefe' ? ' chefe' : ''}">${t}</span>`),
-    x.temNome ? `<span class="sug-ent" title="${esc(x.entidade)}">${esc(x.entidade)}</span>` : ''].join('');
-  const tags = sub ? `<span class="sug-tags">${sub}</span>` : '';
-  const pres = x.pct === null ? '<span class="sug-pct vazio" title="Sem giras no ano">—</span>'
-    : `<span class="sug-pct ${corPres(x.pct)}" title="${x.pres} de ${x.base} gira${x.base > 1 ? 's' : ''} em ${ano}"><b>${x.pct}%</b><i style="--p:${x.pct}%"></i></span>`;
-  const n = `<span class="sug-n${x.nGiras ? '' : ' zero'}" title="${x.nGiras} gira${x.nGiras === 1 ? '' : 's'} de ${esc(linha)}">${x.nGiras}</span>`;
-  const ofs = x.oferendas ? OFERENDAS_SUG.map(([k, , t]) => (x.oferendas[k]
-    ? `<span class="sug-of sim" title="${t}: oferenda feita" aria-label="${t}: sim">✓</span>`
-    : `<span class="sug-of nao" title="${t}: oferenda não feita" aria-label="${t}: não">✕</span>`)).join('') : '';
-  return `<div class="sug-l${x.oferendas ? ' com-of' : ''}"><span class="sug-nome"><span class="sug-nm">${esc(x.nome)}</span>${tags}</span>${ofs}${pres}${n}</div>`;
-}
-// Última parte do card do admin (Presença · Sorteio · Sugestão). Depois do sorteio vem recolhida (só o título); tocar no título expande e recolhe.
-const sugAbertas = new Set();
-function blocoSugestao(ps, g, recolhivel) {
-  const sug = sugestoesDaGira(ps, g, girasLista(), perfisDaCorrente());
-  const linha = sug ? LINHA_LABEL[sug.linha] || '' : '';
-  const ab = !recolhivel || sugAbertas.has(g.data);
-  const tit = `<h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>`;
-  if (!ab) return `<div class="adm-sec sugestao"><button class="grp-h dobra" data-act="dobrarsug" aria-expanded="false">${tit}<span class="count">${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}<span class="seta" aria-hidden="true">▸</span></span></button></div>`;
-  const comOf = !!sug && [...sug.passe, ...sug.extra].some((x) => x.oferendas);
-  const cabGiras = `<span class="sug-cab-g${linha.length > 14 ? ' mlongo' : linha.length > 9 ? ' longo' : ''}">Giras de ${esc(linha)}</span>`;
-  const cab = comOf
-    ? `<div class="sug-l sug-cab com-of" aria-hidden="true"><span class="c-nome">Nome</span><span class="c-gx">Orixá</span><span class="c-gg">Guia</span>
-      ${OFERENDAS_SUG.map(([, s], i) => `<span class="c-o c-o${i + 1}">${s}</span>`).join('')}<span class="c-pres">Pres.</span>${cabGiras}</div>`
-    : `<div class="sug-l sug-cab" aria-hidden="true"><span>Nome</span><span>Pres.</span>${cabGiras}</div>`;
-  const corpo = !sug
-    ? '<p class="muted" style="margin:0;font-size:.88rem">Escolha a entidade da gira para ver as sugestões.</p>'
-    : [['Passe', sug.passe, 'passe'], ['Atendimento extra', sug.extra, 'extra']].map(([t, lista, k]) => `<div class="grp sug-grp"><div class="sug-sub ${k}"><h3>${t}</h3><span class="sug-qtd">${lista.length}</span></div>
-      ${lista.length ? `<div class="sug-lista">${cab}${lista.map((x) => linhaSugestao(x, linha, g.data.slice(0, 4))).join('')}</div>`
-        : '<p class="muted sug-vazio">Ninguém marcou esta entidade.</p>'}</div>`).join('');
-  const cabSug = recolhivel
-    ? `<button class="grp-h dobra" data-act="dobrarsug" aria-expanded="true">${tit}<span class="count">${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}<span class="seta" aria-hidden="true">▾</span></span></button>`
-    : `<div class="grp-h">${tit}${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}</div>`;
-  return `<div class="adm-sec sugestao">${cabSug}${corpo}
-    ${sug ? `<p class="sug-leg">${comOf ? 'Oferendas: Fr = orixá de frente · An = ancestral · Ad = adjunto · Ch = guia chefe · Fe = guia de frente<br>' : ''}Pres. = presença em ${g.data.slice(0, 4)} · Giras de ${esc(linha)} = em quantas esteve presente</p>` : ''}</div>`;
-}
-
-// Topo da aba Gira (só data e nome): gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.
-function cardSemana() {
-  const hj = hoje();
-  // Aniversariantes da semana (domingo a sábado): dia/mês do Perfil, com 🎈🎂 antes do nome.
-  // Orixás: só no próprio dia (DIAS_ORIXAS). No mesmo dia: eventos, depois orixás, depois aniversários.
-  const ordem = (e) => (e.niver ? 2 : e.orixa ? 1 : 0);
-  const evs = [...eventosDoTopo(estado.eventos, hj), ...orixasDoDia(hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
-  // Cada evento: "folhinha" com o dia da semana (ou HOJE) e a data, o nome e o tipo num selo à direita.
-  const semana = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()));
-  const tipo = (e) => (e.niver ? ['niver', 'Aniversário'] : e.orixa ? ['orixa', 'Orixá'] : [e.tipo || 'evento', TIPO_EVENTO_LABEL[e.tipo] || 'Evento']);
-  return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2>${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</div>
-    ${evs.length ? `<div class="evs-lista">${evs.map((e) => { const [k, rot] = tipo(e); return `<div class="evs-l${e.data === hj ? ' hoje' : ''}">
-        <span class="evs-data"><span class="evs-sem">${semana(e.data)}</span><b>${dataCurta(e.data)}</b></span>
-        <span class="evs-nome">${e.niver ? '<span class="evs-niver" aria-hidden="true">🎈🎂</span> ' : ''}${esc(e.nome)}</span>
-        <span class="evs-tipo ${k}">${rot}</span></div>`; }).join('')}</div>`
-      : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum evento nos próximos 30 dias.</p>'}</div>`;
-}
-
-// Orações (logo abaixo dos Eventos): qualquer pessoa logada pede; cada uma vale 7 dias e depois some.
-// Quem pediu (ou o admin dos eventos) exclui, com confirmação.
-function cardOracoes() {
-  const L = estado.oracoes || [];
-  const aberto = !!estado.oraNova;
-  // Admin da aba Gira: WhatsApp com a imagem dos pedidos (abre uma janela com a prévia).
-  const wa = L.length && pode('giras:editar') ? `<button class="btn small or-wa" data-act="oraabrir" title="Mandar os pedidos de oração no WhatsApp"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> WhatsApp</button>` : '';
-  let h = `<div class="card ev-semana or-card"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">❤️</span> Orações</h2><span class="or-cab-d">${wa}${L.length ? `<span class="evs-qtd">${L.length}</span>` : ''}</span></div>`;
-  if (L.length) {
-    h += `<div class="evs-lista">${L.map((o) => {
-      const conf = estado.confirm === 'or:' + o.id;
-      const bt = !o.apagar ? '' : conf
-        ? `<button class="btn danger or-bt" data-act="oraexcluir" data-id="${o.id}">Confirmar</button>`
-        : `<button class="btn or-bt" data-act="askdel" data-k="or:${o.id}">Excluir</button>`;
-      const n = o.reacoes || 0;
-      const vela = `<button class="btn or-bt or-vela${o.reagi ? ' on' : ''}" data-act="orareagir" data-id="${o.id}" aria-pressed="${!!o.reagi}"
-          title="${o.reagi ? 'Apagar minha vela' : 'Acender uma vela por este pedido'}"><span aria-hidden="true">🕯️</span> ${n}</button>`;
-      return `<div class="evs-l or-l"><span class="evs-data or-ico" aria-hidden="true">🙏</span>
-        <span class="evs-nome or-txt">${esc(o.texto)}</span>
-        <span class="or-dir">${vela}${bt}</span></div>`;
-    }).join('')}</div>`;
-  } else h += '<p class="muted" style="margin:0;font-size:.88rem">Nenhum pedido de oração nos últimos 7 dias.</p>';
-  h += aberto
-    ? `<form id="f-oracao" class="or-form" autocomplete="off"><textarea id="or-texto" rows="3" maxlength="200" placeholder="Por quem ou pelo que rezar (até 3 linhas)">${esc(estado.oraTexto || '')}</textarea>
-        <span class="row"><button class="btn primary" type="submit">Pedir oração</button><button class="btn" type="button" data-act="oranova">Cancelar</button></span>
-        <p class="muted" style="margin:0;font-size:.8rem">Fica 7 dias na lista e depois some.</p></form>`
-    : '<button class="btn small or-nova" data-act="oranova">＋ Pedir oração</button>';
-  return h + '</div>';
 }
 
 // ---------- janela do WhatsApp das orações: prévia da imagem, Compartilhar e Salvar ----------
@@ -512,62 +291,6 @@ function janelaOracoes() {
 }
 
 // Pedido de oração: até 3 linhas.
-export async function enviarOracao(form) {
-  const texto = form.querySelector('textarea').value.replace(/\r/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
-  if (!texto.length) { toast('Escreva a oração.'); return; }
-  if (texto.length > 3) { toast('A oração pode ter até 3 linhas.'); return; }
-  if (await acaoOracoes('oracao', { texto: texto.join('\n') })) { estado.oraNova = false; estado.oraTexto = ''; toast('Pedido de oração publicado.'); avisar(); }
-}
-
-function aniversariosDaSemana(hj) {
-  const d0 = pd(hj); d0.setDate(d0.getDate() - d0.getDay());
-  const dias = Array.from({ length: 7 }, (_, i) => { const d = new Date(d0); d.setDate(d0.getDate() + i); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
-  const out = [];
-  dias.forEach((d) => estado.pessoas.filter((p) => p.aniversario === d.slice(5)).forEach((p) => out.push({ data: d, nome: p.nome, niver: true })));
-  return out.sort((a, b) => a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
-}
-
-// Aula de curimba (só para quem está nos alunos da aba Curimba): presença e faltas nas aulas até hoje.
-// Mesmo padrão de "Seus compromissos" (faixa à esquerda, aqui na cor da % de presença); fica logo acima de "Sua presença".
-// A % conta só as aulas marcadas, como na aba Curimba.
-function cardAulaCurimba() {
-  if (!estado.minhaCurimba) return '';
-  const hj = hoje();
-  const aulas = estado.minhaCurimba.aulas.filter((a) => a.data <= hj && a.status).reverse();
-  // Sempre começa recolhido (só o título, com a % ao lado); tocar no título expande e recolhe.
-  const ab = abertos.has('aula');
-  const pres = aulas.filter((a) => a.status === 'p').length;
-  const pct = aulas.length ? Math.round((pres / aulas.length) * 100) : 0;
-  const cor = aulas.length ? corDaFaixa(pct) : '';
-  const tit = cabDobra('aula', '<span aria-hidden="true">🥁</span> Aula de curimba', aulas.length ? `<b class="cur-gira-pct">${pct}%</b>` : '');
-  if (!ab) return `<div class="card comp-of cur-gira ${cor}">${tit}</div>`;
-  if (!aulas.length) return `<div class="card comp-of cur-gira">${tit}<p class="muted" style="margin:0;font-size:.92rem">Nenhuma aula marcada ainda.</p></div>`;
-  return `<div class="card comp-of cur-gira ${cor}">${tit}
-    <div class="comp-of-g"><div><b class="cur-gira-pct">${pct}%</b> de presença <span class="muted">· ${pres} de ${aulas.length} aula${aulas.length > 1 ? 's' : ''}</span></div>
-      <div class="mp-barra ${cor}"><span style="width:${pct}%"></span></div>
-      <div class="mp-lista">${aulas.map((a) => `<div class="mp-l"><span class="mp-dia">${dDM(a.data)}</span><span class="mp-gira">${esc(a.nome) || 'Aula'}</span><span class="mp-st ${a.status}">${a.status === 'p' ? 'Presente' : 'Falta'}</span></div>`).join('')}</div></div></div>`;
-}
-
-// Logo depois de "Você nesta gira": os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
-// e, na oferenda com uma linha por pessoa, o pagamento ou a entrega que faltam. Só aparece quando há algum.
-let pediuOferendas = false;
-function cardCompromissos() {
-  if (!pode('oferendas:doar')) return '';
-  if (estado.oferendas === null) {
-    if (!pediuOferendas) { pediuOferendas = true; carregarOferendas(); }
-    return '';
-  }
-  const eu = estado.oferendas.eu || {};
-  if (!eu.chave) return '';
-  const grupos = compromissosDe(estado.oferendas.oferendas, eu.chave, hoje());
-  if (!grupos.length) return '';
-  const etq = (k) => `<span class="st-med ${k}">${ROTULO_MEDIUM[k] || k}</span>`;
-  return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos nas oferendas</h2></div>
-    ${grupos.map(({ of, itens, linha }) => `<div class="comp-of-g"><div><b>${esc(of.titulo)}</b> <span class="muted">· ${dataBR(of.data)}</span></div>
-      ${linha ? `<div class="comp-of-med"><span><span class="muted">Pagamento:</span> ${etq(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etq(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li>${esc(i.nome)} <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('')}
-    <button class="btn link small" data-act="goto" data-tab="oferendas">Ver oferendas ›</button></div>`;
-}
 
 export function render() {
   return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardOracoes());
@@ -813,8 +536,6 @@ function renderGira() {
   return fecha();
 }
 
-// Ícone do WhatsApp (balão com o telefone).
-const ICONE_WHATS = '<svg viewBox="0 0 24 24" width="22" height="22"><path fill="#25D366" d="M12 2.2a9.8 9.8 0 0 0-8.4 14.9L2.3 21.8l4.8-1.3A9.8 9.8 0 1 0 12 2.2z"/><path fill="#fff" d="M8.6 7.2c.2-.4.5-.4.7-.4h.6c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .6l-.4.6c-.1.2-.2.3 0 .6.4.7 1 1.4 1.6 1.9.7.6 1.3.8 1.6 1 .2.1.4.1.5-.1l.7-.8c.2-.2.3-.2.6-.1l1.8.9c.3.1.4.2.5.3 0 .2 0 .8-.3 1.4-.3.6-1.5 1.2-2 1.2-.6.1-1.1.3-3.7-.8-3.1-1.3-5-4.4-5.2-4.6-.1-.2-1.2-1.6-1.2-3.1 0-1.4.7-2.1 1-2.4z"/></svg>';
 // Botão do WhatsApp no card da gira, abaixo do Encerrar gira: abre a janela para escolher texto ou imagem.
 // Sem sorteio feito fica desabilitado (não há escala para mandar).
 const botaoWhats = (ok, rotulo = 'WhatsApp') => (ok
