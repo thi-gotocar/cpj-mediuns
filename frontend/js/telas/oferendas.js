@@ -155,20 +155,22 @@ function blocoMediuns(of, admin) {
   return h + `</div>`;
 }
 
-// Admin, dentro de "Seus compromissos": tabela das oferendas com uma linha por pessoa (não encerradas) —
-// quantas pessoas vão, quantas faltam pagar e quantas faltam entregar. Tocar no número mostra os nomes.
-function tabelaPorPessoa() {
+// Admin, logo abaixo de "Seus compromissos": as oferendas com uma linha por pessoa marcadas "Exibir no resumo"
+// (não encerradas) — quantas pessoas vão, quantas faltam pagar e quantas faltam entregar. Tocar no número mostra os nomes.
+function cardPorPessoa() {
+  if (!pode('oferendas:gerenciar')) return '';
   const L = estatisticasPorPessoa(estado.oferendas.oferendas);
+  const cab = `<div class="grp-h"><h2><span aria-hidden="true">📊</span> Oferendas por pessoa</h2>${L.length ? `<span class="count">${L.length}</span>` : ''}</div>`;
   if (!L.length) {
     // Há oferenda por pessoa aberta, mas nenhuma marcada: explica como fazer aparecer.
     const temPorPessoa = estado.oferendas.oferendas.some((of) => of.porMedium && of.status !== 'encerrado');
-    return temPorPessoa ? `<div class="of-est"><span class="eyebrow">Oferendas por pessoa (admin)</span><p class="muted" style="margin:0;font-size:.85rem">Nenhuma oferenda no resumo. Abra a oferenda e ligue <b>Exibir no resumo</b>.</p></div>` : '';
+    return temPorPessoa ? `<div class="card adm">${cab}<p class="muted" style="margin:0;font-size:.88rem">Nenhuma oferenda no resumo. Abra a oferenda e ligue <b>Exibir no resumo</b>.</p></div>` : '';
   }
   const soma = (k) => L.reduce((s, x) => s + x[k].length, 0);
   const olho = U().estOlho;
   const cel = (of, k, lista, cls) => `<td><button class="of-est-n ${cls}${lista.length ? '' : ' zero'}" data-act="estolho" data-k="${of.id}:${k}" aria-expanded="${olho === of.id + ':' + k}" ${lista.length ? '' : 'disabled'}>${lista.length}</button></td>`;
   const TIT = { pessoas: 'Vão', pagar: 'Faltam pagar', entregar: 'Faltam entregar' };
-  return `<div class="of-est"><span class="eyebrow">Oferendas por pessoa (admin)</span>
+  return `<div class="card adm">${cab}
     <table class="of-est-t"><thead><tr><th>Oferenda</th><th>Vão</th><th>Falta pagar</th><th>Falta entregar</th></tr></thead><tbody>
     ${L.map(({ of, pessoas, naoPagos, naoEntregues }) => {
       const [, k] = olho && olho.startsWith(of.id + ':') ? olho.split(':') : [];
@@ -181,24 +183,23 @@ function tabelaPorPessoa() {
 }
 
 // Topo da aba: tudo o que a pessoa se comprometeu a levar, por oferenda (data do evento, nome e o que levar).
-// Tocar no nome abre a oferenda lá embaixo. Para o admin, embaixo, a tabela das oferendas por pessoa.
+// Tocar no nome abre a oferenda lá embaixo.
 function cardMeusCompromissos() {
   const eu = estado.oferendas.eu || {};
   if (!eu.chave) return '';
   const grupos = compromissosDe(estado.oferendas.oferendas, eu.chave, hoje());
-  const tabela = pode('oferendas:gerenciar') ? tabelaPorPessoa() : '';
   let h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${grupos.length ? `<span class="count">${grupos.length}</span>` : ''}</div>`;
-  if (!grupos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p>${tabela}</div>`;
+  if (!grupos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
   return h + grupos.map(({ of, itens, linha }) => `<div class="of-meus-g">
       <span class="of-meus-data"><span class="eyebrow">${dataBR(of.data)}</span><span class="ent">${esc(Dia(of.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="vercomp" data-id="${of.id}">${esc(of.titulo)} ›</button>
       ${linha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('') + tabela + '</div>';
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('') + '</div>';
 }
 
 // Percentual das doações e, quando completa, até quando dá para alterar.
 const hora = (d) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} às ${String(d.getHours()).padStart(2, '0')}h${String(d.getMinutes()).padStart(2, '0')}`;
-function barraDoacoes(of) {
+function barraDoacoes(of, aoLado = '') {
   if (of.bloqueada || !of.itens.length) return '';
   const pct = percentualDoado(of);
   const eu = estado.oferendas.eu;
@@ -210,7 +211,7 @@ function barraDoacoes(of) {
   } else if (pct >= 100 && of.completaEm) {
     aviso = `✅ Completa! Dá para alterar até ${hora(fechaEm(of))}; depois, só o responsável.`;
   }
-  return `<div class="of-pct ${faixaPct(pct)}"><div class="of-pct-h"><b>${pct}%</b> <span class="muted">das doações</span></div>
+  return `<div class="of-pct ${faixaPct(pct)}"><div class="of-pct-h"><b>${pct}%</b> <span class="muted">das doações</span>${aoLado}</div>
     <div class="of-pct-barra" role="img" aria-label="${pct}% das doações"><span style="width:${pct}%"></span></div>
     ${aviso ? `<p class="of-pct-aviso">${aviso}</p>` : ''}</div>`;
 }
@@ -262,7 +263,7 @@ function corOferenda(of) {
 function cardOferenda(of, admin) {
   const u = U();
   const aberta = u.editar === of.id || (u.abertas || []).includes(of.id);
-  let h = `<div class="card of-card ${corOferenda(of)}${aberta ? '' : ' recolhida'}" id="of-${of.id}">`;
+  let h = `<div class="card of-card ${corOferenda(of)}${aberta ? '' : ' recolhida'}${admin && u.editar !== of.id ? ' com-enc' : ''}" id="of-${of.id}">`;
   if (admin && u.editar === of.id) {
     h += `<form class="row" data-form="ofed" data-id="${of.id}" autocomplete="off">
       <label class="field grow">Título<input type="text" name="titulo" maxlength="120" required value="${esc(of.titulo)}"></label>
@@ -271,31 +272,25 @@ function cardOferenda(of, admin) {
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelarof">Cancelar</button></form>`;
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
-    // Publicar: depois de publicada, o botão fica "Publicado" (verde) e não muda mais.
-    // Bloquear ↔ Desbloquear (verde): ao desbloquear, volta a publicada (ou aguardando, se nunca foi).
-    // Encerrar (amarelo) ↔ Encerrado: tocar de novo volta como ao desbloquear.
-    const volta = of.publicada ? 'publicado' : 'aguardando';
-    const bloq = of.status === 'rascunho', enc = of.status === 'encerrado';
-    const bts = [
-      of.publicada
-        ? `<button class="btn small st-bt publicado ligado" disabled>Publicado</button>`
-        : `<button class="btn small st-bt" data-act="statusof" data-id="${of.id}" data-v="publicado">Publicar</button>`,
-      `<button class="btn small st-bt ${bloq ? 'desbloquear' : ''}" data-act="statusof" data-id="${of.id}" data-v="${bloq ? volta : 'rascunho'}">${bloq ? 'Desbloquear' : 'Bloquear'}</button>`,
-      `<button class="btn small st-bt encerrar ${enc ? 'ligado' : ''}" data-act="statusof" data-id="${of.id}" data-v="${enc ? volta : 'encerrado'}" aria-pressed="${enc}">${enc ? 'Encerrado' : 'Encerrar'}</button>`,
-    ].join('');
-    // Cabeçalho primeiro (faixa colorida no topo do card; tocar recolhe/expande), depois a situação e os botões do admin.
+    const enc = of.status === 'encerrado';
+    // Admin: Encerrar (amarelo) ↔ Encerrado no topo, à direita do título; tocar de novo volta (visível, se já foi publicada).
+    const btEnc = admin ? `<button class="btn small st-bt encerrar of-enc${enc ? ' ligado' : ''}" data-act="statusof" data-id="${of.id}" data-v="${enc ? (of.publicada ? 'publicado' : 'aguardando') : 'encerrado'}" aria-pressed="${enc}">${enc ? 'Encerrado' : 'Encerrar'}</button>` : '';
+    // Admin: interruptor "Visível para todos" — ligado, a corrente vê e doa; desligado, só os admins veem.
+    // Fica ao lado da barra de doações (na oferenda com uma linha por pessoa, acima de "Exibir no resumo").
+    const visivel = admin && !enc ? `<label class="of-sw"><input type="checkbox" role="switch" data-act="ofvisivel" data-id="${of.id}" ${of.status === 'publicado' ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Visível para todos</label>` : '';
+    const comBarra = !of.porMedium && !of.bloqueada && of.itens.length;
+    // Cabeçalho primeiro (faixa colorida no topo do card; tocar recolhe/expande).
     const resumo = aberta ? '' : resumoRecolhida(of);
     h += `<button class="datehead of-cab" data-act="dobrarof" data-id="${of.id}" aria-expanded="${aberta}"><span class="eyebrow">Oferenda · ${dataBR(of.data)}<span class="of-seta" aria-hidden="true">${aberta ? '▾' : '▸'}</span></span><span class="dia of-titulo">${esc(of.titulo)}</span>
         <span class="of-cab-l"><span class="ent">${esc(Dia(of.data))}</span>${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span>
-        ${resumo ? `<span class="of-resumo">${resumo}</span>` : ''}</button>`;
+        ${resumo ? `<span class="of-resumo">${resumo}</span>` : ''}</button>${btEnc}`;
     if (!aberta) return h + `</div>`;
     h += `
-      ${admin ? `<div class="row st-of-linha">${of.status === 'publicado' ? '' : etiqueta(of.status)}${of.status === 'publicado' ? '' : `<span class="muted" style="font-size:.82rem;flex-basis:100%">${enc ? 'Oferenda encerrada: saiu da lista da corrente.' : bloq ? 'Bloqueada: a corrente vê a oferenda, mas não a lista de itens.' : 'A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.'}</span>`}
-        <span class="st-of-bts">${bts}</span></div>` : ''}
       ${!admin && of.status === 'rascunho' ? `<div class="of-topo">${etiqueta('rascunho')}</div>` : ''}
-      ${barraDoacoes(of)}
+      ${barraDoacoes(of, visivel ? `<span class="of-pct-sw">${visivel}</span>` : '')}
       ${of.porMedium && !of.bloqueada ? barrasMediuns(of) : ''}
-      ${admin && of.porMedium ? `<label class="of-sw"><input type="checkbox" role="switch" data-act="ofresumo" data-id="${of.id}" ${of.noResumo ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir no resumo <span class="muted">(tabela em Seus compromissos)</span></label>` : ''}
+      ${!comBarra ? visivel : ''}
+      ${admin && of.porMedium ? `<label class="of-sw"><input type="checkbox" role="switch" data-act="ofresumo" data-id="${of.id}" ${of.noResumo ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir no resumo <span class="muted">(tabela Oferendas por pessoa)</span></label>` : ''}
       <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa ·${(of.mediuns || []).length} pessoas${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
   // Bloqueada: para a corrente, itens ocultos. O admin continua vendo e alterando.
@@ -353,7 +348,7 @@ export function render() {
   const hj = hoje();
   const proximas = lista.filter((o) => o.data >= hj);
   const anteriores = lista.filter((o) => o.data < hj).reverse();
-  let h = `<section class="panel">${cardMeusCompromissos()}`;
+  let h = `<section class="panel">${cardMeusCompromissos()}${cardPorPessoa()}`;
   if (admin) {
     // Começa minimizado; abre ao tocar no título (aberto já se ainda não houver nenhuma oferenda).
     const novaAberta = U().novaAberta ?? !lista.length;
@@ -459,7 +454,7 @@ export const cliques = {
     avisar();
   },
   async statusof(el) {
-    const t = { publicado: 'Oferenda publicada: a corrente já pode ver e doar.', rascunho: 'Oferenda bloqueada: a corrente vê, mas sem a lista de itens.', encerrado: 'Oferenda encerrada: saiu da lista da corrente.', aguardando: 'Voltou para Aguardando publicação: a corrente não vê.' };
+    const t = { publicado: 'Oferenda visível para todos: a corrente já pode ver e doar.', encerrado: 'Oferenda encerrada: saiu da lista da corrente.', aguardando: 'Oferenda reaberta: só os admins veem.' };
     if (await acaoOferendas('status', { id: el.dataset.id, status: el.dataset.v })) toast(t[el.dataset.v]);
   },
   async delmedium(el) {
@@ -532,6 +527,10 @@ async function porAlguem(el, delta) {
 
 export const mudancas = {
   // "Exibir no resumo": a oferenda por pessoa entra (ou sai) da tabela do admin.
+  // "Visível para todos": ligado publica (a corrente vê e doa); desligado, só os admins veem.
+  async ofvisivel(t) {
+    if (await acaoOferendas('status', { id: t.dataset.id, status: t.checked ? 'publicado' : 'aguardando' })) toast(t.checked ? 'Oferenda visível para todos: a corrente já pode ver e doar.' : 'Oferenda escondida: só os admins veem.');
+  },
   async ofresumo(t) {
     if (await acaoOferendas('resumo', { id: t.dataset.id, noResumo: t.checked })) toast(t.checked ? 'A oferenda aparece no resumo.' : 'A oferenda saiu do resumo.');
   },

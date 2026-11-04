@@ -304,13 +304,6 @@ body.deslogado header.top > div:first-child{display:none}
 body.deslogado header.top{min-height:0;padding-bottom:0}
 /* situação da oferenda */
 .st-of{display:inline-block;font-size:.75rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:20px;padding:3px 10px}
-.st-of.aguardando{background:#fbefc4;color:#7a5600}
-.st-of.publicado{background:#d5f0df;color:#1d6b3f}
-.st-of.encerrado{background:#e4e7ec;color:#5b6678}
-.st-of.rascunho{background:#dbe6fb;color:#2c4ea3}
-.st-of-linha{justify-content:space-between;align-items:center;gap:8px}
-.st-of-bts{display:flex;gap:6px;flex-wrap:wrap}
-.st-of-bts .btn.atual{opacity:1;border-color:var(--accent);color:var(--accent)}
 .of-item.completo{padding:6px 12px;gap:2px}
 .of-item.completo .of-doadores,.of-item.completo .of-doad-adm{font-size:.85rem}
 .of-dobra{justify-self:start;padding:2px 0}
@@ -322,14 +315,12 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-meus-data .eyebrow{color:var(--accent)}
 .of-meus-data .ent{color:var(--gold);font-weight:700;font-size:.92rem}
 /* Admin: tabela das oferendas por pessoa (moldura dourada de "só admin vê") */
-.of-est{display:grid;gap:6px;padding:10px;border:1px dashed var(--gold);border-radius:10px}
-.of-est .eyebrow{color:var(--gold)}
 .of-est-t{width:100%;border-collapse:collapse;font-size:.88rem}
 .of-est-t th{font-size:.72rem;font-weight:700;color:var(--muted);text-align:center;padding:4px 2px;line-height:1.15}
 .of-est-t th:first-child{text-align:left}
 .of-est-t td{border-top:1px solid var(--line);padding:6px 2px;text-align:center;vertical-align:middle}
 .of-est-t td:first-child{text-align:left;width:100%}
-.btn.link.of-est-of{display:grid;padding:0;text-align:left;font-weight:700;color:var(--ink);overflow-wrap:anywhere}
+.btn.link.of-est-of{display:grid;padding:0;text-align:left;font-weight:700;color:var(--ink);overflow-wrap:anywhere;white-space:normal}
 .of-est-of .eyebrow{color:var(--accent);font-size:.68rem}
 .of-est-n{min-width:40px;font:800 1rem var(--f-display);border-radius:20px;padding:2px 8px;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
 .of-est-n.pagar{color:var(--off);border-color:color-mix(in srgb,var(--off) 45%,var(--line));background:color-mix(in srgb,var(--off) 12%,transparent)}
@@ -348,7 +339,7 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-sw input:focus-visible + .of-sw-t{outline:2px solid var(--accent);outline-offset:2px}
 .of-sw .muted{font-size:.8rem}
 .of-est-nomes td{text-align:left!important;border-top:0;padding-top:0;font-size:.85rem;overflow-wrap:anywhere}
-.btn.link.of-meus-tit{justify-self:start;padding:0;font:700 1.08rem var(--f-display);text-align:left;color:var(--ink)}
+.btn.link.of-meus-tit{justify-self:start;padding:0;font:700 1.08rem var(--f-display);text-align:left;color:var(--ink);white-space:normal;overflow-wrap:anywhere}
 /* Aba Gira: compromissos nas oferendas (último bloco) */
 .card.comp-of{border-left:4px solid var(--warn)}
 .comp-of h2{display:flex;align-items:center;gap:6px;flex-shrink:1;min-width:0}   /* no celular o título quebra a linha em vez de passar da borda */
@@ -360,18 +351,9 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-meus ul{margin:0;padding-left:18px;display:grid;gap:2px;font-size:.92rem}
 .of-resp{font-family:var(--f-body);font-size:.85rem;font-weight:500;color:var(--muted);white-space:nowrap;display:inline-block;border:1px solid var(--line);border-radius:20px;padding:1px 10px;vertical-align:middle}
 .st-of.rascunho{background:#fbe0de;color:#a2423a}
-.st-of-bts .btn.bloquear{color:#a2423a;border-color:#e8b4ae}
-.st-of-bts .btn.bloquear.atual{background:#fbe0de;color:#a2423a;border-color:#a2423a}
-/* botões de situação (liga/desliga) */
-.st-bt.ligado.publicado{background:#d5f0df;color:#1d6b3f;border-color:#2f9e5b}
-.st-bt.ligado.rascunho{background:#fbe0de;color:#a2423a;border-color:#a2423a}
-.st-bt.ligado.encerrado{background:#e4e7ec;color:#5b6678;border-color:#8a94a6}
-.st-of-bts .btn.bloquear{color:inherit;border-color:var(--line)}
-.st-bt.desbloquear{background:#d5f0df;color:#1d6b3f;border-color:#2f9e5b}
+/* Oferenda (admin): Encerrar ↔ Encerrado no topo, à direita do título */
 .st-bt.encerrar{background:#fbefc4;color:#7a5600;border-color:#e3b021}
 .st-bt.encerrar.ligado{background:#e3b021;color:#3d2b00;border-color:#b98b0d}
-.st-bt.publicado.ligado:disabled{opacity:1}
-.st-of.encerrado{background:#fbefc4;color:#7a5600}
 .of-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .ga-colar{display:grid;gap:8px}
 .ga-colar summary{cursor:pointer;color:var(--accent);font-weight:700}
@@ -1263,3 +1245,12 @@ button.eu-av{cursor:zoom-in}
 .ev-data-adm{position:relative;display:inline-flex;align-items:center;gap:5px;font-size:.82rem;font-weight:700;color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--accent-soft);border-radius:20px;padding:3px 10px;cursor:pointer;white-space:nowrap;overflow:hidden}
 .ev-data-adm .seta{font-size:.75rem}
 .ev-data-adm input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0}
+
+/* Oferenda (admin): o botão Encerrar fica no topo, à direita do título; título longo termina em "…" */
+.of-card.com-enc{position:relative}
+.of-card.com-enc .of-cab,.of-card.com-enc .of-cab > *{min-width:0}   /* o título sem quebra não alarga o card */
+.of-card .of-enc{position:absolute;top:36px;right:14px;z-index:1;padding:4px 12px}
+.of-card.com-enc .of-titulo{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:104px}
+/* Interruptor "Visível para todos" ao lado da barra de doações */
+.of-pct-sw{margin-left:auto;align-self:center}
+.of-pct-sw .of-sw{font-size:.85rem}
