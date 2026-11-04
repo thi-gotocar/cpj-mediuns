@@ -39,13 +39,16 @@ export function baixar(blobOuUrl, nome) {
 
 // Listas que mostram só os primeiros N itens e rolam o resto ([data-rolar="N"]):
 // a altura máxima é medida depois de desenhar, porque cada item tem uma altura.
+// data-rolar="n": mostra n itens e rola o resto. Com n quebrado (ex.: 2.3), aparece um pedaço do seguinte, para indicar que rola.
 export function ajustarRolagem() {
   document.querySelectorAll('[data-rolar]').forEach((el) => {
     const n = Number(el.dataset.rolar);
+    const inteiro = Math.floor(n);
     const kids = el.children;
     el.style.maxHeight = '';
     if (kids.length <= n) return;
-    el.style.maxHeight = (kids[n].offsetTop - kids[0].offsetTop) + 'px';
+    const prox = kids[inteiro];
+    el.style.maxHeight = (prox.offsetTop - kids[0].offsetTop + (n - inteiro) * prox.offsetHeight) + 'px';
   });
 }
 

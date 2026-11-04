@@ -746,6 +746,8 @@ export const cliques = {
   },
   eufoto(el) { estado.fotoVer = el.dataset.id; atualizarJanela(); },
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
+  // Bloco Eventos: só os de hoje ↔ todos.
+  evsmais() { estado.evsTodos = !estado.evsTodos; avisar(); },
   escimg() { estado.escImgVer = true; atualizarJanela(); },
   // Orações (admin): janela com a prévia da imagem; "Compartilhar" abre a lista do aparelho (WhatsApp); sem ela, salva.
   oraabrir() { estado.oraJanela = true; atualizarJanela(); prepararOracoes(); },
