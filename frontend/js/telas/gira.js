@@ -409,9 +409,14 @@ function linhaSugestao(x, linha, ano) {
     : `<span class="sug-of nao" title="${t}: oferenda não feita" aria-label="${t}: não">✕</span>`)).join('') : '';
   return `<div class="sug-l${x.oferendas ? ' com-of' : ''}"><span class="sug-nome"><span class="sug-nm">${esc(x.nome)}</span>${tags}</span>${ofs}${pres}${n}</div>`;
 }
-function blocoSugestao(ps, g) {
+// Depois do sorteio, a Sugestão vem recolhida (só o título); tocar no título expande e recolhe.
+const sugAbertas = new Set();
+function blocoSugestao(ps, g, recolhivel) {
   const sug = sugestoesDaGira(ps, g, girasLista(), perfisDaCorrente());
   const linha = sug ? LINHA_LABEL[sug.linha] || '' : '';
+  const ab = !recolhivel || sugAbertas.has(g.data);
+  const tit = `<h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>`;
+  if (!ab) return `<div class="card adm sugestao"><button class="grp-h dobra" data-act="dobrarsug" aria-expanded="false">${tit}<span class="count">${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}<span class="seta" aria-hidden="true">▸</span></span></button></div>`;
   const comOf = !!sug && [...sug.passe, ...sug.extra].some((x) => x.oferendas);
   const cabGiras = `<span class="sug-cab-g${linha.length > 14 ? ' mlongo' : linha.length > 9 ? ' longo' : ''}">Giras de ${esc(linha)}</span>`;
   const cab = comOf
@@ -423,7 +428,10 @@ function blocoSugestao(ps, g) {
     : [['Passe', sug.passe, 'passe'], ['Atendimento extra', sug.extra, 'extra']].map(([t, lista, k]) => `<div class="grp sug-grp"><div class="sug-sub ${k}"><h3>${t}</h3><span class="sug-qtd">${lista.length}</span></div>
       ${lista.length ? `<div class="sug-lista">${cab}${lista.map((x) => linhaSugestao(x, linha, g.data.slice(0, 4))).join('')}</div>`
         : '<p class="muted sug-vazio">Ninguém marcou esta entidade.</p>'}</div>`).join('');
-  return `<div class="card adm sugestao"><div class="grp-h"><h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2>${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}</div>${corpo}
+  const cabSug = recolhivel
+    ? `<button class="grp-h dobra" data-act="dobrarsug" aria-expanded="true">${tit}<span class="count">${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}<span class="seta" aria-hidden="true">▾</span></span></button>`
+    : `<div class="grp-h">${tit}${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}</div>`;
+  return `<div class="card adm sugestao">${cabSug}${corpo}
     ${sug ? `<p class="sug-leg">${comOf ? 'Oferendas: Fr = orixá de frente · An = ancestral · Ad = adjunto · Ch = guia chefe · Fe = guia de frente<br>' : ''}Pres. = presença em ${g.data.slice(0, 4)} · Giras de ${esc(linha)} = em quantas esteve presente</p>` : ''}</div>`;
 }
 
@@ -496,11 +504,14 @@ function cardAulaCurimba() {
   if (!estado.minhaCurimba) return '';
   const hj = hoje();
   const aulas = estado.minhaCurimba.aulas.filter((a) => a.data <= hj && a.status).reverse();
-  const tit = '<div class="grp-h"><h2><span aria-hidden="true">🥁</span> Aula de curimba</h2></div>';
-  if (!aulas.length) return `<div class="card comp-of cur-gira">${tit}<p class="muted" style="margin:0;font-size:.92rem">Nenhuma aula marcada ainda.</p></div>`;
+  // Sempre começa recolhido (só o título, com a % ao lado); tocar no título expande e recolhe.
+  const ab = abertos.has('aula');
   const pres = aulas.filter((a) => a.status === 'p').length;
-  const pct = Math.round((pres / aulas.length) * 100);
-  const cor = corDaFaixa(pct);
+  const pct = aulas.length ? Math.round((pres / aulas.length) * 100) : 0;
+  const cor = aulas.length ? corDaFaixa(pct) : '';
+  const tit = cabDobra('aula', '<span aria-hidden="true">🥁</span> Aula de curimba', aulas.length ? `<b class="cur-gira-pct">${pct}%</b>` : '');
+  if (!ab) return `<div class="card comp-of cur-gira ${cor}">${tit}</div>`;
+  if (!aulas.length) return `<div class="card comp-of cur-gira">${tit}<p class="muted" style="margin:0;font-size:.92rem">Nenhuma aula marcada ainda.</p></div>`;
   return `<div class="card comp-of cur-gira ${cor}">${tit}
     <div class="comp-of-g"><div><b class="cur-gira-pct">${pct}%</b> de presença <span class="muted">· ${pres} de ${aulas.length} aula${aulas.length > 1 ? 's' : ''}</span></div>
       <div class="mp-barra ${cor}"><span style="width:${pct}%"></span></div>
@@ -701,10 +712,20 @@ function renderGira() {
     </div>`;
   };
   const aberto = manual || duplasAbertas.has(g.data);
+  // Depois do sorteio, o bloco vem recolhido (só o título); tocar no título expande e recolhe.
+  // Aviso de faltas para remanejar continua à vista.
+  const avisoInvalidos = invalidos && sortearOk ? `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>` : '';
+  const titDobra = (ab) => `<button class="grp-h dobra" data-act="dobrarduplas" aria-expanded="${ab}">${tituloSorteio(true)}<span class="count"><span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
+  if (temDuplas && !aberto) {
+    h += `<div class="card${admin ? ' adm' : ''}">${titDobra(false)}${avisoInvalidos}</div>`;
+    if (editar) h += blocoSugestao(ps, g, true);
+    setTimeout(atualizarJanela, 0);
+    return h + '</section>';
+  }
   // Moldura dourada de admin para quem pode mexer na gira.
   // Depois de sorteado, o quadrado ↻ no canto cancela o sorteio (apaga as duplas e volta ao Sortear).
   const cancelaOk = temDuplas && sortearOk;
-  h += `<div class="card${admin ? ' adm' : ''}"><div class="grp-h">${tituloSorteio(temDuplas)}${cancelaOk ? `<button class="sort-cancel" data-act="askdel" data-k="csort:${g.data}" title="Cancelar o sorteio" aria-label="Cancelar o sorteio">↻</button>` : ''}</div>
+  h += `<div class="card${admin ? ' adm' : ''}"><div class="grp-h${temDuplas && !manual ? ' sort-h' : ''}">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}${cancelaOk ? `<button class="sort-cancel" data-act="askdel" data-k="csort:${g.data}" title="Cancelar o sorteio" aria-label="Cancelar o sorteio">↻</button>` : ''}</div>
       ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Cancelar o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Depois é só sortear de novo.`, 'cancelsort', 'Sim, cancelar') : ''}
       ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual) : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
         ? confirmaSorteio('<b>Tem certeza que quer sortear?</b> O app monta as duplas agora.', 'sortear', '🎲 Sortear')
@@ -714,13 +735,11 @@ function renderGira() {
         : `<button class="btn btn-grande pub-bt" data-act="publicar"><span class="pub-tit">📢 Publicar escala</span><span class="pub-sub">Só os admins veem o sorteio até publicar</span></button>`) : ''}
       ${!temDuplas && manual && !passada ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="true">Concluir ajuste</button></div>` : ''}`;
   if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
-  if (invalidos && sortearOk) h += `<div class="warnbox">${invalidos} dupla(s) envolvem alguém que faltou ou mudou de status. Toque em <b>Remanejar faltas</b> para ajustar só essas, sem mexer nas outras.</div>`;
+  h += avisoInvalidos;
   if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Use o Ajuste manual.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
   if (!temDuplas && !manual) {
     // Ainda não sorteado: sem Ajuste manual e sem "Ver mais"; só o resumo e quem está fora (licença etc.).
     h += `${!lista.length ? '<p class="muted" style="margin:0">Nenhum médium presente.</p>' : sortearOk ? '' : '<p class="muted" style="margin:0">As duplas ainda não foram sorteadas.</p>'}${blocosFora(ps, g)}</div>`;
-  } else if (!aberto) {
-    h += `${blocosFora(ps, g)}${botaoDobrar(false)}</div>`;
   } else {
   if (!lista.length) h += `<p class="muted">Nenhum médium presente.</p>`;
 
@@ -748,7 +767,7 @@ function renderGira() {
   h += `${manual ? '' : botaoDobrar(true)}</div>`;
   }
 
-  if (editar) h += blocoSugestao(ps, g);
+  if (editar) h += blocoSugestao(ps, g, temDuplas);
   setTimeout(atualizarJanela, 0);
   return h + '</section>';
 }
@@ -833,6 +852,11 @@ export const cliques = {
   },
   prescancel() { estado.confPres = null; atualizarJanela(); avisar(); },
   sortear: () => { duplasAbertas.add(giraAtual().data); sortear(); },
+  dobrarsug() {
+    const d = giraAtual().data;
+    if (sugAbertas.has(d)) sugAbertas.delete(d); else sugAbertas.add(d);
+    avisar();
+  },
   dobrarduplas() {
     const d = giraAtual().data;
     if (duplasAbertas.has(d)) duplasAbertas.delete(d); else duplasAbertas.add(d);

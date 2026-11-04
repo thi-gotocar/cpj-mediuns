@@ -544,6 +544,9 @@ body.deslogado .rodape{display:none}
 /* Quadrado ↻ no canto do bloco do sorteio: cancela o sorteio. */
 .sort-cancel{margin-left:auto;flex:none;width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:700 1.2rem/1 system-ui,sans-serif;cursor:pointer}
 .sort-cancel:hover{border-color:var(--accent);color:var(--accent)}
+/* Sorteio aberto: o título (que recolhe) e o ↻ na mesma linha */
+.grp-h.sort-h{flex-wrap:nowrap;align-items:center;gap:8px}
+.sort-h .grp-h.dobra{width:auto;flex:1 1 auto;min-width:0}
 .ver-mais{justify-self:center}
 .card-novo .btn-grande{margin-top:4px}
 .pp.ent-l{grid-template-columns:minmax(0,1fr) 150px 36px;align-items:center}
