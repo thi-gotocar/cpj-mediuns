@@ -6,8 +6,9 @@
 //      (quem não tem a aba no perfil só vê com a aba publicada)
 // POST /api/giras  { acao: 'video', id?, data, evento, youtube: link ou código, classes: [..] } · { acao: 'excluirVideo', id }  → vídeos
 //                  { acao: 'videosPublicar', publicada: true|false }  → { publicada }
-// GET  /api/giras?lista=oracoes — orações dos últimos 7 dias (todos logados)  → [{ id, texto, criadoEm, expiraEm, apagar }]
-// POST /api/giras  { acao: 'oracao', texto } (qualquer um logado) · { acao: 'excluirOracao', id } (quem pediu ou admin)  → orações
+// GET  /api/giras?lista=oracoes — orações dos últimos 7 dias (todos logados)  → [{ id, texto, criadoEm, expiraEm, apagar, reacoes, reagi }]
+// POST /api/giras  { acao: 'oracao', texto } (qualquer um logado) · { acao: 'excluirOracao', id } (quem pediu ou admin)
+//                  { acao: 'reagirOracao', id } (qualquer um logado; liga/desliga a 🕯️)  → orações
 // GET  /api/giras?lista=fotos — álbuns e fotos (aba Fotos), com links assinados do R2  → { albuns, fotos, usado, limite, configurado }
 // POST /api/giras  { acao: 'fotoAlbum', id?, data, nome }  → { ...fotos, albumId } (com id = editar: só admin)
 //                  { acao: 'fotoEnviar', albumId, foto, miniatura (JPEG em base64), largura, altura }  → { ok }
@@ -46,9 +47,11 @@ const exigirFotosAtiva = () => { if (!FOTOS_ATIVA) throw new HttpError(404, 'A a
 async function oracoes(eu, lista) {
   const L = lista || (await db.rpc('oracoes_listar'));
   const admin = pode(eu, 'eventos:editar');
-  return L.map(({ autor, ...o }) => ({ ...o, apagar: admin || autor === autorDe(eu) }));
+  const meu = autorDe(eu);
+  return L.map(({ autor, reacoes = [], ...o }) => ({ ...o, apagar: admin || autor === meu, reacoes: reacoes.length, reagi: reacoes.includes(meu) }));
 }
 async function acaoOracao(eu, b) {
+  if (b.acao === 'reagirOracao') return oracoes(eu, await db.rpc('oracao_reagir', { id: validarId(b.id, 'Oração'), autor: autorDe(eu) }));
   if (b.acao === 'excluirOracao') {
     return oracoes(eu, await db.rpc('oracao_excluir', { id: validarId(b.id, 'Oração'), autor: autorDe(eu), admin: pode(eu, 'eventos:editar') }));
   }
@@ -155,7 +158,7 @@ export default rota({
       if (typeof b.publicada !== 'boolean') throw new HttpError(400, 'Informe se a aba fica publicada.');
       return { publicada: await db.rpc('videos_publicar', { publicada: b.publicada }) };
     }
-    if (b.acao === 'oracao' || b.acao === 'excluirOracao') return acaoOracao(await exigir(req), b);
+    if (['oracao', 'excluirOracao', 'reagirOracao'].includes(b.acao)) return acaoOracao(await exigir(req), b);
     if (ACOES_FOTOS.includes(b.acao)) {
       exigirFotosAtiva();
       return acaoFoto(await exigir(req, 'fotos:ver'), b);

@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 64;  // v64: orações (aba Gira): pedidos que somem em 7 dias
+export const VERSAO = 65;  // v65: reação (🕯️) nas orações
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2110,6 +2110,39 @@ export const MIGRACOES = [
    begin
      delete from oracoes where id = (p ->> 'id')::uuid and (coalesce((p ->> 'admin')::boolean, false) or autor = p ->> 'autor');
      if not found then raise exception 'Oração não encontrada, ou só quem pediu pode excluir.'; end if;
+     return oracoes_listar();
+   end;
+   $$`,
+
+  // ================================================== v65: reação nas orações (🕯️ "acendi uma vela")
+  // Uma por pessoa em cada oração; tocar de novo tira. Somem junto com a oração.
+  `create table if not exists oracoes_reacoes (
+     oracao_id uuid not null references oracoes(id) on delete cascade,
+     autor     text not null,
+     criado_em timestamptz not null default now(),
+     primary key (oracao_id, autor)
+   )`,
+  // 'reacoes' = autores de quem reagiu (a API troca pela contagem e por "eu reagi").
+  `create or replace function oracoes_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from oracoes where criado_em < now() - interval '7 days';
+     return coalesce((select jsonb_agg(jsonb_build_object('id', o.id, 'texto', o.texto, 'autor', o.autor,
+                                                         'criadoEm', o.criado_em, 'expiraEm', o.criado_em + interval '7 days',
+                                                         'reacoes', coalesce((select jsonb_agg(r.autor) from oracoes_reacoes r where r.oracao_id = o.id), '[]'::jsonb))
+                                       order by o.criado_em desc)
+                      from oracoes o), '[]'::jsonb);
+   end;
+   $$`,
+  // p = { id, autor } — liga/desliga a reação de quem tocou.
+  `create or replace function oracao_reagir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if not exists (select 1 from oracoes where id = (p ->> 'id')::uuid) then raise exception 'Oração não encontrada.'; end if;
+     delete from oracoes_reacoes where oracao_id = (p ->> 'id')::uuid and autor = p ->> 'autor';
+     if not found then
+       insert into oracoes_reacoes (oracao_id, autor) values ((p ->> 'id')::uuid, p ->> 'autor');
+     end if;
      return oracoes_listar();
    end;
    $$`,

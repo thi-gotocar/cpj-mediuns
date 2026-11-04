@@ -457,9 +457,12 @@ function cardOracoes() {
       const bt = !o.apagar ? '' : conf
         ? `<button class="btn danger or-bt" data-act="oraexcluir" data-id="${o.id}">Confirmar</button>`
         : `<button class="btn or-bt" data-act="askdel" data-k="or:${o.id}">Excluir</button>`;
+      const n = o.reacoes || 0;
+      const vela = `<button class="btn or-bt or-vela${o.reagi ? ' on' : ''}" data-act="orareagir" data-id="${o.id}" aria-pressed="${!!o.reagi}"
+          title="${o.reagi ? 'Apagar minha vela' : 'Acender uma vela por este pedido'}"><span aria-hidden="true">🕯️</span> ${n}</button>`;
       return `<div class="evs-l or-l"><span class="evs-data or-ico" aria-hidden="true">🙏</span>
         <span class="evs-nome or-txt">${esc(o.texto)}</span>
-        <span class="or-dir"><span class="evs-tipo oracao">Oração</span>${bt}</span></div>`;
+        <span class="or-dir">${vela}${bt}</span></div>`;
     }).join('')}</div>`;
   } else h += '<p class="muted" style="margin:0;font-size:.88rem">Nenhum pedido de oração nos últimos 7 dias.</p>';
   h += aberto
@@ -914,6 +917,13 @@ export const cliques = {
   },
   oranova() { estado.oraNova = !estado.oraNova; avisar(); if (estado.oraNova) document.getElementById('or-texto')?.focus(); },
   async oraexcluir(el) { estado.confirm = null; if (await acaoOracoes('excluirOracao', { id: el.dataset.id })) toast('Oração excluída.'); },
+  // A vela muda na hora; a resposta do servidor corrige a contagem.
+  async orareagir(el) {
+    const o = (estado.oracoes || []).find((x) => x.id === el.dataset.id);
+    if (!o) return;
+    o.reacoes = (o.reacoes || 0) + (o.reagi ? -1 : 1); o.reagi = !o.reagi; avisar();
+    await acaoOracoes('reagirOracao', { id: o.id });
+  },
   eufoto(el) { estado.fotoVer = el.dataset.id; atualizarJanela(); },
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).
