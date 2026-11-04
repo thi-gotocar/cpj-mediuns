@@ -5,7 +5,7 @@
 // GET  /api/pessoas?lista=alunos  { turmas, alunos }  (alunos da CPJ: fora da corrente)
 // GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa, cabeca, cabecaPessoas }  (Histórico → Estatísticas: só contagens do Perfil)
 // POST /api/pessoas            { acao: 'alunos', nome: "A, B", turmaId } · { acao: 'aluno', id, nome?, turmaId? }
-//                              { acao: 'excluirAluno', id } · { acao: 'turma', nome }  → { turmas, alunos }
+//                              { acao: 'excluirAluno', id } · { acao: 'turma', id?, nome } (com id = renomear)  → { turmas, alunos }
 // GET  /api/pessoas?lista=curimba      { alunos, aulas, presencas }  (aba Curimba: controle à parte da corrente)
 // GET  /api/pessoas?lista=minhaCurimba { aulas: [{ data, nome, status }] } | null  (aba Gira: as aulas de quem está logado)
 // POST /api/pessoas            { acao: 'curimbaAluno', pessoaId? | nome } · { acao: 'curimbaExcluirAluno', id }
@@ -26,6 +26,7 @@ async function acaoAlunos(b) {
   if (b.acao === 'turma') {
     const nome = limpar(b.nome, 40);
     if (!nome || nome.length > 40) throw new HttpError(400, 'Informe o nome da turma (até 40 letras).');
+    if (b.id) return db.rpc('turma_aluno_renomear', { id: validarId(b.id, 'Turma'), nome });
     return db.rpc('turma_aluno_criar', { nome });
   }
   if (b.acao === 'excluirAluno') return db.rpc('aluno_excluir', { id: validarId(b.id, 'Aluno') });

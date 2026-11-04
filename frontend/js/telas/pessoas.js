@@ -225,7 +225,14 @@ function cardAlunos() {
   const fechadas = new Set(prefs.turmasFechadas || []);
   h += `<div class="al-grupos">${grupos.map((g) => {
     const fechado = fechadas.has(g.id || 'sem');
-    return `<div class="al-grupo"><button class="grp-h dobra al-gh" data-act="dobrarturma" data-t="${g.id || 'sem'}" aria-expanded="${!fechado}"><h3>${esc(g.nome)}</h3><span class="count">${g.lista.length} <span class="seta" aria-hidden="true">${fechado ? '▸' : '▾'}</span></span></button>
+    const cab = `<button class="grp-h dobra al-gh" data-act="dobrarturma" data-t="${g.id || 'sem'}" aria-expanded="${!fechado}"><h3>${esc(g.nome)}</h3><span class="count">${g.lista.length} <span class="seta" aria-hidden="true">${fechado ? '▸' : '▾'}</span></span></button>`;
+    // Quem edita os alunos renomeia a turma (Editar → nome, Salvar / Cancelar).
+    const cabTurma = !ed || !g.id ? cab
+      : estado.editTurma === g.id
+        ? `<form id="f-turma-ed" class="al-gh-l" data-id="${g.id}" autocomplete="off"><input type="text" id="turma-nome" value="${esc(g.nome)}" maxlength="40" aria-label="Nome da turma">
+            <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelturma">Cancelar</button></span></form>`
+        : `<div class="al-gh-l">${cab}<button class="btn small pp-bt" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}">Editar</button></div>`;
+    return `<div class="al-grupo">${cabTurma}
       ${fechado ? '' : g.lista.length ? `<div class="al-lista">${g.lista.map((a) => {
         if (!ed) return `<div class="al-l"><span class="nm">${esc(a.nome)}</span></div>`;
         // Editar: o nome e a turma ficam editáveis (Salvar / Cancelar).
@@ -387,6 +394,8 @@ export const cliques = {
   },
   editaluno(el) { estado.editAluno = el.dataset.id; avisar(); document.getElementById('al-nome')?.focus(); },
   cancelaluno() { estado.editAluno = null; avisar(); },
+  editturma(el) { estado.editTurma = el.dataset.id; avisar(); document.getElementById('turma-nome')?.select(); },
+  cancelturma() { estado.editTurma = null; avisar(); },
   delaluno(el) { estado.confirm = null; acaoAlunos('excluirAluno', { id: el.dataset.id }); },
 };
 
@@ -523,4 +532,14 @@ export async function salvarAluno(form) {
   estado.editAluno = null;
   if (!Object.keys(patch).length) { avisar(); return; }
   if (await acaoAlunos('aluno', { id, ...patch })) toast('Aluno alterado.');
+}
+
+// Turma em Editar: salva o novo nome.
+export async function salvarTurma(form) {
+  const id = form.dataset.id;
+  const t = (estado.alunos?.turmas || []).find((x) => x.id === id);
+  const nome = document.getElementById('turma-nome').value.replace(/\s+/g, ' ').trim();
+  if (!nome) { toast('Digite o nome da turma.'); return; }
+  if (t && nome === t.nome) { estado.editTurma = null; avisar(); return; }
+  if (await acaoAlunos('turma', { id, nome })) { estado.editTurma = null; toast('Turma renomeada.'); avisar(); }
 }

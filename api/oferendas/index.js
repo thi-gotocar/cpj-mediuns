@@ -52,7 +52,8 @@ function validarGrupos(v) {
 export default rota({
   GET: async (req) => {
     const eu = await exigir(req, 'oferendas:doar');
-    return resposta(await db.rpc('oferendas_estado'), eu);
+    // Já inclui os novos cadastrados nas listas por pessoa.
+    return resposta(await db.rpc('oferendas_sincronizar'), eu);
   },
   POST: async (req) => {
     const eu = await exigir(req, 'oferendas:doar');

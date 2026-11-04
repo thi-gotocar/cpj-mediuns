@@ -321,6 +321,8 @@ main.addEventListener('submit', async (e) => {
     await pessoas.renomear(e.target);
   } else if (id === 'f-aluno') {
     await pessoas.salvarAluno(e.target);
+  } else if (id === 'f-turma-ed') {
+    await pessoas.salvarTurma(e.target);
   } else if (id === 'f-lic') {
     await pessoas.enviarLicenca();
   } else if (id === 'f-add') {

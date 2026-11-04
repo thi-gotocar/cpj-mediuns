@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 65;  // v65: reação (🕯️) nas orações
+export const VERSAO = 67;  // v67: renomear turma dos alunos
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2144,6 +2144,36 @@ export const MIGRACOES = [
        insert into oracoes_reacoes (oracao_id, autor) values ((p ->> 'id')::uuid, p ->> 'autor');
      end if;
      return oracoes_listar();
+   end;
+   $$`,
+
+  // ================================================== v66: oferenda por pessoa segue o cadastro
+  // A cada leitura, quem foi cadastrado depois (pessoa da função ou aluno da turma escolhida) entra sozinho
+  // nas oferendas ainda não encerradas e de hoje em diante. Quem o admin tirou continua fora (a linha existe, excluída).
+  `create or replace function oferendas_sincronizar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into oferenda_mediuns (oferenda_id, pessoa_id)
+     select o.id, pe.id from oferendas o join pessoas pe on pe.funcao = any(o.grupos)
+     where o.por_medium and o.status <> 'encerrado' and o.data >= (now() at time zone 'America/Sao_Paulo')::date
+     on conflict do nothing;
+     insert into oferenda_alunos (oferenda_id, aluno_id)
+     select o.id, a.id from oferendas o join alunos a on aluno_no_grupo(a.turma_id, o.grupos)
+     where o.por_medium and o.status <> 'encerrado' and o.data >= (now() at time zone 'America/Sao_Paulo')::date
+     on conflict do nothing;
+     return oferendas_estado();
+   end;
+   $$`,
+
+  // ================================================== v67: renomear turma dos alunos (as oferendas guardam o id, não o nome)
+  `create or replace function turma_aluno_renomear(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update turmas_alunos set nome = btrim(p ->> 'nome') where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Turma não encontrada.'; end if;
+     return alunos_estado();
+   exception when unique_violation then
+     raise exception 'Essa turma já existe.';
    end;
    $$`,
 ];

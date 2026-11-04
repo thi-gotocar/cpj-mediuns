@@ -1,6 +1,6 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_OFERENDA, opcoesGruposOferenda, gruposMarcados } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -108,8 +108,7 @@ const etqsMed = (m) => `<span class="of-med-etqs">${etqMed(m.pagamento)}${etqMed
 // Um combo para cada conferência: pagamento e entrega.
 const comboMed = (of, m, campo, opcoes, rotulo) => `<select class="sel-med ${m[campo]}" data-act="ofmedium" data-campo="${campo}" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="${rotulo} de ${esc(m.nome)}">${opcoes.map(([k, l]) => `<option value="${k}" ${k === m[campo] ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
 // "Incluir novos cadastrados": de quais listas puxar (começa com os grupos da oferenda) e Confirmar.
-const GRUPOS_CORRENTE = GRUPOS_OFERENDA.map(([k]) => k).filter((k) => k !== 'alunos');
-// Grupos para escolher: a corrente por função e os alunos por turma (quando a lista de alunos está carregada).
+// Grupos para escolher: "Médiuns" (a corrente toda) e os alunos por turma (quando a lista de alunos está carregada).
 const opcoesGrupos = () => opcoesGruposOferenda(estado.alunos?.turmas, estado.alunos?.alunos);
 const chipsGrupos = (nome, act, marcados) => {
   const ops = opcoesGrupos();
@@ -325,7 +324,7 @@ export function render() {
       <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
       <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
       <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" data-act="pormedium" style="margin-top:3px" ${U().novaPorMedium ? 'checked' : ''}><span>Uma linha para cada pessoa<br><span class="muted" style="font-size:.85rem">Em cada linha o admin confere o pagamento (Pago / Não pago) e a entrega (Pendente / Entregue), e pode tirar quem não participa.</span></span></label>
-      <div class="of-grupos" id="of-grupos" ${U().novaPorMedium ? '' : 'hidden'}><span class="muted" style="font-size:.85rem;flex-basis:100%">De quais grupos vêm as pessoas:</span>
+      <div class="of-grupos" id="of-grupos" ${U().novaPorMedium ? '' : 'hidden'}><span class="muted" style="font-size:.85rem;flex-basis:100%">De quais grupos vêm as pessoas (Médiuns = médium, extra, passe, cambone, senha e curimba). Quem for cadastrado depois entra sozinho:</span>
         ${chipsGrupos('grupo', 'grupoof', U().novaGrupos || GRUPOS_CORRENTE)}</div>
       <button class="btn primary" type="submit">Criar</button></form>`;
     h += `</div>`;
@@ -350,7 +349,11 @@ const achar = (id) => {
 };
 
 export const cliques = {
-  dobrarnova() { U().novaAberta = !(U().novaAberta ?? !estado.oferendas.oferendas.length); avisar(); },
+  // Ao abrir, recarrega as turmas (uma turma nova no cadastro já aparece nos grupos).
+  dobrarnova() {
+    U().novaAberta = !(U().novaAberta ?? !estado.oferendas.oferendas.length); avisar();
+    if (U().novaAberta && pode('alunos:ver')) carregarAlunos();
+  },
   ofmais(el) {
     const { item } = achar(el.dataset.id);
     const eu = estado.oferendas.eu;
@@ -401,7 +404,7 @@ export const cliques = {
   },
   incluirmed(el) { U().incluir = U().incluir === el.dataset.id ? null : el.dataset.id; U().incluirGrupos = null; avisar(); },
   async atualizarmed(el) {
-    const grupos = [...el.closest('.of-incluir').querySelectorAll('input[name=grupoinc]:checked')].map((x) => x.value);
+    const grupos = gruposParaEnviar([...el.closest('.of-incluir').querySelectorAll('input[name=grupoinc]:checked')].map((x) => x.value));
     if (!grupos.length) { toast('Escolha pelo menos uma lista.'); return; }
     const antes = (achar(el.dataset.id).of?.mediuns || []).length;
     if (await acaoOferendas('atualizarMediuns', { id: el.dataset.id, grupos })) {
@@ -486,7 +489,7 @@ export async function enviar(form) {
     const titulo = document.getElementById('of-titulo').value, data = document.getElementById('of-data').value;
     const responsavelId = document.getElementById('of-resp').value;
     const porMedium = document.getElementById('of-pormedium').checked;
-    const grupos = [...form.querySelectorAll('input[name=grupo]:checked')].map((x) => x.value);
+    const grupos = gruposParaEnviar([...form.querySelectorAll('input[name=grupo]:checked')].map((x) => x.value));
     if (!data) { toast('Escolha a data.'); return; }
     if (!responsavelId) { toast('Escolha o responsável.'); return; }
     if (porMedium && !grupos.length) { toast('Escolha pelo menos um grupo (corrente ou alunos).'); return; }

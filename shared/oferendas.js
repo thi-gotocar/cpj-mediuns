@@ -6,16 +6,24 @@ export const GRUPOS_OFERENDA_KEYS = GRUPOS_OFERENDA.map(([k]) => k);
 // Alunos também por turma: 'turma:<id>' (os alunos daquela turma) e 'alunos:sem' (sem turma).
 // 'alunos' sozinho = todos os alunos (oferendas antigas).
 export const grupoOferendaValido = (g) => GRUPOS_OFERENDA_KEYS.includes(g) || g === 'alunos:sem' || /^turma:[0-9a-f-]{36}$/i.test(g);
-// Opções de grupo para a tela: as funções da corrente e, no lugar de "Alunos", uma por turma.
+// Na tela, as funções da corrente são uma opção só: "Médiuns" ('corrente') vale as seis.
+export const GRUPOS_CORRENTE = GRUPOS_OFERENDA_KEYS.filter((k) => k !== 'alunos');
+// Opções de grupo para a tela: "Médiuns" e, no lugar de "Alunos", uma por turma.
 export function opcoesGruposOferenda(turmas, alunos) {
-  const corrente = GRUPOS_OFERENDA.filter(([k]) => k !== 'alunos');
-  if (!turmas) return GRUPOS_OFERENDA;   // turmas desconhecidas (sem acesso aos alunos): "Alunos" inteiro
+  const corrente = [['corrente', 'Médiuns']];
+  if (!turmas) return [...corrente, ['alunos', 'Alunos']];   // turmas desconhecidas (sem acesso aos alunos): "Alunos" inteiro
   const porTurma = turmas.map((t) => ['turma:' + t.id, 'Alunos · ' + t.nome]);
   const semTurma = (alunos || []).some((a) => !a.turmaId) ? [['alunos:sem', 'Alunos sem turma']] : [];
   return [...corrente, ...porTurma, ...semTurma];
 }
-// Marcados na tela: "alunos" (todos) acende todas as turmas.
-export const gruposMarcados = (grupos, opcoes) => (grupos.includes('alunos') ? [...grupos, ...opcoes.map(([k]) => k).filter((k) => k.startsWith('turma:') || k === 'alunos:sem')] : grupos);
+// Marcados na tela: qualquer função da corrente acende "Médiuns"; "alunos" (todos) acende todas as turmas.
+export const gruposMarcados = (grupos, opcoes) => [
+  ...grupos,
+  ...(grupos.some((g) => GRUPOS_CORRENTE.includes(g)) ? ['corrente'] : []),
+  ...(grupos.includes('alunos') ? opcoes.map(([k]) => k).filter((k) => k.startsWith('turma:') || k === 'alunos:sem') : []),
+];
+// Para enviar: "Médiuns" volta a ser as seis funções.
+export const gruposParaEnviar = (marcados) => [...new Set(marcados.flatMap((g) => (g === 'corrente' ? GRUPOS_CORRENTE : [g])))];
 
 // Oferenda com uma linha por pessoa: duas conferências separadas, o pagamento e a entrega.
 export const PAGAMENTO = [['nao_pago', 'Não pago', '🔴'], ['pago', 'Pago', '🔵']];

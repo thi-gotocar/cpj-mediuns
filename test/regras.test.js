@@ -508,7 +508,7 @@ test('sorteio: médium com médium de passe junto tem preferência para ter 2 ca
 });
 
 test('oferendas: alunos por turma nos grupos', async () => {
-  const { grupoOferendaValido, opcoesGruposOferenda, gruposMarcados } = await import('../shared/oferendas.js');
+  const { grupoOferendaValido, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, GRUPOS_CORRENTE } = await import('../shared/oferendas.js');
   assert.ok(grupoOferendaValido('medium') && grupoOferendaValido('alunos') && grupoOferendaValido('alunos:sem'));
   assert.ok(grupoOferendaValido('turma:3f2c1a4e-0000-4000-8000-000000000001'));
   assert.ok(!grupoOferendaValido('turma:xyz') && !grupoOferendaValido('outro'));
@@ -518,4 +518,10 @@ test('oferendas: alunos por turma nos grupos', async () => {
   assert.ok(!ops.some(([k]) => k === 'alunos'), 'com as turmas, não há "Alunos" inteiro');
   assert.ok(opcoesGruposOferenda(undefined).some(([k]) => k === 'alunos'), 'sem acesso às turmas, fica "Alunos"');
   assert.deepEqual(gruposMarcados(['medium', 'alunos'], ops).filter((k) => k.startsWith('turma:')), ['turma:t1', 'turma:t2'], 'oferenda antiga com "alunos" marca todas as turmas');
+  // A corrente é uma opção só ("Médiuns"), que vale as seis funções.
+  assert.deepEqual(ops[0], ['corrente', 'Médiuns']);
+  assert.ok(!ops.some(([k]) => GRUPOS_CORRENTE.includes(k)), 'sem uma opção por função');
+  assert.ok(gruposMarcados(['cambone'], ops).includes('corrente'), 'qualquer função acende "Médiuns"');
+  assert.deepEqual(gruposParaEnviar(['corrente', 'turma:t1']), [...GRUPOS_CORRENTE, 'turma:t1']);
+  assert.ok(gruposParaEnviar(['corrente']).every(grupoOferendaValido));
 });

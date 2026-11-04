@@ -576,6 +576,10 @@ body.deslogado .rodape{display:none}
 .al-grupos{display:flex;flex-direction:column;gap:8px}
 .al-grupo{border:1px solid var(--line);border-radius:12px;padding:8px 12px}
 .al-gh h3{margin:0;font-size:1rem}
+/* Cabeçalho da turma com Editar ao lado (e o form de renomear no lugar) */
+.al-gh-l{display:flex;align-items:center;gap:8px;margin:0}
+.al-gh-l .al-gh{flex:1 1 auto;min-width:0}
+.al-gh-l input{flex:1 1 auto;min-width:0}
 .al-lista{display:flex;flex-direction:column;margin-top:4px}
 .al-l{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
 .al-l:first-child{border-top:0}

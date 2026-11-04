@@ -998,6 +998,11 @@ test('alunos da CPJ: turmas 09 a 11, fora da corrente; admin oferendas cadastra 
   const t12 = (await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', nome: 'Turma 12' })).json.turmas.find((t) => t.nome === 'Turma 12');
   assert.ok(t12);
   assert.equal((await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', nome: 'turma 12' })).status, 400);
+  // Renomear: mesmo id, nome novo; nome de outra turma não pode.
+  const ren = (await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', id: t12.id, nome: 'Turma 12 B' })).json.turmas;
+  assert.equal(ren.find((t) => t.id === t12.id).nome, 'Turma 12 B');
+  assert.equal((await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', id: t12.id, nome: 'Turma 10' })).status, 400);
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', id: t12.id, nome: 'Turma 12' });
   // Admin oferendas: alunos sim, corrente não.
   const of = (await api('POST', '/api/auth/entrar', null, { email: 'of@corrente.org', senha: 'senha-forte-9' })).json.token;
   const me = (await api('GET', '/api/auth/me', of)).json;
@@ -1172,6 +1177,11 @@ test('oferenda por pessoa: escolhe os grupos (funções e alunos); doação por 
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Médium Fora do Grupo', funcao: 'medium' });
   r = (await of({ acao: 'atualizarMediuns', id: o.id })).json;
   assert.ok(!r.oferendas.find((x) => x.id === o.id).mediuns.some((m) => m.nome === 'Médium Fora do Grupo'));
+  // Quem é cadastrado depois num grupo da oferenda entra sozinho ao ler a lista.
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Cambone Novo Oferenda', funcao: 'cambone' });
+  const lidas = (await api('GET', '/api/oferendas', ADMIN)).json.oferendas.find((x) => x.id === o.id).mediuns;
+  assert.ok(lidas.some((m) => m.nome === 'Cambone Novo Oferenda'), 'novo cambone entra sozinho');
+  assert.ok(!lidas.some((m) => m.nome === 'Médium Fora do Grupo'), 'quem não é dos grupos continua fora');
   r = (await of({ acao: 'excluirMedium', oferendaId: o.id, pessoaId: la.pessoaId })).json;
   assert.ok(!r.oferendas.find((x) => x.id === o.id).mediuns.some((m) => m.pessoaId === la.pessoaId));
   // Incluir escolhendo as listas: acrescenta os médiuns, não traz de volta quem foi tirado.
