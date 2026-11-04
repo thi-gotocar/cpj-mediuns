@@ -42,7 +42,7 @@ function desenhar(ctx, of, pintar) {
   let y = hh + 20;
   // médiuns (oferenda com uma linha por médium)
   if (of.porMedium && (of.mediuns || []).length) {
-    const COR = { pendente: ['#fbefc4', '#7a5600'], entregue: ['#d5f0df', '#1d6b3f'], pago: ['#dbe6fb', '#2c4ea3'], nao_pago: ['#f8dedb', '#a2423a'] };
+    const COR = { pendente: ['#fbefc4', '#7a5600'], entregue: ['#d5f0df', '#1d6b3f'], pago: ['#d5f0df', '#1d6b3f'], nao_pago: ['#fbefc4', '#7a5600'] };
     const c = contagemMediuns(of);
     fonte(500, 16);
     const resumo = quebrar(ctx, `Pago ${c.pago} · Não pago ${c.nao_pago} · Entregue ${c.entregue} · Pendente ${c.pendente}`, CW - 36);

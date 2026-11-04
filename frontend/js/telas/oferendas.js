@@ -110,7 +110,9 @@ function linhaItem(of, i, admin) {
 const etqMed = (st) => `<span class="st-med ${st}">${ROTULO_MEDIUM[st] || st}</span>`;
 const etqsMed = (m) => `<span class="of-med-etqs">${etqMed(m.pagamento)}${etqMed(m.entrega)}</span>`;
 // Um combo para cada conferência: pagamento e entrega.
-const comboMed = (of, m, campo, opcoes, rotulo) => `<select class="sel-med ${m[campo]}" data-act="ofmedium" data-campo="${campo}" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="${rotulo} de ${esc(m.nome)}">${opcoes.map(([k, l]) => `<option value="${k}" ${k === m[campo] ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+// 💰 pagamento e 📦 entrega, para diferenciar os dois combos de longe.
+const ICONE_MED = { pagamento: '💰', entrega: '📦' };
+const comboMed = (of, m, campo, opcoes, rotulo) => `<select class="sel-med ${m[campo]}" data-act="ofmedium" data-campo="${campo}" data-of="${of.id}" data-p="${m.pessoaId}" aria-label="${rotulo} de ${esc(m.nome)}">${opcoes.map(([k, l]) => `<option value="${k}" ${k === m[campo] ? 'selected' : ''}>${ICONE_MED[campo]} ${l}</option>`).join('')}</select>`;
 // "Incluir novos cadastrados": de quais listas puxar (começa com os grupos da oferenda) e Confirmar.
 // Grupos para escolher: "Médiuns" (a corrente toda) e os alunos por turma (quando a lista de alunos está carregada).
 const opcoesGrupos = () => opcoesGruposOferenda(estado.alunos?.turmas, estado.alunos?.alunos);
@@ -144,11 +146,12 @@ function blocoMediuns(of, admin) {
     ${admin && U().incluir === of.id ? painelIncluir(of) : ''}
     ${admin ? formAddPessoa(of, ms) : ''}`;
   if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Ninguém na lista.</p></div>`;
+  // Um cartão por pessoa: o nome (e, para o admin, ✕ para tirar) e embaixo Pagamento e Entrega, na cor da situação.
   h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${medConferido(m) ? 'ok' : m.pagamento === 'pago' || m.entrega === 'entregue' ? 'meio' : 'pend'}"><span class="nm">${esc(m.nome)}${m.aluno ? ' <span class="tag of-aluno">aluno</span>' : ''}</span>
-    ${admin ? `<span class="of-med-acts">${comboMed(of, m, 'pagamento', PAGAMENTO, 'Pagamento')}${comboMed(of, m, 'entrega', ENTREGA, 'Entrega')}
-      ${estado.confirm === 'om:' + of.id + ':' + m.pessoaId
+    ${admin ? `${estado.confirm === 'om:' + of.id + ':' + m.pessoaId
         ? `<button class="btn small danger" data-act="delmedium" data-of="${of.id}" data-p="${m.pessoaId}">Tirar</button>`
-        : `<button class="btn small" data-act="askdel" data-k="om:${of.id}:${m.pessoaId}" title="Tirar ${esc(m.nome)} desta lista" aria-label="Tirar ${esc(m.nome)} desta lista">✕</button>`}</span>` : etqsMed(m)}</div>`).join('')}</div>`;
+        : `<button class="btn small lock-x" data-act="askdel" data-k="om:${of.id}:${m.pessoaId}" title="Tirar ${esc(m.nome)} desta lista" aria-label="Tirar ${esc(m.nome)} desta lista">✕</button>`}
+      <span class="of-med-sts">${comboMed(of, m, 'pagamento', PAGAMENTO, 'Pagamento')}${comboMed(of, m, 'entrega', ENTREGA, 'Entrega')}</span>` : etqsMed(m)}</div>`).join('')}</div>`;
   return h + `</div>`;
 }
 

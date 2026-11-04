@@ -441,18 +441,23 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-med-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .of-med-h .btn{margin-left:auto}
 .of-med-cont{display:flex;flex-wrap:wrap;gap:6px}
-.of-med-lista{display:flex;flex-direction:column}
-.of-med-l{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 6px 10px;border-bottom:1px solid var(--line);border-left:4px solid transparent}
-.of-med-l:last-child{border-bottom:0}
-.of-med-l .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.st-med{display:inline-block;font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap}
-.sel-med{width:auto;font-size:.85rem;padding:4px 8px;font-weight:700;border-radius:8px}
-.st-med.pendente,.sel-med.pendente{background:#fbefc4;color:#7a5600}
-.st-med.entregue,.sel-med.entregue{background:#d5f0df;color:#1d6b3f}
-.st-med.pago,.sel-med.pago{background:#dbe6fb;color:#2c4ea3}
-.st-med.nao_pago,.sel-med.nao_pago{background:#f8dedb;color:#a2423a}
+/* Oferenda por pessoa: um cartão por pessoa. Verde = feito (pago / entregue), amarelo = falta (não pago / pendente).
+   Faixa à esquerda: verde com tudo feito, metade verde/metade amarela com um dos dois, amarela sem nada. */
+.of-med-lista{display:grid;gap:6px}
+.of-med-l{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 8px;padding:8px 10px 8px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.of-med-l::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--warn)}
+.of-med-l.ok{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:color-mix(in srgb,var(--ok) 8%,var(--surface))}
+.of-med-l.ok::before{background:var(--ok)}
+.of-med-l.meio::before{background:linear-gradient(var(--ok) 50%,var(--warn) 50%)}
+.of-med-l .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+/* Admin: nome e ✕ em cima; os dois combos embaixo, lado a lado do mesmo tamanho */
+.of-med-sts{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.of-med-l .lock-x{width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.st-med{display:inline-block;font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;border:1px solid transparent}
+.sel-med{width:100%;font-size:.85rem;padding:6px 8px;font-weight:700;border-radius:8px;border:1px solid transparent}
+.st-med.pago,.sel-med.pago,.st-med.entregue,.sel-med.entregue{background:var(--ok-soft);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.st-med.nao_pago,.sel-med.nao_pago,.st-med.pendente,.sel-med.pendente{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
 .st-med.nao_vai,.sel-med.nao_vai{background:#e4e7ec;color:#5b6678}
-.of-med-l.pendente{border-left-color:#e3b021}.of-med-l.entregue{border-left-color:#2f9e5b}.of-med-l.pago{border-left-color:#2c4ea3}.of-med-l.nao_pago{border-left-color:#c0453b}.of-med-l.nao_vai{border-left-color:#aab2bf}
 
 /* Aba Gira: presentes no primeiro bloco, "Você nesta gira", próxima gira */
 .pres-topo{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:8px}
@@ -565,7 +570,6 @@ body.deslogado .rodape{display:none}
 .st-nome-bt{background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer;text-decoration:underline dotted var(--muted);text-underline-offset:3px}
 .st-det-p{grid-column:2 / -1;display:flex;flex-direction:column;gap:2px;font-size:.82rem;background:var(--bg);border-radius:8px;padding:6px 10px;margin:2px 0 4px}
 .st-det-p .ruim{color:var(--off)}
-.of-med-acts{display:flex;align-items:center;gap:6px;flex:none}
 /* aba Perfil */
 .pf-linha{display:grid;grid-template-columns:1fr;gap:6px;padding:12px 0;border-top:1px solid var(--line)}
 .pf-linha:first-of-type{border-top:0;padding-top:2px}
@@ -678,10 +682,8 @@ body.deslogado .rodape{display:none}
 .ev-nome{flex:1 1 140px;min-width:0}
 .ev-acts{display:flex;gap:6px;margin-left:auto}
 /* oferenda por pessoa: pagamento e entrega separados */
-.of-med-l.ok{border-left-color:#2f9e5b}.of-med-l.meio{border-left-color:#2c4ea3}.of-med-l.pend{border-left-color:#e3b021}
 .of-med-etqs{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 .of-med-cont .muted{font-size:.8rem;align-self:center}
-@media (max-width:420px){.of-med-l{flex-wrap:wrap}.of-med-l .nm{flex-basis:100%}.of-med-acts{flex:1;justify-content:flex-end}}
 .ev-tipo{flex:0 1 130px}
 .evs-tipo{flex:none;margin-left:auto;font-size:.72rem;font-weight:700;border-radius:20px;padding:1px 8px;background:var(--bg);color:var(--muted);border:1px solid var(--line);align-self:center}
 .ev-nome .evs-tipo{margin-left:4px;vertical-align:middle}

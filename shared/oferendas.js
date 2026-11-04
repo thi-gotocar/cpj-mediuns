@@ -26,7 +26,8 @@ export const gruposMarcados = (grupos, opcoes) => [
 export const gruposParaEnviar = (marcados) => [...new Set(marcados.flatMap((g) => (g === 'corrente' ? GRUPOS_CORRENTE : [g])))];
 
 // Oferenda com uma linha por pessoa: duas conferências separadas, o pagamento e a entrega.
-export const PAGAMENTO = [['nao_pago', 'Não pago', '🔴'], ['pago', 'Pago', '🔵']];
+// Cores: amarelo = falta, verde = feito (na tela, no texto e na imagem do WhatsApp).
+export const PAGAMENTO = [['nao_pago', 'Não pago', '🟡'], ['pago', 'Pago', '🟢']];
 export const ENTREGA = [['pendente', 'Pendente', '🟡'], ['entregue', 'Entregue', '🟢']];
 export const PAGAMENTO_KEYS = PAGAMENTO.map(([k]) => k);
 export const ENTREGA_KEYS = ENTREGA.map(([k]) => k);
