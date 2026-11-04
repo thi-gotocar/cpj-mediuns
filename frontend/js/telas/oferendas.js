@@ -72,18 +72,23 @@ function linhaItem(of, i, admin) {
   }
   const conf = estado.confirm === 'oi:' + i.id;
   const libera = podeMarcarEntregue(i, of, hoje());
+  // Cada item começa recolhido numa linha: a cor da situação, o item, quem ficou responsável e,
+  // para o admin, "Ok, entregue" (liberado na data de entrega; pede confirmação numa janela).
+  // Tocar na linha mostra o resto e tocar de novo recolhe.
+  const aberto = (U().itensAbertos || []).includes(i.id);
+  const resp = i.doacoes.length ? i.doacoes.map((d) => esc(d.nome)).join(', ') : 'Ninguém ainda';
+  const ok = i.entregue ? '<span class="of-entregue">✓ Entregue</span>'
+    : admin ? `<button class="btn small of-ok" data-act="askentregue" data-id="${i.id}" ${libera ? '' : `disabled title="Libera em ${dataBR(dataEntrega(i, of))}"`}>Ok, entregue</button>` : '';
+  const cab = `<div class="of-top of-item-l"><button class="of-item-cab" data-act="dobraritem" data-id="${i.id}" aria-expanded="${aberto}">
+      <span class="dot ${s.completo ? 'ok' : 'pend'}" title="${s.completo ? 'Completo' : 'Faltam doadores'}"></span>
+      <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${i.doacoes.length ? '' : ' muted'}">${resp}</span></span>
+      <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>${ok}</div>`;
+  if (!aberto) return `<div class="of-item recolhido${s.completo ? ' completo' : ''}">${cab}</div>`;
   const entregaTxt = `Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}`;
-  let h = s.completo
-    ? `<div class="of-item completo">
-    <div class="of-top"><span class="dot ok" title="Completo"></span>
-      <span class="of-nome">${esc(i.nome)}</span><span class="muted of-ent">${entregaTxt}</span></div>
-    ${admin ? doadoresAdmin(i, s) : `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>`}`
-    : `<div class="of-item">
-    <div class="of-top"><span class="dot pend" title="Faltam doadores"></span>
-      <span class="of-nome">${esc(i.nome)}</span>
-      <span class="of-qtd">${s.doado} de ${i.quantidade}</span></div>
-    <div class="muted of-sub">${entregaTxt} · faltam <b>${s.falta}</b></div>
-    ${admin ? doadoresAdmin(i, s) : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>'}`;
+  const doadores = i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
+  let h = `<div class="of-item${s.completo ? ' completo' : ''}">${cab}
+    <div class="muted of-sub">${entregaTxt} · <b>${s.doado} de ${i.quantidade}</b>${s.completo ? '' : ` · faltam <b>${s.falta}</b>`}</div>
+    ${admin ? doadoresAdmin(i, s) : doadores}`;
   if (!i.entregue && of.status === 'publicado' && (max > 0 || minha > 0) && !travadaPara(of, eu.chave)) {
     h += `<div class="of-doar"><span class="muted">Vou doar:</span>
       <button class="btn small" data-act="ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>
@@ -91,10 +96,9 @@ function linhaItem(of, i, admin) {
       <button class="btn small ${minha ? '' : 'primary'}" data-act="ofmais" data-id="${i.id}" ${minha >= max ? 'disabled' : ''} aria-label="Mais ${esc(i.nome)}">+</button></div>`;
   }
   if (admin) {
+    // "Ok, entregue" fica na linha do item; aqui só o desfazer.
     h += `<div class="row of-adm">
-      ${i.entregue
-        ? `<button class="btn small" data-act="entregue" data-id="${i.id}" data-v="0">Desfazer entregue</button>`
-        : `<button class="btn small" data-act="entregue" data-id="${i.id}" data-v="1" ${libera ? '' : `disabled title="Libera em ${dataBR(dataEntrega(i, of))}"`}>Ok, entregue</button>`}
+      ${i.entregue ? `<button class="btn small" data-act="entregue" data-id="${i.id}" data-v="0">Desfazer entregue</button>` : ''}
       <button class="btn small" data-act="editaritem" data-id="${i.id}">Editar</button>
       ${conf ? `<button class="btn small danger" data-act="delitem" data-id="${i.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="oi:${i.id}">Excluir</button>`}
       ${!libera && !i.entregue ? `<span class="muted" style="font-size:.82rem">“Ok, entregue” libera em ${dataBR(dataEntrega(i, of))}</span>` : ''}</div>`;
@@ -368,7 +372,19 @@ export function render() {
   if (anteriores.length) {
     h += `<details class="anteriores"${U().anteriores ? ' open' : ''}><summary>Oferendas anteriores (${anteriores.length})</summary>${anteriores.map((o) => cardOferenda(o, admin)).join('')}</details>`;
   }
-  return h + `</section>`;
+  return h + janelaEntregue() + `</section>`;
+}
+
+// Janela "Confirmar entrega" do "Ok, entregue" da linha do item.
+function janelaEntregue() {
+  const { of, item } = U().confEntregue ? achar(U().confEntregue) : {};
+  if (!item) return '';
+  const resp = item.doacoes.map((d) => `${esc(d.nome)} (${d.quantidade})`).join(', ');
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ent-t"><div class="modal">
+    <h3 id="ent-t">Confirmar entrega</h3>
+    <p style="margin:0"><b>${esc(item.nome)}</b> da ${esc(of.titulo)} foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="entcancelar">Cancelar</button><button class="btn primary" data-act="entregue" data-id="${item.id}" data-v="1">Sim, entregue</button></div>
+  </div></div>`;
 }
 
 const achar = (id) => {
@@ -385,6 +401,13 @@ export const cliques = {
   dobrarnova() {
     U().novaAberta = !(U().novaAberta ?? !estado.oferendas.oferendas.length); avisar();
     if (U().novaAberta && pode('alunos:ver')) carregarAlunos();
+  },
+  // Item da oferenda: abre (mostra entrega, doadores, Vou doar e os botões do admin) e recolhe.
+  dobraritem(el) {
+    const set = new Set(U().itensAbertos || []);
+    if (set.has(el.dataset.id)) set.delete(el.dataset.id); else set.add(el.dataset.id);
+    U().itensAbertos = [...set];
+    avisar();
   },
   ofmais(el) {
     const { item } = achar(el.dataset.id);
@@ -405,8 +428,12 @@ export const cliques = {
     if (await acaoOferendas('doarPor', { itemId: el.dataset.item, chave: el.dataset.chave, quantidade: 0 })) toast('Doação excluída.');
   },
   async entregue(el) {
+    U().confEntregue = null;
     if (await acaoOferendas('entregue', { id: el.dataset.id, entregue: el.dataset.v === '1' })) toast(el.dataset.v === '1' ? 'Item marcado como entregue.' : 'Entrega desfeita.');
   },
+  // "Ok, entregue" na linha do item: abre a janela de confirmação.
+  askentregue(el) { U().confEntregue = el.dataset.id; avisar(); },
+  entcancelar() { U().confEntregue = null; avisar(); },
   editaritem(el) { U().editarItem = el.dataset.id; avisar(); },
   cancelaritem() { U().editarItem = null; avisar(); },
   async delitem(el) { estado.confirm = null; if (await acaoOferendas('excluirItem', { id: el.dataset.id })) toast('Item excluído.'); },

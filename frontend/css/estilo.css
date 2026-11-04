@@ -253,9 +253,20 @@ input[type=date]{min-width:0}
 .dot.pend{background:#e3b021}
 .legenda{margin:0;font-size:.85rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .legenda .dot{margin-left:8px}
-.of-itens{display:grid;gap:10px}
+.of-itens{display:grid;gap:6px}
 .of-item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:4px;background:var(--surface)}
 .of-item.completo{border-color:color-mix(in srgb,#2f9e5b 45%,var(--line))}
+/* Item recolhido: uma linha só (o cabeçalho é o botão que abre/recolhe) */
+.of-item.recolhido,.of-item.completo.recolhido{padding:8px 12px}
+.of-item-l{gap:8px}
+.of-item-cab{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.of-item-tx{flex:1 1 auto;min-width:0;display:grid}
+.of-item-tx .of-nome,.of-resp-i{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-resp-i{font-size:.8rem;color:var(--ink);opacity:.85}
+.of-resp-i.muted{color:var(--muted);opacity:1}
+.of-item-cab .seta{flex:none;color:var(--accent);font-size:.95rem}
+.btn.small.of-ok{flex:none;white-space:nowrap;padding:4px 10px}
+.of-entregue{flex:none;font-size:.78rem;font-weight:700;color:var(--ok);background:var(--ok-soft);border-radius:20px;padding:2px 8px;white-space:nowrap}
 .of-top{display:flex;align-items:center;gap:8px}
 .of-nome{font-weight:700;flex:1;min-width:0}
 .of-qtd{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -302,7 +313,6 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-of-bts .btn.atual{opacity:1;border-color:var(--accent);color:var(--accent)}
 .of-item.completo{padding:6px 12px;gap:2px}
 .of-item.completo .of-doadores,.of-item.completo .of-doad-adm{font-size:.85rem}
-.of-ent{font-size:.82rem;text-align:right}
 .of-dobra{justify-self:start;padding:2px 0}
 /* Aba Oferendas: "Seus compromissos" no topo — por oferenda, a data do evento, o nome e o que levar */
 .card.of-meus{border-left:4px solid var(--accent);gap:10px}
