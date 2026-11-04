@@ -154,7 +154,9 @@ const htmlPapel = (p, papel) => opcoesPapel(p).map(([k, t]) => `<option value="$
 // 1º combo da presença: Pendente, Presente, Falta, Ausente. Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
 function htmlStatus(g, sel, s, antesDoDia) {
   const ops = [...(g.pendentePadrao || s === 'pend' ? ['pend'] : []), 'p', 'f', 'a'];
-  const bloqueada = (k) => antesDoDia && (k === 'p' || k === 'f') && k !== sel;
+  // Antes do dia: Presente só no dia; Falta também, a não ser que o sorteio já tenha sido feito.
+  const sorteado = (g.pares || []).length > 0 || (g.passes || []).length > 0;
+  const bloqueada = (k) => antesDoDia && k !== sel && (k === 'p' || (k === 'f' && !sorteado));
   return ops.map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''} ${bloqueada(k) ? 'disabled' : ''}>${STATUS[k]}${bloqueada(k) ? ' (no dia)' : ''}</option>`).join('');
 }
 
