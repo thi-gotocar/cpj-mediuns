@@ -4,7 +4,7 @@ import { FUNCOES, STATUS, STATUS_KEYS, LINHAS, LINHA_LABEL, OPCOES_GIRA, giraEsp
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, publicarEscala, carregarOferendas, carregarPerfil, carregarFoto, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd, ajustarRolagem, iniciais } from '../util.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
-import { textoWhats, gruposExtras } from '../exportar.js';
+import { textoWhats } from '../exportar.js';
 import { gerarImagem } from '../imagem.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
@@ -351,31 +351,14 @@ const caixaPendente = (g) => `<div class="sorteio-pend"><span class="sp-icone" a
 // Quem está logado tem o bloco "Você nesta gira" (lá vai o aviso de pendente).
 const temBlocoEu = () => !!(estado.me?.pessoaId && estado.pessoas.some((x) => x.id === estado.me.pessoaId));
 
-// Só o resultado do sorteio (acesso da corrente).
+// Acesso da corrente: com a escala publicada, a imagem dela fica no card da gira (blocoImagemEscala);
+// aqui só os avisos de quando ainda não há escala. (A corrente só recebe as duplas depois de publicadas.)
 function resultado(g) {
-  const { lista, semPasse } = paresPorMedium(estado.pessoas, g);
+  const { lista } = paresPorMedium(estado.pessoas, g);
   const comDuplas = lista.some((x) => x.cams.length || x.passes.length);
-  if (!comDuplas) {
-    if (g.encerrada) return '<div class="card empty"><p class="muted" style="margin:0">Nenhuma escala registrada nesta gira.</p></div>';
-    return temBlocoEu() ? '' : `<div class="card">${caixaPendente(g)}</div>`;
-  }
-  const aberto = duplasAbertas.has(g.data);
-  let h = `<div class="card"><div class="grp-h">${tituloSorteio(true)}</div>`;
-  if (!aberto) return h + `${blocosFora(pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data)), g)}${botaoDobrar(false)}</div>`;
-  h += `<div class="pairs">`;
-  lista.forEach((x) => {
-    h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span><span></span><div class="cams">`;
-    h += x.cams.length ? x.cams.map((p) => `<div class="camrow"><span class="tag cam">Cambone</span><span class="nmc">${esc(nome(p.c))}</span></div>`).join('') : '<span class="muted">Sem cambone</span>';
-    h += x.passes.map((p) => `<div class="camrow"><span class="tag">Passe</span><span class="nmc">${esc(nome(p.c))}</span></div>`).join('');
-    h += `</div></div>`;
-  });
-  h += `</div>`;
-  if (semPasse.length) h += `<p class="muted" style="margin:0">Passe sem médium: ${semPasse.map(nome).map(esc).join(', ')}</p>`;
-  gruposExtras(estado.pessoas, g, girasLista()).forEach(([t, nomes]) => {
-    h += `<div class="grp"><h3>${t}</h3><p style="margin:0">${nomes.map(esc).join(', ')}</p></div>`;
-  });
-  h += blocosFora(pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data)), g);
-  return h + `${botaoDobrar(true)}</div>`;
+  if (comDuplas) return '';
+  if (g.encerrada) return '<div class="card empty"><p class="muted" style="margin:0">Nenhuma escala registrada nesta gira.</p></div>';
+  return temBlocoEu() ? '' : `<div class="card">${caixaPendente(g)}</div>`;
 }
 
 // Admin: "Sugestão Mi/Mãe Vê" — quem marcou no Perfil que se sente confiante na entidade da gira,
@@ -593,6 +576,7 @@ function renderGira() {
     ${blocoBanho(g)}
     ${blocoAusencia(ps, g)}
     ${blocoLicenca(ps, g)}
+    ${temDuplas && g.publicada ? blocoImagemEscala() : ''}
     ${encerrada ? `<div class="infobox"><div class="enc-info"><span><b>Gira encerrada.</b>${admin ? ' Para alterar a escala, reabra.' : ''}</span>
       ${g.atendimentos ? `<span>${textoAtendimentos(g.atendimentos)}</span>` : ''}
       ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}
@@ -606,7 +590,6 @@ function renderGira() {
     ${pode('escala:completa') ? painelResumo(g) : ''}` : ''}
     ${avisoEntidade(ps, g, editar, admin)}
     ${!editar && pode('escala:completa') ? `<p class="leitura" style="margin:0">Você está no modo de consulta: vê a escala e pode exportar, mas não altera.</p>` : ''}
-    ${!encerrada && (existe || editar) ? contagemPresentes(ps, g) : ''}
   </div>`;
 
   if (!ps.length) {
@@ -711,6 +694,9 @@ function renderGira() {
       ${pas.length ? `<select data-act="addpasse" data-m="${x.m.id}" aria-label="Adicionar médium de passe a ${esc(x.m.nome)}"><option value="">+ médium de passe</option>${pas.map((c) => opt(c, 'passes', 'sai de')).join('')}</select>` : ''}
     </div>`;
   };
+  // Escala publicada: a imagem já está no card da gira (para todos). Quem não edita a gira para aqui;
+  // o admin vê também o bloco do sorteio (com os controles).
+  if (temDuplas && g.publicada && !admin) { setTimeout(atualizarJanela, 0); return h + '</section>'; }
   const aberto = manual || duplasAbertas.has(g.data);
   // Depois do sorteio, o bloco vem recolhido (só o título); tocar no título expande e recolhe.
   // Aviso de faltas para remanejar continua à vista.
@@ -787,14 +773,35 @@ const imagemPronta = () => { const g = giraAtual(); return !!(estado.img && esta
 async function prepararImagem() {
   if (imagemPronta() || estado.waGerando) return;
   estado.waGerando = true;
+  const key = chaveImg();
   try {
     const g = giraAtual();
     const blob = await gerarImagem(estado.pessoas, g, girasLista());
     if (estado.img) URL.revokeObjectURL(estado.img.url);
-    estado.img = { url: URL.createObjectURL(blob), blob, key: chaveImg(), data: g.data, nome: 'escala-' + g.data + '.png' };
-  } catch (e) { toast(e.message); }
+    estado.img = { url: URL.createObjectURL(blob), blob, key, data: g.data, nome: 'escala-' + g.data + '.png' };
+  } catch (e) { estado.imgErro = key; toast(e.message); }
   estado.waGerando = false;
   atualizarJanela();
+  avisar();   // o card "Sorteio realizado!" mostra a imagem assim que fica pronta
+}
+
+// Card da gira, abaixo da Licença (escala publicada, para todos): "Sorteio realizado!" com a imagem da escala; tocar amplia.
+function blocoImagemEscala() {
+  const pronta = imagemPronta();
+  // Se a imagem falhou neste aparelho, não tenta de novo a cada redesenho.
+  const falhou = !pronta && estado.imgErro === chaveImg();
+  if (!pronta && !falhou) setTimeout(prepararImagem, 0);
+  return `<div class="esc-img-sec"><h3 class="sorteio-ok">🚀 Sorteio realizado! ❤️</h3>
+    ${pronta ? `<button class="esc-img-bt" data-act="escimg" aria-label="Ampliar a imagem da escala"><img src="${estado.img.url}" alt="Escala da gira"></button>
+      <p class="muted esc-img-dica">Toque na imagem para ampliar.</p>`
+      : falhou ? '<p class="muted" style="margin:0">Não consegui montar a imagem da escala neste aparelho.</p>'
+      : '<div class="loading">Preparando a imagem da escala…</div>'}</div>`;
+}
+
+// Imagem da escala ampliada (rola se for mais alta que a tela); tocar fecha.
+function janelaEscala() {
+  if (!estado.escImgVer || !imagemPronta()) return '';
+  return `<div class="modal-fundo esc-fundo" role="dialog" aria-modal="true" aria-label="Escala da gira"><div class="esc-grande"><img src="${estado.img.url}" alt="Escala da gira"></div></div>`;
 }
 
 function janelaWhats() {
@@ -944,6 +951,8 @@ export const cliques = {
   },
   eufoto(el) { estado.fotoVer = el.dataset.id; atualizarJanela(); },
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
+  escimg() { estado.escImgVer = true; atualizarJanela(); },
+  escimgfechar() { estado.escImgVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).
   waabrir() { estado.waJanela = true; atualizarJanela(); prepararImagem(); },
   wafechar() { estado.waJanela = null; atualizarJanela(); },
@@ -1024,7 +1033,7 @@ function gravarRapida(c) {
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
-  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() : '';
+  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
@@ -1033,7 +1042,7 @@ function atualizarJanela() {
     raizJanela.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
-      else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
+      else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : estado.escImgVer ? cliques.escimgfechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
     });
     // Data nova escolhida no calendário: salva e fecha.
     raizJanela.addEventListener('change', async (e) => {

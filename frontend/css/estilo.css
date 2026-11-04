@@ -1186,3 +1186,13 @@ button.eu-av{cursor:zoom-in}
 .or-form textarea{resize:none}
 .or-nova{justify-self:start}
 
+
+/* Card da gira, abaixo da Licença: "Sorteio realizado!" com a imagem da escala (a mesma do WhatsApp); tocar amplia */
+.esc-img-sec{display:grid;gap:8px}
+.esc-img-sec h3{margin:0}
+.esc-img-bt{display:block;width:100%;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:none;cursor:zoom-in}
+.esc-img-bt img{display:block;width:100%;height:auto}
+.esc-img-dica{margin:0;font-size:.8rem;text-align:center}
+.esc-fundo{background:rgba(0,0,0,.85);align-items:flex-start;justify-content:flex-start;overflow:auto;cursor:zoom-out;padding:12px}
+.esc-grande{margin:0 auto}   /* no tamanho em que a imagem foi desenhada (560 px, W em imagem.js): no celular rola um pouco para os lados */
+.esc-grande img{display:block;width:560px;max-width:none;height:auto;border-radius:8px}
