@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 70;  // v70: anamnese (aba Perfil)
+export const VERSAO = 71;  // v71: perfil "Admin perfil"
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2301,5 +2301,10 @@ export const MIGRACOES = [
      return anamnese_estado();
    end;
    $$`,
+
+  // ================================================== v71: perfil "Admin perfil" (já vem com o app)
+  // Se o root já criou um perfil com esse nome, fica o dele (on conflict do nothing).
+  ...PERFIS_PADRAO.filter((p) => p.chave === 'admin_perfil').map((p) => `insert into perfis (chave, nome, abas, ordem)
+     values ('${p.chave}', '${p.nome}', '${JSON.stringify(p.abas)}'::jsonb, ${p.ordem}) on conflict do nothing`),
 ];
 

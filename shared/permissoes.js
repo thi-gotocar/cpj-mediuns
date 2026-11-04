@@ -73,6 +73,8 @@ export const PERFIS_PADRAO = [
   { chave: 'admin_oferendas', nome: 'Admin oferendas', ordem: 3, abas: abasDe({ gira: tudo(true), alunos: tudo(true, true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true, true), perfil: tudo(true), fotos: tudo(true, true) }) },
   { chave: 'admin_ervas', nome: 'Admin ervas', ordem: 4, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true, true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true, true) }) },
   { chave: 'admin_curimba', nome: 'Admin curimba', ordem: 5, abas: abasDe({ gira: tudo(true), perfil: tudo(true), curimba: tudo(true, true), fotos: tudo(true, true) }) },
+  // Admin do perfil: o que a corrente vê e, na aba Perfil, o perfil de todos e a Anamnese (perguntas e respostas).
+  { chave: 'admin_perfil', nome: 'Admin perfil', ordem: 6, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true, true), fotos: tudo(true, true) }) },
   { chave: 'corrente', nome: 'Corrente', ordem: 99, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true) }) },
 ];
 // Perfis do sistema: não podem ser excluídos (o root e o acesso da corrente também não mudam de nome).

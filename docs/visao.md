@@ -37,7 +37,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - **Preço estimado das ervas não foi testado no banco.** A migração v61 (`preco_estimado`, copiada uma vez do preço atual) não rodou no Postgres; a tela foi conferida com banco falso.
 - **Alunos por turma nas oferendas não foi testado no banco.** A migração v62 (`aluno_no_grupo`) não rodou no Postgres; tela e validação conferidas com banco falso.
 - **Foto da pessoa no Perfil não foi testada no banco.** A migração v63 (`pessoas_fotos`) não rodou no Postgres; tela e permissões conferidas com banco falso.
-- **Anamnese não foi testada no banco.** A migração v70 (`anamnese_perguntas`, `anamnese_respostas`) não rodou no Postgres; tela e regras conferidas com banco falso, e o teste novo em `test/api.test.js` só roda no Linux. O compartilhar do arquivo (.txt) no WhatsApp não foi testado num celular.
+- **Anamnese não foi testada no banco.** As migrações v70 e v71 (perfil Admin perfil) (`anamnese_perguntas`, `anamnese_respostas`) não rodou no Postgres; tela e regras conferidas com banco falso, e o teste novo em `test/api.test.js` só roda no Linux. O compartilhar do arquivo (.txt) no WhatsApp não foi testado num celular.
 - **Ausência antecipada não foi testada no banco.** A migração v69 (`ausencias_previas`) não rodou no Postgres; o fluxo foi conferido com banco falso e o teste novo em `test/api.test.js` só roda no Linux.
 - **"Exibir no resumo" das oferendas não foi testado no banco.** A migração v68 (`no_resumo`, `oferenda_resumo` e `oferendas_estado` refeita) não rodou no Postgres.
 - **Renomear turma dos alunos não foi testado no banco.** A migração v67 (`turma_aluno_renomear`) não rodou no Postgres.

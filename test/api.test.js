@@ -929,7 +929,7 @@ test('reiniciar: a turma da limpeza volta para a próxima do rodízio', async ()
 
 test('perfis no banco: o root cria um perfil, marca as abas e as permissões valem na hora', async () => {
   const perfis = (await api('GET', '/api/usuarios?lista=perfis', ADMIN)).json;
-  assert.ok(['root', 'admin', 'usuario', 'admin_oferendas', 'admin_ervas', 'admin_curimba', 'corrente'].every((k) => perfis.some((f) => f.chave === k)));
+  assert.ok(['root', 'admin', 'usuario', 'admin_oferendas', 'admin_ervas', 'admin_curimba', 'admin_perfil', 'corrente'].every((k) => perfis.some((f) => f.chave === k)));
   assert.equal((await api('GET', '/api/usuarios?lista=perfis', USER)).status, 403);
   const criado = (await api('POST', '/api/usuarios', ADMIN, { acao: 'perfil', nome: 'Admin giras', abas: { gira: { editar: true } } })).json;
   const ag = criado.find((f) => f.nome === 'Admin giras');
