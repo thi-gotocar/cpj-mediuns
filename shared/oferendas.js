@@ -40,6 +40,20 @@ export function contagemMediuns(of) {
 // Linha "conferida": paga e entregue.
 export const medConferido = (m) => m.pagamento === 'pago' && m.entrega === 'entregue';
 
+// Compromissos de quem está logado (chave 'p:…'), da oferenda mais próxima à mais distante:
+// os itens que vai doar e ainda não foram entregues (só das oferendas de hoje em diante) e, na lista por pessoa,
+// a própria linha quando falta o pagamento ou a entrega (enquanto não for encerrada: o pagamento pode ficar para depois).
+export function compromissosDe(oferendas, chave, hoje) {
+  return (oferendas || []).filter((of) => of.status !== 'encerrado').map((of) => {
+    const itens = of.data >= hoje ? of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === chave)?.quantidade || 0 })).filter((x) => x.q && !x.i.entregue) : [];
+    const m = of.porMedium ? (of.mediuns || []).find((x) => 'p:' + x.pessoaId === chave) : null;
+    return { of, itens, linha: m && (m.pagamento !== 'pago' || m.entrega !== 'entregue') ? m : null };
+  }).filter((x) => x.itens.length || x.linha).sort((a, b) => a.of.data.localeCompare(b.of.data));
+}
+
+// Cor do percentual: verde com 100%, amarelo de 50% a 99%, vermelho abaixo de 50%.
+export const faixaPct = (pct) => (pct >= 100 ? 'cheio' : pct >= 50 ? 'meio' : 'baixo');
+
 export const somaDoado = (item) => (item.doacoes || []).reduce((a, d) => a + (Number(d.quantidade) || 0), 0);
 
 // { doado, falta, completo }

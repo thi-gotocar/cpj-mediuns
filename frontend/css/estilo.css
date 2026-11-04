@@ -304,8 +304,14 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .of-item.completo .of-doadores,.of-item.completo .of-doad-adm{font-size:.85rem}
 .of-ent{font-size:.82rem;text-align:right}
 .of-dobra{justify-self:start;padding:2px 0}
-.of-meus{border:1px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:10px 12px;display:grid;gap:6px}
-.of-meus-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+/* Aba Oferendas: "Seus compromissos" no topo — por oferenda, a data do evento, o nome e o que levar */
+.card.of-meus{border-left:4px solid var(--accent);gap:10px}
+.of-meus h2{display:flex;align-items:center;gap:6px}
+.of-meus-g{display:grid;gap:4px;padding-top:10px;border-top:1px solid var(--line)}
+.of-meus-data{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.of-meus-data .eyebrow{color:var(--accent)}
+.of-meus-data .ent{color:var(--gold);font-weight:700;font-size:.92rem}
+.btn.link.of-meus-tit{justify-self:start;padding:0;font:700 1.08rem var(--f-display);text-align:left;color:var(--ink)}
 /* Aba Gira: compromissos nas oferendas (último bloco) */
 .card.comp-of{border-left:4px solid var(--warn)}
 .comp-of h2{display:flex;align-items:center;gap:6px;flex-shrink:1;min-width:0}   /* no celular o título quebra a linha em vez de passar da borda */
@@ -588,11 +594,13 @@ body.deslogado .rodape{display:none}
 /* oferendas: percentual das doações */
 .of-pct{margin:6px 0 4px}
 .of-pct-h{display:flex;align-items:baseline;gap:6px;font-size:.92rem}
-.of-pct-h b{font:700 1.3rem var(--f-display);color:var(--accent)}
+.of-pct-h b{font:700 1.3rem var(--f-display);color:var(--faixa,var(--accent))}
 .of-pct-barra{height:8px;border-radius:6px;background:var(--line);overflow:hidden;margin-top:4px}
-.of-pct-barra span{display:block;height:100%;background:var(--accent);border-radius:6px}
-.of-pct.cheio .of-pct-h b{color:#1d7a3c}
-.of-pct.cheio .of-pct-barra span{background:#2e9b55}
+.of-pct-barra span{display:block;height:100%;background:var(--faixa,var(--accent));border-radius:6px}
+/* Cor do percentual: verde 100%, amarelo 50–99%, vermelho abaixo de 50% */
+:is(.of-pct,.of-medp,.of-res).cheio{--faixa:var(--ok)}
+:is(.of-pct,.of-medp,.of-res).meio{--faixa:var(--warn)}
+:is(.of-pct,.of-medp,.of-res).baixo{--faixa:var(--off)}
 .of-pct-aviso{margin:6px 0 0;font-size:.85rem;color:var(--ink)}
 /* Você nesta gira: nome da gira num balão branco */
 .eu-h{align-items:center;gap:8px;flex-wrap:wrap}
@@ -784,13 +792,21 @@ body.deslogado .rodape{display:none}
 .eu-l.eu-guia{display:block}
 /* Oferendas cadastradas: cada uma bem separada — borda de cima na cor da situação (azul publicada, vermelha bloqueada,
    amarela aguardando, verde completa, cinza encerrada), faixa no cabeçalho e sombra */
-.of-card{--of:var(--accent);border:1px solid color-mix(in srgb,var(--of) 30%,var(--line));border-top:5px solid var(--of);box-shadow:0 8px 22px rgba(0,0,0,.28);margin-bottom:6px}
+.of-card{scroll-margin-top:64px;--of:var(--accent);border:1px solid color-mix(in srgb,var(--of) 30%,var(--line));border-top:5px solid var(--of);box-shadow:0 8px 22px rgba(0,0,0,.28);margin-bottom:6px}
 .of-card.espera{--of:var(--warn)}
 .of-card.bloqueada{--of:var(--off)}
 .of-card.completa{--of:var(--ok)}
 .of-card.encerrada{--of:var(--muted)}
 .of-cab{margin:-16px -16px 0;padding:14px 16px 12px;border-radius:var(--r) var(--r) 0 0;border-bottom:1px solid color-mix(in srgb,var(--of) 25%,var(--line));background:linear-gradient(180deg,color-mix(in srgb,var(--of) 16%,transparent),color-mix(in srgb,var(--of) 4%,transparent))}
-.of-cab .eyebrow{color:var(--of)}
+.of-cab .eyebrow{color:var(--of);display:flex;justify-content:space-between;gap:8px}
+/* O cabeçalho é o botão que recolhe/expande a oferenda */
+button.of-cab{font:inherit;color:inherit;text-align:left;border-top:0;border-left:0;border-right:0;cursor:pointer;-webkit-appearance:none;appearance:none}
+button.of-cab:focus-visible{outline:2px solid var(--of);outline-offset:-2px}
+.of-seta{font-size:.9rem}
+.of-card.recolhida .of-cab{margin-bottom:-16px;border-bottom:0;border-radius:var(--r)}
+.of-resumo{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.of-res{font-size:.78rem;font-weight:600;border-radius:20px;padding:2px 9px;color:var(--faixa);border:1px solid color-mix(in srgb,var(--faixa) 45%,var(--line));background:color-mix(in srgb,var(--faixa) 14%,transparent)}
+.of-res b{font-weight:800}
 .of-cab-l{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .of-sec{display:flex;align-items:center;gap:10px;margin-top:6px}
 .of-sec h2{font-size:1.15rem}
@@ -801,8 +817,6 @@ body.deslogado .rodape{display:none}
 .of-incluir{padding:4px 0 8px}
 .of-medp{margin:4px 0}
 .of-medp .of-pct-h b{font-size:1.1rem}
-.of-medp.pag .of-pct-h b{color:var(--accent)}.of-medp.pag .of-pct-barra span{background:var(--accent)}
-.of-medp.ent .of-pct-h b{color:var(--ok)}.of-medp.ent .of-pct-barra span{background:var(--ok)}
 .of-olho-bt{margin-left:auto;padding:0 6px;font-size:1.05rem;text-decoration:none}
 .of-olho-bt[aria-expanded="true"]{background:var(--accent-soft);border-radius:6px}
 .of-olho-bt:disabled{opacity:.35}

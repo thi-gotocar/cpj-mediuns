@@ -525,3 +525,25 @@ test('oferendas: alunos por turma nos grupos', async () => {
   assert.deepEqual(gruposParaEnviar(['corrente', 'turma:t1']), [...GRUPOS_CORRENTE, 'turma:t1']);
   assert.ok(gruposParaEnviar(['corrente']).every(grupoOferendaValido));
 });
+
+test('oferendas: cor do percentual por faixa', async () => {
+  const { faixaPct } = await import('../shared/oferendas.js');
+  assert.deepEqual([100, 99, 50, 49, 0].map(faixaPct), ['cheio', 'meio', 'meio', 'baixo', 'baixo']);
+});
+
+test('oferendas: seus compromissos (o que levar, por oferenda)', async () => {
+  const { compromissosDe } = await import('../shared/oferendas.js');
+  const doa = (q) => [{ chave: 'p:eu', quantidade: q }];
+  const ofs = [
+    { id: 'b', data: '2026-12-01', status: 'publicado', itens: [{ nome: 'Velas', doacoes: doa(2) }, { nome: 'Rosas', doacoes: doa(1), entregue: true }] },
+    { id: 'a', data: '2026-11-10', status: 'publicado', itens: [{ nome: 'Frutas', doacoes: doa(3) }] },
+    { id: 'velha', data: '2026-10-01', status: 'publicado', itens: [{ nome: 'Mel', doacoes: doa(1) }] },
+    { id: 'enc', data: '2026-12-05', status: 'encerrado', itens: [{ nome: 'Fitas', doacoes: doa(1) }] },
+    { id: 'pm', data: '2026-10-02', status: 'publicado', porMedium: true, itens: [], mediuns: [{ pessoaId: 'eu', pagamento: 'nao_pago', entrega: 'entregue' }] },
+    { id: 'nada', data: '2026-12-09', status: 'publicado', itens: [{ nome: 'Água', doacoes: [] }] },
+  ];
+  const r = compromissosDe(ofs, 'p:eu', '2026-11-03');
+  assert.deepEqual(r.map((x) => x.of.id), ['pm', 'a', 'b'], 'da mais próxima à mais distante; sem a passada, a encerrada e a sem compromisso');
+  assert.deepEqual(r[2].itens.map((x) => [x.i.nome, x.q]), [['Velas', 2]], 'o que já foi entregue sai');
+  assert.equal(r[0].linha.pagamento, 'nao_pago', 'lista por pessoa: falta pagar, mesmo com a data passada');
+});

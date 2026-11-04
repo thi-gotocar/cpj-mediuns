@@ -1,6 +1,6 @@
 // Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje, dLong } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -149,20 +149,19 @@ function blocoMediuns(of, admin) {
 }
 
 // Primeiro bloco da oferenda: quem está logado e o que se comprometeu a doar.
-function meusCompromissos(of) {
-  const eu = estado.oferendas.eu;
-  const meus = of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q);
-  const minhaLinha = of.porMedium ? (of.mediuns || []).find((m) => 'p:' + m.pessoaId === eu.chave) : null;
-  // Lista por pessoa: a situação de quem está logado, com o nome de cada conferência.
-  const linhaMed = !of.porMedium ? ''
-    : minhaLinha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(minhaLinha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(minhaLinha.entrega)}</span></div>`
-    : `<p class="muted" style="margin:0;font-size:.88rem">Você não está na lista de pessoas desta oferenda.</p>`;
-  return `<div class="of-meus"><div class="of-meus-h"><span class="eyebrow">Seus compromissos</span><b>${esc(eu.nome || '')}</b></div>
-    ${linhaMed}
-    ${meus.length
-      ? `<ul>${meus.map(({ i, q }) => `<li><span class="of-meus-nome">${esc(i.nome)}</span> <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}${i.entregue ? ' · ✓ entregue' : ''}</span></li>`).join('')}</ul>`
-      : of.porMedium && !of.itens.length ? '' : `<p class="muted" style="margin:0;font-size:.88rem">${of.status === 'publicado' ? 'Você ainda não escolheu nada para doar. Toque em + no item que quiser doar.' : 'Você ainda não tem compromissos nesta oferenda.'}</p>`}
-  </div>`;
+// Topo da aba: tudo o que a pessoa se comprometeu a levar, por oferenda (data do evento, nome e o que levar).
+// Tocar no nome abre a oferenda lá embaixo.
+function cardMeusCompromissos() {
+  const eu = estado.oferendas.eu || {};
+  if (!eu.chave) return '';
+  const grupos = compromissosDe(estado.oferendas.oferendas, eu.chave, hoje());
+  let h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${grupos.length ? `<span class="count">${grupos.length}</span>` : ''}</div>`;
+  if (!grupos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
+  return h + grupos.map(({ of, itens, linha }) => `<div class="of-meus-g">
+      <span class="of-meus-data"><span class="eyebrow">${dataBR(of.data)}</span><span class="ent">${esc(Dia(of.data))}</span></span>
+      <button class="btn link of-meus-tit" data-act="vercomp" data-id="${of.id}">${esc(of.titulo)} ›</button>
+      ${linha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(linha.entrega)}</span></div>` : ''}
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('') + '</div>';
 }
 
 // Percentual das doações e, quando completa, até quando dá para alterar.
@@ -179,10 +178,16 @@ function barraDoacoes(of) {
   } else if (pct >= 100 && of.completaEm) {
     aviso = `✅ Completa! Dá para alterar até ${hora(fechaEm(of))}; depois, só o responsável.`;
   }
-  return `<div class="of-pct ${pct >= 100 ? 'cheio' : ''}"><div class="of-pct-h"><b>${pct}%</b> <span class="muted">das doações</span></div>
+  return `<div class="of-pct ${faixaPct(pct)}"><div class="of-pct-h"><b>${pct}%</b> <span class="muted">das doações</span></div>
     <div class="of-pct-barra" role="img" aria-label="${pct}% das doações"><span style="width:${pct}%"></span></div>
     ${aviso ? `<p class="of-pct-aviso">${aviso}</p>` : ''}</div>`;
 }
+
+// Lista por pessoa: quantos já pagaram / entregaram, em porcentagem.
+const pctMediuns = (of, campo, ok) => {
+  const ms = of.mediuns || [];
+  return ms.length ? Math.floor((ms.filter((m) => m[campo] === ok).length / ms.length) * 100) : 0;
+};
 
 // Lista por pessoa: Pagamento (pagos) e Entrega (entregues) em barra com a porcentagem; o 👁 mostra quem falta.
 function barrasMediuns(of) {
@@ -190,10 +195,10 @@ function barrasMediuns(of) {
   if (!ms.length) return '';
   const linha = (k, titulo, campo, ok, rotFalta) => {
     const n = ms.filter((m) => m[campo] === ok).length;
-    const pct = Math.floor((n / ms.length) * 100);
+    const pct = pctMediuns(of, campo, ok);
     const faltam = ms.filter((m) => m[campo] !== ok);
     const aberto = U().olho === of.id + ':' + k && faltam.length;
-    return `<div class="of-medp ${k}"><div class="of-pct-h"><span class="muted">${titulo}:</span> <b>${pct}%</b> <span class="muted">${n} de ${ms.length}</span>
+    return `<div class="of-medp ${k} ${faixaPct(pct)}"><div class="of-pct-h"><span class="muted">${titulo}:</span> <b>${pct}%</b> <span class="muted">${n} de ${ms.length}</span>
         <button class="btn link small of-olho-bt" data-act="olhomed" data-k="${of.id}:${k}" aria-expanded="${!!aberto}" ${faltam.length ? '' : 'disabled'} aria-label="Ver ${rotFalta}" title="Ver ${rotFalta}">👁</button></div>
       <div class="of-pct-barra" role="img" aria-label="${titulo}: ${pct}%"><span style="width:${pct}%"></span></div>
       ${aberto ? `<p class="of-olho"><span class="muted">${rotFalta[0].toUpperCase() + rotFalta.slice(1)} (${faltam.length}):</span> ${faltam.map((m) => esc(m.nome)).join(', ')}</p>` : ''}</div>`;
@@ -201,14 +206,14 @@ function barrasMediuns(of) {
   return linha('pag', 'Pagamento', 'pagamento', 'pago', 'quem não pagou') + linha('ent', 'Entrega', 'entrega', 'entregue', 'entregas pendentes');
 }
 
-// Oferenda minimizada: os itens que ainda faltam doação, 2 à vista; "Ver mais" mostra os outros.
-function previaPendentes(of, admin) {
-  const pend = of.itens.filter((i) => !situacao(i).completo);
-  if (!pend.length) return '';
-  const todos = (U().maisPend || []).includes(of.id);
-  return `<p class="muted legenda"><span class="dot pend"></span> faltam doadores (${pend.length})</p>
-    <div class="of-itens">${(todos ? pend : pend.slice(0, 2)).map((i) => linhaItem(of, i, admin)).join('')}</div>
-    ${pend.length > 2 ? `<button class="btn link small" data-act="maispend" data-id="${of.id}" aria-expanded="${todos}">${todos ? 'Ver menos' : `Ver mais (${pend.length - 2})`}</button>` : ''}`;
+// Oferenda recolhida: no cabeçalho, só os percentuais (com a cor da faixa).
+function resumoRecolhida(of) {
+  const pcts = [];
+  if (!of.bloqueada && of.itens.length) pcts.push(['Doações', percentualDoado(of)]);
+  if (of.porMedium && !of.bloqueada && (of.mediuns || []).length) {
+    pcts.push(['Pagamento', pctMediuns(of, 'pagamento', 'pago')], ['Entrega', pctMediuns(of, 'entrega', 'entregue')]);
+  }
+  return pcts.map(([t, p]) => `<span class="of-res ${faixaPct(p)}">${t} <b>${p}%</b></span>`).join('');
 }
 
 // Cor da borda de cima de cada oferenda: azul publicada, vermelha bloqueada, amarela aguardando publicação,
@@ -220,9 +225,12 @@ function corOferenda(of) {
   return !of.bloqueada && of.itens.length && percentualDoado(of) >= 100 ? 'completa' : 'aberta';
 }
 
+// Toda oferenda começa recolhida (só o cabeçalho); tocar no cabeçalho expande e recolhe.
+// Aberta só enquanto o app estiver aberto.
 function cardOferenda(of, admin) {
   const u = U();
-  let h = `<div class="card of-card ${corOferenda(of)}" id="of-${of.id}">`;
+  const aberta = u.editar === of.id || (u.abertas || []).includes(of.id);
+  let h = `<div class="card of-card ${corOferenda(of)}${aberta ? '' : ' recolhida'}" id="of-${of.id}">`;
   if (admin && u.editar === of.id) {
     h += `<form class="row" data-form="ofed" data-id="${of.id}" autocomplete="off">
       <label class="field grow">Título<input type="text" name="titulo" maxlength="120" required value="${esc(of.titulo)}"></label>
@@ -243,9 +251,13 @@ function cardOferenda(of, admin) {
       `<button class="btn small st-bt ${bloq ? 'desbloquear' : ''}" data-act="statusof" data-id="${of.id}" data-v="${bloq ? volta : 'rascunho'}">${bloq ? 'Desbloquear' : 'Bloquear'}</button>`,
       `<button class="btn small st-bt encerrar ${enc ? 'ligado' : ''}" data-act="statusof" data-id="${of.id}" data-v="${enc ? volta : 'encerrado'}" aria-pressed="${enc}">${enc ? 'Encerrado' : 'Encerrar'}</button>`,
     ].join('');
-    // Cabeçalho primeiro (faixa colorida no topo do card), depois a situação e os botões do admin.
-    h += `<div class="datehead of-cab"><span class="eyebrow">Oferenda · ${dataBR(of.data)}</span><span class="dia of-titulo">${esc(of.titulo)}</span>
-        <span class="of-cab-l"><span class="ent">${esc(Dia(of.data))}</span>${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span></div>
+    // Cabeçalho primeiro (faixa colorida no topo do card; tocar recolhe/expande), depois a situação e os botões do admin.
+    const resumo = aberta ? '' : resumoRecolhida(of);
+    h += `<button class="datehead of-cab" data-act="dobrarof" data-id="${of.id}" aria-expanded="${aberta}"><span class="eyebrow">Oferenda · ${dataBR(of.data)}<span class="of-seta" aria-hidden="true">${aberta ? '▾' : '▸'}</span></span><span class="dia of-titulo">${esc(of.titulo)}</span>
+        <span class="of-cab-l"><span class="ent">${esc(Dia(of.data))}</span>${of.responsavel ? `<span class="of-resp">Responsável: <b>${esc(of.responsavel)}</b></span>` : ''}</span>
+        ${resumo ? `<span class="of-resumo">${resumo}</span>` : ''}</button>`;
+    if (!aberta) return h + `</div>`;
+    h += `
       ${admin ? `<div class="row st-of-linha">${of.status === 'publicado' ? '' : etiqueta(of.status)}${of.status === 'publicado' ? '' : `<span class="muted" style="font-size:.82rem;flex-basis:100%">${enc ? 'Oferenda encerrada: saiu da lista da corrente.' : bloq ? 'Bloqueada: a corrente vê a oferenda, mas não a lista de itens.' : 'A corrente ainda não vê esta oferenda. Toque em <b>Publicar</b> para liberar as doações.'}</span>`}
         <span class="st-of-bts">${bts}</span></div>` : ''}
       ${!admin && of.status === 'rascunho' ? `<div class="of-topo">${etiqueta('rascunho')}</div>` : ''}
@@ -253,17 +265,11 @@ function cardOferenda(of, admin) {
       ${of.porMedium && !of.bloqueada ? barrasMediuns(of) : ''}
       <p class="muted" style="margin:0;font-size:.88rem">${of.porMedium && !of.bloqueada ? `Uma linha por pessoa · ${(of.mediuns || []).length} pessoas${of.itens.length ? ' · ' : ''}` : ''}${of.bloqueada ? 'Lista bloqueada no momento.' : of.porMedium && !of.itens.length ? '' : of.itens.length ? `${of.itens.length} ${of.itens.length === 1 ? 'item' : 'itens'} · ${pend ? `${pend} com doação pendente` : 'todos com doadores'}` : 'Nenhum item ainda.'}</p>`;
   }
-  if (u.editar !== of.id) h += meusCompromissos(of);
-  // Sempre começa minimizada; abre só enquanto o app estiver aberto.
-  // Bloqueada: para a corrente, itens ocultos e sem o botão de ver. O admin continua vendo e alterando.
+  // Bloqueada: para a corrente, itens ocultos. O admin continua vendo e alterando.
   const bloqueada = of.status === 'rascunho' && !admin;
-  const temLista = of.itens.length > 0 || (of.porMedium && (of.mediuns || []).length > 0);
-  const fechada = bloqueada || (temLista && !(u.abertas || []).includes(of.id));
-  const dobra = u.editar !== of.id && temLista && !bloqueada
-    ? `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="${!fechada}">${fechada ? (of.porMedium ? '▸ Ver a lista' : '▸ Ver todos os itens') : '▾ Minimizar'}</button>` : '';
-  // Minimizada: os itens pendentes à vista e, depois, o link para ver tudo.
-  if (fechada) return h + (bloqueada || u.editar === of.id ? '' : previaPendentes(of, admin)) + dobra + rodapeOferenda(of, admin) + `</div>`;
-  h += dobra;
+  // No fim da oferenda aberta, "Recolher" (para não precisar voltar ao cabeçalho numa lista longa).
+  const recolher = u.editar !== of.id ? `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="true">▴ Recolher</button>` : '';
+  if (bloqueada) return h + recolher + `</div>`;
   // Em aberto primeiro; os completos (verdes) no fim.
   const ordem = [...of.itens].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
   if (of.porMedium) h += blocoMediuns(of, admin);
@@ -274,7 +280,7 @@ function cardOferenda(of, admin) {
   }
   h += `${of.itens.length ? '<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>' : ''}
     <div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
-  return h + rodapeOferenda(of, admin) + `</div>`;
+  return h + rodapeOferenda(of, admin) + recolher + `</div>`;
 }
 
 // Compartilhar, editar e excluir (aparece também com a oferenda minimizada).
@@ -314,7 +320,7 @@ export function render() {
   const hj = hoje();
   const proximas = lista.filter((o) => o.data >= hj);
   const anteriores = lista.filter((o) => o.data < hj).reverse();
-  let h = `<section class="panel">`;
+  let h = `<section class="panel">${cardMeusCompromissos()}`;
   if (admin) {
     // Começa minimizado; abre ao tocar no título (aberto já se ainda não houver nenhuma oferenda).
     const novaAberta = U().novaAberta ?? !lista.length;
@@ -381,11 +387,12 @@ export const cliques = {
   editarof(el) { U().editar = el.dataset.id; avisar(); },
   cancelarof() { U().editar = null; avisar(); },
   olhomed(el) { U().olho = U().olho === el.dataset.k ? null : el.dataset.k; avisar(); },
-  maispend(el) {
-    const set = new Set(U().maisPend || []);
-    if (set.has(el.dataset.id)) set.delete(el.dataset.id); else set.add(el.dataset.id);
-    U().maisPend = [...set];
+  // Seus compromissos → abre a oferenda e rola até ela.
+  vercomp(el) {
+    const id = el.dataset.id;
+    U().abertas = [...new Set([...(U().abertas || []), id])];
     avisar();
+    setTimeout(() => document.getElementById('of-' + id)?.scrollIntoView({ block: 'start' }), 0);
   },
   dobrarof(el) {
     const set = new Set(U().abertas || []);
@@ -496,10 +503,9 @@ export async function enviar(form) {
     if (await acaoOferendas('salvar', { titulo, data, responsavelId, porMedium, ...(porMedium ? { grupos } : {}) })) {
       U().novaPorMedium = false; U().novaGrupos = null;
       toast(porMedium ? 'Oferenda criada com uma linha para cada pessoa. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
-      if (porMedium) {
-        const nova = estado.oferendas.oferendas.filter((o) => o.porMedium && o.titulo === titulo.replace(/\s+/g, ' ').trim() && o.data === data).pop();
-        if (nova) { U().abertas = [...new Set([...(U().abertas || []), nova.id])]; avisar(); }
-      }
+      // A oferenda recém-criada já vem aberta (as outras continuam recolhidas).
+      const nova = estado.oferendas.oferendas.filter((o) => o.porMedium === porMedium && o.titulo === titulo.replace(/\s+/g, ' ').trim() && o.data === data).pop();
+      if (nova) { U().abertas = [...new Set([...(U().abertas || []), nova.id])]; avisar(); }
     }
     return;
   }

@@ -11,7 +11,7 @@ import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
 import { eventosDoTopo, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { corDaFaixa } from './curimba.js';
-import { textoEntrega, dataBR, ROTULO_MEDIUM } from '/shared/oferendas.js';
+import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe } from '/shared/oferendas.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
 const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
@@ -518,13 +518,7 @@ function cardCompromissos() {
   }
   const eu = estado.oferendas.eu || {};
   if (!eu.chave) return '';
-  const hj = hoje();
-  // Itens: só das oferendas de hoje em diante. Lista por pessoa: enquanto não estiver encerrada (o pagamento pode ficar para depois).
-  const grupos = (estado.oferendas.oferendas || []).filter((of) => of.status !== 'encerrado').map((of) => {
-    const itens = of.data >= hj ? of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0 })).filter((x) => x.q && !x.i.entregue) : [];
-    const m = of.porMedium ? (of.mediuns || []).find((x) => 'p:' + x.pessoaId === eu.chave) : null;
-    return { of, itens, linha: m && (m.pagamento !== 'pago' || m.entrega !== 'entregue') ? m : null };
-  }).filter((x) => x.itens.length || x.linha);
+  const grupos = compromissosDe(estado.oferendas.oferendas, eu.chave, hoje());
   if (!grupos.length) return '';
   const etq = (k) => `<span class="st-med ${k}">${ROTULO_MEDIUM[k] || k}</span>`;
   return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos nas oferendas</h2></div>
