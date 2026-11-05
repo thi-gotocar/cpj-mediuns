@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 75;  // v75: remover turma de alunos sem excluir os alunos
+export const VERSAO = 76;  // v76: questionário completo de anamnese
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1964,6 +1964,83 @@ export const MIGRACOES = [
      delete from turmas_alunos where id = (p ->> 'id')::uuid;
      if not found then raise exception 'Turma não encontrada.'; end if;
      return alunos_estado();
+   end;
+   $$`,
+
+  // ================================================== v76: questionário da anamnese (opções, obrigatoriedade e respostas longas)
+  `alter table anamnese_perguntas add column if not exists opcoes jsonb not null default '[]'::jsonb`,
+  `alter table anamnese_perguntas add column if not exists obrigatoria boolean not null default true`,
+  `alter table anamnese_perguntas drop constraint if exists anamnese_perguntas_texto_check`,
+  `alter table anamnese_perguntas add constraint anamnese_perguntas_texto_check check (length(btrim(texto)) between 1 and 500)`,
+  `alter table anamnese_perguntas drop constraint if exists anamnese_perguntas_tipo_check`,
+  `alter table anamnese_perguntas add constraint anamnese_perguntas_tipo_check check (tipo in ('texto', 'data', 'simnao', 'opcao', 'multipla'))`,
+  `create or replace function anamnese_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'perguntas', coalesce((select jsonb_agg(jsonb_build_object(
+         'id', id, 'texto', texto, 'tipo', tipo, 'opcoes', opcoes, 'obrigatoria', obrigatoria) order by criado_em)
+         from anamnese_perguntas), '[]'::jsonb),
+       'respostas', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pessoa_id, 'perguntaId', pergunta_id, 'resposta', resposta))
+         from anamnese_respostas), '[]'::jsonb));
+   $$`,
+  `create or replace function anamnese_pergunta_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into anamnese_perguntas (texto, tipo, opcoes, obrigatoria)
+     values (btrim(p ->> 'texto'), p ->> 'tipo', coalesce(p -> 'opcoes', '[]'::jsonb), coalesce((p ->> 'obrigatoria')::boolean, true));
+     return anamnese_estado();
+   end;
+   $$`,
+  `do $$
+   begin
+     if not exists (select 1 from sistema where chave = 'v76_anamnese_forms_seed') then
+       insert into anamnese_perguntas (texto, tipo, opcoes, obrigatoria)
+       select v.texto, v.tipo, v.opcoes::jsonb, v.obrigatoria
+       from (values
+         ('Nome Completo', 'texto', '[]', true),
+         ('Data de Nascimento', 'data', '[]', true),
+         ('RG', 'texto', '[]', false),
+         ('CPF', 'texto', '[]', false),
+         ('Número Carteira do SUS', 'texto', '[]', false),
+         ('Estado Civil', 'texto', '[]', false),
+         ('Profissão', 'texto', '[]', true),
+         ('Gênero / Identidade de Gênero', 'texto', '[]', true),
+         ('Endereço Residencial', 'texto', '[]', true),
+         ('Telefone', 'texto', '[]', true),
+         ('E-mail', 'texto', '[]', true),
+         ('Possui convênio?', 'simnao', '[]', true),
+         ('Se sim, qual seu convênio?', 'texto', '[]', false),
+         ('Nos informe 1 (um) contato de emergência (nome da pessoa; telefone; parentesco):', 'texto', '[]', true),
+         ('Doenças Anteriores', 'texto', '[]', true),
+         ('Já realizou alguma cirurgia (de qualquer porte)?', 'simnao', '[]', true),
+         ('Cirurgias já realizadas (de qualquer porte):', 'texto', '[]', false),
+         ('Alérgico(a) a algum medicamento?', 'simnao', '[]', true),
+         ('Se sim, qual (quais)?', 'texto', '[]', false),
+         ('Utiliza algum medicamento de forma contínua?', 'simnao', '[]', true),
+         ('Se sim, qual (quais)?', 'texto', '[]', false),
+         ('Sua família possui alguma doença hereditária (câncer, diabetes, entre outros)?', 'simnao', '[]', true),
+         ('Se sim, qual (quais)?', 'texto', '[]', false),
+         ('Ingere bebidas alcoólicas?', 'opcao', '["Sim, frequentemente.", "Sim, socialmente.", "Já experimentei, somente.", "Não mais.", "Nunca bebi."]', true),
+         ('Se sim, qual (quais)?', 'texto', '[]', false),
+         ('Fuma?', 'opcao', '["Sim, frequentemente.", "Sim, socialmente.", "Já experimentei, somente.", "Não mais.", "Nunca fumei."]', true),
+         ('Se sim, qual (quais)?', 'texto', '[]', false),
+         ('Vacinas em dia?', 'simnao', '[]', true),
+         ('Possui alguma doença psicológica ou distúrbio do neurodesenvolvimento diagnosticada? Selecione quais se enquadram.', 'multipla', '["Sim, TDAH.", "Sim, Depressão.", "Sim, Transtorno do Espectro Autista.", "Sim, Ansiedade.", "Sim, Transtorno Obsessivo-Compulsivo (TOC).", "Sim, Transtorno Bipolar.", "Sim, Transtorno de Personalidade Borderline (TPB).", "Sim, Transtorno de Estresse Pós-Traumático (TEPT).", "Sim, Esquizofrenia.", "Sim, Transtorno de Pânico.", "Sim, Transtorno de Aprendizagem (como dislexia, discalculia).", "Sim, Transtorno Esquizoafetivo.", "Sim, Transtorno de Ansiedade Generalizada (TAG).", "Sim, Transtorno de Compulsão Alimentar.", "Sim, Fobia Social (Ansiedade Social).", "Sim, Anorexia ou Bulimia Nervosa.", "Só tenho suspeita.", "Estou realizando exames para descobrir.", "Não tenho certeza (nunca procurei saber).", "Nenhuma acima (assinale somente caso tenha confirmação médica)."]', true),
+         ('Possui algum outro não listado acima? Se sim, qual?', 'texto', '[]', false),
+         ('Já teve COVID?', 'opcao', '["Sim, com sequelas.", "Sim, não tive sequelas.", "Não, nunca tive."]', true),
+         ('Se sim, com sequelas, quais?', 'texto', '[]', false),
+         ('Possui dor frequente em alguma região do corpo?', 'simnao', '[]', true),
+         ('Se sim, em qual região? (Especificar)', 'texto', '[]', false),
+         ('Já foi internado?', 'simnao', '[]', true),
+         ('Se sim, por qual motivo? (Especificar)', 'texto', '[]', false),
+         ('Já teve lesão muscular, articular ou óssea?', 'simnao', '[]', true),
+         ('Já teve entorse, fratura ou problema de coluna?', 'simnao', '[]', true),
+         ('Possui histórico de pressão alta ou problemas cardíacos?', 'simnao', '[]', true),
+         ('Caso haja alguma informação extra (surdez, hérnia, instabilidade nos joelhos, problemas motores, entre outros), informe abaixo:', 'texto', '[]', false)
+       ) as v(texto, tipo, opcoes, obrigatoria)
+       where not exists (select 1 from anamnese_perguntas q where lower(q.texto) = lower(v.texto));
+       insert into sistema (chave, valor) values ('v76_anamnese_forms_seed', 'ok') on conflict (chave) do nothing;
+     end if;
    end;
    $$`,
 ];

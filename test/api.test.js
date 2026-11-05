@@ -1280,8 +1280,13 @@ test('ausência antecipada: data futura ainda sem gira; ao criar a gira, a pesso
 test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as suas', async () => {
   const pq = (t, b) => api('POST', '/api/auth/anamnese', t, b);
   assert.equal((await pq(USER, { acao: 'pergunta', texto: 'Tem alergia?', tipo: 'simnao' })).status, 403);
-  assert.equal((await pq(ADMIN, { acao: 'pergunta', texto: 'x'.repeat(91), tipo: 'texto' })).status, 400, 'cabe numa linha');
+  assert.equal((await pq(ADMIN, { acao: 'pergunta', texto: 'x'.repeat(501), tipo: 'texto' })).status, 400, 'limite de 500 letras');
   assert.equal((await pq(ADMIN, { acao: 'pergunta', texto: 'Tem alergia?', tipo: 'outro' })).status, 400);
+  const inicial = (await api('GET', '/api/auth/anamnese', ADMIN)).json;
+  const dataNasc = inicial.perguntas.find((q) => q.texto === 'Data de Nascimento');
+  const escolha = inicial.perguntas.find((q) => q.tipo === 'opcao');
+  const mental = inicial.perguntas.find((q) => q.tipo === 'multipla');
+  assert.ok(dataNasc && escolha?.opcoes?.length && mental?.opcoes?.length > 10, 'migra o formulário, incluindo data e escolhas');
   let r = (await pq(ADMIN, { acao: 'pergunta', texto: '  Tem   alergia? ', tipo: 'simnao' })).json;
   r = (await pq(ADMIN, { acao: 'pergunta', texto: 'Toma algum remédio?', tipo: 'texto' })).json;
   const [q1, q2] = r.perguntas.slice(-2);
@@ -1293,7 +1298,12 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
   const C = ent.token;
   if (C) {
     assert.equal((await pq(C, { acao: 'responder', respostas: { [q1.id]: 'talvez' } })).status, 400);
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: 'a\nb\nc' } })).status, 400, 'até 2 linhas');
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: Array.from({ length: 21 }, () => 'a').join('\n') } })).status, 400, 'até 20 linhas');
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2026-02-29' } })).status, 400, 'data inexistente');
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [mental.id]: ['opção inválida'] } })).status, 400, 'opções validadas no servidor');
+    const sel = mental.opcoes[0];
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [mental.id]: [sel] } })).status, 200);
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2000-02-29', [escolha.id]: escolha.opcoes[0] } })).status, 200, 'data e escolha válidas');
     const m = (await pq(C, { acao: 'responder', respostas: { [q1.id]: 'sim', [q2.id]: ' dipirona ' } })).json;
     assert.deepEqual([m.minhas[q1.id], m.minhas[q2.id]], ['sim', 'dipirona']);
     assert.equal(m.todas, undefined, 'a corrente não vê as respostas dos outros');

@@ -3,7 +3,7 @@
 
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual,
-  ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, anamnesePreenchida, respostasPorPessoa, textoAnamnese } from '/shared/perfil.js';
+  ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_TIPO_LABEL, anamnesePreenchida, respostasPorPessoa, textoAnamnese, valorAnamnese } from '/shared/perfil.js';
 import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
 import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 
@@ -228,14 +228,23 @@ function meusCards(eu) {
 }
 
 // ---------- Anamnese ----------
-// Pessoa: as perguntas que o admin cadastrou. Fica travado; "Editar" libera os campos e "Salvar" grava
-// (os dois pedem confirmação numa janela). Selo "preenchido" com todas respondidas, senão "a preencher".
+// Pessoa: as perguntas cadastradas. Fica travado; "Editar" libera os campos e "Salvar" grava
+// (os dois pedem confirmação numa janela). O selo considera apenas perguntas obrigatórias.
 function campoAnamnese(q, i, v, ed) {
-  const rot = `<span class="ana-q">${i + 1}. ${esc(q.texto)}</span>`;
-  if (q.tipo === 'simnao') {
-    return `<fieldset class="ana-item"${ed ? '' : ' disabled'}><legend>${rot}</legend><span class="ana-sn">${ANAMNESE_SIMNAO.map(([k, l]) => `<label class="check"><input type="radio" name="ana-${q.id}" value="${k}" data-act="anaresp" data-q="${q.id}" ${v === k ? 'checked' : ''}> ${l}</label>`).join('')}</span></fieldset>`;
+  const rot = `<span class="ana-q">${i + 1}. ${esc(q.texto)}${q.obrigatoria === false ? ' <span class="muted">(opcional)</span>' : ' <span class="ana-obrig">*</span>'}</span>`;
+  if (q.tipo === 'simnao' || q.tipo === 'opcao' || q.tipo === 'multipla') {
+    const opcoes = q.tipo === 'simnao' ? ANAMNESE_SIMNAO : (q.opcoes || []).map((x) => [x, x]);
+    let selecionadas = [];
+    if (q.tipo === 'multipla') {
+      if (Array.isArray(v)) selecionadas = v;
+      else try { selecionadas = JSON.parse(v); } catch { selecionadas = []; }
+    }
+    const multi = q.tipo === 'multipla';
+    const marcadas = multi ? selecionadas : [v];
+    return `<fieldset class="ana-item"${multi ? ` data-multipla="${q.id}"` : ''}${ed ? '' : ' disabled'}><legend>${rot}</legend><span class="ana-sn">${opcoes.map(([k, l]) => `<label class="check"><input type="${multi ? 'checkbox' : 'radio'}" name="ana-${q.id}" value="${esc(k)}" data-act="anaresp" data-q="${q.id}" ${marcadas.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</span></fieldset>`;
   }
-  return `<label class="ana-item">${rot}<textarea rows="2" maxlength="${ANAMNESE_TEXTO_MAX}" data-act="anaresp" data-q="${q.id}"${ed ? ' placeholder="Sua resposta (até 2 linhas)"' : ' readonly placeholder="—"'}>${esc(v)}</textarea></label>`;
+  if (q.tipo === 'data') return `<label class="ana-item">${rot}<input type="date" value="${esc(v)}" data-act="anaresp" data-q="${q.id}"${ed ? '' : ' disabled'}></label>`;
+  return `<label class="ana-item">${rot}<textarea rows="4" maxlength="${ANAMNESE_TEXTO_MAX}" data-act="anaresp" data-q="${q.id}"${ed ? ' placeholder="Sua resposta (até 20 linhas)"' : ' readonly placeholder="—"'}>${esc(v)}</textarea></label>`;
 }
 function cardAnamnese() {
   const A = estado.anamnese;
@@ -245,15 +254,22 @@ function cardAnamnese() {
   const vals = ed ? U().anaRasc || {} : A.minhas || {};
   return card('anamnese', 'Anamnese', A.perguntas.length ? selo(ok ? true : 'apreencher') : '', false, () => (!A.perguntas.length
     ? '<p class="muted" style="margin:0">Nenhuma pergunta cadastrada ainda.</p>'
-    : `<div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, vals[q.id] || '', ed)).join('')}</div>
+    : `<p class="ana-instr">Ficha para apoio em emergências. Contém dados pessoais e de saúde: só você e administradores do Perfil podem consultar as respostas. Preencha as perguntas obrigatórias (<b>*</b>); campos opcionais ou iniciados por “Se sim” podem ficar em branco quando não se aplicarem.</p>
+      <div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, vals[q.id] || '', ed)).join('')}</div>
       <div class="row ana-bts">${ed ? '<button class="btn primary" data-act="anasalvar">Salvar</button><button class="btn" data-act="anacancelar">Cancelar</button>'
         : '<button class="btn" data-act="anaeditar">Editar</button>'}</div>`), true);
 }
 // Os valores que estão na tela (antes de abrir a janela de Salvar).
 function lerAnamneseTela() {
   const r = { ...(U().anaRasc || {}) };
-  document.querySelectorAll('.ana-lista textarea[data-q]').forEach((t) => { r[t.dataset.q] = t.value; });
+  document.querySelectorAll('.ana-lista textarea[data-q], .ana-lista input[type=date][data-q]').forEach((t) => { r[t.dataset.q] = t.value; });
   document.querySelectorAll('.ana-lista input[type=radio][data-q]:checked').forEach((t) => { r[t.dataset.q] = t.value; });
+  const multiplas = new Map();
+  document.querySelectorAll('.ana-lista [data-multipla]').forEach((grupo) => {
+    multiplas.set(grupo.dataset.multipla,
+      [...grupo.querySelectorAll('input[type=checkbox]:checked')].map((t) => t.value));
+  });
+  multiplas.forEach((xs, id) => { r[id] = xs; });
   return r;
 }
 function janelaAnamnese() {
@@ -278,7 +294,7 @@ function cardAnamneseAdmin(todos) {
   const pct = todos.length && A.perguntas.length ? Math.round((sim / todos.length) * 100) : 0;
   const u = U();
   const x = todos.find((t) => t.pessoaId === u.anaPessoa);
-  const val = (q, v) => (q.tipo === 'simnao' ? ({ sim: 'Sim', nao: 'Não' }[v] || '') : v || '');
+  const val = valorAnamnese;
   return card('anamnese-adm', 'Anamnese', `${sim} de ${todos.length}`, false, () => `
     <div class="pf-resp"><b>${pct}%</b><span>${sim} ${sim === 1 ? 'pessoa preencheu' : 'pessoas preencheram'} · ${todos.length - sim} ${todos.length - sim === 1 ? 'falta' : 'faltam'}</span></div>
     <div class="pf-barra" role="img" aria-label="${pct}% preencheram"><span style="width:${pct}%"></span></div>
@@ -288,7 +304,7 @@ function cardAnamneseAdmin(todos) {
       <label class="field">Pergunta<input type="text" id="ana-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" placeholder="Cabe numa linha" autocomplete="off"></label>
       <span class="ana-sn"><span class="muted">Resposta:</span>${ANAMNESE_TIPOS.map(([k, l], i) => `<label class="check"><input type="radio" name="ana-tipo" value="${k}" ${i ? '' : 'checked'}> ${l}</label>`).join('')}</span>
       <span class="row"><button class="btn small primary" data-act="anaperg">Salvar pergunta</button><button class="btn small" data-act="ananova">Cancelar</button></span></div>` : ''}
-    ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q) => `<li><span>${esc(q.texto)} <span class="tag">${q.tipo === 'simnao' ? 'Sim / Não' : 'Texto'}</span></span>
+    ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q) => `<li><span>${esc(q.texto)} <span class="tag">${ANAMNESE_TIPO_LABEL[q.tipo] || 'Texto'}${q.obrigatoria === false ? ' · opcional' : ''}</span></span>
       ${estado.confirm === 'anaq:' + q.id ? `<button class="btn small danger" data-act="anaexcluir" data-id="${q.id}">Excluir</button>`
         : `<button class="btn small lock-x" data-act="askdel" data-k="anaq:${q.id}" title="Excluir a pergunta (as respostas dela também saem)" aria-label="Excluir a pergunta">✕</button>`}</li>`).join('')}</ol>`
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma pergunta ainda.</p>'}
@@ -296,6 +312,7 @@ function cardAnamneseAdmin(todos) {
       <option value="">— escolha a pessoa —</option>
       ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === u.anaPessoa ? 'selected' : ''}>${esc(t.nome)}${anamnesePreenchida(A.perguntas, R[t.pessoaId]) ? ' ✓' : ''}</option>`).join('')}</select></label>
     ${x ? `<div class="ana-ver">${A.perguntas.map((q, i) => { const v = val(q, (R[x.pessoaId] || {})[q.id]); return `<div><span class="ana-q">${i + 1}. ${esc(q.texto)}</span><span class="${v ? 'ana-r' : 'muted'}">${esc(v || 'sem resposta')}</span></div>`; }).join('')}</div>` : ''}
+    <p class="ana-instr">O arquivo contém informações pessoais e de saúde. Compartilhe apenas com pessoas autorizadas.</p>
     <button class="btn" data-act="anacompartilhar"><span aria-hidden="true">📄</span> Compartilhar todas as respostas (arquivo)</button>`, true, true);
 }
 
@@ -458,7 +475,13 @@ export function digitando(el) {
 
 export const mudancas = {
   // Anamnese: guarda o que foi escolhido/digitado (sem redesenhar).
-  anaresp(t) { if (U().anaEdit) (U().anaRasc ||= {})[t.dataset.q] = t.value; },
+  anaresp(t) {
+    if (!U().anaEdit) return;
+    const r = (U().anaRasc ||= {});
+    if (t.type === 'checkbox') {
+      r[t.dataset.q] = [...document.querySelectorAll(`.ana-lista input[type=checkbox][data-q="${t.dataset.q}"]:checked`)].map((x) => x.value);
+    } else r[t.dataset.q] = t.value;
+  },
   anapessoa(t) { U().anaPessoa = t.value; avisar(); },
   // Foto: a escolhida no aparelho vira um quadrado pequeno e já é salva.
   async pffoto(t) {
