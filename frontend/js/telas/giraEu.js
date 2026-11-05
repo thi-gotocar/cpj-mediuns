@@ -16,7 +16,7 @@ export function blocoEu(g) {
   const curimba = ehCurimba(p);
   const st = curimba ? 'p' : status(p, g);
   const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
-  const pares = g.pares || [], passes = g.passes || [];
+  const pares = g.evento ? [] : g.pares || [], passes = g.evento ? [] : g.passes || [];
   const sorteado = pares.length > 0 || passes.length > 0;
   const camsDe = (m) => pares.filter((x) => x.m === m).map((x) => x.c);
   const passesDe = (m) => passes.filter((x) => x.m === m).map((x) => x.c);
@@ -69,7 +69,7 @@ export function blocoEu(g) {
     });
   }
   // Gira em aberto ainda sem sorteio: o aviso "Sorteio de escala pendente" fica dentro deste bloco.
-  if (!sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push(caixaPendente(g));
+  if (!g.evento && !sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push(caixaPendente(g));
   const pr = presencaDe(p, g);
   // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
   if (sorteado) { /* nada */ } else if (!curimba && estado.me?.corrente) {
@@ -91,7 +91,7 @@ export function blocoEu(g) {
       <select id="eu-aus" class="st-${pr}" data-act="status" data-id="${p.id}" aria-label="Seu status nesta gira">${htmlStatus(g, pr, st, g.pendentePadrao && g.data > hoje())}</select></label>`);
   } else if (!curimba && pr === 'pend') aviso('Sua presença ainda não foi confirmada.');
   // Turma da limpeza
-  const Lp = limpezaDaGira(estado.pessoas, g, girasLista());
+  const Lp = g.evento ? null : limpezaDaGira(estado.pessoas, g, girasLista());
   if (Lp && st !== 'lic') {
     if (Number(p.limpeza) === Lp.turma) L.push(`<div class="eu-limp">🧹 Hoje é sua turma de limpeza.</div>`);
     else if (Lp.ajudantes.some((x) => x.id === p.id)) {

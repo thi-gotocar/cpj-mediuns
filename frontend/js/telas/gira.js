@@ -47,7 +47,7 @@ function seletorEntidade(atual) {
 // Turma da limpeza do dia e quem ajuda (faltou na gira anterior). Vale para todos verem.
 // (O WhatsApp da turma fica na parte ⚙️ Evento do card do admin: "Compartilhar turma da limpeza".)
 function blocoLimpeza(g) {
-  if (!temLimpeza(g)) return '';
+  if (g.evento || !temLimpeza(g)) return '';
   const L = limpezaDaGira(estado.pessoas, g, girasLista());
   if (!L) return '';
   // Quem já está com ausência (ou falta) nesta gira aparece em vermelho e riscado.
@@ -338,9 +338,9 @@ function renderGira() {
       ${g.data >= hoje() ? blocoAusPrevia(ps, g) : ''}</div></section>`;
   }
   const { lista, validos, passesV, semPasse } = paresPorMedium(estado.pessoas, escalaDaGira(g));
-  const temDuplas = validos.length || passesV.length;
+  const temDuplas = !g.evento && (validos.length || passesV.length);
   // WhatsApp da escala (desabilitado sem sorteio): para o admin, na parte ⚙️ Evento; para quem só consulta, no card da gira.
-  const whats = pode('escala:completa') && existe;
+  const whats = pode('escala:completa') && existe && !g.evento;
   const eu = existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
   // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Aula de curimba, Sua presença e só depois a gira (próximo evento).
   // Admin: os comandos do evento ficam na parte "⚙️ Evento" do card do admin, não no card da gira.
@@ -359,8 +359,9 @@ function renderGira() {
     : `<div class="adm-sec adm-evento">${cabEvento}
       <div class="row">
         <label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>
+        <label class="ev-toggle"><input type="checkbox" data-act="evento" aria-label="Marcar esta atividade como evento" ${g.evento ? 'checked' : ''}><span>Evento</span></label>
         ${temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá${seletorOrixa(g)}</label>` : ''}
-        ${temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
+        ${!g.evento && temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
       </div>
       ${campoRecado(g)}
       ${avisoEntidade(ps, g, editar, admin)}
@@ -373,7 +374,7 @@ function renderGira() {
       ${estado.confirm === 'enc:' + g.data ? caixaEncerrar() : ''}</div>`;
   let h = `<section class="panel">${eu}${cardCompromissos()}${cardAulaCurimba()}
   <div class="card card-gira${existe && !encerrada ? ' aberta' : ''}">
-    <div class="datehead"><div class="dh-linha"><span class="eyebrow">${esc(dLong(g.data))}</span></div><span class="dia gira-nome">${g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
+    <div class="datehead"><div class="dh-linha"><span class="eyebrow">${esc(dLong(g.data))}</span></div><span class="dia gira-nome">${g.evento ? `Evento${g.entidade ? ` · ${esc(nomeGira(g.entidade))}` : ''}` : g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
       ${navegarGiras(g)}
       ${whats && !admin ? `<div class="enc-linha">${botaoWhats(temDuplas)}${encerrada ? botaoResumo(g) : ''}</div>` : ''}
@@ -384,7 +385,7 @@ function renderGira() {
     ${blocoAusencia(ps, g)}
     ${blocoFaltas(ps, g)}
     ${blocoLicenca(ps, g)}
-    ${temDuplas && (g.publicada || encerrada) ? blocoImagemEscala() : ''}
+    ${!g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala() : ''}
     ${encerrada ? blocoEncerrada(ps, g) : ''}
     ${encerrada && whats && !admin ? painelResumo(g) : ''}
   </div>`;
@@ -406,7 +407,8 @@ function renderGira() {
       ${completa ? '<button class="btn" data-act="goto" data-tab="hist">Ver histórico</button>' : ''}</div></section>`;
   }
   if (encerrada) { soEvento(); setTimeout(atualizarJanela, 0); return fecha(); }
-  if (!pode('escala:completa')) return h + resultado(g) + '</section>';
+  if (g.evento && !editar) return h + '</section>';
+  if (!pode('escala:completa') && !g.evento) return h + resultado(g) + '</section>';
 
   // presença
   const cont = (s) => ps.filter((p) => presencaDe(p, g) === s).length;
@@ -464,6 +466,12 @@ function renderGira() {
   });
   }
   h += `</div>`;   // fecha a Presença (no admin, só a parte; o card continua com o Sorteio e a Sugestão)
+
+  if (g.evento) {
+    h += '</div>';
+    setTimeout(atualizarJanela, 0);
+    return fecha();
+  }
 
   // duplas
   const map = custos(girasLista(), g.data, 'pares');
@@ -579,7 +587,7 @@ const botaoWhats = (ok, rotulo = 'WhatsApp') => (ok
   : `<button class="btn btn-grande wa-bt" disabled title="Faça o sorteio primeiro"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> ${rotulo}</button>`);
 // Admin (⚙️ Evento): manda o aviso da turma da limpeza para o WhatsApp (abre o app já com a mensagem).
 function botaoWhatsLimpeza(g) {
-  if (!temLimpeza(g) || !limpezaDaGira(estado.pessoas, g, girasLista())) return '';
+  if (g.evento || !temLimpeza(g) || !limpezaDaGira(estado.pessoas, g, girasLista())) return '';
   return `<a class="btn btn-grande wa-bt" title="Mandar a turma da limpeza no WhatsApp" href="https://wa.me/?text=${encodeURIComponent(textoLimpeza(estado.pessoas, g, girasLista()))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Turma da limpeza</a>`;
 }
 
@@ -974,6 +982,7 @@ export const mudancas = {
   rapst(t) { if (estado.presRapida) estado.presRapida.st = t.value; },
   rappapel(t) { if (estado.presRapida) estado.presRapida.papel = t.value; },
   limpezagira(t) { editarGira({ limpeza: t.value ? Number(t.value) : null }); avisar(); },
+  evento(t) { editarGira({ evento: t.checked }); avisar(); },
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },
   entidade(t) { editarGira({ entidade: t.value }); avisar(); },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },

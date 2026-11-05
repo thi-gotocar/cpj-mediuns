@@ -33,6 +33,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **Falta** direto na escala: marca falta e remaneja.
 - **Mãe Vê** vem sempre primeiro entre os médiuns nas listas da escala (aba Gira, texto e imagem do WhatsApp, quem já cambonou quem) — `ordRecebe`.
 - **Publicar escala**: até publicar, só quem edita vê o sorteio (`ocultarSorteio`).
+- **Evento na aba Gira**: o admin pode marcar uma atividade como Evento. Enquanto estiver marcado, a turma da limpeza, a escala e a Sugestão Mi/Mãe Vê não aparecem; o servidor também impede sortear, remanejar, publicar ou alterar a escala. A escala e a turma salvas ficam preservadas para permitir desfazer a opção, mas a escala é despublicada e só volta a ficar visível para todos se for publicada novamente.
 - **Atendidos** (Atendimento, Passe, Preferencial): na gira aberta o admin preenche a qualquer momento na parte ⚙️ Evento (salva sozinho; em branco conta 0). Encerrar exige ninguém pendente e só pede confirmação, usando esses números; quem sobrou vai para o Suporte. Reabrir desfaz.
 - Root corrige presença de qualquer gira (mesmo encerrada) em Histórico → Estatísticas (`acao: 'corrigirPresenca'`).
 - **Cadastrar escala** (aba **Admin root** → Giras antigas e escalas, **só o admin root**, como o Cadastrar gira antiga): cola o **texto** da escala de atendimentos de uma gira que já foi (formato em `shared/escalaTexto.js`) e grava quem cambonou quem e os médiuns de passe — entra no rodízio e na tabela "quem já cambonou quem". A imagem da escala não é usada.
@@ -240,4 +241,3 @@ stateDiagram-v2
     Travada --> Encerrado
     note right of Travada: só o responsável altera
 ```
-
