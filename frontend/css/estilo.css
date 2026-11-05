@@ -1172,10 +1172,9 @@ button.eu-av{cursor:zoom-in}
 
 .eu-pessoa + .eu-guia{padding-left:44px}
 
-/* Aba Gira: Orações (mesmo jeito dos Eventos; no lugar da data, as mãos em oração) */
+/* Aba Gira: Orações */
 .or-card{border-top-color:#a78bfa}
 .or-l{align-items:flex-start}
-.or-ico{font-size:1.6rem;padding:6px 0;background:color-mix(in srgb,#a78bfa 16%,transparent)}
 .or-txt{white-space:pre-line;font-weight:500;align-self:center}
 .or-dir{flex:none;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin-left:auto}
 /* Vela e Excluir no tamanho dos selos dos Eventos */

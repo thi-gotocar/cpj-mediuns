@@ -50,8 +50,7 @@ export function cardOracoes() {
       const n = o.reacoes || 0;
       const vela = `<button class="btn or-bt or-vela${o.reagi ? ' on' : ''}" data-act="orareagir" data-id="${o.id}" aria-pressed="${!!o.reagi}"
           title="${o.reagi ? 'Apagar minha vela' : 'Acender uma vela por este pedido'}"><span aria-hidden="true">🕯️</span> ${n}</button>`;
-      return `<div class="evs-l or-l"><span class="evs-data or-ico" aria-hidden="true">🙏</span>
-        <span class="evs-nome or-txt">${esc(o.texto)}</span>
+      return `<div class="evs-l or-l"><span class="evs-nome or-txt">${esc(o.texto)}</span>
         <span class="or-dir">${vela}${bt}</span></div>`;
     }).join('')}</div>`;
   } else h += '<p class="muted" style="margin:0;font-size:.88rem">Nenhum pedido de oração nos últimos 7 dias.</p>';
