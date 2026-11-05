@@ -150,6 +150,32 @@ test('gráfico do resumo: histórico de atendimentos da entidade nos últimos 12
   assert.equal(historicoAtendimentos([], { ...atual, entidade: '' }), null);
 });
 
+test('gráfico do resumo: frequência da corrente nas seis últimas giras encerradas da entidade', async () => {
+  const { historicoFrequencia } = await import('../shared/resumoGira.js');
+  const pessoas = [
+    { id: 'a', nome: 'Ana', funcao: 'medium' },
+    { id: 'b', nome: 'Bia', funcao: 'extra', entrada: '2026-03-01' },
+    { id: 'c', nome: 'Caio', funcao: 'curimba' },
+  ];
+  const atual = { data: '2026-10-14', entidade: 'Caboclo', encerrada: true, presenca: { a: 'p', b: 'f' } };
+  const giras = [
+    { data: '2026-01-14', entidade: 'Caboclo', encerrada: true, presenca: { a: 'p' } },
+    { data: '2026-02-14', entidade: 'Caboclo', encerrada: true, presenca: { a: 'a' } },
+    { data: '2026-03-14', entidade: 'Caboclo', encerrada: true, presenca: { a: 'p', b: 'p' } },
+    { data: '2026-04-14', entidade: 'Caboclo', encerrada: true, presenca: { a: 'f', b: 'p' } },
+    { data: '2026-05-14', entidade: 'Caboclo', encerrada: true, presenca: { a: 'p', b: 'p' } },
+    { data: '2026-06-14', entidade: 'Caboclo', encerrada: true, presenca: { a: 'p', b: 'a' } },
+    { data: '2026-07-14', entidade: 'Caboclo', encerrada: false, presenca: { a: 'a', b: 'a' } },
+    { data: '2026-08-14', entidade: 'Exu', encerrada: true, presenca: { a: 'p', b: 'p' } },
+  ];
+  const result = historicoFrequencia(giras, pessoas, atual);
+  assert.equal(result.giras.length, 6);
+  assert.deepEqual(result.giras[0], { data: '2026-02-14', presentes: 0, elegiveis: 1, frequencia: 0 });
+  assert.deepEqual(result.giras.at(-1), { data: '2026-10-14', presentes: 1, elegiveis: 2, frequencia: 50 });
+  assert.equal(result.media, 58);
+  assert.equal(historicoFrequencia([], pessoas, { ...atual, entidade: '' }), null);
+});
+
 test('curimba: entra na limpeza, mas não na presença', async () => {
   const { textoResumo, dadosResumo } = await import('../shared/resumoGira.js');
   const { limpezaDaGira } = await import('../shared/regras.js');

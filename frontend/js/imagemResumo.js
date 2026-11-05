@@ -142,6 +142,37 @@ function desenhar(ctx, d, logo, pintar) {
     return H;
   };
 
+  const graficoFrequencia = (giras, x, w, y0) => {
+    const H = 146;
+    const topo = y0 + 14;
+    const altura = 82;
+    const base = topo + altura;
+    if (pintar) {
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = 1;
+      [0, 0.5, 1].forEach((fracao) => {
+        const yy = base - altura * fracao;
+        ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke();
+      });
+      const slot = w / giras.length;
+      const bw = Math.min(34, slot * 0.56);
+      giras.forEach((g, i) => {
+        const cx = x + slot * (i + 0.5);
+        const h = (g.frequencia / 100) * altura;
+        ctx.fillStyle = COR_RESUMO.presente;
+        ctx.fillRect(cx - bw / 2, base - h, bw, h);
+        fonte(700, 13); ctx.fillStyle = C.ink; ctx.textAlign = 'center';
+        ctx.fillText(`${g.frequencia}%`, cx, Math.max(y0, base - h - 16));
+        fonte(500, 13); ctx.fillStyle = C.muted;
+        ctx.fillText(`${g.data.slice(8, 10)}/${g.data.slice(5, 7)}`, cx, base + 5);
+      });
+      fonte(500, 13); ctx.fillStyle = C.muted; ctx.textAlign = 'center';
+      ctx.fillText('pessoas presentes / aptas', x + w / 2, y0 + 125);
+      ctx.textAlign = 'left';
+    }
+    return H;
+  };
+
   // Pílulas: uma ao lado da outra, quebrando a linha quando não cabem.
   const pilulas = (lista, x, w, y0) => {
     const H = 30, GAP = 6;
@@ -203,6 +234,7 @@ function desenhar(ctx, d, logo, pintar) {
     yy += 34;
     if (c.quadros) yy += quadros(c.quadros, ix, iw, yy) + 10;
     if (c.grafico?.length) yy += grafico(c.grafico, ix, iw, yy) + 8;
+    if (c.graficoFrequencia?.length) yy += graficoFrequencia(c.graficoFrequencia, ix, iw, yy) + 8;
     if (c.nota) {
       if (pintar) { fonte(500, 16); ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.fillText(c.nota, ix + iw / 2, yy); ctx.textAlign = 'left'; }
       yy += 26;

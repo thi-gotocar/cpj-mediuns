@@ -6,7 +6,7 @@
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
 //   textoLimpeza(pessoas, g, giras) → aviso da turma da limpeza para o grupo do WhatsApp (ou '')
 
-import { status, presencaDe, daGira, licencaEm, nomeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { status, presencaDe, daGira, naCorrenteEm, licencaEm, nomeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -65,6 +65,31 @@ export function historicoAtendimentos(giras, atual) {
     quantidade: registros.length,
     total: registros.reduce((soma, g) => soma + g.total, 0),
     giras: registros.slice(-6),
+  };
+}
+
+// Frequência de presença da corrente nas seis giras encerradas mais recentes da entidade.
+export function historicoFrequencia(giras, pessoas, atual) {
+  if (!atual?.entidade || !atual.data) return null;
+  const chave = (entidade) => nomeGira(entidade).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const entidade = chave(atual.entidade);
+  if (!entidade) return null;
+  const registros = [...(giras || []).filter((g) => g.data !== atual.data), atual]
+    .filter((g) => g?.encerrada && g.data <= atual.data && chave(g.entidade) === entidade)
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .slice(-6)
+    .map((g) => {
+      const elegiveis = (pessoas || []).filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data))
+        .filter((p) => ['p', 'a', 'f'].includes(presencaDe(p, g)));
+      const presentes = elegiveis.filter((p) => presencaDe(p, g) === 'p').length;
+      return { data: g.data, presentes, elegiveis: elegiveis.length,
+        frequencia: elegiveis.length ? Math.round((presentes / elegiveis.length) * 100) : 0 };
+    });
+  if (!registros.length) return null;
+  return {
+    media: Math.round(registros.reduce((soma, g) => soma + g.frequencia, 0) / registros.length),
+    giras: registros,
   };
 }
 
