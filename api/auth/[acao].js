@@ -22,7 +22,7 @@ import { exigir } from '../_lib/sessao.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { permissoesDe, ehAcessoCorrente, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
-import { normalizarPerfil, perfilDaFuncao, blocosAfinidade, ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_SIMNAO, limparRespostaTexto } from '../../shared/perfil.js';
+import { normalizarPerfil, perfilDaFuncao, blocosAfinidade, ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_SIMNAO, ANAMNESE_OPCOES_MAX, ANAMNESE_OPCAO_MAX, limparRespostaTexto, limparRespostaData } from '../../shared/perfil.js';
 import { LINHA_KEYS } from '../../shared/regras.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -126,7 +126,7 @@ const acoes = {
       const texto = String(b.texto ?? '').replace(/\s+/g, ' ').trim();
       if (!texto || texto.length > ANAMNESE_PERGUNTA_MAX) throw new HttpError(400, `Escreva a pergunta numa linha (até ${ANAMNESE_PERGUNTA_MAX} letras).`);
       if (!ANAMNESE_TIPOS.some(([k]) => k === b.tipo)) throw new HttpError(400, 'Escolha o tipo da resposta (texto ou sim/não).');
-      return resposta(await db.rpc('anamnese_pergunta_salvar', { texto, tipo: b.tipo }));
+      return resposta(await db.rpc('anamnese_pergunta_salvar', { texto, tipo: b.tipo, opcoes: [], obrigatoria: true }));
     }
     if (b.acao !== 'responder') throw new HttpError(400, 'Ação inválida.');
     if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
@@ -136,12 +136,28 @@ const acoes = {
     for (const [id, v] of Object.entries(b.respostas)) {
       const q = perguntas.find((x) => x.id === id);
       if (!q) throw new HttpError(400, 'Pergunta não encontrada (a lista pode ter mudado: abra a aba de novo).');
-      if (q.tipo === 'simnao') {
+      if (v === '' || (Array.isArray(v) && !v.length)) {
+        respostas[id] = '';
+      } else if (q.tipo === 'simnao') {
         if (v !== '' && !ANAMNESE_SIMNAO.some(([k]) => k === v)) throw new HttpError(400, `Responda sim ou não: ${q.texto}`);
         respostas[id] = v;
+      } else if (q.tipo === 'data') {
+        const data = limparRespostaData(v);
+        if (!data) throw new HttpError(400, `Informe uma data válida: ${q.texto}`);
+        respostas[id] = data;
+      } else if (q.tipo === 'opcao') {
+        if (typeof v !== 'string' || !Array.isArray(q.opcoes) || !q.opcoes.includes(v)) throw new HttpError(400, `Escolha uma opção válida: ${q.texto}`);
+        respostas[id] = v;
+      } else if (q.tipo === 'multipla') {
+        if (!Array.isArray(q.opcoes) || q.opcoes.length > ANAMNESE_OPCOES_MAX
+          || q.opcoes.some((x) => typeof x !== 'string' || x.length > ANAMNESE_OPCAO_MAX)
+          || !Array.isArray(v) || v.length > ANAMNESE_OPCOES_MAX || v.some((x) => typeof x !== 'string' || !q.opcoes.includes(x))) {
+          throw new HttpError(400, `Escolha opções válidas: ${q.texto}`);
+        }
+        respostas[id] = JSON.stringify([...new Set(v)]);
       } else {
         const t = limparRespostaTexto(v);
-        if (t === null) throw new HttpError(400, `Resposta longa demais (até 2 linhas): ${q.texto}`);
+        if (t === null) throw new HttpError(400, `Resposta inválida (até ${ANAMNESE_TEXTO_MAX} caracteres e 20 linhas): ${q.texto}`);
         respostas[id] = t;
       }
     }

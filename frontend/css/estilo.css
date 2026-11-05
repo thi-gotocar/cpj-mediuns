@@ -1229,13 +1229,17 @@ button.eu-av{cursor:zoom-in}
 .adm-evento select:disabled{opacity:1;color:var(--ink);-webkit-text-fill-color:var(--ink);background:var(--bg);border-style:dashed;cursor:not-allowed;appearance:none;-webkit-appearance:none}
 
 /* Aba Perfil: Anamnese (pessoa: perguntas travadas até Editar; admin: perguntas, respostas e arquivo) */
+.ana-instr{margin:0 0 2px;font-size:.86rem;color:var(--muted)}
+.ana-obrig{color:var(--off)}
 .ana-lista{display:grid;gap:14px}
 .ana-item{display:grid;gap:6px;border:0;margin:0;padding:0;min-width:0}
 .ana-item legend{padding:0;margin-bottom:6px}
 .ana-q{font-weight:600;font-size:.92rem}
-.ana-item textarea{resize:none;width:100%;box-sizing:border-box;min-height:0;height:calc(2lh + 18px)}   /* 2 linhas */
+.ana-item textarea{resize:vertical;width:100%;box-sizing:border-box;min-height:calc(4lh + 18px)}
 .ana-item textarea[readonly]{background:var(--bg);border-style:dashed}
-.ana-sn{display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.ana-item input[type=date]:disabled{opacity:1;color:var(--ink);-webkit-text-fill-color:var(--ink);background:var(--bg);border-style:dashed}
+.ana-sn{display:flex;gap:8px 18px;flex-wrap:wrap;align-items:flex-start}
+.ana-sn .check{align-items:flex-start;max-width:100%}
 .ana-item[disabled] .ana-sn{opacity:.75}
 .ana-bts{justify-content:flex-end}
 .ana-adm-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}

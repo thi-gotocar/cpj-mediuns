@@ -572,14 +572,21 @@ test('oferendas: estatísticas das oferendas por pessoa (admin)', async () => {
 });
 
 test('anamnese: respostas, preenchida e arquivo', async () => {
-  const { limparRespostaTexto, anamnesePreenchida, respostasPorPessoa, textoAnamnese } = await import('../shared/perfil.js');
+  const { limparRespostaTexto, limparRespostaData, anamnesePreenchida, respostasPorPessoa, textoAnamnese } = await import('../shared/perfil.js');
   assert.equal(limparRespostaTexto('  tomo   remédio \n\n para pressão '), 'tomo remédio\npara pressão');
-  assert.equal(limparRespostaTexto('a\nb\nc'), null, 'até 2 linhas');
-  assert.equal(limparRespostaTexto('x'.repeat(201)), null, 'até 200 letras');
+  assert.equal(limparRespostaTexto(Array.from({ length: 21 }, () => 'a').join('\n')), null, 'até 20 linhas');
+  assert.equal(limparRespostaTexto('x'.repeat(2001)), null, 'até 2.000 letras');
+  assert.equal(limparRespostaData('2026-02-29'), null, 'data inexistente');
+  assert.equal(limparRespostaData('2024-02-29'), '2024-02-29');
   const P = [{ id: 'q1', texto: 'Tem alergia?', tipo: 'simnao' }, { id: 'q2', texto: 'Quais remédios?', tipo: 'texto' }];
   assert.ok(!anamnesePreenchida([], {}), 'sem perguntas não conta como preenchida');
   assert.ok(!anamnesePreenchida(P, { q1: 'sim' }));
   assert.ok(anamnesePreenchida(P, { q1: 'nao', q2: 'nenhum' }));
+  const comOpcionais = [...P, { id: 'q3', tipo: 'texto', obrigatoria: false }];
+  assert.ok(anamnesePreenchida(comOpcionais, { q1: 'nao', q2: 'nenhum' }), 'pergunta opcional não impede preenchimento');
+  const multipla = [{ id: 'q4', tipo: 'multipla' }];
+  assert.ok(!anamnesePreenchida(multipla, { q4: '[]' }));
+  assert.ok(anamnesePreenchida(multipla, { q4: '["opção"]' }));
   const R = respostasPorPessoa([{ pessoaId: 'a', perguntaId: 'q1', resposta: 'sim' }, { pessoaId: 'a', perguntaId: 'q2', resposta: 'dipirona' }, { pessoaId: 'b', perguntaId: 'q1', resposta: 'nao' }]);
   const txt = textoAnamnese(P, [{ id: 'a', nome: 'Ana' }, { id: 'b', nome: 'Bia' }, { id: 'c', nome: 'Caio' }], R, '2026-11-04');
   assert.match(txt, /Gerado em 04\/11\/2026/);
@@ -600,4 +607,3 @@ test('escala travada: falta e ausência não mudam a escala mostrada; encerrar c
   assert.deepEqual(trav.presenca, { c1: 'f', m2: 'a' }, 'a presença real não muda');
   assert.equal(encerrar(pessoas, trav).patch.pares.length, 0, 'ao encerrar, valem as faltas: a dupla de quem faltou não fica no histórico');
 });
-

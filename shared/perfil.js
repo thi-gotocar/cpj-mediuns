@@ -119,22 +119,52 @@ export function normalizarPerfil(p) {
 }
 
 // ---------- Anamnese (aba Perfil) ----------
-// O admin do perfil cadastra as perguntas (cabem numa linha); a resposta é texto (até 2 linhas) ou sim/não.
+// O admin do perfil cadastra perguntas livres; o formulário importado também usa data e escolhas.
 export const ANAMNESE_TIPOS = [['texto', 'Texto'], ['simnao', 'Sim / Não']];
-export const ANAMNESE_PERGUNTA_MAX = 90;
-export const ANAMNESE_TEXTO_MAX = 200;
+export const ANAMNESE_PERGUNTA_MAX = 500;
+export const ANAMNESE_TEXTO_MAX = 2000;
 export const ANAMNESE_SIMNAO = [['sim', 'Sim'], ['nao', 'Não']];
+export const ANAMNESE_OPCOES_MAX = 40;
+export const ANAMNESE_OPCAO_MAX = 180;
+export const ANAMNESE_TIPO_LABEL = { texto: 'Texto', data: 'Data', simnao: 'Sim / Não', opcao: 'Escolha única', multipla: 'Múltipla escolha' };
 
-// Resposta de texto: espaços arrumados, até 2 linhas e ANAMNESE_TEXTO_MAX letras (null = inválida).
+// Resposta de texto: espaços arrumados, até 20 linhas e ANAMNESE_TEXTO_MAX letras (null = inválida).
 export function limparRespostaTexto(v) {
   const linhas = String(v ?? '').replace(/\r/g, '').split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const t = linhas.join('\n');
-  return linhas.length > 2 || t.length > ANAMNESE_TEXTO_MAX ? null : t;
+  return linhas.length > 20 || t.length > ANAMNESE_TEXTO_MAX ? null : t;
 }
 
-// Preenchida: há perguntas e todas têm resposta.
+export function limparRespostaData(v) {
+  const data = String(v ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return null;
+  const d = new Date(`${data}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== data ? null : data;
+}
+
+export function valorAnamnese(q, v) {
+  if (v == null || v === '') return '';
+  if (q.tipo === 'simnao') return ({ sim: 'Sim', nao: 'Não' }[v] || '');
+  if (q.tipo === 'data' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return `${v.slice(8, 10)}/${v.slice(5, 7)}/${v.slice(0, 4)}`;
+  if (q.tipo === 'multipla') {
+    try { return (Array.isArray(v) ? v : JSON.parse(v)).join(', '); } catch { return ''; }
+  }
+  return String(v);
+}
+
+// Preenchida: há perguntas obrigatórias e todas têm resposta.
 export const anamnesePreenchida = (perguntas, respostas) =>
-  perguntas.length > 0 && perguntas.every((q) => String((respostas || {})[q.id] ?? '').trim() !== '');
+  perguntas.some((q) => q.obrigatoria !== false)
+  && perguntas.filter((q) => q.obrigatoria !== false).every((q) => {
+    const v = (respostas || {})[q.id];
+    if (q.tipo === 'multipla') {
+      try {
+        const xs = Array.isArray(v) ? v : JSON.parse(v);
+        return Array.isArray(xs) && xs.length > 0;
+      } catch { return false; }
+    }
+    return String(v ?? '').trim() !== '';
+  });
 
 // Respostas de cada pessoa: { pessoaId: { perguntaId: resposta } }.
 export function respostasPorPessoa(lista) {
@@ -146,13 +176,12 @@ export function respostasPorPessoa(lista) {
 // Arquivo para compartilhar (texto): todas as respostas, pessoa por pessoa (quem não respondeu nada fica de fora).
 export function textoAnamnese(perguntas, pessoas, respostas, hoje) {
   const [y, m, d] = String(hoje).split('-');
-  const val = (q, v) => (q.tipo === 'simnao' ? ({ sim: 'Sim', nao: 'Não' }[v] || '—') : v || '—');
   const com = pessoas.filter((p) => Object.keys(respostas[p.id] || {}).length);
   const ok = pessoas.filter((p) => anamnesePreenchida(perguntas, respostas[p.id])).length;
   const L = ['ANAMNESE · Casa do Pai João', `Gerado em ${d}/${m}/${y}`, `Preenchidas: ${ok} de ${pessoas.length}`, ''];
   com.forEach((p) => {
     L.push(`== ${p.nome} ==`);
-    perguntas.forEach((q, i) => L.push(`${i + 1}. ${q.texto}`, `   ${val(q, (respostas[p.id] || {})[q.id]).replace(/\n/g, '\n   ')}`));
+    perguntas.forEach((q, i) => L.push(`${i + 1}. ${q.texto}`, `   ${valorAnamnese(q, (respostas[p.id] || {})[q.id]) || '—'}`));
     L.push('');
   });
   if (!com.length) L.push('Ninguém respondeu ainda.');
