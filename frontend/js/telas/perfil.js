@@ -4,7 +4,7 @@
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual,
   ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_TIPO_LABEL, anamnesePreenchida, respostasPorPessoa, textoAnamnese, valorAnamnese } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarUsuarios, atualizarPessoa, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
 import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
@@ -24,24 +24,23 @@ function card(k, titulo, count, padrao, corpo, dobra = admin(), adm = false) {
   return `<div class="card pf-c-${k}${adm ? ' pf-adm-card' : ''}">${cab(k, titulo, count, ab, dobra)}${ab ? corpo() : ''}</div>`;
 }
 
-// ---------- admin: Ajustes (escolhe a pessoa e o que alterar) ----------
-// Data de nascimento: admin. Entrada na corrente e senha: só o admin root (como era na aba Usuários).
-function cardAjustes(todos) {
+// ---------- Admin root: Ajustes perfil ----------
+// Exibe informações espirituais e gerencia data de entrada e senhas por pessoa.
+export function renderAjustesPerfil(todos) {
   const A = (estado.ajUi ||= { pessoa: '', campo: '' });
   const root = pode('usuarios:gerenciar');
-  if (root && estado.usuarios === null) { estado.usuarios = undefined; carregarUsuarios(); }
+  if (!root) return '';
   const x = todos.find((t) => t.pessoaId === A.pessoa);
   // Curimba: sem orixás e guias.
   const CAMPOS = [...(!x || cadastraEspiritual(x.funcao) ? [['espiritual', 'Orixás e guias']] : []),
-    ...(root ? [['entrada', 'Entrada na corrente'], ['senha', 'Senha']] : [])];
+    ['entrada', 'Entrada na corrente'], ['senha', 'Senha']];
   if (!CAMPOS.some(([k]) => k === A.campo)) A.campo = '';
-  return card('ajustes', '⚙️ Ajustes', '', false, () => {
-    let h = `<div class="aj-sel">
+  let h = `<div class="aj-sel">
       <label class="field">Pessoa<select data-act="ajpessoa" aria-label="Pessoa"><option value="">— escolha a pessoa —</option>${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === A.pessoa ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
       <label class="field">O que ver, incluir ou alterar<select data-act="ajcampo" aria-label="O que alterar" ${x ? '' : 'disabled'}><option value="">— escolha —</option>${CAMPOS.map(([k, l]) => `<option value="${k}" ${k === A.campo ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     </div>`;
-    if (!x || !A.campo) return h;
-    if (A.campo === 'espiritual') {
+  if (!x || !A.campo) return h;
+  if (A.campo === 'espiritual') {
       // Orixás e guias da pessoa (só para ver).
       const Pf = x.perfil;
       const linha = (rot, val, of) => `<div class="aj-v"><span class="muted">${rot}</span><b>${val ? esc(val) : '<span class="muted">—</span>'}</b>${val ? `<span class="aj-of ${of ? 'ok' : ''}">${of ? '✓ oferenda' : 'sem oferenda'}</span>` : ''}</div>`;
@@ -51,13 +50,13 @@ function cardAjustes(todos) {
         ${POSICOES_GUIA.map(([k, rot]) => linha(rot, GUIA_LABEL[Pf.guias[k].linha], Pf.guias[k].oferenda)).join('')}
         ${outros.length ? `<div class="aj-v"><span class="muted">Guias de atendimento</span><b>${outros.map(([k, l]) => `${esc(l)}: ${esc(Pf.outros[k])}`).join(' · ')}</b></div>` : ''}
         ${respondeu(Pf) ? '' : '<p class="muted" style="margin:0">Ainda não respondeu os orixás e guias.</p>'}</div>`;
-    } else if (A.campo === 'entrada') {
+  } else if (A.campo === 'entrada') {
       // Igual era na aba Usuários: a pessoa só conta nas giras a partir dessa data.
       const p = estado.pessoas.find((y) => y.id === x.pessoaId);
       h += p ? `<p class="muted" style="margin:0;font-size:.85rem">A pessoa só conta nas giras a partir da data de entrada (presença, faltas, sorteio, limpeza e estatísticas). Sem data, conta em todas.</p>
         <div class="aj-form"><label class="field">Entrada na corrente<input type="date" id="ent-${p.id}" data-act="entrada" data-id="${p.id}" value="${p.entrada || ''}"></label>
         ${p.entrada ? `<button class="btn" data-act="limparentrada" data-id="${p.id}" aria-label="Tirar a data de entrada">✕ Tirar a data</button>` : ''}</div>` : '';
-    } else if (A.campo === 'senha') {
+  } else if (A.campo === 'senha') {
       // Igual era no bloco Senhas da aba Usuários: define uma nova senha, depois de confirmar.
       if (!estado.senhas || !Array.isArray(estado.usuarios)) return h + '<div class="loading">Carregando…</div>';
       const s = estado.senhas.find((y) => y.pessoaId === x.pessoaId);
@@ -70,9 +69,8 @@ function cardAjustes(todos) {
         <div class="sn-bts"><button class="btn small" data-act="snabrir" data-tipo="pin" data-id="${x.pessoaId}">Senha da corrente</button>${u ? `<button class="btn small" data-act="snabrir" data-tipo="email" data-id="${u.id}">Senha do e-mail</button>` : ''}</div>
         ${ed && ((ed.tipo === 'pin' && ed.id === x.pessoaId) || (ed.tipo === 'email' && u && ed.id === u.id)) ? form(ed.tipo, ed.id) : ''}</div>
         <p class="muted" style="margin:0;font-size:.82rem">As senhas ficam guardadas embaralhadas: nem o app consegue mostrá-las. <b>Senha da corrente</b>: a de quem entra com a palavra-chave e o nome. <b>Senha do e-mail</b>: a de quem tem usuário.</p>`;
-    }
-    return h;
-  }, true, true);
+  }
+  return h;
 }
 
 // Foto da pessoa no canto do bloco Informações: a própria pessoa troca ou tira; o admin, de qualquer um.
@@ -302,14 +300,16 @@ function cardAnamneseAdmin(todos) {
     <div class="pf-barra" role="img" aria-label="${pct}% preencheram"><span style="width:${pct}%"></span></div>
     <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
       ${u.anaNova || u.anaEditPergunta ? '' : '<button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button>'}</div>
+    ${A.perguntas.length > 1 && !u.anaNova && !u.anaEditPergunta ? '<p class="ana-instr">Arraste pelo ícone ⠿ para colocar as perguntas na ordem desejada.</p>' : ''}
     ${u.anaNova ? `<div class="ana-nova">
       <label class="field">Pergunta<input type="text" id="ana-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" placeholder="Cabe numa linha" autocomplete="off"></label>
       <span class="ana-sn"><span class="muted">Resposta:</span>${ANAMNESE_TIPOS.map(([k, l], i) => `<label class="check"><input type="radio" name="ana-tipo" value="${k}" ${i ? '' : 'checked'}> ${l}</label>`).join('')}</span>
       <span class="row"><button class="btn small primary" data-act="anaperg">Salvar pergunta</button><button class="btn small" data-act="ananova">Cancelar</button></span></div>` : ''}
     ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q) => u.anaEditPergunta === q.id
-      ? `<li class="ana-editando"><label class="ana-edit-field">Pergunta<input type="text" id="ana-editar-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" value="${esc(q.texto)}"></label>
+      ? `<li class="ana-editando" data-pergunta-id="${q.id}"><label class="ana-edit-field">Pergunta<input type="text" id="ana-editar-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" value="${esc(q.texto)}"></label>
           <span class="row"><button class="btn small primary" data-act="anasalvarpergunta" data-id="${q.id}">Salvar</button><button class="btn small" data-act="anacancelareditar">Cancelar</button></span></li>`
-      : `<li><span>${esc(q.texto)} <span class="tag">${ANAMNESE_TIPO_LABEL[q.tipo] || 'Texto'}${q.obrigatoria === false ? ' · opcional' : ''}</span></span>
+      : `<li data-pergunta-id="${q.id}"><button type="button" class="ana-arrastar" data-ana-arrastar aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>
+          <span>${esc(q.texto)} <span class="tag">${ANAMNESE_TIPO_LABEL[q.tipo] || 'Texto'}${q.obrigatoria === false ? ' · opcional' : ''}</span></span>
           ${estado.confirm === 'anaq:' + q.id ? `<button class="btn small danger" data-act="anaexcluir" data-id="${q.id}">Excluir</button>`
             : `<span class="ana-acoes"><button class="btn small" data-act="anaeditarpergunta" data-id="${q.id}" title="Editar pergunta" aria-label="Editar pergunta">Editar</button><button class="btn small lock-x" data-act="askdel" data-k="anaq:${q.id}" title="Excluir a pergunta (as respostas dela também saem)" aria-label="Excluir a pergunta">✕</button></span>`}</li>`).join('')}</ol>`
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma pergunta ainda.</p>'}
@@ -348,18 +348,22 @@ function cardGuiasCorrente(lista) {
 // Oferendas que faltam, só de quem já respondeu (quem não respondeu está no bloco Respostas).
 function cardOferendas(todos) {
   const resp = todos.filter((x) => respondeu(x.perfil));
-  const orixas = resp.map((x) => {
+  const pendentes = resp.map((x) => {
     const falta = POSICOES_ORIXA.filter(([k]) => !x.perfil.orixas[k].oferenda)
       .map(([k]) => (x.perfil.orixas[k].nome ? `${x.perfil.orixas[k].nome} (${ROT_ORIXA[k]})` : `${ROT_ORIXA[k]}: não informado`));
-    return { nome: x.nome, falta };
+    return { ...x, falta };
   }).filter((x) => x.falta.length);
-  const grupos = [['Orixás', orixas]];
-  const total = new Set(grupos.flatMap(([, l]) => l.map((x) => x.nome))).size;
+  const ordem = ['medium', 'extra', 'passe', 'cambone', 'senha'];
+  const titulo = { medium: 'Médiuns', extra: 'Médiuns At. Extra', passe: 'Médiuns de Passe', cambone: 'Cambones', senha: 'Senhas' };
+  const grupos = ordem.map((funcao) => [titulo[funcao], pendentes.filter((x) => x.funcao === funcao)])
+    .filter(([, pessoas]) => pessoas.length);
+  const total = pendentes.length;
   return card('corrente-oferendas', 'Oferendas pendentes', total, false, () => (resp.length ? `
     ${grupos.map(([t, l]) => `<div class="pf-grupo"><div class="pf-gt">${t} <span class="count">${l.length}</span></div>
       ${l.length ? `<ul class="pf-lista">${l.map((x) => `<li><b>${esc(x.nome)}</b> <span class="muted">— ${x.falta.map(esc).join(', ')}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:2px 0 0">Ninguém pendente.</p>'}
     </div>`).join('')}
-    <p class="muted" style="margin:8px 0 0;font-size:.82rem">Só de quem já respondeu o perfil.</p>` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'), true, true);
+    ${grupos.length ? '' : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}
+    <p class="muted" style="margin:8px 0 0;font-size:.82rem">Agrupado pela função do cadastro em Pessoas; só de quem já respondeu o perfil.</p>` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'), true, true);
 }
 
 export function render() {
@@ -373,7 +377,7 @@ export function render() {
     // Respostas e oferendas pendentes contam só quem cadastra orixás e guias (a curimba fica fora).
     const comOrixas = todos.filter((x) => cadastraEspiritual(x.funcao));
     h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
-      ${cardAjustes(todos)}${cardInfoAdmin(todos)}${cardRespostas(comOrixas)}${cardOferendas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
+      ${cardInfoAdmin(todos)}${cardRespostas(comOrixas)}${cardOferendas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
   }
   if (eu) h += meusCards(eu) + cardAnamnese();
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
@@ -451,16 +455,13 @@ export const cliques = {
     avisar();
   },
   pffaltam() { U().faltam = !U().faltam; avisar(); },
-  limparentrada(el) { atualizarPessoa(el.dataset.id, { entrada: null }); },
-  snabrir(el) {
-    estado.senhaEdit = { tipo: el.dataset.tipo, id: el.dataset.id };
-    avisar();
-    document.getElementById('sn-in')?.focus();
-  },
-  snfechar() { estado.senhaEdit = null; avisar(); },
 };
 
-// Ajustes: o admin salva as informações da pessoa escolhida.
+export async function salvarOrdemAnamnese(ids) {
+  if (await acaoAnamnese('reordenar', { ids })) toast('Ordem das perguntas atualizada.');
+}
+
+// Informações da corrente: o admin salva os dados da pessoa escolhida.
 export async function enviarInfo(form) {
   const f = form.elements;
   const nasc = f.nascimento.value.trim();
@@ -534,9 +535,6 @@ export const mudancas = {
     salvarAfinidade(bloco.tipo, t.checked ? [...LINHA_KEYS].sort() : []);
   },
   infopessoa(t) { estado.infoPessoa = t.value; avisar(); },
-  ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
-  ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
-  entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
   pfsel(el) {
     const { g, k } = el.dataset;
     const campo = g === 'orixas' ? 'nome' : 'linha';

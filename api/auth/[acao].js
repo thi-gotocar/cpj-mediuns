@@ -128,6 +128,12 @@ const acoes = {
       if (typeof b.visivel !== 'boolean') throw new HttpError(400, 'Informe se a Anamnese deve ficar visível.');
       return resposta(await db.rpc('anamnese_visibilidade', { visivel: b.visivel }));
     }
+    if (b.acao === 'reordenar') {
+      if (!admin) throw new HttpError(403, 'Só o admin do perfil reordena as perguntas.');
+      if (!Array.isArray(b.ids) || b.ids.length > 500) throw new HttpError(400, 'Lista de perguntas inválida.');
+      const ids = b.ids.map((id) => validarId(id, 'Pergunta'));
+      return resposta(await db.rpc('anamnese_perguntas_reordenar', { ids }));
+    }
     if (b.acao === 'pergunta' || b.acao === 'editarPergunta' || b.acao === 'excluirPergunta') {
       if (!admin) throw new HttpError(403, 'Só o admin do perfil mexe nas perguntas.');
       if (b.acao === 'excluirPergunta') return resposta(await db.rpc('anamnese_pergunta_excluir', { id: validarId(b.id, 'Pergunta') }));

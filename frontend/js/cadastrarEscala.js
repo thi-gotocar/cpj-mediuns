@@ -4,7 +4,7 @@
 
 import { lerEscala, nomesDaEscala, montarEscala } from '/shared/escalaTexto.js';
 import { casarNomes } from '/shared/resumo.js';
-import { OPCOES_GIRA, ORIXAS, nomeGira, linhaDaEntidade, giraEspecial, temOrixa, contaNaPresenca } from '/shared/regras.js';
+import { opcoesGira, ORIXAS, nomeGira, nomeEntidadeGira, apelidoEntidade, LINHA_LABEL, linhaDaEntidade, giraEspecial, temOrixa, contaNaPresenca } from '/shared/regras.js';
 import { estado, pessoasOrd, cadastrarEscala, avisar } from './estado.js';
 import { esc, toast, hoje } from './util.js';
 
@@ -37,7 +37,7 @@ function conferencia(x, ps) {
       <button class="btn small" data-act="esaceitar" data-k="gira">${x.giraOk ? 'Aceito ✓' : 'Aceitar'}</button></div>`;
   }
   if (giraDiferente(x)) {
-    h += `<div class="dv ${x.giraDifOk ? 'ok' : ''}"><span>A gira salva em ${dataBR(x.data)} é <b>${esc(nomeGira(salva(x).entidade))}</b>, mas a escala diz <b>${esc(x.entidade)}</b>. Confira a data.</span>
+    h += `<div class="dv ${x.giraDifOk ? 'ok' : ''}"><span>A gira salva em ${dataBR(x.data)} é <b>${esc(nomeEntidadeGira(salva(x)))}</b>, mas a escala diz <b>${esc(x.entidadeNome || x.entidade)}</b>. Confira a data.</span>
       <button class="btn small" data-act="esaceitar" data-k="giradif">${x.giraDifOk ? 'Aceito ✓' : 'Aceitar'}</button></div>`;
   }
   x.nomes.forEach((n, i) => {
@@ -89,7 +89,7 @@ export function cardEscala() {
   h += `<div class="row">
     <label class="field" style="flex:0 1 170px">Data da gira<input type="date" data-act="escampo" data-k="data" value="${esc(x.data)}" max="${hoje()}"></label>
     <label class="field grow">Gira<select data-act="escampo" data-k="entidade"><option value="">— sem gira —</option>
-      ${OPCOES_GIRA.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, l]) => `<option ${l === x.entidade ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select></label>
+      ${opcoesGira(estado.entidadesApelidos).map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([canonico, l, alias]) => `<option value="${esc(canonico)}" data-alias="${esc(alias)}" ${canonico === x.entidade && alias === (x.entidadeNome || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
     ${temOrixa(x) ? `<label class="field" style="flex:0 1 160px">Orixá<select data-act="escampo" data-k="orixa"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === x.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
   </div>`;
   h += conferencia(x, ps);
@@ -120,9 +120,12 @@ export const cliquesEscala = {
     x.dataOk = false;
     // Gira e orixá: "Exus Mirins" vira a gira; um orixá escrito no lugar da gira vira o orixá.
     const giraTxt = r.gira.split(/[/,]/).map((t) => t.trim());
+    const alias = giraTxt.map((t) => apelidoEntidade(t, estado.entidadesApelidos)).find(Boolean);
     const ent = giraTxt.find((t) => linhaDaEntidade(t) || giraEspecial(t));
-    x.entidade = ent ? nomeGira(ent) : '';
-    x.giraReconhecida = !!ent || !r.gira;
+    const aliasEntidade = alias && LINHA_LABEL[alias.linha];
+    x.entidade = aliasEntidade || (ent ? nomeGira(ent) : '');
+    x.entidadeNome = alias?.nome || '';
+    x.giraReconhecida = !!ent || !!alias || !r.gira;
     x.giraOk = false;
     x.orixa = ORIXAS.find((o) => giraTxt.some((t) => t.localeCompare(o, 'pt-BR', { sensitivity: 'base' }) === 0)) || '';
     x.giraDifOk = false;
@@ -152,15 +155,20 @@ export const cliquesEscala = {
     const int = Object.fromEntries(x.int.map((i) => [i.chave, i.escolhido]));
     const m = montarEscala(x.lido, idDe, int, estado.pessoas);
     const g = salva(x);
-    if (!confirm(`Gravar a escala na gira de ${dataBR(x.data)}${g.entidade ? ` (${nomeGira(g.entidade)})` : ''}?\n${m.pares.length} duplas de cambone e ${m.passes.length} de médium de passe.\nPresença, faltas e atendidos não mudam.`)) return;
-    const ok = await cadastrarEscala(x.data, { entidade: x.entidade, orixa: temOrixa(x) ? x.orixa : '', papeis: m.papeis, pares: m.pares, passes: m.passes });
+    if (!confirm(`Gravar a escala na gira de ${dataBR(x.data)}${g.entidade ? ` (${nomeEntidadeGira(g)})` : ''}?\n${m.pares.length} duplas de cambone e ${m.passes.length} de médium de passe.\nPresença, faltas e atendidos não mudam.`)) return;
+    const ok = await cadastrarEscala(x.data, { entidade: x.entidade, entidadeNome: x.entidadeNome || '', orixa: temOrixa(x) ? x.orixa : '', papeis: m.papeis, pares: m.pares, passes: m.passes });
     if (ok) { estado.escalaTxt = null; avisar(); }
   },
 };
 
 export const mudancasEscala = {
   // Trocar a data ou a gira pede para conferir de novo se bate com a gira salva.
-  escampo(t) { E()[t.dataset.k] = t.value; E().giraDifOk = false; avisar(); },
+  escampo(t) {
+    E()[t.dataset.k] = t.value;
+    if (t.dataset.k === 'entidade') E().entidadeNome = t.selectedOptions[0]?.dataset.alias || '';
+    E().giraDifOk = false;
+    avisar();
+  },
   esmap(t) { const n = E().nomes[+t.dataset.i]; n.escolhido = t.value || ''; n.aceito = false; avisar(); },
   esint(t) { const it = E().int[+t.dataset.i]; it.escolhido = t.value || ''; it.aceito = false; avisar(); },
 };

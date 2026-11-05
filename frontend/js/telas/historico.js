@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, OPCOES_GIRA, nomeGira, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, opcoesGira, nomeGira, nomeEntidadeGira, apelidoEntidade, LINHA_LABEL, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar, carregarStPerfis } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -66,7 +66,7 @@ export function cardGiraAntiga(ps) {
     <div class="row">
       <label class="field" style="flex:0 1 170px">Data do evento<input type="date" id="ga-data" data-act="gacampo" data-k="data" value="${esc(F.data)}" max="${hoje()}"></label>
       <label class="field grow">Gira (opcional)<select id="ga-ent" data-act="gacampo" data-k="entidade"><option value="">— escolha —</option>
-        ${OPCOES_GIRA.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, l]) => `<option ${l === F.entidade ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        ${opcoesGira(estado.entidadesApelidos).map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([canonico, l, alias]) => `<option value="${esc(canonico)}" data-alias="${esc(alias)}" ${canonico === F.entidade && alias === (F.entidadeNome || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</optgroup>`).join('')}</select></label>
       ${temOrixa(F) ? `<label class="field" style="flex:0 1 160px">Orixá<select id="ga-orixa" data-act="gacampo" data-k="orixa"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === F.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select></label>` : ''}
     </div>`;
   const cont = (s) => ps.filter((p) => status(p, g) === s).length;
@@ -144,7 +144,7 @@ function cardEstatisticas(todas, ps) {
     const root = pode('usuarios:gerenciar');
     const linhaDet = ([g, st]) => {
       const k = g.data + '|' + p.id;
-      const txt = `${dShort(g.data).slice(0, 5)} ${esc(nomeGira(g.entidade) || 'Gira')}: `;
+      const txt = `${dShort(g.data).slice(0, 5)} ${esc(nomeEntidadeGira(g) || 'Gira')}: `;
       if (root && estado.stEdit === k) {
         const atual = ['p', 'f', 'a'].includes(st) ? st : 'p';
         return `<span class="st-ed">${txt}<select id="st-ed-sel" aria-label="Presença de ${esc(p.nome)} em ${dShort(g.data)}">${[['p', 'Presente'], ['f', 'Falta'], ['a', 'Ausente']].map(([v, l]) => `<option value="${v}" ${v === atual ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -175,7 +175,7 @@ function cardEstatisticas(todas, ps) {
   const maxAt = somaAt(totAt);   // % de cada gira sobre o total de atendidos do período
   // Top 3 giras (linha/tipo) que mais tivemos.
   const cont = {};
-  gs.forEach((g) => { const n = nomeGira(g.entidade); if (n) cont[n] = (cont[n] || 0) + 1; });
+  gs.forEach((g) => { const n = nomeEntidadeGira(g); if (n) cont[n] = (cont[n] || 0) + 1; });
   const tipos = Object.entries(cont).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
   const maxTipo = gs.length;   // % sobre as giras do período
   // Média de presença da corrente no período (giras com presença confirmada).
@@ -198,7 +198,7 @@ function cardEstatisticas(todas, ps) {
         ${ranking('a', 'Mais ausências', 'off', ausencias, (x) => `<b>${x.a}</b>`)}
       </div>
       <div class="st-bloco"><h3>Giras com mais atendimentos</h3>
-        ${comAt.length ? `<ol class="st-lista">${comAt.map((g, i) => `<li>${pos(i)}<span class="st-nome"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span>${dShort(g.data)}</span>${barra(somaAt(g.atendimentos), maxAt, 'acc')}<span class="st-num"><b>${somaAt(g.atendimentos)}</b></span>
+        ${comAt.length ? `<ol class="st-lista">${comAt.map((g, i) => `<li>${pos(i)}<span class="st-nome"><span class="hi-gira">${esc(nomeEntidadeGira(g) || 'Gira')}</span>${dShort(g.data)}</span>${barra(somaAt(g.atendimentos), maxAt, 'acc')}<span class="st-num"><b>${somaAt(g.atendimentos)}</b></span>
           <span class="st-det">${ATEND.map(([k, t]) => `${t} ${Number(g.atendimentos[k]) || 0}`).join(' · ')}</span></li>`).join('')}</ol>`
           : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma gira com atendidos registrados.</p>'}</div>
       <div class="st-bloco"><h3>Giras que mais tivemos</h3>
@@ -288,7 +288,7 @@ function blocoGirasSalvas(gs, ps) {
       const nLic = n('lic');
       const conf = estado.confirm === 'g:' + g.data;
       const pr = presencaGira(ps, g);
-      h += `<div class="hi"><div><div class="d"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira não definida')}${orixaDaGira(g) ? ` · ${esc(orixaDaGira(g))}` : ''}</span>
+      h += `<div class="hi"><div><div class="d"><span class="hi-gira">${esc(nomeEntidadeGira(g) || 'Gira não definida')}${orixaDaGira(g) ? ` · ${esc(orixaDaGira(g))}` : ''}</span>
         ${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
         ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ` (${nLic} de licença)` : ''}`) : ''}</div>
         <div class="muted" style="font-size:.9rem">${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
@@ -330,7 +330,7 @@ export const mudancas = {
 // Cadastrar gira antiga (só o admin root): a tela fica na aba Admin root (usuarios.js), que usa estes handlers.
 export const cliquesGiraAntiga = {
   gaabrir() {
-    estado.giraAntiga = { data: '', entidade: '', orixa: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
+    estado.giraAntiga = { data: '', entidade: '', entidadeNome: '', orixa: '', presenca: {}, at: { preferencial: 0, normal: 0, passe: 0 } };
     avisar();
   },
   gacancelar() { estado.giraAntiga = null; avisar(); },
@@ -358,7 +358,9 @@ export const cliquesGiraAntiga = {
     for (const l of F.msg.split(/\r?\n/)) {
       if (/^[^\p{L}]*(ausentes|faltas|em licen)/iu.test(l) && !l.includes(':')) break;
       const t = l.replace(/^[^\p{L}]+/u, '').replace(/^(gira|entidade)\s*:?\s*/i, '').trim();
-      if (t && (linhaDaEntidade(t) || giraEspecial(t))) { F.entidade = nomeGira(t); break; }
+      const alias = apelidoEntidade(t, estado.entidadesApelidos);
+      if (alias) { F.entidade = LINHA_LABEL[alias.linha]; F.entidadeNome = alias.nome; break; }
+      if (t && (linhaDaEntidade(t) || giraEspecial(t))) { F.entidade = nomeGira(t); F.entidadeNome = ''; break; }
     }
     F.at = { ...r.atendimentos };
     F.presenca = {};
@@ -390,13 +392,17 @@ export const cliquesGiraAntiga = {
     if (F.data > hoje()) { toast('A data é no futuro. Use a aba Gira para giras que ainda vão acontecer.'); return; }
     if (estado.giras[F.data]) { toast(`Já existe uma gira em ${F.data.split('-').reverse().join('/')}. Abra pelo histórico para alterar.`); return; }
     const presenca = Object.fromEntries(Object.entries(F.presenca).filter(([, s]) => s !== 'p'));
-    const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, ...(temOrixa(F) && F.orixa ? { orixa: F.orixa } : {}), presenca, atendimentos: F.at });
+    const ok = await cadastrarGiraAntiga(F.data, { entidade: F.entidade, entidadeNome: F.entidadeNome || '', ...(temOrixa(F) && F.orixa ? { orixa: F.orixa } : {}), presenca, atendimentos: F.at });
     if (ok) { toast('Gira antiga cadastrada.'); estado.giraAntiga = null; avisar(); }
   },
 };
 
 export const mudancasGiraAntiga = {
-  gacampo(t) { estado.giraAntiga[t.dataset.k] = t.value; avisar(); },
+  gacampo(t) {
+    estado.giraAntiga[t.dataset.k] = t.value;
+    if (t.dataset.k === 'entidade') estado.giraAntiga.entidadeNome = t.selectedOptions[0]?.dataset.alias || '';
+    avisar();
+  },
   gastatus(t) {
     const F = estado.giraAntiga;
     if (t.value === 'p') delete F.presenca[t.dataset.id]; else F.presenca[t.dataset.id] = t.value;

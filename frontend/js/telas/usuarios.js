@@ -2,12 +2,13 @@
 // Cadastrar gira antiga e Cadastrar escala, e os eventos da casa (cadastrar e eventos cadastrados).
 
 import { SEM_CADASTRO, ABAS, PERFIS_SISTEMA, PIN_VALIDO, normalizarAbas } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, avisar } from '../estado.js';
+import { estado, pessoasOrd, carregarUsuarios, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, avisar } from '../estado.js';
 import { esc, toast, ajustarRolagem } from '../util.js';
+import { renderAjustesPerfil } from './perfil.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
 import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga } from './historico.js';
 import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
-import { contaNaPresenca } from '/shared/regras.js';
+import { contaNaPresenca, LINHA_LABEL } from '/shared/regras.js';
 
 
 // Perfis que podem ser dados a um usuário com e-mail (o "Corrente" é só do acesso pelo nome).
@@ -68,6 +69,7 @@ const pessoasLivres = (manter = null) => {
 
 export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
+  if (abertosRoot.has('ajperfil') && estado.perfil === null) { estado.perfil = undefined; carregarPerfil(); }
   const livres = pessoasLivres();
   let h = `<section class="panel">
   <div class="card adm root">${cabRoot('novo', 'Novo usuário')}${!abertosRoot.has('novo') ? '' : `
@@ -110,8 +112,40 @@ export function render() {
       <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
       ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
   });
-  h += `</div></div>${cardPerfis()}${cardEventos()}${cardRegistros()}<p class="muted" style="margin:0;font-size:.85rem">Entrada na corrente e senhas agora ficam na aba <b>Perfil</b>, no bloco <b>Ajustes</b>.</p></section>`;
+  h += `</div></div>${cardPerfis()}${cardEntidades()}${cardAjustesPerfil()}${cardEventos()}${cardRegistros()}</section>`;
   return h;
+}
+
+function cardAjustesPerfil() {
+  const aberto = abertosRoot.has('ajperfil');
+  let corpo = '';
+  if (aberto) {
+    if (estado.perfil === undefined) corpo = '<div class="loading">Carregando dados do perfil…</div>';
+    else if (estado.perfil?.erro) corpo = `<p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p>`;
+    else corpo = renderAjustesPerfil(estado.perfil?.todos || []);
+  }
+  return `<div class="card adm root">${cabRoot('ajperfil', '⚙️ Ajustes perfil')}${corpo}</div>`;
+}
+
+function cardEntidades() {
+  const aberto = abertosRoot.has('entidades');
+  const aliases = estado.entidadesApelidos || [];
+  const ed = estado.entidadeApelidoEdit;
+  const opcoes = Object.entries(LINHA_LABEL).map(([k, nome]) => `<option value="${esc(k)}" ${k === ed?.linha ? 'selected' : ''}>${esc(nome)}</option>`).join('');
+  return `<div class="card adm root">${cabRoot('entidades', '🏷️ Entidades das giras', aliases.length)}${!aberto ? '' : `
+    <p class="muted" style="margin:0;font-size:.88rem">Inclua nomes alternativos para uma linha existente. Eles aparecem nos cadastros de giras, mantendo as regras e afinidades da linha escolhida.</p>
+    <form id="f-entidade-alias" class="row" data-index="${ed ? ed.index : ''}" autocomplete="off">
+      <label class="field grow">Nome da entidade<input type="text" id="ea-nome" maxlength="80" required value="${esc(ed?.nome || '')}" placeholder="Ex.: nome usado pela casa"></label>
+      <label class="field grow">Linha correspondente<select id="ea-linha" required><option value="">— escolha a linha —</option>${opcoes}</select></label>
+      <span class="row"><button class="btn small primary" type="submit">${ed ? 'Salvar alteração' : '＋ Incluir nome'}</button>${ed ? '<button class="btn small" type="button" data-act="cancelaralias">Cancelar</button>' : ''}</span>
+    </form>
+    ${aliases.length ? `<div class="al-grupos">${aliases.map((x, i) => `<div class="sn-l">
+      <span class="sn-nome"><b>${esc(x.nome)}</b><span class="muted"> · ${esc(LINHA_LABEL[x.linha] || x.linha)}</span></span>
+      <span class="sn-bts">${estado.confirm === 'entalias:' + i
+        ? `<button class="btn small danger" data-act="removeralias" data-index="${i}">Confirmar remoção</button><button class="btn small" data-act="cancelaralias">Cancelar</button>`
+        : `<button class="btn small" data-act="editaralias" data-index="${i}">Editar</button><button class="btn small" data-act="askalias" data-index="${i}">Remover</button>`}</span>
+    </div>`).join('')}</div>` : '<p class="muted" style="margin:0">Nenhum nome alternativo cadastrado.</p>'}
+  `}</div>`;
 }
 
 // Eventos da casa (só o root cadastra, edita e exclui): Cadastrar evento e Eventos cadastrados.
@@ -157,6 +191,29 @@ export const cliques = {
   },
   cancelauren() { estado.renomearUsuario = null; avisar(); },
   dobrarroot(el) { const k = el.dataset.k; if (abertosRoot.has(k)) abertosRoot.delete(k); else abertosRoot.add(k); avisar(); },
+  editaralias(el) {
+    const index = Number(el.dataset.index);
+    const alias = estado.entidadesApelidos?.[index];
+    if (!alias) return;
+    estado.entidadeApelidoEdit = { ...alias, index };
+    estado.confirm = null;
+    avisar();
+    document.getElementById('ea-nome')?.focus();
+  },
+  askalias(el) { estado.confirm = 'entalias:' + el.dataset.index; avisar(); },
+  async removeralias(el) {
+    const index = Number(el.dataset.index);
+    const aliases = (estado.entidadesApelidos || []).filter((_, i) => i !== index);
+    if (await salvarApelidosEntidade(aliases)) { estado.confirm = null; estado.entidadeApelidoEdit = null; toast('Nome alternativo removido.'); }
+  },
+  cancelaralias() { estado.confirm = null; estado.entidadeApelidoEdit = null; avisar(); },
+  limparentrada(el) { atualizarPessoa(el.dataset.id, { entrada: null }); },
+  snabrir(el) {
+    estado.senhaEdit = { tipo: el.dataset.tipo, id: el.dataset.id };
+    avisar();
+    document.getElementById('sn-in')?.focus();
+  },
+  snfechar() { estado.senhaEdit = null; avisar(); },
   novoperfil() { estado.novoPerfil = true; avisar(); document.getElementById('pn-nome')?.focus(); },
   cancelanovoperfil() { estado.novoPerfil = false; avisar(); },
   async delperfil(el) {
@@ -231,6 +288,9 @@ export const mudancas = {
     acaoUsuarios('perfil', { chave: f.chave, abas: a });
   },
   papel(t) { atualizarUsuario(t.dataset.id, { papel: t.value }); },
+  ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
+  ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
+  entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
   // Novo usuário: root pode ter só um nome; os outros escolhem a pessoa da corrente.
     papelnovo(t) {
     const root = semCadastro(t.value);
@@ -238,6 +298,23 @@ export const mudancas = {
     document.getElementById('u-pessoa-rotulo').textContent = root ? 'Pessoa da corrente (opcional)' : 'Pessoa da corrente';
   },
 };
+
+export async function salvarApelidoEntidade(form) {
+  const nome = document.getElementById('ea-nome').value.replace(/\s+/g, ' ').trim();
+  const linha = document.getElementById('ea-linha').value;
+  if (!nome || !linha) { toast('Informe o nome e a linha correspondente.'); return; }
+  const index = form.dataset.index === '' ? -1 : Number(form.dataset.index);
+  const aliases = [...(estado.entidadesApelidos || [])];
+  const item = { nome, linha };
+  if (index >= 0 && aliases[index]) aliases[index] = item;
+  else aliases.push(item);
+  if (await salvarApelidosEntidade(aliases)) {
+    estado.entidadeApelidoEdit = null;
+    estado.confirm = null;
+    toast(index >= 0 ? 'Nome alternativo atualizado.' : 'Nome alternativo incluído.');
+    avisar();
+  }
+}
 
 export async function enviarFormulario() {
   const val = (id) => document.getElementById(id).value;

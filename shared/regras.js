@@ -62,6 +62,21 @@ export const OPCOES_GIRA = [
   ...LINHAS.map((g) => (g.grupo === 'Esquerda' ? { ...g, itens: [...g.itens, ...GIRAS_JUNTAS.map(([k, l]) => [k, l])] } : g)),
   { grupo: 'Outras', itens: GIRAS_ESPECIAIS },
 ];
+const ENTIDADE_POR_CHAVE = Object.fromEntries([
+  ...OPCOES_GIRA.flatMap((g) => g.itens),
+]);
+// Apelidos configuráveis mantêm a linha canônica para as regras da gira.
+export function opcoesGira(aliases = []) {
+  return OPCOES_GIRA.map((grupo) => {
+    const chaves = new Set(grupo.itens.map(([chave]) => chave));
+    const itens = grupo.itens.map(([, nome]) => [nome, nome, '']);
+    aliases.filter((x) => chaves.has(x.linha)).forEach((x) => {
+      const canonica = ENTIDADE_POR_CHAVE[x.linha];
+      if (canonica && x.nome && x.nome !== canonica) itens.push([canonica, x.nome, x.nome]);
+    });
+    return { grupo: grupo.grupo, itens };
+  });
+}
 
 // Orixás (em ordem alfabética). Só as giras das linhas (não Esquerda nem Outras) têm orixá.
 export const ORIXAS = ['Iansã', 'Iemanjá', 'Nanã', 'Obá', 'Obaluaê', 'Ogum', 'Omulu', 'Oroiná', 'Oxalá', 'Oxóssi', 'Oxum', 'Oxumaré', 'Xangô'];
@@ -104,6 +119,11 @@ export function nomeGira(entidade) {
   const e = giraEspecial(entidade);
   return e ? ESPECIAL_LABEL[e] : String(entidade || '');
 }
+export const nomeEntidadeGira = (g) => g?.entidadeNome || nomeGira(g?.entidade);
+export const apelidoEntidade = (nome, aliases = []) => {
+  const alvo = normalizar(nome);
+  return aliases.find((x) => normalizar(x.nome) === alvo) || null;
+};
 
 // Extra e Passe marcam as linhas em que atuam nessa função ("Todas" = todas marcadas). Nas outras giras, cambonam.
 // Nenhuma linha marcada = não está apto a nenhuma: cambona em toda gira de linha.

@@ -6,7 +6,7 @@
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
 //   textoLimpeza(pessoas, g, giras) → aviso da turma da limpeza para o grupo do WhatsApp (ou '')
 
-import { status, presencaDe, daGira, naCorrenteEm, licencaEm, nomeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { status, presencaDe, daGira, naCorrenteEm, licencaEm, nomeGira, nomeEntidadeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -33,7 +33,7 @@ export function dadosResumo(pessoas, g) {
   const at = g.atendimentos || {};
   const atendimentos = { preferencial: Number(at.preferencial) || 0, normal: Number(at.normal) || 0, passe: Number(at.passe) || 0 };
   return {
-    gira: nomeGira(g.entidade), orixa: orixaDaGira(g), data: g.data, presentes, ausentes, faltas, licenca,
+    gira: nomeEntidadeGira(g), orixa: orixaDaGira(g), data: g.data, presentes, ausentes, faltas, licenca,
     pct: { presenca: pc(presentes.length), ausencia: pc(ausentes.length + faltas.length), licenca: pc(licenca.length) },
     atendimentos, total: atendimentos.preferencial + atendimentos.normal + atendimentos.passe,
   };
@@ -114,7 +114,7 @@ export function textoLimpeza(pessoas, g, giras = []) {
   const L = limpezaDaGira(pessoas, g, giras);
   if (!L) return '';
   const lista = (ps) => ps.map((p) => `▫️ ${p.nome}`);
-  const gira = g.entidade ? (giraEspecial(g.entidade) ? nomeGira(g.entidade) : `Gira de ${nomeGira(g.entidade)}`) : 'Gira';
+  const gira = g.entidade ? (giraEspecial(g.entidade) ? nomeEntidadeGira(g) : `Gira de ${nomeEntidadeGira(g)}`) : 'Gira';
   const orixa = orixaDaGira(g);
   const T = [
     '🧹 *LIMPEZA DO TERREIRO* ✨',

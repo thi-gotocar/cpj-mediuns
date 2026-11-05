@@ -33,6 +33,7 @@ let digitadoLogin = '';       // o nome como a pessoa digitou (para juntar o que
 let pinLogin = null;          // acesso da corrente: a pessoa tem senha → { nome } (pede a senha)
 let instalado = true;
 let ultimoDesenho = '';    // aba + HTML do último desenho (a aba Vídeos não redesenha se nada mudou)
+let arrastoAnamnese = null;
 
 // ---------- render ----------
 // Topo: "Seja bem-vindo, Nome!" e o Sair à direita. No fim da página: o perfil e o Trocar senha.
@@ -247,6 +248,55 @@ main.addEventListener('change', (e) => {
   if (fn) fn(t);
 });
 
+main.addEventListener('pointerdown', (e) => {
+  const alca = e.target.closest('[data-ana-arrastar]');
+  if (!alca || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const lista = alca.closest('.ana-perg');
+  const item = alca.closest('[data-pergunta-id]');
+  if (!lista || !item || lista.querySelector('.ana-editando')) return;
+  e.preventDefault();
+  alca.setPointerCapture(e.pointerId);
+  arrastoAnamnese = {
+    id: e.pointerId,
+    alca,
+    item,
+    lista,
+    inicioY: e.clientY,
+    idsIniciais: [...lista.querySelectorAll(':scope > [data-pergunta-id]')].map((x) => x.dataset.perguntaId),
+    iniciou: false,
+  };
+});
+
+main.addEventListener('pointermove', (e) => {
+  const d = arrastoAnamnese;
+  if (!d || d.id !== e.pointerId) return;
+  if (!d.iniciou && Math.abs(e.clientY - d.inicioY) < 4) return;
+  d.iniciou = true;
+  d.lista.classList.add('ana-arrastando');
+  d.item.classList.add('ana-movendo');
+  const alvo = document.elementFromPoint(e.clientX, e.clientY)?.closest('.ana-perg [data-pergunta-id]');
+  if (!alvo || alvo.parentElement !== d.lista || alvo === d.item) return;
+  const r = alvo.getBoundingClientRect();
+  d.lista.insertBefore(d.item, e.clientY < r.top + r.height / 2 ? alvo : alvo.nextSibling);
+});
+
+function terminarArrastoAnamnese(e, cancelar = false) {
+  const d = arrastoAnamnese;
+  if (!d || d.id !== e.pointerId) return;
+  arrastoAnamnese = null;
+  d.lista.classList.remove('ana-arrastando');
+  d.item.classList.remove('ana-movendo');
+  if (cancelar) {
+    const itens = new Map([...d.lista.querySelectorAll(':scope > [data-pergunta-id]')].map((x) => [x.dataset.perguntaId, x]));
+    d.idsIniciais.forEach((id) => { if (itens.has(id)) d.lista.append(itens.get(id)); });
+    return;
+  }
+  const ids = [...d.lista.querySelectorAll(':scope > [data-pergunta-id]')].map((x) => x.dataset.perguntaId);
+  if (d.iniciou && ids.some((id, i) => id !== d.idsIniciais[i])) perfil.salvarOrdemAnamnese(ids);
+}
+main.addEventListener('pointerup', (e) => terminarArrastoAnamnese(e));
+main.addEventListener('pointercancel', (e) => terminarArrastoAnamnese(e, true));
+
 
 main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoCorrente(e.target.value));
@@ -359,6 +409,8 @@ main.addEventListener('submit', async (e) => {
     await usuarios.confirmarSenha(e.target);
   } else if (id === 'f-user') {
     await usuarios.enviarFormulario();
+  } else if (id === 'f-entidade-alias') {
+    await usuarios.salvarApelidoEntidade(e.target);
   } else if (id === 'f-of' || e.target.dataset.form) {
     await oferendas.enviar(e.target);
   }

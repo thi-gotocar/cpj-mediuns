@@ -83,6 +83,7 @@ export default rota({
         papeis: Object.fromEntries(Object.entries(g.papeis && typeof g.papeis === 'object' ? g.papeis : {})
           .filter(([velho, v]) => novoId[velho] && (v === 'sup' || v === 'na')).map(([velho, v]) => [novoId[velho], v])),
       });
+      if (g.entidadeNome) await db.rpc('gira_entidade_nome', { data, nome: String(g.entidadeNome).slice(0, 120) });
       giras++;
     }
     return { pessoasCriadas: criadas, pessoasNoArquivo: pessoasArq.length, giras };

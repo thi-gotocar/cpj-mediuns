@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 78;  // v78: controle da visibilidade da anamnese
+export const VERSAO = 80;  // v80: apelidos de entidade configuráveis
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2072,5 +2072,111 @@ export const MIGRACOES = [
      if not found then raise exception 'Configuração de visibilidade da Anamnese não encontrada.'; end if;
      return anamnese_estado();
    end;
+   $$`,
+  // ================================================== v79: ordem persistida das perguntas
+  `alter table anamnese_perguntas add column if not exists ordem integer`,
+  `with ordenadas as (
+     select id, row_number() over (order by criado_em, id)::integer as n from anamnese_perguntas
+   )
+   update anamnese_perguntas q set ordem = o.n from ordenadas o where q.id = o.id and q.ordem is null`,
+  `alter table anamnese_perguntas alter column ordem set default 2147483647`,
+  `alter table anamnese_perguntas alter column ordem set not null`,
+  `create or replace function anamnese_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'perguntas', coalesce((select jsonb_agg(jsonb_build_object(
+         'id', id, 'texto', texto, 'tipo', tipo, 'opcoes', opcoes, 'obrigatoria', obrigatoria) order by ordem, criado_em, id)
+         from anamnese_perguntas), '[]'::jsonb),
+       'respostas', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pessoa_id, 'perguntaId', pergunta_id, 'resposta', resposta))
+         from anamnese_respostas), '[]'::jsonb),
+       'visivel', coalesce((select valor = 'true' from sistema where chave = 'anamnese_visivel'), true));
+   $$`,
+  `create or replace function anamnese_pergunta_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into anamnese_perguntas (texto, tipo, opcoes, obrigatoria, ordem)
+     values (btrim(p ->> 'texto'), p ->> 'tipo', coalesce(p -> 'opcoes', '[]'::jsonb),
+       coalesce((p ->> 'obrigatoria')::boolean, true),
+       coalesce((select max(ordem) from anamnese_perguntas), 0) + 1);
+     return anamnese_estado();
+   end;
+   $$`,
+  `create or replace function anamnese_perguntas_reordenar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_total integer;
+     v_ids jsonb := p -> 'ids';
+   begin
+     if v_ids is null then raise exception 'Lista de perguntas inválida.'; end if;
+     if jsonb_typeof(v_ids) <> 'array' then raise exception 'Lista de perguntas inválida.'; end if;
+     if jsonb_array_length(v_ids) > 500 then raise exception 'Lista de perguntas inválida.'; end if;
+     select count(*) into v_total from anamnese_perguntas;
+     if jsonb_array_length(v_ids) <> v_total then raise exception 'A lista de perguntas mudou; atualize e tente novamente.'; end if;
+     if (select count(distinct value) from jsonb_array_elements_text(v_ids)) <> v_total then
+       raise exception 'A lista contém perguntas repetidas.';
+     end if;
+     if exists (
+       select 1 from jsonb_array_elements_text(v_ids) e
+       where not exists (select 1 from anamnese_perguntas q where q.id = e.value::uuid)
+     ) then raise exception 'A lista contém uma pergunta que não existe.'; end if;
+     update anamnese_perguntas q set ordem = e.pos
+       from (select value::uuid as id, ordinality::integer as pos
+         from jsonb_array_elements_text(v_ids) with ordinality) e
+       where q.id = e.id;
+     return anamnese_estado();
+   end;
+   $$`,
+  // ================================================== v80: apelidos de entidade vinculados a linhas existentes
+  `alter table giras add column if not exists entidade_nome text not null default '' check (length(entidade_nome) <= 120)`,
+  `insert into sistema (chave, valor) values ('entidades_apelidos', '[]') on conflict (chave) do nothing`,
+  `create or replace function entidades_apelidos_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce((select valor::jsonb from sistema where chave = 'entidades_apelidos'), '[]'::jsonb);
+   $$`,
+  `create or replace function entidades_apelidos_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update sistema set valor = coalesce(p -> 'apelidos', '[]'::jsonb)::text where chave = 'entidades_apelidos';
+     if not found then raise exception 'Configuração de entidades não encontrada.'; end if;
+     return entidades_apelidos_listar();
+   end;
+   $$`,
+  `create or replace function gira_entidade_nome(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update giras set entidade_nome = coalesce(p ->> 'nome', ''), atualizado_em = now()
+       where data = (p ->> 'data')::date;
+     if not found then raise exception 'Gira não encontrada.'; end if;
+     return gira_json((p ->> 'data')::date);
+   end;
+   $$`,
+  `create or replace function gira_json(d date)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'data', g.data,
+       'entidade', g.entidade,
+       'entidadeNome', g.entidade_nome,
+       'encerrada', g.encerrada,
+       'suporteAuto', g.suporte_auto,
+       'atendimentos', g.atendimentos,
+       'limpeza', g.limpeza,
+       'orixa', g.orixa,
+       'evento', g.evento,
+       'pendentePadrao', g.pendente_padrao,
+       'publicada', coalesce(g.publicada, false),
+       'travada', g.travada,
+       'recado', g.recado,
+       'papeis', g.papeis,
+       'atualizadoEm', g.atualizado_em,
+       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
+                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
+       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
+       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
+     )
+     from giras g where g.data = d;
    $$`,
 ];

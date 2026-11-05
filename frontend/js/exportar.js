@@ -1,6 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
-import { giraEspecial, nomeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira } from '/shared/regras.js';
+import { giraEspecial, nomeEntidadeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira } from '/shared/regras.js';
 import { pd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -45,7 +45,7 @@ export function gruposExtras(pessoas, g, giras = []) {
 // Cabeçalho da escala (texto e imagem): "Sábado, 07/11/2026" e "Gira de Caboclo · Orixá Ogum".
 export function cabecalhoGira(g) {
   const dia = pd(g.data).toLocaleDateString('pt-BR', { weekday: 'long' });
-  const gira = !g.entidade ? '' : giraEspecial(g.entidade) ? nomeGira(g.entidade) : `Gira de ${nomeGira(g.entidade)}`;
+  const gira = !g.entidade ? '' : giraEspecial(g.entidade) ? nomeEntidadeGira(g) : `Gira de ${nomeEntidadeGira(g)}`;
   return { dia: dia.charAt(0).toUpperCase() + dia.slice(1), data: dShort(g.data), gira, orixa: orixaDaGira(g) };
 }
 

@@ -712,10 +712,13 @@ body.deslogado .rodape{display:none}
 .mp-st{flex:none;font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 9px;background:var(--off-soft);color:var(--off)}
 .mp-st.a{background:#fbefc4;color:#7a5600}
 /* aba Gira (quem não é admin): gira anterior, próxima e calendário */
-.nav-gira{display:flex;gap:8px;flex:1 1 100%;min-width:0}
+.nav-gira{display:flex;align-items:center;gap:8px;flex:1 1 100%;min-width:0}
+.nav-data{display:flex;align-items:center;gap:8px;flex:1;min-width:0;height:44px;color:var(--muted);font-weight:700;text-transform:capitalize}
 .nav-bt{flex:1 1 0;min-width:0;height:44px;padding:0 10px;font-size:.98rem;white-space:nowrap}
 .nav-cal{position:relative;flex:0 0 48px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem;overflow:hidden}
 .nav-cal input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0}
+.ev-wa{display:inline-flex;align-items:center;gap:6px;flex:none}
+.ev-wa .wa-ico svg{width:18px;height:18px}
 .enc-linha{flex:1 1 100%;display:flex;gap:8px}.enc-linha > .btn{flex:1}
 /* Sua presença: no máximo 5 faltas/ausências à vista; o resto rola */
 .mp-lista{max-height:12rem;overflow-y:auto;overscroll-behavior:contain;margin-right:-6px;padding-right:6px}
@@ -932,7 +935,6 @@ section.panel.pf-tela{gap:14px}
 .pf-adm-area{position:relative;display:grid;gap:12px;border:2px solid var(--gold);border-radius:calc(var(--r) + 4px);padding:20px 10px 10px;margin-top:8px;background:color-mix(in srgb,var(--gold) 5%,transparent)}
 .pf-adm-rot{position:absolute;top:0;left:16px;transform:translateY(-50%);background:var(--bg);color:var(--gold);font-weight:800;font-size:.75rem;letter-spacing:.14em;padding:0 8px;line-height:1.4}
 .pf-adm-area .card{box-shadow:none}
-.pf-adm-area .aj-sel{gap:12px}
 /* Linhas do perfil: o espaço entre elas vem só do padding (sem o gap do card) */
 .card:has(> .pf-linha){row-gap:0}
 .card:has(> .pf-linha) > .grp-h{margin-bottom:12px}
@@ -1250,6 +1252,10 @@ button.eu-av{cursor:zoom-in}
 .ana-perg li{counter-increment:q;display:flex;align-items:center;gap:8px;justify-content:space-between}
 .ana-perg li::before{content:counter(q) ".";font-weight:700;flex:none;min-width:1.4em}
 .ana-perg li > span{flex:1;min-width:0;overflow-wrap:anywhere}
+.ana-arrastar{flex:none;padding:2px 6px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:1.25rem;line-height:1;cursor:grab;touch-action:none}
+.ana-arrastar:active{cursor:grabbing}
+.ana-arrastando{user-select:none}
+.ana-movendo{opacity:.45}
 .ana-acoes{display:flex;align-items:center;gap:6px;flex:none}
 .ana-edit-field{flex:1;min-width:0}
 .ana-editando{flex-wrap:wrap}

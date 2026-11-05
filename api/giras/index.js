@@ -24,9 +24,33 @@ import { acaoVideo } from '../_lib/videos.js';
 import { ACOES_ORACOES, oracoes, acaoOracao } from '../_lib/oracoes.js';
 import { ACOES_FOTOS, exigirFotosAtiva, fotosEstado, acaoFoto } from '../_lib/fotos.js';
 import { pode } from '../../shared/permissoes.js';
+import { OPCOES_GIRA, LINHA_LABEL } from '../../shared/regras.js';
+
+const normalizarNome = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
+
+function validarApelidos(lista) {
+  if (!Array.isArray(lista) || lista.length > 100) throw new HttpError(400, 'Lista de entidades inválida.');
+  const linhas = new Set(OPCOES_GIRA.flatMap((g) => g.itens.map(([chave]) => chave)));
+  const nomes = new Set(OPCOES_GIRA.flatMap((g) => g.itens.map(([, nome]) => nome)).map(normalizarNome));
+  const usados = new Set();
+  return lista.map((x) => {
+    const nome = String(x?.nome ?? '').replace(/\s+/g, ' ').trim();
+    const linha = String(x?.linha ?? '');
+    const chave = normalizarNome(nome);
+    if (!nome || nome.length > 80) throw new HttpError(400, 'Cada nome de entidade deve ter de 1 a 80 caracteres.');
+    if (!linhas.has(linha) || !LINHA_LABEL[linha]) throw new HttpError(400, 'Escolha uma linha válida para cada nome.');
+    if (nomes.has(chave) || usados.has(chave)) throw new HttpError(400, 'Os nomes alternativos não podem repetir entidades existentes ou entre si.');
+    usados.add(chave);
+    return { nome, linha };
+  });
+}
 
 export default rota({
   GET: async (req) => {
+    if (req.query.lista === 'entidades') {
+      await exigir(req, 'giras:ler');
+      return db.rpc('entidades_apelidos_listar');
+    }
     if (req.query.lista === 'eventos') {
       await exigir(req);
       return db.rpc('eventos_listar');
@@ -50,6 +74,10 @@ export default rota({
   },
   POST: async (req) => {
     const b = corpo(req);
+    if (b.acao === 'entidadesApelidos') {
+      await exigir(req, 'usuarios:gerenciar');
+      return db.rpc('entidades_apelidos_salvar', { apelidos: validarApelidos(b.apelidos) });
+    }
     if (b.acao === 'video' || b.acao === 'excluirVideo') {
       await exigir(req, 'videos:editar');
       return acaoVideo(b);

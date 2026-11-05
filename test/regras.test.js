@@ -1,7 +1,7 @@
 // Testes das regras puras (sem banco).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium } from '../shared/regras.js';
+import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium, opcoesGira, apelidoEntidade, nomeEntidadeGira } from '../shared/regras.js';
 import { PERFIS_PADRAO, PERMISSOES_ROOT, permissoesDe } from '../shared/permissoes.js';
 
 test('entidade da gira é reconhecida com variações de escrita', () => {
@@ -14,6 +14,15 @@ test('entidade da gira é reconhecida com variações de escrita', () => {
   assert.equal(linhaDaEntidade('Exu'), 'exu');
   assert.equal(linhaDaEntidade(''), null);
   assert.equal(linhaDaEntidade('Oxóssi'), null);
+});
+
+test('apelidos de entidade mostram nome configurado e preservam a linha canônica', () => {
+  const aliases = [{ nome: 'Caboclo de Pena', linha: 'caboclo' }];
+  const opcao = opcoesGira(aliases).flatMap((g) => g.itens).find(([, nome]) => nome === 'Caboclo de Pena');
+  assert.deepEqual(opcao, ['Caboclo', 'Caboclo de Pena', 'Caboclo de Pena']);
+  assert.equal(linhaDaEntidade(opcao[0]), 'caboclo');
+  assert.deepEqual(apelidoEntidade('caboclo DE pena', aliases), aliases[0]);
+  assert.equal(nomeEntidadeGira({ entidade: 'Caboclo', entidadeNome: 'Caboclo de Pena' }), 'Caboclo de Pena');
 });
 
 test('extra e passe atuam só nas linhas marcadas; nas outras, cambonam', () => {

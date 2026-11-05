@@ -1,11 +1,12 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, LINHA_LABEL, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
 import { gerarImagem } from '../imagem.js';
+import { gerarImagemEvento } from '../imagemEvento.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
 import { banhosDaGira } from '/shared/banhos.js';
@@ -34,13 +35,13 @@ function podeCompartilhar() {
 }
 
 // Lista das linhas; mantém um valor antigo (texto livre) se a gira já tinha um.
-function seletorEntidade(atual) {
+function seletorEntidade(atual, nomeAtual = '') {
   const conhecida = linhaDaEntidade(atual);
   const especial = giraEspecial(atual);
   const valor = nomeGira(atual);
   const antigo = valor && !conhecida && !especial ? `<option value="${esc(valor)}" selected>${esc(valor)} (fora da lista)</option>` : '';
   return `<select id="f-ent"><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
-    ${OPCOES_GIRA.map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([, label]) => `<option ${label === valor ? 'selected' : ''}>${label}</option>`).join('')}</optgroup>`).join('')}
+    ${opcoesGira(estado.entidadesApelidos).map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([canonico, label, alias]) => `<option value="${esc(canonico)}" data-alias="${esc(alias)}" ${canonico === valor && alias === nomeAtual ? 'selected' : ''}>${esc(label)}</option>`).join('')}</optgroup>`).join('')}
   </select>`;
 }
 
@@ -55,7 +56,7 @@ function blocoLimpeza(g) {
   return `<div class="limpeza"><div class="limp-cab"><b>🧹 Limpeza · Turma ${L.turma}</b></div>
     <span>${L.membros.length ? nomes(L.membros) : '<span class="muted">Ninguém cadastrado nesta turma (cadastre na aba Pessoas).</span>'}</span>
     ${L.deLicenca.length ? `<span class="muted" style="font-size:.85rem">De licença: ${nomes(L.deLicenca)}</span>` : ''}
-    ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeGira(L.anterior.entidade))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
+    ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeEntidadeGira(L.anterior))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
       : L.anterior ? `<span class="muted" style="font-size:.85rem">Ninguém da Turma ${L.anterior.limpeza} faltou na gira de ${dDM(L.anterior.data)}.</span>` : ''}
   </div>`;
 }
@@ -120,7 +121,7 @@ function avisoEntidade(ps, g, editar, admin) {
   const comLinhas = ps.filter(usaLinhas);
   if (!comLinhas.length) return '';
   if (giraEspecial(g.entidade)) {
-    return admin ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(nomeGira(g.entidade))}: extras e passes atuam na própria função, sem olhar as linhas.</p>` : '';
+    return admin ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(nomeEntidadeGira(g))}: extras e passes atuam na própria função, sem olhar as linhas.</p>` : '';
   }
   if (!linhaDaEntidade(g.entidade)) {
     return editar ? `<div class="warnbox">Escolha a entidade do dia: é ela que define quem atua como extra ou passe e quem cambona.</div>` : '';
@@ -231,8 +232,7 @@ function caixaEncerrar() {
 // Gira anterior, próxima gira e o calendário para buscar outra data (para todos).
 function navegarGiras(g) {
   return `<div class="nav-gira">
-    <button class="btn nav-bt" data-act="giraanterior" title="Vai para a gira anterior">‹ Gira anterior</button>
-    <button class="btn nav-bt" data-act="proxgira" title="Vai para a próxima gira">Próxima gira ›</button>
+    <span class="nav-data"><span aria-hidden="true">📅</span> ${esc(dLong(g.data))}</span>
     <label class="btn nav-cal" title="Escolher outra data"><span aria-hidden="true">📅</span><input type="date" id="f-data" value="${esc(g.data)}" aria-label="Escolher outra data"></label>
   </div>`;
 }
@@ -350,7 +350,7 @@ function renderGira() {
   const secaoEvento = !admin || !existe ? '' : encerrada
     ? `<div class="adm-sec adm-evento">${cabEvento}
       <div class="row">
-        <label class="field grow">Gira / entidade do dia${campoFixo(nomeGira(g.entidade))}</label>
+        <label class="field grow">Gira / entidade do dia${campoFixo(nomeEntidadeGira(g))}</label>
         ${temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá${campoFixo(orixaDaGira(g))}</label>` : ''}
       </div>
       ${whats ? `<div class="adm-ev-wa">${botaoWhats(temDuplas, 'Compartilhar a escala')}</div>` : ''}
@@ -358,7 +358,7 @@ function renderGira() {
       ${pode('escala:completa') ? painelResumo(g) : ''}</div>`
     : `<div class="adm-sec adm-evento">${cabEvento}
       <div class="row">
-        <label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade)}</label>
+        <label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade, g.entidadeNome || '')}</label>
         <label class="ev-toggle"><input type="checkbox" data-act="evento" aria-label="Marcar esta atividade como evento" ${g.evento ? 'checked' : ''}><span>Evento</span></label>
         ${temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá${seletorOrixa(g)}</label>` : ''}
         ${!g.evento && temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
@@ -374,7 +374,7 @@ function renderGira() {
       ${estado.confirm === 'enc:' + g.data ? caixaEncerrar() : ''}</div>`;
   let h = `<section class="panel">${eu}${cardCompromissos()}${cardAulaCurimba()}
   <div class="card card-gira${existe && !encerrada ? ' aberta' : ''}">
-    <div class="datehead"><div class="dh-linha"><span class="eyebrow">${esc(dLong(g.data))}</span></div><span class="dia gira-nome">${g.evento ? `Evento${g.entidade ? ` · ${esc(nomeGira(g.entidade))}` : ''}` : g.entidade ? (giraEspecial(g.entidade) ? esc(nomeGira(g.entidade)) : `Gira de ${esc(nomeGira(g.entidade))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
+    <div class="datehead"><div class="dh-linha">${g.evento && !encerrada ? botaoImagemEvento(g, ps) : `<span class="eyebrow">${esc(dLong(g.data))}</span>`}</div><span class="dia gira-nome">${g.evento ? `Evento${g.entidade ? ` · ${esc(nomeEntidadeGira(g))}` : ''}` : g.entidade ? (giraEspecial(g.entidade) ? esc(nomeEntidadeGira(g)) : `Gira de ${esc(nomeEntidadeGira(g))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
       ${navegarGiras(g)}
       ${whats && !admin ? `<div class="enc-linha">${botaoWhats(temDuplas)}${encerrada ? botaoResumo(g) : ''}</div>` : ''}
@@ -593,6 +593,59 @@ function botaoWhatsLimpeza(g) {
 
 // ---------- janela do WhatsApp: texto (abre o WhatsApp com a mensagem) ou imagem (compartilhar do aparelho) ----------
 const imagemPronta = () => { const g = giraAtual(); return !!(estado.img && estado.img.data === g.data && estado.img.key === chaveImg()); };
+
+function dadosImagemEvento(g, ps) {
+  const secoes = [];
+  if (!g.encerrada && g.recado) secoes.push({ titulo: '📢 Recado', itens: [g.recado], cor: '#2c4ea3' });
+  const banho = banhosDaGira(g);
+  for (const [titulo, dados] of [['🌿 Banho orixá', banho.orixa], ['🌿 Banho guia', banho.guia]]) {
+    if (dados) secoes.push({ titulo: `${titulo} · ${dados.nome}`, itens: [...dados.ervas, ...(dados.obs ? [dados.obs] : []), ...(dados.aviso ? [`⚠️ ${dados.aviso}`] : [])], cor: '#24785a' });
+  }
+  for (const [st, titulo, cor] of [['a', '✖ Ausência', '#a2423a'], ['f', '✖ Faltas', '#e0101f']]) {
+    const nomes = ps.filter((p) => status(p, g) === st).map((p) => p.nome);
+    if (nomes.length) secoes.push({ titulo: `${titulo} · ${nomes.length}`, itens: nomes, cor });
+  }
+  const licencas = ps.filter((p) => licencaEm(p, g.data)).map((p) => `${p.nome} (até ${dDM(licencaEm(p, g.data).fim)})`);
+  if (licencas.length) secoes.push({ titulo: `✚ De licença · ${licencas.length}`, itens: licencas, cor: '#a2423a' });
+  return {
+    data: dLong(g.data).replace(/^./, (c) => c.toLocaleUpperCase('pt-BR')),
+    titulo: `Evento${g.entidade ? ` · ${nomeEntidadeGira(g)}` : ''}`,
+    orixa: orixaDaGira(g),
+    secoes,
+  };
+}
+const chaveImagemEvento = (g, ps) => JSON.stringify([g.data, g.entidade, g.orixa, g.recado, g.evento, ps.map((p) => [p.id, p.nome, status(p, g), licencaEm(p, g.data)?.fim]), banhosDaGira(g)]);
+function imagemEventoPronta(g, ps) {
+  return !!(estado.eventoImg && estado.eventoImg.key === chaveImagemEvento(g, ps));
+}
+function botaoImagemEvento(g, ps) {
+  const pronta = imagemEventoPronta(g, ps);
+  const key = chaveImagemEvento(g, ps);
+  if (!pronta && estado.eventoImgErro !== key) setTimeout(() => prepararImagemEvento(g, ps), 0);
+  const gerando = estado.eventoImgGerando === key || (!pronta && estado.eventoImgErro !== key);
+  return `<button class="btn small ev-wa" data-act="eventoimagem" ${gerando ? 'disabled' : ''} title="${gerando ? 'Preparando a imagem do evento' : 'Compartilhar a imagem do evento'}"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span>${gerando ? 'Preparando…' : 'WhatsApp'}</button>`;
+}
+async function prepararImagemEvento(g, ps) {
+  const evento = dadosImagemEvento(g, ps);
+  const key = chaveImagemEvento(g, ps);
+  if (imagemEventoPronta(g, ps) || estado.eventoImgGerando === key || estado.eventoImgErro === key) return;
+  estado.eventoImgGerando = key;
+  try {
+    const blob = await gerarImagemEvento(evento);
+    const atual = giraAtual();
+    const pessoasAtuais = pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, atual.data));
+    if (chaveImagemEvento(atual, pessoasAtuais) !== key) return;
+    if (estado.eventoImg) URL.revokeObjectURL(estado.eventoImg.url);
+    estado.eventoImg = { url: URL.createObjectURL(blob), blob, key, nome: `evento-${g.data}.png` };
+    estado.eventoImgErro = null;
+  } catch (e) {
+    estado.eventoImgErro = key;
+    toast(e.message);
+  } finally {
+    if (estado.eventoImgGerando === key) estado.eventoImgGerando = null;
+    avisar();
+  }
+}
 // A imagem começa a ser feita quando a janela abre: o compartilhar do celular só funciona logo depois do toque,
 // então ela já precisa estar pronta quando a pessoa escolher "Imagem".
 async function prepararImagem() {
@@ -787,6 +840,27 @@ export const cliques = {
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
   // Bloco Eventos: só os de hoje ↔ todos.
   evsmais() { estado.evsTodos = !estado.evsTodos; avisar(); },
+  eventoimagem() {
+    const g = giraAtual();
+    if (!g.evento || g.encerrada) return;
+    const ps = pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
+    if (!imagemEventoPronta(g, ps)) {
+      estado.eventoImgErro = null;
+      prepararImagemEvento(g, ps);
+      return;
+    }
+    const { blob, nome: arquivo } = estado.eventoImg;
+    const file = new File([blob], arquivo, { type: 'image/png' });
+    let podeCompartilhar = false;
+    try { podeCompartilhar = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch { podeCompartilhar = false; }
+    if (!podeCompartilhar) {
+      baixar(blob, arquivo);
+      toast('Imagem salva. Abra o WhatsApp e anexe a imagem no grupo.');
+      return;
+    }
+    navigator.share({ files: [file], title: 'Evento da gira' })
+      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. A imagem permanece disponível para baixar.'); });
+  },
   escimg() { estado.escImgVer = true; atualizarJanela(); },
   // Orações (admin): janela com a prévia da imagem; "Compartilhar" abre a lista do aparelho (WhatsApp); sem ela, salva.
   oraabrir() { estado.oraJanela = true; atualizarJanela(); prepararOracoes(); },
@@ -984,7 +1058,7 @@ export const mudancas = {
   limpezagira(t) { editarGira({ limpeza: t.value ? Number(t.value) : null }); avisar(); },
   evento(t) { editarGira({ evento: t.checked }); avisar(); },
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },
-  entidade(t) { editarGira({ entidade: t.value }); avisar(); },
+  entidade(t) { editarGira({ entidade: t.value, entidadeNome: t.selectedOptions[0]?.dataset.alias || '' }); avisar(); },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
   // Data na parte ⚙️ Evento do card do admin: vai para o dia escolhido (como o 📅 da navegação).
   irdata(t) { mudancas.data(t); },

@@ -23,6 +23,9 @@ export const estado = {
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
   img: null,           // imagem gerada da escala
+  eventoImg: null,     // imagem gerada do evento da aba Gira
+  eventoImgGerando: null,
+  eventoImgErro: null,
   manual: null,
   renomear: null,
   editLic: null,
@@ -39,6 +42,7 @@ export const estado = {
   alunos: null,        // aba Pessoas: { turmas, alunos }
   stPerfis: null,      // Histórico → Estatísticas: contagens do Perfil { total, chefe, frente, orixa } (undefined = carregando)
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
+  entidadesApelidos: [], // apelidos opcionais das entidades, configurados pelo Admin root
   oracoes: [],         // aba Gira: orações dos últimos 7 dias
   ausPrevias: null,    // aba Gira (admin): ausências antecipadas, de datas ainda sem gira — [{ data, pessoaId }]
   curimba: null,       // aba Curimba: { alunos, aulas, presencas }
@@ -81,13 +85,15 @@ function definirGiras(lista) {
 }
 
 export async function carregarTudo() {
-  const [me, pessoas, giras, eventos, minhaCurimba, oracoes] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
-    api('GET', '/giras?lista=eventos').catch(() => []), api('GET', '/pessoas?lista=minhaCurimba').catch(() => null), api('GET', '/giras?lista=oracoes').catch(() => [])]);
+  const [me, pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
+    api('GET', '/giras?lista=eventos').catch(() => []), api('GET', '/pessoas?lista=minhaCurimba').catch(() => null), api('GET', '/giras?lista=oracoes').catch(() => []),
+    api('GET', '/giras?lista=entidades').catch(() => [])]);
   estado.me = me;
   estado.oracoes = oracoes || [];
   estado.eventos = eventos;
   estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
   estado.pessoas = pessoas;
+  estado.entidadesApelidos = entidadesApelidos || [];
   definirGiras(giras);
   estado.pronto = true;
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
@@ -122,12 +128,14 @@ export async function atualizarDoServidor() {
   if (Date.now() - ultimaAtualizacao < 15000) return;
   ultimaAtualizacao = Date.now();
   try {
-    const [pessoas, giras, eventos, minhaCurimba, oracoes] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos),
-      api('GET', '/pessoas?lista=minhaCurimba').catch(() => estado.minhaCurimba), api('GET', '/giras?lista=oracoes').catch(() => estado.oracoes)]);
+    const [pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos),
+      api('GET', '/pessoas?lista=minhaCurimba').catch(() => estado.minhaCurimba), api('GET', '/giras?lista=oracoes').catch(() => estado.oracoes),
+      api('GET', '/giras?lista=entidades').catch(() => estado.entidadesApelidos)]);
     estado.oracoes = oracoes || [];
     estado.pessoas = pessoas;
     estado.eventos = eventos || [];
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
+    estado.entidadesApelidos = entidadesApelidos || [];
     definirGiras(giras);
     // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
     // Na aba Gira também, por causa de "Seus compromissos".
@@ -393,6 +401,13 @@ export async function acaoEventos(acao, dados = {}) {
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }
 }
+export async function salvarApelidosEntidade(apelidos) {
+  try {
+    estado.entidadesApelidos = await api('POST', '/giras', { acao: 'entidadesApelidos', apelidos });
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
 
 // ---------- aba Curimba (alunos, aulas e presença: à parte da corrente) ----------
 export async function carregarCurimba() {
@@ -493,7 +508,7 @@ export function montarBackup() {
     versao: 2,
     exportado: new Date().toISOString(),
     pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [], limpeza: p.limpeza || null, entrada: p.entrada || null }])),
-    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, limpeza: g.limpeza || null, orixa: g.orixa || '', pendentePadrao: !!g.pendentePadrao, papeis: g.papeis || {}, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
+    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, entidadeNome: g.entidadeNome || '', encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, limpeza: g.limpeza || null, orixa: g.orixa || '', pendentePadrao: !!g.pendentePadrao, papeis: g.papeis || {}, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
   };
 }
 export async function importarBackup(obj) {

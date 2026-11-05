@@ -123,6 +123,7 @@ export default rota({
     }
     const p = { data, usuario: perfil.id };
     if ('entidade' in b) p.entidade = validarEntidade(b.entidade);
+    if ('entidade' in b || 'entidadeNome' in b) p.entidadeNome = validarEntidade(b.entidadeNome);
     if ('presenca' in b) p.presenca = validarPresenca(b.presenca);
     if ('papeis' in b) p.papeis = validarPapeis(b.papeis);
     if ('pares' in b) p.pares = validarDuplas(b.pares, 'cambones');
@@ -139,7 +140,8 @@ export default rota({
     const nova = b.encerrada !== true && !(await db.rpc('gira_obter', { data }));
     const previas = nova ? (await db.rpc('ausencias_previas_listar')).filter((x) => x.data === data).map((x) => x.pessoaId) : [];
     if (previas.length) p.presenca = { ...Object.fromEntries(previas.map((id) => [id, 'a'])), ...(p.presenca || {}) };
-    const gira = await db.rpc('gira_salvar', p);
+    let gira = await db.rpc('gira_salvar', p);
+    if ('entidadeNome' in p) gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
     if (nova) await db.rpc('ausencias_previas_usar', { data });
     if (mudaEvento) return ocultarSorteio(perfil, await db.rpc('gira_evento', { data, usuario: perfil.id, evento: b.evento }));
     return gira;
@@ -194,9 +196,14 @@ export default rota({
       const orixa = validarOrixa(b.orixa);
       // Troca as duplas, soma a função do dia e completa a gira e o orixá se estiverem vazios.
       p.papeis = { ...(atual.papeis || {}), ...validarPapeis(b.papeis) };
-      if (!atual.entidade && entidade) p.entidade = entidade;
+      if (!atual.entidade && entidade) {
+        p.entidade = entidade;
+        p.entidadeNome = validarEntidade(b.entidadeNome);
+      }
       if (!atual.orixa && orixa) p.orixa = orixa;
-      return { gira: await db.rpc('gira_salvar', p), mensagem: `Escala gravada na gira de ${d}/${m}/${y} (presença e atendidos não mudaram).` };
+      let gira = await db.rpc('gira_salvar', p);
+      if ('entidadeNome' in p) gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
+      return { gira, mensagem: `Escala gravada na gira de ${d}/${m}/${y} (presença e atendidos não mudaram).` };
     }
     if (acao === 'publicar') {
       const atual = await db.rpc('gira_obter', { data });

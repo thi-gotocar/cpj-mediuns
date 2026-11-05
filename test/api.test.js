@@ -792,6 +792,24 @@ test('turma da limpeza: na pessoa e na gira (1 a 7)', async () => {
   assert.equal((await api('PUT', '/api/giras/2028-01-05', ADMIN, { orixa: 'Oxóssi' })).status, 409);
 });
 
+test('apelidos de entidade: root configura e a gira preserva o nome ligado à linha', async () => {
+  const apelidos = [{ nome: 'Caboclo de Pena', linha: 'caboclo' }];
+  const salvo = await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos });
+  assert.equal(salvo.status, 200, JSON.stringify(salvo.json));
+  assert.deepEqual(salvo.json, apelidos);
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'entidadesApelidos', apelidos: [] })).status, 403);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [{ nome: 'Caboclo', linha: 'caboclo' }] })).status, 400);
+  const data = '2032-01-02';
+  const criada = await api('PUT', '/api/giras/' + data, ADMIN, { entidade: 'Caboclo', entidadeNome: 'Caboclo de Pena' });
+  assert.equal(criada.status, 200, JSON.stringify(criada.json));
+  assert.equal(criada.json.entidade, 'Caboclo');
+  assert.equal(criada.json.entidadeNome, 'Caboclo de Pena');
+  const listada = (await api('GET', '/api/giras', USER)).json.find((g) => g.data === data);
+  assert.equal(listada.entidade, 'Caboclo', 'as regras continuam usando a linha canônica');
+  assert.equal(listada.entidadeNome, 'Caboclo de Pena');
+  assert.deepEqual((await api('GET', '/api/giras?lista=entidades', USER)).json, apelidos);
+});
+
 test('oferendas: uma linha para cada médium, admin marca a situação', async () => {
   const ps0 = (await api('GET', '/api/pessoas', ADMIN)).json;
   const ps = Array.isArray(ps0) ? ps0 : ps0.pessoas;
@@ -1324,6 +1342,12 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
   r = (await pq(ADMIN, { acao: 'editarPergunta', id: q2.id, texto: '  Remédios   em uso? ' })).json;
   assert.equal(r.perguntas.find((q) => q.id === q2.id).texto, 'Remédios em uso?');
   assert.ok(r.todas.some((x) => x.perguntaId === q2.id && x.resposta === 'dipirona'), 'editar o texto preserva respostas existentes');
+  const ordem = r.perguntas.map((q) => q.id).reverse();
+  assert.equal((await pq(USER, { acao: 'reordenar', ids: ordem })).status, 403, 'só admin reordena');
+  assert.equal((await pq(ADMIN, { acao: 'reordenar', ids: ordem.slice(1) })).status, 400, 'não permite perder perguntas da lista');
+  assert.equal((await pq(ADMIN, { acao: 'reordenar', ids: [ordem[0], ordem[0], ...ordem.slice(2)] })).status, 400, 'não permite perguntas repetidas');
+  r = (await pq(ADMIN, { acao: 'reordenar', ids: ordem })).json;
+  assert.deepEqual(r.perguntas.map((q) => q.id), ordem, 'a nova ordem persiste');
   // Excluir a pergunta tira as respostas dela.
   r = (await pq(ADMIN, { acao: 'excluirPergunta', id: q1.id })).json;
   assert.ok(!r.perguntas.some((q) => q.id === q1.id) && !r.todas.some((x) => x.perguntaId === q1.id));
