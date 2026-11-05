@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 74;  // v74: evento sem limpeza, escala ou sugestões
+export const VERSAO = 75;  // v75: remover turma de alunos sem excluir os alunos
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1955,5 +1955,15 @@ export const MIGRACOES = [
                            from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
      )
      from giras g where g.data = d;
+   $$`,
+
+  // ================================================== v75: remover turma de alunos; os alunos ficam sem turma
+  `create or replace function turma_aluno_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from turmas_alunos where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Turma não encontrada.'; end if;
+     return alunos_estado();
+   end;
    $$`,
 ];

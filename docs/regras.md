@@ -12,6 +12,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Aba Pessoas: os blocos de Extra e Passe se chamam **Médiuns At. Extra** e **Médiuns de Passe**; nos quadradinhos da Corrente CPJ ficam os nomes curtos (At. Extra, Passe).
 - Aba Pessoas: tudo só muda em **Editar** (nome, função, turma, + médium de passe, entidades) e grava no **Salvar**; Excluir abre janela de confirmação.
 - Bloco Alunos: cada turma tem **Editar** ao lado do nome (quem edita os alunos) para renomear; o nome não repete. Oferendas por turma guardam a turma, não o nome, e continuam valendo.
+- Bloco Alunos: **Remover** uma turma pede confirmação; os alunos dela são mantidos e passam para **Sem turma**.
 
 ## Presença (status por gira)
 

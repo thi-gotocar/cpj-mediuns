@@ -5,7 +5,8 @@
 // GET  /api/pessoas?lista=alunos  { turmas, alunos }  (alunos da CPJ: fora da corrente)
 // GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa, cabeca, cabecaPessoas }  (Histórico → Estatísticas: só contagens do Perfil)
 // POST /api/pessoas            { acao: 'alunos', nome: "A, B", turmaId } · { acao: 'aluno', id, nome?, turmaId? }
-//                              { acao: 'excluirAluno', id } · { acao: 'turma', id?, nome } (com id = renomear)  → { turmas, alunos }
+//                              { acao: 'excluirAluno', id } · { acao: 'turma', id?, nome } (com id = renomear)
+//                              · { acao: 'excluirTurma', id } (alunos passam para sem turma) → { turmas, alunos }
 // GET  /api/pessoas?lista=curimba      { alunos, aulas, presencas }  (aba Curimba: controle à parte da corrente)
 // GET  /api/pessoas?lista=minhaCurimba { aulas: [{ data, nome, status }] } | null  (aba Gira: as aulas de quem está logado)
 // POST /api/pessoas            { acao: 'curimbaAluno', pessoaId? | nome } · { acao: 'curimbaExcluirAluno', id }
@@ -17,12 +18,13 @@ import { db } from '../_lib/db.js';
 import { FUNCAO_KEYS } from '../../shared/regras.js';
 import { contagemPerfis } from '../../shared/perfil.js';
 
-const ACOES_ALUNOS = ['alunos', 'aluno', 'excluirAluno', 'turma'];
+const ACOES_ALUNOS = ['alunos', 'aluno', 'excluirAluno', 'turma', 'excluirTurma'];
 const ACOES_CURIMBA = ['curimbaAluno', 'curimbaExcluirAluno', 'curimbaAula', 'curimbaExcluirAula', 'curimbaPresenca'];
 const limpar = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max + 1);
 const turmaId = (v) => (v ? validarId(v, 'Turma') : '');
 
 async function acaoAlunos(b) {
+  if (b.acao === 'excluirTurma') return db.rpc('turma_aluno_excluir', { id: validarId(b.id, 'Turma') });
   if (b.acao === 'turma') {
     const nome = limpar(b.nome, 40);
     if (!nome || nome.length > 40) throw new HttpError(400, 'Informe o nome da turma (até 40 letras).');
