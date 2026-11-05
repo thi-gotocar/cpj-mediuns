@@ -113,13 +113,21 @@ const acoes = {
     const eu = await exigir(req);
     const admin = pode(eu, 'perfil:corrente');
     const resposta = (E) => ({
-      perguntas: E.perguntas,
-      minhas: eu.pessoaId ? Object.fromEntries(E.respostas.filter((r) => r.pessoaId === eu.pessoaId).map((r) => [r.perguntaId, r.resposta])) : null,
+      visivel: E.visivel !== false,
+      perguntas: admin || E.visivel !== false ? E.perguntas : [],
+      minhas: eu.pessoaId && (admin || E.visivel !== false)
+        ? Object.fromEntries(E.respostas.filter((r) => r.pessoaId === eu.pessoaId).map((r) => [r.perguntaId, r.resposta]))
+        : null,
       ...(admin ? { todas: E.respostas } : {}),
     });
     if (req.method === 'GET') return resposta(await db.rpc('anamnese_estado'));
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const b = corpo(req);
+    if (b.acao === 'visibilidade') {
+      if (!admin) throw new HttpError(403, 'Só o admin do perfil altera a visibilidade da Anamnese.');
+      if (typeof b.visivel !== 'boolean') throw new HttpError(400, 'Informe se a Anamnese deve ficar visível.');
+      return resposta(await db.rpc('anamnese_visibilidade', { visivel: b.visivel }));
+    }
     if (b.acao === 'pergunta' || b.acao === 'editarPergunta' || b.acao === 'excluirPergunta') {
       if (!admin) throw new HttpError(403, 'Só o admin do perfil mexe nas perguntas.');
       if (b.acao === 'excluirPergunta') return resposta(await db.rpc('anamnese_pergunta_excluir', { id: validarId(b.id, 'Pergunta') }));
@@ -134,7 +142,9 @@ const acoes = {
     if (b.acao !== 'responder') throw new HttpError(400, 'Ação inválida.');
     if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
     if (!b.respostas || typeof b.respostas !== 'object' || Array.isArray(b.respostas)) throw new HttpError(400, 'Respostas inválidas.');
-    const { perguntas } = await db.rpc('anamnese_estado');
+    const E = await db.rpc('anamnese_estado');
+    if (E.visivel === false && !admin) throw new HttpError(409, 'A Anamnese está temporariamente indisponível.');
+    const { perguntas } = E;
     const respostas = {};
     for (const [id, v] of Object.entries(b.respostas)) {
       const q = perguntas.find((x) => x.id === id);

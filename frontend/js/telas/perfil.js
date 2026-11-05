@@ -248,6 +248,7 @@ function campoAnamnese(q, i, v, ed) {
 }
 function cardAnamnese() {
   const A = estado.anamnese;
+  if (A?.visivel === false && !admin()) return '';
   if (!A || A.erro) return card('anamnese', 'Anamnese', '', false, () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>`, true);
   const ok = anamnesePreenchida(A.perguntas, A.minhas);
   const ed = !!U().anaEdit;
@@ -296,6 +297,7 @@ function cardAnamneseAdmin(todos) {
   const x = todos.find((t) => t.pessoaId === u.anaPessoa);
   const val = valorAnamnese;
   return card('anamnese-adm', 'Anamnese', `${sim} de ${todos.length}`, false, () => `
+    <label class="of-sw ana-vis-toggle"><input type="checkbox" role="switch" data-act="anavisibilidade" ${A.visivel !== false ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir bloco para usuários</label>
     <div class="pf-resp"><b>${pct}%</b><span>${sim} ${sim === 1 ? 'pessoa preencheu' : 'pessoas preencheram'} · ${todos.length - sim} ${todos.length - sim === 1 ? 'falta' : 'faltam'}</span></div>
     <div class="pf-barra" role="img" aria-label="${pct}% preencheram"><span style="width:${pct}%"></span></div>
     <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
@@ -493,6 +495,11 @@ export function digitando(el) {
 }
 
 export const mudancas = {
+  async anavisibilidade(t) {
+    if (await acaoAnamnese('visibilidade', { visivel: t.checked })) {
+      toast(t.checked ? 'Anamnese exibida para os usuários.' : 'Anamnese ocultada dos usuários.');
+    }
+  },
   // Anamnese: guarda o que foi escolhido/digitado (sem redesenhar).
   anaresp(t) {
     if (!U().anaEdit) return;

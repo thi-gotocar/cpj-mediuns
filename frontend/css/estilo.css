@@ -1243,6 +1243,7 @@ button.eu-av{cursor:zoom-in}
 .ana-item[disabled] .ana-sn{opacity:.75}
 .ana-bts{justify-content:flex-end}
 .ana-adm-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ana-vis-toggle{align-self:flex-start;margin-bottom:4px}
 .ana-adm-h .btn{margin-left:auto}
 .ana-nova{display:grid;gap:8px;padding:10px;border:1px dashed var(--gold);border-radius:10px}
 .ana-perg{counter-reset:q;list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.92rem}

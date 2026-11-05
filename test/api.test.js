@@ -1297,6 +1297,17 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
   const ent = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: ps[0].nome })).json;
   const C = ent.token;
   if (C) {
+    assert.equal((await pq(C, { acao: 'visibilidade', visivel: false })).status, 403, 'só admin altera visibilidade');
+    assert.equal((await pq(ADMIN, { acao: 'visibilidade', visivel: 'false' })).status, 400, 'visibilidade precisa ser boolean');
+    r = (await pq(ADMIN, { acao: 'visibilidade', visivel: false })).json;
+    assert.equal(r.visivel, false);
+    const oculto = (await api('GET', '/api/auth/anamnese', C)).json;
+    assert.equal(oculto.visivel, false);
+    assert.deepEqual(oculto.perguntas, [], 'usuário não recebe perguntas quando o bloco está oculto');
+    assert.equal(oculto.minhas, null, 'usuário não recebe respostas enquanto está oculto');
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: 'dipirona' } })).status, 409);
+    r = (await pq(ADMIN, { acao: 'visibilidade', visivel: true })).json;
+    assert.equal(r.visivel, true);
     assert.equal((await pq(C, { acao: 'responder', respostas: { [q1.id]: 'talvez' } })).status, 400);
     assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: Array.from({ length: 21 }, () => 'a').join('\n') } })).status, 400, 'até 20 linhas');
     assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2026-02-29' } })).status, 400, 'data inexistente');
