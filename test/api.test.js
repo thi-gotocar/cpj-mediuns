@@ -1256,6 +1256,22 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
   await pq(ADMIN, { acao: 'excluirPergunta', id: q2.id });
 });
 
+test('recado do admin: até 5 linhas, só quem edita a gira e todos leem', async () => {
+  const d = '2031-02-05';
+  assert.equal((await api('POST', '/api/giras/' + d, ADMIN, { acao: 'recado', recado: 'Oi' })).status, 404, 'sem gira');
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Caboclo' });
+  assert.equal((await api('POST', '/api/giras/' + d, USER, { acao: 'recado', recado: 'Oi' })).status, 403);
+  assert.equal((await api('POST', '/api/giras/' + d, ADMIN, { acao: 'recado', recado: 'a\nb\nc\nd\ne\nf' })).status, 400, '6 linhas');
+  assert.equal((await api('POST', '/api/giras/' + d, ADMIN, { acao: 'recado', recado: 'x'.repeat(301) })).status, 400);
+  const r = (await api('POST', '/api/giras/' + d, ADMIN, { acao: 'recado', recado: '  Levar vela \n\nAxé\n' })).json;
+  assert.equal(r.gira.recado, 'Levar vela\n\nAxé');
+  assert.equal((await api('GET', '/api/giras/' + d, USER)).json.recado, 'Levar vela\n\nAxé');
+  // outros campos não apagam o recado e, na gira encerrada, ele não muda
+  assert.equal((await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Exu' })).json.recado, 'Levar vela\n\nAxé');
+  await api('PUT', '/api/giras/2031-02-12', ADMIN, { entidade: 'Exu', atendimentos: { preferencial: 0, normal: 0, passe: 0 }, encerrada: true });
+  assert.equal((await api('POST', '/api/giras/2031-02-12', ADMIN, { acao: 'recado', recado: 'Oi' })).status, 409);
+});
+
 test('trava da escala: só quem edita liga; com ela não dá para remanejar; cancelar o sorteio tira a trava', async () => {
   const d = '2031-03-05';
   await api('PUT', '/api/giras/' + d, ADMIN, { entidade: '' });

@@ -42,6 +42,12 @@ export function eventosDoTopo(eventos, hoje) {
   return (eventos || []).filter((e) => e.data >= hoje && e.data <= (ate[e.tipo || 'evento'] || '9999-12-31')).sort(porData);
 }
 
+// Sem nada no dia: o próximo evento cadastrado, de qualquer tipo e sem limite de data (mais de um, se caírem no mesmo dia).
+export function proximosEventos(eventos, hoje) {
+  const futuros = (eventos || []).filter((e) => e.data > hoje).sort(porData);
+  return futuros.filter((e) => e.data === futuros[0].data);
+}
+
 // Dia de cada orixá (dia/mês) — lista da casa. Com mais de uma data, aparece em todas.
 export const DIAS_ORIXAS = [
   ['Oxóssi', ['01-20']], ['Iemanjá', ['02-02', '12-08']], ['Ogum', ['04-23']], ['Oroiná', ['05-24']], ['Obá', ['05-30']],

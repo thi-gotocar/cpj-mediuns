@@ -2,7 +2,7 @@
 
 import { estado, pode, carregarOferendas, acaoOracoes, avisar } from '../estado.js';
 import { esc, dDM, toast, hoje, pd, ajustarRolagem } from '../util.js';
-import { eventosDoTopo, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
+import { eventosDoTopo, proximosEventos, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
 import { corDaFaixa } from './curimba.js';
 import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe } from '/shared/oferendas.js';
 import { abertos, cabDobra, ICONE_WHATS } from './giraComum.js';
@@ -13,21 +13,23 @@ export function cardSemana() {
   // Aniversariantes da semana (domingo a sábado): dia/mês do Perfil, com 🎈🎂 antes do nome.
   // Orixás: só no próprio dia (DIAS_ORIXAS). No mesmo dia: eventos, depois orixás, depois aniversários.
   const ordem = (e) => (e.niver ? 2 : e.orixa ? 1 : 0);
-  const evs = [...eventosDoTopo(estado.eventos, hj), ...orixasDoDia(hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
+  const prox = proximosEventos(estado.eventos, hj);
+  const evs = [...new Set([...eventosDoTopo(estado.eventos, hj), ...prox]), ...orixasDoDia(hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
   // Cada evento: "folhinha" com o dia da semana (ou HOJE) e a data, o nome e o tipo num selo à direita.
   const semana = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()));
   const tipo = (e) => (e.niver ? ['niver', 'Aniversário'] : e.orixa ? ['orixa', 'Orixá'] : [e.tipo || 'evento', TIPO_EVENTO_LABEL[e.tipo] || 'Evento']);
-  // Mostra só os de hoje; "Ver mais" (ao lado do total) mostra todos e "Ver menos" volta.
+  // Mostra só os de hoje (sem nada hoje, o próximo evento cadastrado); "Ver mais" (ao lado do total) mostra todos e "Ver menos" volta.
   const todos = !!estado.evsTodos;
   const doDia = evs.filter((e) => e.data === hj);
-  const lista = todos ? evs : doDia;
-  const mais = evs.length > doDia.length ? `<button class="btn link small evs-mais" data-act="evsmais" aria-expanded="${todos}">${todos ? 'Ver menos' : 'Ver mais'}</button>` : '';
+  const resumo = doDia.length ? doDia : prox;
+  const lista = todos ? evs : resumo;
+  const mais = evs.length > resumo.length ? `<button class="btn link small evs-mais" data-act="evsmais" aria-expanded="${todos}">${todos ? 'Ver menos' : 'Ver mais'}</button>` : '';
   return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2><span class="or-cab-d">${mais}${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</span></div>
     ${lista.length ? `<div class="evs-lista">${lista.map((e) => { const [k, rot] = tipo(e); return `<div class="evs-l${e.data === hj ? ' hoje' : ''}">
         <span class="evs-data"><span class="evs-sem">${semana(e.data)}</span><b>${dataCurta(e.data)}</b></span>
         <span class="evs-nome">${e.niver ? '<span class="evs-niver" aria-hidden="true">🎈🎂</span> ' : ''}${esc(e.nome)}</span>
         <span class="evs-tipo ${k}">${rot}</span></div>`; }).join('')}</div>`
-      : `<p class="muted" style="margin:0;font-size:.88rem">${evs.length ? 'Nenhum evento hoje.' : 'Nenhum evento nos próximos 30 dias.'}</p>`}</div>`;
+      : `<p class="muted" style="margin:0;font-size:.88rem">${evs.length ? 'Nenhum evento hoje.' : 'Nenhum evento cadastrado.'}</p>`}</div>`;
 }
 
 // Orações (logo abaixo dos Eventos): qualquer pessoa logada pede; cada uma vale 7 dias e depois some.
@@ -99,11 +101,10 @@ export function cardAulaCurimba() {
 
 // Logo depois de "Você nesta gira": os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
 // e, na oferenda com uma linha por pessoa, o pagamento ou a entrega que faltam. Só aparece quando há algum.
-let pediuOferendas = false;
 export function cardCompromissos() {
   if (!pode('oferendas:doar')) return '';
   if (estado.oferendas === null) {
-    if (!pediuOferendas) { pediuOferendas = true; carregarOferendas(); }
+    carregarOferendas();
     return '';
   }
   const eu = estado.oferendas.eu || {};

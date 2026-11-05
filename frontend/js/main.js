@@ -175,7 +175,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, recadoTxt: null, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'admin') {
@@ -258,6 +258,12 @@ main.addEventListener('input', (e) => {
     const linhas = e.target.value.split('\n');
     if (linhas.length > 3) e.target.value = linhas.slice(0, 3).join('\n');
     estado.oraTexto = e.target.value;
+  }
+  // Recado do admin (⚙️ Evento): até 5 linhas e guardado para um redesenho não apagar.
+  if (e.target.id === 'ev-recado') {
+    const linhas = e.target.value.split('\n');
+    if (linhas.length > 5) e.target.value = linhas.slice(0, 5).join('\n');
+    estado.recadoTxt = { data: e.target.dataset.d, texto: e.target.value };
   }
   // Texto colado da escala (Histórico): guardado já, para um redesenho não apagar antes de tocar em "Ler escala".
   if (e.target.id === 'es-msg' && estado.escalaTxt) estado.escalaTxt.msg = e.target.value;

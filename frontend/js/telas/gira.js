@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, acaoOracoes, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -58,6 +58,18 @@ function blocoLimpeza(g) {
     ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeGira(L.anterior.entidade))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
       : L.anterior ? `<span class="muted" style="font-size:.85rem">Ninguém da Turma ${L.anterior.limpeza} faltou na gira de ${dDM(L.anterior.data)}.</span>` : ''}
   </div>`;
+}
+
+// Recado do admin: primeiro bloco do card do evento em andamento, para todos verem.
+function blocoRecado(g) {
+  if (!g.recado) return '';
+  return `<div class="limpeza recado"><b><span aria-hidden="true">📢</span> Recado</b><span class="recado-txt">${esc(g.recado)}</span></div>`;
+}
+
+// Campo do recado (⚙️ Evento, gira aberta): salva sozinho ao sair do campo.
+function campoRecado(g) {
+  const r = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : g.recado || '';
+  return `<label class="field">Recado para a corrente<textarea id="ev-recado" data-act="recadogira" data-d="${esc(g.data)}" rows="5" maxlength="300" placeholder="Até 5 linhas. Aparece para todos no evento.">${esc(r)}</textarea></label>`;
 }
 
 // Quem está de licença na data: mesmo padrão da limpeza, em vermelho, logo abaixo dela. Vale para todos verem.
@@ -350,6 +362,7 @@ function renderGira() {
         ${temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá${seletorOrixa(g)}</label>` : ''}
         ${temLimpeza(g) ? `<label class="field" style="flex:1 1 130px">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}
       </div>
+      ${campoRecado(g)}
       ${avisoEntidade(ps, g, editar, admin)}
       <div class="atend-sec"><span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}</div>
       <div class="adm-ev-wa">${whats ? botaoWhats(temDuplas, 'Escala') : ''}${botaoWhatsLimpeza(g)}</div>
@@ -365,6 +378,7 @@ function renderGira() {
       ${navegarGiras(g)}
       ${whats && !admin ? `<div class="enc-linha">${botaoWhats(temDuplas)}${encerrada ? botaoResumo(g) : ''}</div>` : ''}
     </div>
+    ${encerrada ? '' : blocoRecado(g)}
     ${encerrada ? '' : blocoLimpeza(g)}
     ${blocoBanho(g)}
     ${blocoAusencia(ps, g)}
@@ -965,6 +979,13 @@ export const mudancas = {
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
   // Data na parte ⚙️ Evento do card do admin: vai para o dia escolhido (como o 📅 da navegação).
   irdata(t) { mudancas.data(t); },
+  async recadogira(t) {
+    const texto = t.value.replace(/\r/g, '').split('\n').map((l) => l.trim()).join('\n').trim();
+    const data = t.dataset.d;
+    if (texto !== (estado.giras[data]?.recado || '')) await salvarRecado(texto);
+    // Se não salvou, o texto fica no campo para tentar de novo.
+    if ((estado.giras[data]?.recado || '') === texto) { estado.recadoTxt = null; avisar(); }
+  },
   // Trava da escala (título da Presença).
   travaesc(t) { travarEscala(t.checked); },
   // Atendimentos (⚙️ Evento, gira aberta): salva sozinho; em branco = 0.

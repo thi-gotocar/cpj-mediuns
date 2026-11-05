@@ -310,6 +310,14 @@ test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)'
   assert.deepEqual(eventosDaSemana(evs, hoje).map((e) => e.nome), ['Hoje', 'Daqui a 7']);
 });
 
+test('eventos: sem nada no dia, o próximo cadastrado (qualquer tipo, sem limite de data)', async () => {
+  const { proximosEventos } = await import('../shared/eventos.js');
+  const evs = [{ data: '2026-11-05', nome: 'Hoje' }, { data: '2027-03-01', nome: 'Longe', tipo: 'amaci' }, { data: '2027-03-01', nome: 'Junto', tipo: 'gira' }, { data: '2027-05-01', nome: 'Depois' }, { data: '2026-01-01', nome: 'Passou' }];
+  assert.deepEqual(proximosEventos(evs, '2026-11-05').map((e) => e.nome).sort(), ['Junto', 'Longe']);
+  assert.deepEqual(proximosEventos(evs, '2027-05-01'), []);
+  assert.deepEqual(proximosEventos(null, '2026-11-05'), []);
+});
+
 test('bloco Eventos da aba Gira: gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana', async () => {
   const { eventosDoTopo } = await import('../shared/eventos.js');
   const hoje = '2026-11-03';

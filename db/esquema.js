@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 72;  // v72: trava da escala
+export const VERSAO = 73;  // v73: recado do admin na gira
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1870,7 +1870,18 @@ export const MIGRACOES = [
      return gira_json((p ->> 'data')::date);
    end;
    $$`,
-  // Igual à v42, com 'travada'.
+
+  // ================================================== v73: recado do admin na gira (aparece para todos no evento em andamento)
+  `alter table giras add column if not exists recado text not null default '' check (length(recado) <= 300)`,
+  `create or replace function gira_recado(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update giras set recado = coalesce(p ->> 'recado', ''), atualizado_em = now() where data = (p ->> 'data')::date;
+     if not found then raise exception 'Gira não encontrada.'; end if;
+     return gira_json((p ->> 'data')::date);
+   end;
+   $$`,
+  // Igual à v42, com 'travada' e 'recado'.
   `create or replace function gira_json(d date)
    returns jsonb language sql stable as $$
      select jsonb_build_object(
@@ -1884,6 +1895,7 @@ export const MIGRACOES = [
        'pendentePadrao', g.pendente_padrao,
        'publicada', coalesce(g.publicada, false),
        'travada', g.travada,
+       'recado', g.recado,
        'papeis', g.papeis,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)

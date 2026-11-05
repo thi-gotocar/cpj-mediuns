@@ -29,6 +29,7 @@ export const estado = {
   renomearUsuario: null, // id do usuário com o nome em edição (aba Admin root)
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
+  recadoTxt: null,     // recado do admin ainda não salvo: { data, texto }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
   anamnese: null,      // GET /api/auth/anamnese: { perguntas, minhas, todas? } (ou { erro })
   fotosPessoa: {},     // aba Perfil: pessoaId → foto (data URL; '' = sem foto; null = buscando)
@@ -129,8 +130,9 @@ export async function atualizarDoServidor() {
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
     definirGiras(giras);
     // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
-    if (estado.oferendas !== null && prefs.tab === 'oferendas' && !Object.values(timersDoacao).some(Boolean)) {
-      estado.oferendas = await api('GET', '/oferendas');
+    // Na aba Gira também, por causa de "Seus compromissos".
+    if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira') && !Object.values(timersDoacao).some(Boolean)) {
+      estado.oferendas = await api('GET', '/oferendas').catch(() => estado.oferendas);
     }
     avisar();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
@@ -247,6 +249,7 @@ export const cancelarSorteio = () => situacaoDaGira('cancelarSorteio');
 export const declararAusencia = () => situacaoDaGira('ausencia');
 export const publicarEscala = (publicada = true) => situacaoDaGira('publicar', { publicada });
 export const travarEscala = (travada) => situacaoDaGira('travar', { travada });
+export const salvarRecado = (recado) => situacaoDaGira('recado', { recado });
 // Admin root: corrige a presença de uma pessoa em qualquer gira (Histórico → estatísticas).
 export async function corrigirPresenca(data, pessoaId, status) {
   try {
@@ -674,9 +677,23 @@ export function salvarPerfilAgora() {
 }
 
 // ---------- oferendas ----------
-export async function carregarOferendas() {
-  try { estado.oferendas = await api('GET', '/oferendas'); } catch (e) { toast(e.message); estado.oferendas = estado.oferendas || { oferendas: [], eu: {} }; }
-  avisar();
+// Pode ser chamada a cada desenho enquanto não há dados: só faz um pedido por vez.
+// A resposta de quem já saiu da conta é ignorada (senão a próxima pessoa veria os compromissos da anterior).
+let carregandoOferendas = null;
+export function carregarOferendas() {
+  if (carregandoOferendas) return carregandoOferendas;
+  const sessao = token();
+  carregandoOferendas = (async () => {
+    try {
+      const r = await api('GET', '/oferendas');
+      if (token() === sessao) estado.oferendas = r;
+    } catch (e) {
+      if (token() === sessao) { toast(e.message); estado.oferendas = estado.oferendas || { oferendas: [], eu: {} }; }
+    }
+    carregandoOferendas = null;
+    avisar();
+  })();
+  return carregandoOferendas;
 }
 
 export async function acaoOferendas(acao, dados = {}) {

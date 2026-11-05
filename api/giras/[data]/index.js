@@ -8,6 +8,7 @@
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 //                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas), despublica e tira a trava: volta ao botão Sortear
 //                            { acao: 'travar', travada: true|false }  com a trava, marcar falta ou ausência não muda a escala (e não dá para remanejar)
+//                            { acao: 'recado', recado }  recado do admin: até 5 linhas, para todos verem no evento em andamento
 //                            { acao: 'mudarData', para: 'AAAA-MM-DD' }  troca a data programada da gira em aberto (leva tudo junto) → { gira, mensagem }
 //                            { acao: 'escala', entidade, orixa, papeis, pares, passes }  Histórico → Cadastrar escala (só o root): grava as duplas
 //                              numa gira que já existe, sem mexer na presença nem nos atendidos (sem gira na data, recusa) → { gira, mensagem }
@@ -58,6 +59,14 @@ function validarEntidade(v) {
   const e = String(v ?? '').trim();
   if (e.length > 120) throw new HttpError(400, 'Entidade muito longa.');
   return e;
+}
+
+// Recado do admin: até 5 linhas (sem espaços nas pontas das linhas).
+function validarRecado(v) {
+  const s = String(v ?? '').replace(/\r/g, '').split('\n').map((l) => l.trim()).join('\n').trim();
+  if (s.split('\n').length > 5) throw new HttpError(400, 'O recado pode ter até 5 linhas.');
+  if (s.length > 300) throw new HttpError(400, 'O recado pode ter até 300 letras.');
+  return s;
 }
 
 function validarOrixa(v) {
@@ -191,6 +200,13 @@ export default rota({
       if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
       return { gira: await db.rpc('gira_travar', { data, travada: b.travada }), mensagem: b.travada ? 'Escala travada: marcar falta não muda a escala.' : 'Trava desligada: faltas voltam a tirar a pessoa da escala.' };
+    }
+    if (acao === 'recado') {
+      const recado = validarRecado(b.recado);
+      const atual = await db.rpc('gira_obter', { data });
+      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
+      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+      return { gira: await db.rpc('gira_recado', { data, recado }), mensagem: recado ? 'Recado salvo: todos veem no evento.' : 'Recado retirado.' };
     }
     if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
