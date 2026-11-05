@@ -248,6 +248,7 @@ function campoAnamnese(q, i, v, ed) {
 }
 function cardAnamnese() {
   const A = estado.anamnese;
+  if (A?.visivel === false && !admin()) return '';
   if (!A || A.erro) return card('anamnese', 'Anamnese', '', false, () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>`, true);
   const ok = anamnesePreenchida(A.perguntas, A.minhas);
   const ed = !!U().anaEdit;
@@ -296,17 +297,21 @@ function cardAnamneseAdmin(todos) {
   const x = todos.find((t) => t.pessoaId === u.anaPessoa);
   const val = valorAnamnese;
   return card('anamnese-adm', 'Anamnese', `${sim} de ${todos.length}`, false, () => `
+    <label class="of-sw ana-vis-toggle"><input type="checkbox" role="switch" data-act="anavisibilidade" ${A.visivel !== false ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir bloco para usuários</label>
     <div class="pf-resp"><b>${pct}%</b><span>${sim} ${sim === 1 ? 'pessoa preencheu' : 'pessoas preencheram'} · ${todos.length - sim} ${todos.length - sim === 1 ? 'falta' : 'faltam'}</span></div>
     <div class="pf-barra" role="img" aria-label="${pct}% preencheram"><span style="width:${pct}%"></span></div>
     <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
-      ${u.anaNova ? '' : '<button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button>'}</div>
+      ${u.anaNova || u.anaEditPergunta ? '' : '<button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button>'}</div>
     ${u.anaNova ? `<div class="ana-nova">
       <label class="field">Pergunta<input type="text" id="ana-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" placeholder="Cabe numa linha" autocomplete="off"></label>
       <span class="ana-sn"><span class="muted">Resposta:</span>${ANAMNESE_TIPOS.map(([k, l], i) => `<label class="check"><input type="radio" name="ana-tipo" value="${k}" ${i ? '' : 'checked'}> ${l}</label>`).join('')}</span>
       <span class="row"><button class="btn small primary" data-act="anaperg">Salvar pergunta</button><button class="btn small" data-act="ananova">Cancelar</button></span></div>` : ''}
-    ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q) => `<li><span>${esc(q.texto)} <span class="tag">${ANAMNESE_TIPO_LABEL[q.tipo] || 'Texto'}${q.obrigatoria === false ? ' · opcional' : ''}</span></span>
-      ${estado.confirm === 'anaq:' + q.id ? `<button class="btn small danger" data-act="anaexcluir" data-id="${q.id}">Excluir</button>`
-        : `<button class="btn small lock-x" data-act="askdel" data-k="anaq:${q.id}" title="Excluir a pergunta (as respostas dela também saem)" aria-label="Excluir a pergunta">✕</button>`}</li>`).join('')}</ol>`
+    ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q) => u.anaEditPergunta === q.id
+      ? `<li class="ana-editando"><label class="ana-edit-field">Pergunta<input type="text" id="ana-editar-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" value="${esc(q.texto)}"></label>
+          <span class="row"><button class="btn small primary" data-act="anasalvarpergunta" data-id="${q.id}">Salvar</button><button class="btn small" data-act="anacancelareditar">Cancelar</button></span></li>`
+      : `<li><span>${esc(q.texto)} <span class="tag">${ANAMNESE_TIPO_LABEL[q.tipo] || 'Texto'}${q.obrigatoria === false ? ' · opcional' : ''}</span></span>
+          ${estado.confirm === 'anaq:' + q.id ? `<button class="btn small danger" data-act="anaexcluir" data-id="${q.id}">Excluir</button>`
+            : `<span class="ana-acoes"><button class="btn small" data-act="anaeditarpergunta" data-id="${q.id}" title="Editar pergunta" aria-label="Editar pergunta">Editar</button><button class="btn small lock-x" data-act="askdel" data-k="anaq:${q.id}" title="Excluir a pergunta (as respostas dela também saem)" aria-label="Excluir a pergunta">✕</button></span>`}</li>`).join('')}</ol>`
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma pergunta ainda.</p>'}
     <label class="field">Ver as respostas de<select data-act="anapessoa" aria-label="De quem são as respostas">
       <option value="">— escolha a pessoa —</option>
@@ -400,6 +405,22 @@ export const cliques = {
   },
   // Anamnese (admin): perguntas, respostas de uma pessoa e o arquivo para o WhatsApp.
   ananova() { U().anaNova = !U().anaNova; avisar(); if (U().anaNova) document.getElementById('ana-texto')?.focus(); },
+  anaeditarpergunta(el) {
+    U().anaNova = false;
+    U().anaEditPergunta = el.dataset.id;
+    avisar();
+    document.getElementById('ana-editar-texto')?.focus();
+  },
+  anacancelareditar() { U().anaEditPergunta = null; avisar(); },
+  async anasalvarpergunta(el) {
+    const texto = (document.getElementById('ana-editar-texto')?.value || '').replace(/\s+/g, ' ').trim();
+    if (!texto) { toast('Escreva a pergunta.'); return; }
+    if (await acaoAnamnese('editarPergunta', { id: el.dataset.id, texto })) {
+      U().anaEditPergunta = null;
+      toast('Pergunta atualizada.');
+      avisar();
+    }
+  },
   async anaperg() {
     const texto = (document.getElementById('ana-texto')?.value || '').replace(/\s+/g, ' ').trim();
     const tipo = document.querySelector('input[name=ana-tipo]:checked')?.value;
@@ -474,6 +495,11 @@ export function digitando(el) {
 }
 
 export const mudancas = {
+  async anavisibilidade(t) {
+    if (await acaoAnamnese('visibilidade', { visivel: t.checked })) {
+      toast(t.checked ? 'Anamnese exibida para os usuários.' : 'Anamnese ocultada dos usuários.');
+    }
+  },
   // Anamnese: guarda o que foi escolhido/digitado (sem redesenhar).
   anaresp(t) {
     if (!U().anaEdit) return;

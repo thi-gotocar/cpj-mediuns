@@ -1243,12 +1243,17 @@ button.eu-av{cursor:zoom-in}
 .ana-item[disabled] .ana-sn{opacity:.75}
 .ana-bts{justify-content:flex-end}
 .ana-adm-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ana-vis-toggle{align-self:flex-start;margin-bottom:4px}
 .ana-adm-h .btn{margin-left:auto}
 .ana-nova{display:grid;gap:8px;padding:10px;border:1px dashed var(--gold);border-radius:10px}
 .ana-perg{counter-reset:q;list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.92rem}
 .ana-perg li{counter-increment:q;display:flex;align-items:center;gap:8px;justify-content:space-between}
 .ana-perg li::before{content:counter(q) ".";font-weight:700;flex:none;min-width:1.4em}
 .ana-perg li > span{flex:1;min-width:0;overflow-wrap:anywhere}
+.ana-acoes{display:flex;align-items:center;gap:6px;flex:none}
+.ana-edit-field{flex:1;min-width:0}
+.ana-editando{flex-wrap:wrap}
+.ana-editando .row{justify-content:flex-end;gap:6px}
 .ana-perg .lock-x{width:28px;height:28px;padding:0;flex:none}
 .ana-ver{display:grid;gap:10px;font-size:.92rem;border-left:3px solid var(--accent);padding-left:10px}
 .ana-ver > div{display:grid;gap:2px}

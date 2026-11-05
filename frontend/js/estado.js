@@ -31,7 +31,7 @@ export const estado = {
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
   recadoTxt: null,     // recado do admin ainda não salvo: { data, texto }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
-  anamnese: null,      // GET /api/auth/anamnese: { perguntas, minhas, todas? } (ou { erro })
+  anamnese: null,      // GET /api/auth/anamnese: { visivel, perguntas, minhas, todas? } (ou { erro })
   fotosPessoa: {},     // aba Perfil: pessoaId → foto (data URL; '' = sem foto; null = buscando)
   pfUi: { abertos: {}, faltam: false },
   perfisCfg: null,     // aba Admin root: perfis e as abas de cada um

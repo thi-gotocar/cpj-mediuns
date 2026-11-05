@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 76;  // v76: questionário completo de anamnese
+export const VERSAO = 78;  // v78: controle da visibilidade da anamnese
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2041,6 +2041,36 @@ export const MIGRACOES = [
        where not exists (select 1 from anamnese_perguntas q where lower(q.texto) = lower(v.texto));
        insert into sistema (chave, valor) values ('v76_anamnese_forms_seed', 'ok') on conflict (chave) do nothing;
      end if;
+   end;
+   $$`,
+  // ================================================== v77: editar pergunta sem alterar respostas nem formato
+  `create or replace function anamnese_pergunta_editar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update anamnese_perguntas set texto = btrim(p ->> 'texto') where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Pergunta não encontrada.'; end if;
+     return anamnese_estado();
+   end;
+   $$`,
+  // ================================================== v78: o admin do perfil controla a exibição para a corrente
+  `insert into sistema (chave, valor) values ('anamnese_visivel', 'true') on conflict (chave) do nothing`,
+  `create or replace function anamnese_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'perguntas', coalesce((select jsonb_agg(jsonb_build_object(
+         'id', id, 'texto', texto, 'tipo', tipo, 'opcoes', opcoes, 'obrigatoria', obrigatoria) order by criado_em)
+         from anamnese_perguntas), '[]'::jsonb),
+       'respostas', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pessoa_id, 'perguntaId', pergunta_id, 'resposta', resposta))
+         from anamnese_respostas), '[]'::jsonb),
+       'visivel', coalesce((select valor = 'true' from sistema where chave = 'anamnese_visivel'), true));
+   $$`,
+  `create or replace function anamnese_visibilidade(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update sistema set valor = case when (p ->> 'visivel')::boolean then 'true' else 'false' end
+      where chave = 'anamnese_visivel';
+     if not found then raise exception 'Configuração de visibilidade da Anamnese não encontrada.'; end if;
+     return anamnese_estado();
    end;
    $$`,
 ];

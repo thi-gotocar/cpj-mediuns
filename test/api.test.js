@@ -1297,6 +1297,17 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
   const ent = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: ps[0].nome })).json;
   const C = ent.token;
   if (C) {
+    assert.equal((await pq(C, { acao: 'visibilidade', visivel: false })).status, 403, 'só admin altera visibilidade');
+    assert.equal((await pq(ADMIN, { acao: 'visibilidade', visivel: 'false' })).status, 400, 'visibilidade precisa ser boolean');
+    r = (await pq(ADMIN, { acao: 'visibilidade', visivel: false })).json;
+    assert.equal(r.visivel, false);
+    const oculto = (await api('GET', '/api/auth/anamnese', C)).json;
+    assert.equal(oculto.visivel, false);
+    assert.deepEqual(oculto.perguntas, [], 'usuário não recebe perguntas quando o bloco está oculto');
+    assert.equal(oculto.minhas, null, 'usuário não recebe respostas enquanto está oculto');
+    assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: 'dipirona' } })).status, 409);
+    r = (await pq(ADMIN, { acao: 'visibilidade', visivel: true })).json;
+    assert.equal(r.visivel, true);
     assert.equal((await pq(C, { acao: 'responder', respostas: { [q1.id]: 'talvez' } })).status, 400);
     assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: Array.from({ length: 21 }, () => 'a').join('\n') } })).status, 400, 'até 20 linhas');
     assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2026-02-29' } })).status, 400, 'data inexistente');
@@ -1308,6 +1319,11 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
     assert.deepEqual([m.minhas[q1.id], m.minhas[q2.id]], ['sim', 'dipirona']);
     assert.equal(m.todas, undefined, 'a corrente não vê as respostas dos outros');
   }
+  assert.equal((await pq(USER, { acao: 'editarPergunta', id: q2.id, texto: 'Pergunta alterada' })).status, 403);
+  assert.equal((await pq(ADMIN, { acao: 'editarPergunta', id: q2.id, texto: 'x'.repeat(501) })).status, 400);
+  r = (await pq(ADMIN, { acao: 'editarPergunta', id: q2.id, texto: '  Remédios   em uso? ' })).json;
+  assert.equal(r.perguntas.find((q) => q.id === q2.id).texto, 'Remédios em uso?');
+  assert.ok(r.todas.some((x) => x.perguntaId === q2.id && x.resposta === 'dipirona'), 'editar o texto preserva respostas existentes');
   // Excluir a pergunta tira as respostas dela.
   r = (await pq(ADMIN, { acao: 'excluirPergunta', id: q1.id })).json;
   assert.ok(!r.perguntas.some((q) => q.id === q1.id) && !r.todas.some((x) => x.perguntaId === q1.id));
