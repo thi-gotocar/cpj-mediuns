@@ -1,7 +1,7 @@
 // Compartilhar o resumo de uma gira encerrada no WhatsApp: texto ou imagem.
 // Usado na aba Gira e na aba Histórico.
 
-import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, LOCAL_PADRAO } from '/shared/resumoGira.js';
+import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, historicoAtendimentos, historicoFrequencia, LOCAL_PADRAO } from '/shared/resumoGira.js';
 import { giraEspecial } from '/shared/regras.js';
 import { compartilharImagem } from './imagemLista.js';
 import { gerarImagemResumo, COR_RESUMO } from './imagemResumo.js';
@@ -40,6 +40,28 @@ function dadosImagem(g) {
         lp.membros.length ? { titulo: 'Da turma', cor: CR.limpeza, pilulas: naLimpeza(lp.membros) } : { titulo: 'Da turma', cor: CR.limpeza, linhas: ['Ninguém cadastrado nesta turma'] },
         { titulo: 'Ajudaram na limpeza', cor: CR.limpeza, pilulas: naLimpeza(lp.ajudantes) },
       ],
+    });
+  }
+  const frequencia = historicoFrequencia(girasLista(), estado.pessoas, g);
+  if (frequencia) {
+    const ultima = frequencia.giras[frequencia.giras.length - 1];
+    cartoes.push({
+      titulo: 'FREQUÊNCIA DO PESSOAL',
+      direita: 'Últimas 6 giras',
+      cor: CR.presente,
+      quadros: [['Média de presença', `${frequencia.media}%`, CR.presente],
+        ['Presentes na última', `${ultima.presentes}/${ultima.elegiveis}`, CR.licenca]],
+      graficoFrequencia: frequencia.giras,
+    });
+  }
+  const historico = historicoAtendimentos(girasLista(), g);
+  if (historico) {
+    cartoes.push({
+      titulo: 'HISTÓRICO DA ENTIDADE',
+      direita: 'Últimas 6 giras',
+      cor: CR.presente,
+      quadros: [['Giras · 12 meses', historico.quantidade, CR.presente], ['Atend. · 12 meses', historico.total, CR.licenca]],
+      grafico: historico.giras,
     });
   }
   const nomeDaGira = d.gira ? (giraEspecial(g.entidade) ? d.gira : `Gira de ${d.gira}`) : 'Gira';

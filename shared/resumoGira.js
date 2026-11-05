@@ -6,7 +6,7 @@
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
 //   textoLimpeza(pessoas, g, giras) → aviso da turma da limpeza para o grupo do WhatsApp (ou '')
 
-import { status, presencaDe, daGira, licencaEm, nomeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { status, presencaDe, daGira, naCorrenteEm, licencaEm, nomeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -36,6 +36,60 @@ export function dadosResumo(pessoas, g) {
     gira: nomeGira(g.entidade), orixa: orixaDaGira(g), data: g.data, presentes, ausentes, faltas, licenca,
     pct: { presenca: pc(presentes.length), ausencia: pc(ausentes.length + faltas.length), licenca: pc(licenca.length) },
     atendimentos, total: atendimentos.preferencial + atendimentos.normal + atendimentos.passe,
+  };
+}
+
+// Histórico encerrado da mesma entidade para o gráfico da imagem de resumo.
+export function historicoAtendimentos(giras, atual) {
+  if (!atual?.entidade || !atual.data) return null;
+  const chave = (entidade) => nomeGira(entidade).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const entidade = chave(atual.entidade);
+  if (!entidade) return null;
+  const inicio = new Date(`${atual.data}T12:00:00Z`);
+  inicio.setUTCFullYear(inicio.getUTCFullYear() - 1);
+  const desde = inicio.toISOString().slice(0, 10);
+  const registros = [...(giras || []).filter((g) => g.data !== atual.data), atual]
+    .filter((g) => g?.encerrada && g.data >= desde && g.data <= atual.data && chave(g.entidade) === entidade)
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map((g) => {
+      const atendimentos = {
+        preferencial: Math.max(0, Number(g.atendimentos?.preferencial) || 0),
+        normal: Math.max(0, Number(g.atendimentos?.normal) || 0),
+        passe: Math.max(0, Number(g.atendimentos?.passe) || 0),
+      };
+      return { data: g.data, atendimentos, total: atendimentos.preferencial + atendimentos.normal + atendimentos.passe };
+    });
+  if (!registros.length) return null;
+  return {
+    quantidade: registros.length,
+    total: registros.reduce((soma, g) => soma + g.total, 0),
+    giras: registros.slice(-6),
+  };
+}
+
+// Frequência de presença da corrente nas seis giras encerradas mais recentes da entidade.
+export function historicoFrequencia(giras, pessoas, atual) {
+  if (!atual?.entidade || !atual.data) return null;
+  const chave = (entidade) => nomeGira(entidade).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const entidade = chave(atual.entidade);
+  if (!entidade) return null;
+  const registros = [...(giras || []).filter((g) => g.data !== atual.data), atual]
+    .filter((g) => g?.encerrada && g.data <= atual.data && chave(g.entidade) === entidade)
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .slice(-6)
+    .map((g) => {
+      const elegiveis = (pessoas || []).filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data))
+        .filter((p) => ['p', 'a', 'f'].includes(presencaDe(p, g)));
+      const presentes = elegiveis.filter((p) => presencaDe(p, g) === 'p').length;
+      return { data: g.data, presentes, elegiveis: elegiveis.length,
+        frequencia: elegiveis.length ? Math.round((presentes / elegiveis.length) * 100) : 0 };
+    });
+  if (!registros.length) return null;
+  return {
+    media: Math.round(registros.reduce((soma, g) => soma + g.frequencia, 0) / registros.length),
+    giras: registros,
   };
 }
 
