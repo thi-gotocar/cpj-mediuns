@@ -496,6 +496,17 @@ export function paresPorMedium(pessoas, g) {
   };
 }
 
+// Escala travada: marcar falta ou ausência não muda a escala. Para mostrar (tela, texto e imagem),
+// quem está nas duplas segue como foi sorteado. Na gira sem trava, nada muda.
+export function escalaDaGira(g) {
+  if (!g.travada) return g;
+  const presenca = { ...(g.presenca || {}) };
+  [...(g.pares || []), ...(g.passes || [])].flatMap((p) => [p.m, p.c]).forEach((id) => {
+    if (presenca[id] === 'f' || presenca[id] === 'a') presenca[id] = 'p';
+  });
+  return { ...g, presenca };
+}
+
 // Encerrar a gira: todo presente precisa aparecer na escala.
 // Quem estava para cambonar (ou médium de passe) e não ficou com nenhum médium vai para o Suporte.
 // Quem ainda está com a presença pendente (não pode encerrar a gira assim).

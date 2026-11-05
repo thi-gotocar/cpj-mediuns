@@ -6,7 +6,8 @@
 //                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
-//                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas) e despublica: volta ao botão Sortear
+//                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas), despublica e tira a trava: volta ao botão Sortear
+//                            { acao: 'travar', travada: true|false }  com a trava, marcar falta ou ausência não muda a escala (e não dá para remanejar)
 //                            { acao: 'mudarData', para: 'AAAA-MM-DD' }  troca a data programada da gira em aberto (leva tudo junto) → { gira, mensagem }
 //                            { acao: 'escala', entidade, orixa, papeis, pares, passes }  Histórico → Cadastrar escala (só o root): grava as duplas
 //                              numa gira que já existe, sem mexer na presença nem nos atendidos (sem gira na data, recusa) → { gira, mensagem }
@@ -147,6 +148,7 @@ export default rota({
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
       let gira = await db.rpc('gira_salvar', { data, usuario: quem.id, pares: [], passes: [] });
       if (gira.publicada) gira = await db.rpc('gira_publicar', { data, publicada: false });
+      if (gira.travada) gira = await db.rpc('gira_travar', { data, travada: false });
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     const perfil = await exigir(req, 'giras:editar');
@@ -182,6 +184,13 @@ export default rota({
       if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');
       const pub = b.publicada !== false;
       return { gira: await db.rpc('gira_publicar', { data, publicada: pub }), mensagem: pub ? 'Escala publicada: agora todos veem o sorteio.' : 'Publicação desfeita: só os admins veem o sorteio.' };
+    }
+    if (acao === 'travar') {
+      if (typeof b.travada !== 'boolean') throw new HttpError(400, 'Informe se a escala fica travada.');
+      const atual = await db.rpc('gira_obter', { data });
+      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
+      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+      return { gira: await db.rpc('gira_travar', { data, travada: b.travada }), mensagem: b.travada ? 'Escala travada: marcar falta não muda a escala.' : 'Trava desligada: faltas voltam a tirar a pessoa da escala.' };
     }
     if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);

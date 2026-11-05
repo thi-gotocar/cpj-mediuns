@@ -580,3 +580,16 @@ test('anamnese: respostas, preenchida e arquivo', async () => {
   assert.match(txt, /== Bia ==[\s\S]*Não[\s\S]*—/);
   assert.ok(!txt.includes('Caio'), 'quem não respondeu nada fica de fora');
 });
+
+test('escala travada: falta e ausência não mudam a escala mostrada; encerrar continua com a presença real', async () => {
+  const { escalaDaGira, paresPorMedium, encerrar } = await import('../shared/regras.js');
+  const pessoas = [{ id: 'm1', nome: 'Ana', funcao: 'medium' }, { id: 'c1', nome: 'Bia', funcao: 'cambone' }, { id: 'm2', nome: 'Caio', funcao: 'medium' }, { id: 'c2', nome: 'Duda', funcao: 'cambone' }];
+  const base = { data: '2026-11-07', entidade: '', pendentePadrao: false, papeis: {}, passes: [], pares: [{ m: 'm1', c: 'c1' }, { m: 'm2', c: 'c2' }], presenca: { c1: 'f', m2: 'a' } };
+  const nomes = (g) => paresPorMedium(pessoas, g).validos.map((p) => p.m + p.c);
+  assert.deepEqual(nomes(escalaDaGira(base)), [], 'sem trava, as duas duplas saem');
+  const trav = { ...base, travada: true };
+  assert.deepEqual(nomes(escalaDaGira(trav)), ['m1c1', 'm2c2'], 'com a trava, a escala fica como foi sorteada');
+  assert.deepEqual(trav.presenca, { c1: 'f', m2: 'a' }, 'a presença real não muda');
+  assert.equal(encerrar(pessoas, trav).patch.pares.length, 0, 'ao encerrar, valem as faltas: a dupla de quem faltou não fica no histórico');
+});
+

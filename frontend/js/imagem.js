@@ -3,7 +3,7 @@
 // médiuns e At. Extras em linhas alternadas, com o médium de passe embaixo do nome do médium;
 // no fim, quadros para suporte, cambones de apoio e a turma da limpeza (com quem ajuda).
 
-import { paresPorMedium, guiaNaGira } from '/shared/regras.js';
+import { paresPorMedium, escalaDaGira, guiaNaGira } from '/shared/regras.js';
 import { dLong } from './util.js';
 import { gruposExtras, cabecalhoGira } from './exportar.js';
 
@@ -58,7 +58,7 @@ function cartao(ctx, x, y, w, h, cor) {
 // Desenha (ou só mede, com desenhar = false) e devolve a altura.
 function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   const nome = (id) => pessoas.find((p) => p.id === id)?.nome || '(removido)';
-  const { lista, semPasse } = paresPorMedium(pessoas, g);
+  const { lista, semPasse } = paresPorMedium(pessoas, escalaDaGira(g));
   const cab = cabecalhoGira(g);
   const grupos = gruposExtras(pessoas, g, giras);
   const grupo = (k) => grupos.find((x) => x[2] === k);

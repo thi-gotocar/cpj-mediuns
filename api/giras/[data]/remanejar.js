@@ -11,6 +11,7 @@ export default rota({
     const [pessoas, giras] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('giras_listar')]);
     const g = giras.find((x) => x.data === data) || giraVazia(data);
     if (g.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+    if (g.travada) throw new HttpError(409, 'A escala está travada. Desligue a Trava na Presença para remanejar.');
     const { patch, mensagem } = remanejar(pessoas, giras, g);
     const gira = patch ? await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }) : g;
     return { gira, mensagem };

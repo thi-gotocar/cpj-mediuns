@@ -1,6 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
-import { giraEspecial, nomeGira, orixaDaGira, limpezaDaGira, paresPorMedium, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira } from '/shared/regras.js';
+import { giraEspecial, nomeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira } from '/shared/regras.js';
 import { pd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -54,7 +54,7 @@ const LINHA = '━━━━━━━━━━━━━━━';
 
 export function textoWhats(pessoas, g, fmt, giras = []) {
   const nome = (id) => pessoas.find((p) => p.id === id)?.nome || '(removido)';
-  const { lista, semPasse } = paresPorMedium(pessoas, g);
+  const { lista, semPasse } = paresPorMedium(pessoas, escalaDaGira(g));
   const cab = cabecalhoGira(g);
   const grupos = gruposExtras(pessoas, g, giras);
   const grupo = (k) => grupos.find((x) => x[2] === k);

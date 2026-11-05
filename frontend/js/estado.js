@@ -246,6 +246,7 @@ export const cancelarSorteio = () => situacaoDaGira('cancelarSorteio');
 // Acesso da corrente: a própria pessoa declara que não vai (Pendente → Ausente).
 export const declararAusencia = () => situacaoDaGira('ausencia');
 export const publicarEscala = (publicada = true) => situacaoDaGira('publicar', { publicada });
+export const travarEscala = (travada) => situacaoDaGira('travar', { travada });
 // Admin root: corrige a presença de uma pessoa em qualquer gira (Histórico → estatísticas).
 export async function corrigirPresenca(data, pessoaId, status) {
   try {

@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, acaoOracoes, avisar } from '../estado.js';
+import { FUNCOES, STATUS, LINHA_LABEL, OPCOES_GIRA, giraEspecial, nomeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -144,10 +144,10 @@ function contagemPresentes(ps, g, pct = null) {
 
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
 // Sorteio (admin): botão "Falta" de cada pessoa da escala e a confirmação logo abaixo.
-const botaoFalta = (id) => `<button class="lock falta-bt" data-act="faltaask" data-id="${id}" title="Marcar falta e refazer a escala">Falta</button>`;
+const botaoFalta = (id) => `<button class="lock falta-bt" data-act="faltaask" data-id="${id}" title="${giraAtual().travada ? 'Marcar falta (a escala não muda)' : 'Marcar falta e refazer a escala'}">Falta</button>`;
 function confirmaFalta(id) {
   if (estado.faltaConf !== id) return '';
-  return `<div class="falta-conf"><span>Marcar <b>falta</b> de <b>${esc(nome(id))}</b>? A lista de presença muda para Falta e a escala é refeita como no Remanejar faltas.</span>
+  return `<div class="falta-conf"><span>Marcar <b>falta</b> de <b>${esc(nome(id))}</b>? A lista de presença muda para Falta${giraAtual().travada ? '; a escala fica como está (Trava ligada).' : ' e a escala é refeita como no Remanejar faltas.'}</span>
     <span class="row" style="gap:6px"><button class="btn small danger" data-act="faltaok" data-id="${id}">Confirmar falta</button><button class="btn small" data-act="faltacancel">Cancelar</button></span></div>`;
 }
 
@@ -321,7 +321,7 @@ function renderGira() {
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>
       ${g.data >= hoje() ? blocoAusPrevia(ps, g) : ''}</div></section>`;
   }
-  const { lista, validos, passesV, semPasse } = paresPorMedium(estado.pessoas, g);
+  const { lista, validos, passesV, semPasse } = paresPorMedium(estado.pessoas, escalaDaGira(g));
   const temDuplas = validos.length || passesV.length;
   // WhatsApp da escala (desabilitado sem sorteio): para o admin, na parte ⚙️ Evento; para quem só consulta, no card da gira.
   const whats = pode('escala:completa') && existe;
@@ -397,7 +397,8 @@ function renderGira() {
   if (editar) {
     const ab = abertos.has('pres');
     iAdm = h.length;
-    h += `<div class="card adm adm-gira">${secaoEvento}<div class="adm-sec"><div class="grp-h"><h2>📋 Presença</h2></div>
+    h += `<div class="card adm adm-gira">${secaoEvento}<div class="adm-sec"><div class="grp-h"><h2>📋 Presença</h2>${(g.pares || []).length || (g.passes || []).length ? `<label class="of-sw" title="Com a trava, marcar falta ou ausência não muda a escala"><input type="checkbox" role="switch" data-act="travaesc" ${g.travada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Trava</label>` : ''}</div>
+      ${g.travada ? '<p class="muted" style="margin:0;font-size:.85rem">Escala travada: marcar falta ou ausência não muda a escala.</p>' : ''}
       ${presencaRapida(ps, g, antesDoDia)}
       <button class="btn link small ver-mais" data-act="dobrarcard" data-k="pres" aria-expanded="${ab}">${ab ? '− Esconder lista' : '+ Ver lista'}</button>`;
   } else h += `<div class="card">${cabDobra('pres', 'Presença', partes)}`;
@@ -455,12 +456,19 @@ function renderGira() {
     : e.recente ? `<span class="badge hot">repetiu da última</span>`
       : `<span class="badge rep">${e.n + 1}ª vez · última ${dDM(e.ultima)}</span>`);
   const passada = g.data < hoje();
+  // Escala travada: quem faltou segue na escala, com um selo no lugar do combo e do botão Falta.
+  const seloFora = (id) => {
+    const p = estado.pessoas.find((x) => x.id === id);
+    const pr = g.travada && p ? presencaDe(p, g) : '';
+    return pr === 'f' ? '<span class="badge lic">faltou</span>' : pr === 'a' ? '<span class="badge lic">ausente</span>' : '';
+  };
   const linha = (k, p, idx, opts, mp, rotulo) => {
-    const quem = editar
+    const fora = seloFora(p.c);
+    const quem = fora ? `<span class="nmc">${esc(nome(p.c))}</span>${fora}` : editar
       ? `<select id="sel-${k}-${idx}" data-act="troca" data-k="${k}" data-i="${idx}" aria-label="Trocar">${opts.map((c) => `<option value="${c.id}" ${c.id === p.c ? 'selected' : ''}>${esc(c.nome)}</option>`).join('')}${k === 'pares' ? grupoSup(doSuporte, (c) => `<option value="${c.id}">${esc(c.nome)}</option>`) : ''}</select>`
       : `<span class="nmc">${esc(nome(p.c))}</span>`;
     // "Falta": marca falta na presença e refaz a escala (como Remanejar faltas), depois de confirmar.
-    const falta = editar && !passada && !manual ? botaoFalta(p.c) : '';
+    const falta = editar && !passada && !manual && !fora ? botaoFalta(p.c) : '';
     return `<div class="camrow">${rotulo ? `<span class="tag ${rotulo === 'Cambone' ? 'cam' : ''}">${rotulo}</span>` : ''}${quem}${selo(mp[p.m + '|' + p.c])}${p.remanejado ? '<span class="badge re">remanejado</span>' : ''}${falta}</div>${editar ? confirmaFalta(p.c) : ''}`;
   };
   // Ajuste manual: em gira passada fica sempre ligado (registrar como foi);
@@ -496,7 +504,7 @@ function renderGira() {
   // Depois de sorteado, "Refazer sorteio" (junto de Remanejar faltas e Ajuste manual) apaga as duplas e volta ao Sortear.
   const cancelaOk = temDuplas && sortearOk;
   h += `<div class="${caixa}"><div class="grp-h">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}</div>
-      ${temDuplas ? acoesSorteio(g, sortearOk, editar && !passada, manual, cancelaOk) : ''}
+      ${temDuplas ? acoesSorteio(g, sortearOk && !g.travada, editar && !passada, manual, cancelaOk) : ''}
       ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Refazer o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Depois é só tocar em Sortear de novo.`, 'cancelsort', 'Sim, refazer') : ''}
       ${temDuplas ? '' : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
         ? confirmaSorteio('<b>Tem certeza que quer sortear?</b> O app monta as duplas agora.', 'sortear', '🎲 Sortear')
@@ -517,7 +525,7 @@ function renderGira() {
     const tirar = (k, i) => (manual ? `<button class="lock rm" data-act="remover" data-k="${k}" data-i="${i}" title="Tirar deste médium" aria-label="Tirar">✕</button>` : '');
     h += `<div class="pairs">`;
     lista.forEach((x) => {
-      h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)}</span>${editar && !passada && !manual ? botaoFalta(x.m.id) : '<span></span>'}${editar ? confirmaFalta(x.m.id) : ''}<div class="cams">`;
+      h += `<div class="pair"><span class="med"><span class="tag med-t">${x.m.funcao === 'extra' ? 'At. Extra' : 'Médium'}</span>${esc(x.m.nome)} ${seloFora(x.m.id)}</span>${editar && !passada && !manual && !seloFora(x.m.id) ? botaoFalta(x.m.id) : '<span></span>'}${editar ? confirmaFalta(x.m.id) : ''}<div class="cams">`;
       x.cams.forEach((p) => { const i = (g.pares || []).indexOf(p); h += linha('pares', p, i, camsPres, map, 'Cambone').replace(/<\/div>$/, tirar('pares', i) + '</div>'); });
       if (!x.cams.length) h += `<span class="muted">Sem cambone.${manual ? '' : sortearOk ? ' Use o Ajuste manual.' : ''}</span>`;
       x.passes.forEach((p) => { const i = (g.passes || []).indexOf(p); h += linha('passes', p, i, passPres, mapP, 'Passe').replace(/<\/div>$/, tirar('passes', i) + '</div>'); });
@@ -727,6 +735,7 @@ export const cliques = {
     estado.faltaConf = null;
     const g = giraAtual();
     editarGira({ presenca: { ...(g.presenca || {}), [id]: 'f' } });
+    if (g.travada) { toast(`Falta de ${nome(id)} marcada. A escala não mudou.`); avisar(); return; }
     await remanejar(`Falta de ${nome(id)} marcada. Escala refeita.`);
   },
   fixo(el) {
@@ -818,7 +827,7 @@ function gravarPresenca(id, valor) {
   const pr = { ...(g.presenca || {}) };
   pr[id] = valor;
   const pa = { ...(g.papeis || {}) };
-  if (valor === 'f' || valor === 'a') delete pa[id];
+  if ((valor === 'f' || valor === 'a') && !g.travada) delete pa[id];   // com a trava, a pessoa segue na escala como foi sorteada
   editarGira({ presenca: pr, papeis: pa });
   avisar();
 }
@@ -836,7 +845,7 @@ function gravarRapida(c) {
     if (c.papel === 'cad') { if (foraDaLinha(p, g)) pa[c.id] = 'cad'; else delete pa[c.id]; } else pa[c.id] = c.papel;
     if (pr[c.id] === 'sup' || pr[c.id] === 'na') pr[c.id] = 'p';   // formato antigo
   }
-  if (c.valor === 'f' || c.valor === 'a') delete pa[c.id];
+  if ((c.valor === 'f' || c.valor === 'a') && !g.travada) delete pa[c.id];
   editarGira({ presenca: pr, papeis: pa });
   toast(`${p.nome}: ${STATUS[c.valor]}.`);
   avisar();
@@ -948,6 +957,8 @@ export const mudancas = {
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
   // Data na parte ⚙️ Evento do card do admin: vai para o dia escolhido (como o 📅 da navegação).
   irdata(t) { mudancas.data(t); },
+  // Trava da escala (título da Presença).
+  travaesc(t) { travarEscala(t.checked); },
   // Atendimentos (⚙️ Evento, gira aberta): salva sozinho; em branco = 0.
   atend(t) {
     const g = giraAtual();

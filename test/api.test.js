@@ -1254,3 +1254,16 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
   assert.ok(!r.perguntas.some((q) => q.id === q1.id) && !r.todas.some((x) => x.perguntaId === q1.id));
   await pq(ADMIN, { acao: 'excluirPergunta', id: q2.id });
 });
+
+test('trava da escala: só quem edita liga; com ela não dá para remanejar; cancelar o sorteio tira a trava', async () => {
+  const d = '2031-03-05';
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: '' });
+  assert.equal((await api('POST', '/api/giras/' + d, USER, { acao: 'travar', travada: true })).status, 403);
+  assert.equal((await api('POST', '/api/giras/' + d, ADMIN, { acao: 'travar', travada: 'sim' })).status, 400);
+  const r = (await api('POST', '/api/giras/' + d, ADMIN, { acao: 'travar', travada: true })).json;
+  assert.equal(r.gira.travada, true);
+  assert.equal((await api('POST', `/api/giras/${d}/remanejar`, ADMIN)).status, 409);
+  assert.equal((await api('POST', '/api/giras/' + d, ADMIN, { acao: 'cancelarSorteio' })).json.gira.travada, false);
+  await api('DELETE', '/api/giras/' + d, ADMIN);
+});
+
