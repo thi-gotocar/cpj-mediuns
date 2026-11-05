@@ -11,6 +11,7 @@ export default rota({
     const [pessoas, giras] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('giras_listar')]);
     const g = giras.find((x) => x.data === data) || giraVazia(data);
     if (g.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+    if (g.evento) throw new HttpError(409, 'Evento não tem escala para sortear.');
     const { patch, mensagem } = sortear(pessoas, giras, g);
     const gira = Object.keys(patch).length ? await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }) : g;
     return { gira, mensagem };

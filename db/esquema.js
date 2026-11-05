@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 73;  // v73: recado do admin na gira
+export const VERSAO = 74;  // v74: evento sem limpeza, escala ou sugestões
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -1909,5 +1909,51 @@ export const MIGRACOES = [
      )
      from giras g where g.data = d;
    $$`,
-];
 
+  // ================================================== v74: evento sem limpeza, escala ou sugestões
+  `alter table giras add column if not exists evento boolean not null default false`,
+  `create or replace function gira_evento(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_evento boolean := (p ->> 'evento')::boolean;
+   begin
+     update giras set
+       evento = v_evento,
+       publicada = case when v_evento then false else publicada end,
+       atualizado_em = now(),
+       atualizado_por = nullif(p ->> 'usuario', '')::uuid
+     where data = v_data;
+     if not found then raise exception 'Gira não encontrada.'; end if;
+     return gira_json(v_data);
+   end;
+   $$`,
+  `create or replace function gira_json(d date)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'data', g.data,
+       'entidade', g.entidade,
+       'encerrada', g.encerrada,
+       'suporteAuto', g.suporte_auto,
+       'atendimentos', g.atendimentos,
+       'limpeza', g.limpeza,
+       'orixa', g.orixa,
+       'evento', g.evento,
+       'pendentePadrao', g.pendente_padrao,
+       'publicada', coalesce(g.publicada, false),
+       'travada', g.travada,
+       'recado', g.recado,
+       'papeis', g.papeis,
+       'atualizadoEm', g.atualizado_em,
+       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
+                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
+       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
+       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
+     )
+     from giras g where g.data = d;
+   $$`,
+];

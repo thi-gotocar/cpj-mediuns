@@ -1,5 +1,5 @@
 // GET    /api/giras/:data
-// PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa? }  (só substitui o que vier)
+// PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa?, evento? } (só substitui o que vier)
 //                            (gira nova: quem tinha ausência antecipada na data já entra Ausente)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala: só o root)
 // POST   /api/giras/:data   { acao: 'publicar', publicada?: false } → a escala fica visível para todos (ou volta a ficar só para os admins)
@@ -113,8 +113,14 @@ export default rota({
     // Cadastrar gira antiga (já encerrada): só o admin root.
     if (b.encerrada === true && !pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra gira antiga.');
     // Gira encerrada: só a turma da limpeza ainda pode mudar (o resto, só reabrindo).
+    const atual = await db.rpc('gira_obter', { data });
     const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza');
-    if (!soLimpeza && (await db.rpc('gira_obter', { data }))?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+    if (!soLimpeza && atual?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+    const mudaEvento = 'evento' in b;
+    if (mudaEvento && typeof b.evento !== 'boolean') throw new HttpError(400, 'Opção de evento inválida.');
+    if (atual?.evento && b.evento !== false && ('pares' in b || 'passes' in b || 'limpeza' in b)) {
+      throw new HttpError(409, 'Evento não pode ter turma da limpeza ou escala.');
+    }
     const p = { data, usuario: perfil.id };
     if ('entidade' in b) p.entidade = validarEntidade(b.entidade);
     if ('presenca' in b) p.presenca = validarPresenca(b.presenca);
@@ -135,6 +141,7 @@ export default rota({
     if (previas.length) p.presenca = { ...Object.fromEntries(previas.map((id) => [id, 'a'])), ...(p.presenca || {}) };
     const gira = await db.rpc('gira_salvar', p);
     if (nova) await db.rpc('ausencias_previas_usar', { data });
+    if (mudaEvento) return ocultarSorteio(perfil, await db.rpc('gira_evento', { data, usuario: perfil.id, evento: b.evento }));
     return gira;
   },
   POST: async (req) => {
@@ -155,6 +162,7 @@ export default rota({
       const atual = await db.rpc('gira_obter', { data });
       if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+      if (atual.evento) throw new HttpError(409, 'Evento não tem escala para cancelar.');
       let gira = await db.rpc('gira_salvar', { data, usuario: quem.id, pares: [], passes: [] });
       if (gira.publicada) gira = await db.rpc('gira_publicar', { data, publicada: false });
       if (gira.travada) gira = await db.rpc('gira_travar', { data, travada: false });
@@ -180,6 +188,7 @@ export default rota({
       const [d, m, y] = data.split('-').reverse();
       // A escala nunca cria gira nem presença: só completa uma gira que já foi salva (ex.: pelo resumo do WhatsApp).
       if (!atual) throw new HttpError(404, `Não existe gira salva em ${d}/${m}/${y}. Confira a data ou cadastre a gira antes.`);
+      if (atual.evento) throw new HttpError(409, 'Evento não pode receber escala.');
       const p = { data, usuario: perfil.id, pares: validarDuplas(b.pares, 'cambones'), passes: validarDuplas(b.passes, 'médiuns de passe') };
       const entidade = validarEntidade(b.entidade);
       const orixa = validarOrixa(b.orixa);
@@ -190,7 +199,9 @@ export default rota({
       return { gira: await db.rpc('gira_salvar', p), mensagem: `Escala gravada na gira de ${d}/${m}/${y} (presença e atendidos não mudaram).` };
     }
     if (acao === 'publicar') {
-      if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');
+      const atual = await db.rpc('gira_obter', { data });
+      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
+      if (atual.evento) throw new HttpError(409, 'Evento não tem escala para publicar.');
       const pub = b.publicada !== false;
       return { gira: await db.rpc('gira_publicar', { data, publicada: pub }), mensagem: pub ? 'Escala publicada: agora todos veem o sorteio.' : 'Publicação desfeita: só os admins veem o sorteio.' };
     }
@@ -199,6 +210,7 @@ export default rota({
       const atual = await db.rpc('gira_obter', { data });
       if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+      if (atual.evento && b.travada) throw new HttpError(409, 'Evento não tem escala para travar.');
       return { gira: await db.rpc('gira_travar', { data, travada: b.travada }), mensagem: b.travada ? 'Escala travada: marcar falta não muda a escala.' : 'Trava desligada: faltas voltam a tirar a pessoa da escala.' };
     }
     if (acao === 'recado') {

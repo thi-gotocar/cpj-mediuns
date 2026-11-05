@@ -1211,6 +1211,8 @@ button.eu-av{cursor:zoom-in}
 .adm-ev-wa a.wa-bt{text-decoration:none}
 .adm-ev-bts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .adm-ev-bts .btn{width:100%;margin:0;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px}
+.ev-toggle{display:flex;align-items:center;align-self:end;gap:8px;min-height:42px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-weight:700;cursor:pointer}
+.ev-toggle input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
 /* Ausência antecipada (data ainda sem gira) */
 .aus-prev-l{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .aus-prev-l .lock-x{width:28px;height:28px;padding:0;flex:none}
