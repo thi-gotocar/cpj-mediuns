@@ -23,7 +23,7 @@ const CW = W - 2 * P;
 const LH = 26;   // altura da linha de texto das listas
 const R = 50;    // raio do logo no cabeçalho
 
-function quebrar(ctx, t, max) {
+export function quebrar(ctx, t, max) {
   const out = [];
   String(t).split('\n').forEach((par) => {
     let linha = '';
@@ -35,7 +35,7 @@ function quebrar(ctx, t, max) {
   });
   return out;
 }
-function retangulo(ctx, x, y, w, h, r) {
+export function retangulo(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -258,7 +258,7 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   return y + 28 + 16 + P - 6;
 }
 
-async function carregarLogo() {
+export async function carregarLogo() {
   try {
     const img = new Image();
     img.src = '/img/terreiro.png';

@@ -20,6 +20,8 @@ const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s =
 const ATEND = [['normal', 'Atendimento'], ['passe', 'Passe'], ['preferencial', 'Preferencial']];
 const camposAtend = (g) => `<div class="atend-campos">${ATEND.map(([k, t]) => `<label class="field">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" data-act="atend" data-k="${k}" value="${Number(g.atendimentos?.[k]) || 0}"></label>`).join('')}</div>`;
 const numerosAtend = (a) => `<div class="atend-nums">${ATEND.map(([k, t]) => `<div><b>${Number(a?.[k]) || 0}</b><span>${t}</span></div>`).join('')}</div>`;
+// Campo bloqueado do Evento fechado: igual aos combos da gira aberta, mas só informa.
+const campoFixo = (v) => `<select disabled title="Gira encerrada: para mudar, reabra a gira"><option>${esc(v || '—')}</option></select>`;
 const seletorOrixa = (g) => `<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
 
 function chaveImg() {
@@ -91,12 +93,14 @@ function blocoAusPrevia(ps, g) {
       <button class="btn small" data-act="ausprevadd">Marcar ausência</button></span>` : ''}</div>`;
 }
 
-function blocoAusencia(ps, g) {
-  const quem = ps.filter((p) => status(p, g) === 'a');
+function blocoNomesFora(ps, g, st, classe, titulo) {
+  const quem = ps.filter((p) => status(p, g) === st);
   if (!quem.length) return '';
-  return `<div class="limpeza ausencia"><b><span class="aus-ico" aria-hidden="true">✖</span> Ausência · ${quem.length}</b>
+  return `<div class="limpeza ${classe}"><b><span class="aus-ico" aria-hidden="true">✖</span> ${titulo} · ${quem.length}</b>
     <span class="aus-nomes">${quem.map((p) => `<span class="aus-nome">${esc(p.nome)}</span>`).join('')}</span></div>`;
 }
+const blocoAusencia = (ps, g) => blocoNomesFora(ps, g, 'a', 'ausencia', 'Ausência');
+const blocoFaltas = (ps, g) => blocoNomesFora(ps, g, 'f', 'faltas', 'Faltas');
 
 // Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
 // A lista de quem cambona por causa da linha só aparece para o admin.
@@ -329,13 +333,16 @@ function renderGira() {
   // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Aula de curimba, Sua presença e só depois a gira (próximo evento).
   // Admin: os comandos do evento ficam na parte "⚙️ Evento" do card do admin, não no card da gira.
   // Aberta: entidade, orixá, turma da limpeza, atendimentos, WhatsApp (escala e limpeza), Alterar data e Encerrar gira.
-  // Encerrada: orixá (o único que ainda muda), Compartilhar a escala, Compartilhar resumo e Reabrir gira.
+  // Encerrada: gira e orixá só informam (bloqueados), Compartilhar a escala, Compartilhar resumo e Reabrir gira.
   const cabEvento = `<div class="grp-h"><h2>⚙️ Evento</h2><label class="ev-data-adm" title="Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dLong(g.data))} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label></div>`;
   const secaoEvento = !admin || !existe ? '' : encerrada
     ? `<div class="adm-sec adm-evento">${cabEvento}
-      ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g)}</label>` : ''}
+      <div class="row">
+        <label class="field grow">Gira / entidade do dia${campoFixo(nomeGira(g.entidade))}</label>
+        ${temOrixa(g) ? `<label class="field" style="flex:1 1 130px">Orixá${campoFixo(orixaDaGira(g))}</label>` : ''}
+      </div>
       ${whats ? `<div class="adm-ev-wa">${botaoWhats(temDuplas, 'Compartilhar a escala')}</div>` : ''}
-      <div class="adm-ev-bts">${pode('escala:completa') ? botaoResumo(g) : ''}<button class="btn" data-act="reabrir">Reabrir gira</button></div>
+      <div class="adm-ev-bts">${pode('escala:completa') ? botaoResumo(g) : ''}<button class="btn small" data-act="reabrir">Reabrir gira</button></div>
       ${pode('escala:completa') ? painelResumo(g) : ''}</div>`
     : `<div class="adm-sec adm-evento">${cabEvento}
       <div class="row">
@@ -361,6 +368,7 @@ function renderGira() {
     ${encerrada ? '' : blocoLimpeza(g)}
     ${blocoBanho(g)}
     ${blocoAusencia(ps, g)}
+    ${blocoFaltas(ps, g)}
     ${blocoLicenca(ps, g)}
     ${temDuplas && (g.publicada || encerrada) ? blocoImagemEscala() : ''}
     ${encerrada ? blocoEncerrada(ps, g) : ''}

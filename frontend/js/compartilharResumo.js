@@ -2,29 +2,48 @@
 // ou imagem. Usado na aba Gira e na aba Histórico.
 
 import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, LOCAL_PADRAO } from '/shared/resumoGira.js';
-import { gerarImagemLista, compartilharImagem } from './imagemLista.js';
+import { giraEspecial } from '/shared/regras.js';
+import { compartilharImagem } from './imagemLista.js';
+import { gerarImagemResumo, COR_RESUMO } from './imagemResumo.js';
 import { estado, avisar, girasLista } from './estado.js';
 import { esc, toast, baixar, dShort } from './util.js';
 
 const giraDe = (data) => estado.giras[data];
 
+// Dados da imagem do resumo: um cartão de presença e um de atendimentos (e a limpeza, se a gira teve turma).
 function dadosImagem(g) {
   const d = dadosResumo(estado.pessoas, g);
-  const nomes = (l) => l.map((p) => p.nome).join(', ');
-  const linhas = [
-    { texto: 'Presentes', valor: String(d.presentes.length) },
-    { texto: 'Ausentes', valor: String(d.ausentes.length), sub: nomes(d.ausentes) },
-    { texto: 'Faltas', valor: String(d.faltas.length), sub: nomes(d.faltas) },
-    { texto: 'Em licença', valor: String(d.licenca.length), sub: d.licenca.map(linhaLicenca).join(' · ') },
-    { texto: 'Taxa de presença', valor: d.pct.presenca + '%', sub: `Ausência ${d.pct.ausencia}% · Licença ${d.pct.licenca}%` },
-    { texto: 'Atendimentos', valor: String(d.total), sub: `Preferencial ${d.atendimentos.preferencial} · Normal ${d.atendimentos.normal} · Passe ${d.atendimentos.passe}` },
-  ];
+  const CR = COR_RESUMO;
+  const pilulas = (l) => l.map((p) => ({ texto: p.nome }));
+  // Limpeza: quem esteve presente fica neutro; os outros mostram a situação, com a cor dela.
+  const COR_SIT = { Falta: CR.falta, Ausente: CR.ausente };
+  const naLimpeza = (l) => l.map((x) => (x.situacao === 'Presente' || x.situacao === 'Curimba'
+    ? { texto: x.pessoa.nome } : { texto: `${x.pessoa.nome} · ${x.situacao.toLowerCase()}`, cor: COR_SIT[x.situacao] || CR.licenca }));
+  const cartoes = [{
+    titulo: 'PRESENÇA', estrela: true, direita: `${d.pct.presenca}% de presença`, cor: CR.ouro,
+    quadros: [['Presentes', d.presentes.length, CR.presente], ['Ausentes', d.ausentes.length, CR.ausente], ['Faltas', d.faltas.length, CR.falta], ['Em licença', d.licenca.length, CR.licenca]],
+    nota: `Ausência ${d.pct.ausencia}% · Licença ${d.pct.licenca}%`,
+    grupos: [
+      { titulo: `Ausentes · ${d.ausentes.length}`, cor: CR.ausente, pilulas: pilulas(d.ausentes) },
+      { titulo: `Faltas · ${d.faltas.length}`, cor: CR.falta, pilulas: pilulas(d.faltas) },
+      { titulo: `Em licença · ${d.licenca.length}`, cor: CR.licenca, linhas: d.licenca.map(linhaLicenca) },
+    ],
+  }, {
+    titulo: 'ATENDIMENTOS', direita: `Total ${d.total}`, cor: CR.licenca,
+    quadros: [['Preferencial', d.atendimentos.preferencial, CR.ouro], ['Normal', d.atendimentos.normal, CR.licenca], ['Passe', d.atendimentos.passe, CR.presente]],
+  }];
   const lp = limpezaResumo(estado.pessoas, g, girasLista());
   if (lp) {
-    linhas.push({ texto: `Limpeza · Turma ${lp.turma}`, valor: '', sub: lp.membros.length ? lp.membros.map((x) => `${x.pessoa.nome} (${x.situacao.toLowerCase()})`).join(', ') : 'Ninguém cadastrado nesta turma' });
-    if (lp.ajudantes.length) linhas.push({ texto: 'Ajudaram na limpeza', valor: '', sub: lp.ajudantes.map((x) => `${x.pessoa.nome} (${x.situacao.toLowerCase()})`).join(', ') });
+    cartoes.push({
+      titulo: 'LIMPEZA', direita: `Turma ${lp.turma}`, cor: CR.limpeza,
+      grupos: [
+        lp.membros.length ? { titulo: 'Da turma', cor: CR.limpeza, pilulas: naLimpeza(lp.membros) } : { titulo: 'Da turma', cor: CR.limpeza, linhas: ['Ninguém cadastrado nesta turma'] },
+        { titulo: 'Ajudaram na limpeza', cor: CR.limpeza, pilulas: naLimpeza(lp.ajudantes) },
+      ],
+    });
   }
-  return { rotulo: 'Resumo do evento', titulo: d.gira || 'Gira', subtitulo: `${d.orixa ? `Orixá ${d.orixa} · ` : ''}${dShort(g.data)} · ${LOCAL_PADRAO}`, linhas: linhas.map((l) => (l.sub ? l : { texto: l.texto, valor: l.valor })) };
+  const nomeDaGira = d.gira ? (giraEspecial(g.entidade) ? d.gira : `Gira de ${d.gira}`) : 'Gira';
+  return { rotulo: 'RESUMO DO EVENTO - DIRIGENTE Mãe Vê', titulo: nomeDaGira, subtitulo: `${d.orixa ? `Orixá ${d.orixa} · ` : ''}${dShort(g.data)}`, cartoes };
 }
 
 // Botão que abre o painel (só para gira encerrada).
@@ -71,7 +90,7 @@ export const cliquesResumo = {
     const g = giraDe(estado.resumo?.data);
     if (!g) return;
     try {
-      const blob = await gerarImagemLista(dadosImagem(g));
+      const blob = await gerarImagemResumo(dadosImagem(g));
       if (estado.resumo.img) URL.revokeObjectURL(estado.resumo.img.url);
       estado.resumo.img = { blob, url: URL.createObjectURL(blob), nome: 'resumo-gira-' + g.data + '.png' };
       avisar();

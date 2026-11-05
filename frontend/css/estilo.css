@@ -2,7 +2,7 @@
 :root{
   --bg:#f5f7fb; --surface:#ffffff; --ink:#18212f; --muted:#5b6678; --line:#dde3ec;
   --accent:#2c4ea3; --accent-ink:#ffffff; --accent-soft:#e6ecfa;
-  --gold:#a8771c; --ok:#24785a; --ok-soft:#e1f2ea; --off:#a2423a; --off-soft:#f8e6e4; --warn:#9a6a10; --warn-soft:#f8efd9; --orange:#c2570c;
+  --gold:#a8771c; --ok:#24785a; --ok-soft:#e1f2ea; --off:#a2423a; --off-soft:#f8e6e4; --warn:#9a6a10; --warn-soft:#f8efd9; --orange:#c2570c; --falta:#e0101f;
   --f-display:"Alegreya",Georgia,"Times New Roman",serif;
   --f-body:"Alegreya Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -11,12 +11,12 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
   --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#1f2a44;
-  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c;
+  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c; --falta:#ff4d55;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
   --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#1f2a44;
-  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c;
+  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c; --falta:#ff4d55;
   color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
@@ -411,6 +411,10 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .aus-ico{color:var(--off);font-family:system-ui,sans-serif;font-weight:900}
 .aus-nomes{display:flex;flex-wrap:wrap;gap:6px}
 .aus-nome{font-size:.85rem;border:1px solid color-mix(in srgb,var(--off) 40%,var(--line));border-radius:20px;padding:2px 10px;background:var(--surface)}
+/* Faltas: logo abaixo da Ausência, no mesmo padrão, em vermelho vivo */
+.limpeza.faltas{border-left-color:var(--falta);background:color-mix(in srgb,var(--falta) 10%,var(--bg))}
+.limpeza.faltas>b,.limpeza.faltas .aus-ico{color:var(--falta)}
+.limpeza.faltas .aus-nome{border-color:var(--falta);color:var(--falta);font-weight:600}
 /* Banho orixá / Banho guia: ervas em pílulas, borda verde */
 .limpeza.banho{border-left-color:var(--ok);gap:8px}
 .banho-p{display:grid;gap:5px}
@@ -1209,6 +1213,8 @@ button.eu-av{cursor:zoom-in}
 .aus-prev-add{display:flex;gap:6px;align-items:center;margin-top:4px}
 .aus-prev-add select{flex:1;min-width:0}
 .adm-evento .row{margin:0}
+/* Evento fechado: gira e orixá só informam */
+.adm-evento select:disabled{opacity:1;color:var(--ink);-webkit-text-fill-color:var(--ink);background:var(--bg);border-style:dashed;cursor:not-allowed;appearance:none;-webkit-appearance:none}
 
 /* Aba Perfil: Anamnese (pessoa: perguntas travadas até Editar; admin: perguntas, respostas e arquivo) */
 .ana-lista{display:grid;gap:14px}

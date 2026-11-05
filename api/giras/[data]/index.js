@@ -103,8 +103,8 @@ export default rota({
     const b = corpo(req);
     // Cadastrar gira antiga (já encerrada): só o admin root.
     if (b.encerrada === true && !pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra gira antiga.');
-    // Gira encerrada: só a turma da limpeza e o orixá ainda podem mudar (o resto, só reabrindo).
-    const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza' || k === 'orixa');
+    // Gira encerrada: só a turma da limpeza ainda pode mudar (o resto, só reabrindo).
+    const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza');
     if (!soLimpeza && (await db.rpc('gira_obter', { data }))?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
     const p = { data, usuario: perfil.id };
     if ('entidade' in b) p.entidade = validarEntidade(b.entidade);
