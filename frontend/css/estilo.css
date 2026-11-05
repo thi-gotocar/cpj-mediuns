@@ -372,6 +372,10 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st .grp-h{align-items:center}.st .grp-h h2{flex:1 1 auto;margin:0}
 .st .grp-h select{width:auto;flex:none;font:inherit;font-size:.9rem;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .st-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 18px;margin-top:8px}
+.st-ausencias{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;min-width:0}
+.st-ausencias .st-bloco{min-width:0}
+.st-ausencias .st-lista li{grid-template-columns:22px minmax(0,1fr) auto;gap:4px 5px}
+.st-ausencias .st-lista li .st-bar{grid-column:2/-1}
 .st-bloco h3{margin:0 0 6px;font-size:.95rem}
 .st-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
 .st-lista li{display:grid;grid-template-columns:28px minmax(0,1fr) 80px auto;align-items:center;gap:4px 8px;font-size:.9rem}

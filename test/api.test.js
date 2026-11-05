@@ -1013,6 +1013,13 @@ test('alunos da CPJ: turmas 09 a 11, fora da corrente; admin oferendas cadastra 
   assert.equal((await api('POST', '/api/pessoas', of, { nome: 'Corrente Nova', funcao: 'medium' })).status, 403);
   const fim = (await api('POST', '/api/pessoas', of, { acao: 'excluirAluno', id: um.id })).json;
   assert.ok(!fim.alunos.some((a) => a.id === um.id));
+  const turma13 = (await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', nome: 'Turma 13' })).json.turmas.find((t) => t.nome === 'Turma 13');
+  const alunoTurma13 = (await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluno Turma Treze', turmaId: turma13.id })).json;
+  assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'excluirTurma', id: turma13.id })).status, 403);
+  const removida = (await api('POST', '/api/pessoas', ADMIN, { acao: 'excluirTurma', id: turma13.id })).json;
+  assert.ok(!removida.turmas.some((t) => t.id === turma13.id));
+  assert.equal(removida.alunos.find((a) => a.nome === 'Aluno Turma Treze').turmaId, null);
+  assert.ok(alunoTurma13.alunos.some((a) => a.nome === 'Aluno Turma Treze'), 'o aluno permanece cadastrado');
 });
 
 test('oferenda 100% há mais de um dia: só o responsável altera; o card mostra o percentual', async () => {

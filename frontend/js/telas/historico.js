@@ -100,7 +100,6 @@ const seloPct = (pct, title) => `<span class="badge ${corPct(pct)}" style="text-
 
 // ---- Estatísticas (topo do Histórico): rankings de presença e faltas, atendimentos e giras.
 const PRES = ['p', 'na', 'sup'];
-const AUS = ['a', 'f'];
 const pos = (i) => `<span class="st-pos">${i + 1}º</span>`;
 // Barra com a porcentagem escrita: v de "total" (ex.: 3 presenças em 4 giras = 75%).
 const pctDe = (v, total) => (total ? Math.round((v / total) * 100) : 0);
@@ -120,18 +119,19 @@ function cardEstatisticas(todas, ps) {
   const gs = ano === 'todos' ? todas : todas.filter((g) => g.data.startsWith(ano));
   const mais = estado.stMais || {};
 
-  // Por pessoa: giras em que esteve, faltas/ausências e giras que contam (sem licença).
+  // Por pessoa: presenças, faltas, ausências e giras que contam (sem licença).
   const porPessoa = ps.map((p) => {
-    let pres = 0, aus = 0, f = 0, base = 0;
+    let pres = 0, a = 0, f = 0, base = 0;
     gs.forEach((g) => {
       if (!naCorrenteEm(p, g.data)) return;   // antes de entrar na corrente
       const st = presencaDe(p, g);
       if (st === 'lic' || st === 'pend') return;
       base++;
       if (PRES.includes(st)) pres++;
-      if (AUS.includes(st)) { aus++; if (st === 'f') f++; }
+      if (st === 'a') a++;
+      if (st === 'f') f++;
     });
-    return { p, pres, aus, f, base };
+    return { p, pres, a, f, base };
   });
   // Tocar no nome mostra gira a gira o que contou para a pessoa (para conferir uma falta, por exemplo).
   const ROT = { p: '✅ presente', na: '✅ presente', sup: '✅ presente (suporte)', f: '🚫 falta', a: '❌ ausente' };
@@ -165,7 +165,8 @@ function cardEstatisticas(todas, ps) {
       : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém por aqui.</p>'}</div>`;
   };
   const presentes = porPessoa.filter((x) => x.pres).sort((a, b) => b.pres - a.pres || a.p.nome.localeCompare(b.p.nome));
-  const faltantes = porPessoa.filter((x) => x.aus).sort((a, b) => b.aus - a.aus || b.f - a.f || a.p.nome.localeCompare(b.p.nome));
+  const faltas = porPessoa.filter((x) => x.f).sort((a, b) => b.f - a.f || a.p.nome.localeCompare(b.p.nome));
+  const ausencias = porPessoa.filter((x) => x.a).sort((a, b) => b.a - a.a || a.p.nome.localeCompare(b.p.nome));
 
   // Top 3 giras com mais atendidos.
   const comAt = gs.filter((g) => g.atendimentos && somaAt(g.atendimentos) > 0)
@@ -192,7 +193,10 @@ function cardEstatisticas(todas, ps) {
     </div>
     <div class="st-grid">
       ${ranking('pres', 'Mais presentes', 'ok', presentes, (x) => `<b>${x.pres}</b> de ${x.base}`)}
-      ${ranking('aus', 'Mais faltas e ausências', 'off', faltantes, (x) => `<b>${x.aus}</b>${x.f ? ` <span class="muted">(${x.f} falta${x.f > 1 ? 's' : ''})</span>` : ''}`)}
+      <div class="st-ausencias">
+        ${ranking('f', 'Mais faltas', 'off', faltas, (x) => `<b>${x.f}</b>`)}
+        ${ranking('a', 'Mais ausências', 'off', ausencias, (x) => `<b>${x.a}</b>`)}
+      </div>
       <div class="st-bloco"><h3>Giras com mais atendimentos</h3>
         ${comAt.length ? `<ol class="st-lista">${comAt.map((g, i) => `<li>${pos(i)}<span class="st-nome"><span class="hi-gira">${esc(nomeGira(g.entidade) || 'Gira')}</span>${dShort(g.data)}</span>${barra(somaAt(g.atendimentos), maxAt, 'acc')}<span class="st-num"><b>${somaAt(g.atendimentos)}</b></span>
           <span class="st-det">${ATEND.map(([k, t]) => `${t} ${Number(g.atendimentos[k]) || 0}`).join(' · ')}</span></li>`).join('')}</ol>`

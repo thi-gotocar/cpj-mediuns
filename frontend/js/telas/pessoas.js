@@ -231,7 +231,7 @@ function cardAlunos() {
       : estado.editTurma === g.id
         ? `<form id="f-turma-ed" class="al-gh-l" data-id="${g.id}" autocomplete="off"><input type="text" id="turma-nome" value="${esc(g.nome)}" maxlength="40" aria-label="Nome da turma">
             <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelturma">Cancelar</button></span></form>`
-        : `<div class="al-gh-l">${cab}<button class="btn small pp-bt" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}">Editar</button></div>`;
+        : `<div class="al-gh-l">${cab}<span class="pp-bts"><button class="btn small pp-bt" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}">Editar</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="turma" data-id="${g.id}" aria-label="Remover ${esc(g.nome)}">Remover</button></span></div>`;
     return `<div class="al-grupo">${cabTurma}
       ${fechado ? '' : g.lista.length ? `<div class="al-lista">${g.lista.map((a) => {
         if (!ed) return `<div class="al-l"><span class="nm">${esc(a.nome)}</span></div>`;
@@ -249,7 +249,7 @@ function cardAlunos() {
   return h + '</div>';
 }
 
-// Janela de confirmação para excluir (pessoa, aluno ou licença).
+// Janela de confirmação para excluir (pessoa, aluno ou licença) ou remover uma turma.
 function janelaExcluir() {
   const x = estado.excluirPop;
   if (!x) return '';
@@ -262,6 +262,14 @@ function janelaExcluir() {
     const a = (estado.alunos?.alunos || []).find((y) => y.id === x.id);
     if (!a) return '';
     titulo = 'Excluir aluno'; texto = `Excluir o aluno <b>${esc(a.nome)}</b>?`;
+  } else if (x.tipo === 'turma') {
+    const t = (estado.alunos?.turmas || []).find((y) => y.id === x.id);
+    if (!t) return '';
+    const n = (estado.alunos?.alunos || []).filter((a) => a.turmaId === x.id).length;
+    titulo = 'Remover turma';
+    texto = `Remover <b>${esc(t.nome)}</b>? ${n
+      ? `${n} aluno${n === 1 ? '' : 's'} passar${n === 1 ? 'á' : 'ão'} para “Sem turma”; nenhum aluno será excluído.`
+      : 'Nenhum aluno será excluído.'}`;
   } else {
     const p = estado.pessoas.find((y) => (y.licencas || []).some((l) => l.id === x.id));
     const l = p && p.licencas.find((y) => y.id === x.id);
@@ -365,6 +373,10 @@ export const cliques = {
     if (!x) return;
     if (x.tipo === 'p') await excluirPessoa(x.id);
     else if (x.tipo === 'al') await acaoAlunos('excluirAluno', { id: x.id });
+    else if (x.tipo === 'turma') {
+      estado.editTurma = null;
+      if (await acaoAlunos('excluirTurma', { id: x.id })) toast('Turma removida. Os alunos foram mantidos sem turma.');
+    }
     else if (x.tipo === 'lic') { estado.editLic = null; estado.editLicH = null; await removerLicenca(x.id); }
   },
   delpessoa(el) { estado.confirm = null; excluirPessoa(el.dataset.id); },
