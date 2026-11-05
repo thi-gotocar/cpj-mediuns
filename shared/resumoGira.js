@@ -39,6 +39,35 @@ export function dadosResumo(pessoas, g) {
   };
 }
 
+// Histórico encerrado da mesma entidade para o gráfico da imagem de resumo.
+export function historicoAtendimentos(giras, atual) {
+  if (!atual?.entidade || !atual.data) return null;
+  const chave = (entidade) => nomeGira(entidade).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const entidade = chave(atual.entidade);
+  if (!entidade) return null;
+  const inicio = new Date(`${atual.data}T12:00:00Z`);
+  inicio.setUTCFullYear(inicio.getUTCFullYear() - 1);
+  const desde = inicio.toISOString().slice(0, 10);
+  const registros = [...(giras || []).filter((g) => g.data !== atual.data), atual]
+    .filter((g) => g?.encerrada && g.data >= desde && g.data <= atual.data && chave(g.entidade) === entidade)
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .map((g) => {
+      const atendimentos = {
+        preferencial: Math.max(0, Number(g.atendimentos?.preferencial) || 0),
+        normal: Math.max(0, Number(g.atendimentos?.normal) || 0),
+        passe: Math.max(0, Number(g.atendimentos?.passe) || 0),
+      };
+      return { data: g.data, atendimentos, total: atendimentos.preferencial + atendimentos.normal + atendimentos.passe };
+    });
+  if (!registros.length) return null;
+  return {
+    quantidade: registros.length,
+    total: registros.reduce((soma, g) => soma + g.total, 0),
+    giras: registros.slice(-6),
+  };
+}
+
 // Situação de cada pessoa na gira, para a lista da limpeza.
 const SITUACAO = { p: ['✅', 'Presente'], na: ['✅', 'Presente'], sup: ['✅', 'Presente'], a: ['❌', 'Ausente'], f: ['🚫', 'Falta'], lic: ['📋', 'Licença'] };
 export const situacaoNaGira = (p, g) => (ehCurimba(p) ? ['🥁', 'Curimba'] : SITUACAO[status(p, g)] || SITUACAO.p);

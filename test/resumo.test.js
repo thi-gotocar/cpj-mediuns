@@ -124,6 +124,32 @@ test('resumo da gira: orixá no cabeçalho e lido de volta', async () => {
   assert.doesNotMatch(textoResumo([], { data: '2026-05-13', entidade: 'Exu', orixa: 'Ogum', presenca: {} }), /Orixá/);
 });
 
+test('gráfico do resumo: histórico de atendimentos da entidade nos últimos 12 meses', async () => {
+  const { historicoAtendimentos } = await import('../shared/resumoGira.js');
+  const atual = {
+    data: '2026-10-14', entidade: 'Caboclo', encerrada: true,
+    atendimentos: { preferencial: 2, normal: 30, passe: 5 },
+  };
+  const giras = [
+    { data: '2025-10-14', entidade: 'Caboclo', encerrada: true, atendimentos: { preferencial: 1, normal: 10, passe: 2 } },
+    { data: '2025-10-13', entidade: 'Caboclo', encerrada: true, atendimentos: { normal: 99 } },
+    { data: '2026-01-14', entidade: 'caboclo', encerrada: true, atendimentos: { preferencial: 3, normal: 20, passe: 4 } },
+    { data: '2026-05-14', entidade: 'Exu', encerrada: true, atendimentos: { normal: 100 } },
+    { data: '2026-07-14', entidade: 'Caboclo', encerrada: false, atendimentos: { normal: 200 } },
+    { data: '2026-11-14', entidade: 'Caboclo', encerrada: true, atendimentos: { normal: 300 } },
+  ];
+  assert.deepEqual(historicoAtendimentos(giras, atual), {
+    quantidade: 3,
+    total: 77,
+    giras: [
+      { data: '2025-10-14', atendimentos: { preferencial: 1, normal: 10, passe: 2 }, total: 13 },
+      { data: '2026-01-14', atendimentos: { preferencial: 3, normal: 20, passe: 4 }, total: 27 },
+      { data: '2026-10-14', atendimentos: { preferencial: 2, normal: 30, passe: 5 }, total: 37 },
+    ],
+  });
+  assert.equal(historicoAtendimentos([], { ...atual, entidade: '' }), null);
+});
+
 test('curimba: entra na limpeza, mas não na presença', async () => {
   const { textoResumo, dadosResumo } = await import('../shared/resumoGira.js');
   const { limpezaDaGira } = await import('../shared/regras.js');

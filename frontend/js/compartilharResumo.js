@@ -1,7 +1,7 @@
 // Compartilhar o resumo de uma gira encerrada no WhatsApp: texto ou imagem.
 // Usado na aba Gira e na aba Histórico.
 
-import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, LOCAL_PADRAO } from '/shared/resumoGira.js';
+import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, historicoAtendimentos, LOCAL_PADRAO } from '/shared/resumoGira.js';
 import { giraEspecial } from '/shared/regras.js';
 import { compartilharImagem } from './imagemLista.js';
 import { gerarImagemResumo, COR_RESUMO } from './imagemResumo.js';
@@ -32,6 +32,16 @@ function dadosImagem(g) {
     titulo: 'ATENDIMENTOS', direita: `Total ${d.total}`, cor: CR.licenca,
     quadros: [['Preferencial', d.atendimentos.preferencial, CR.ouro], ['Normal', d.atendimentos.normal, CR.licenca], ['Passe', d.atendimentos.passe, CR.presente]],
   }];
+  const historico = historicoAtendimentos(girasLista(), g);
+  if (historico) {
+    cartoes.push({
+      titulo: 'HISTÓRICO DA ENTIDADE',
+      direita: 'Últimas 6 giras',
+      cor: CR.presente,
+      quadros: [['Giras · 12 meses', historico.quantidade, CR.presente], ['Atend. · 12 meses', historico.total, CR.licenca]],
+      grafico: historico.giras,
+    });
+  }
   const lp = limpezaResumo(estado.pessoas, g, girasLista());
   if (lp) {
     cartoes.push({

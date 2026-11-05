@@ -94,6 +94,54 @@ function desenhar(ctx, d, logo, pintar) {
     return QH;
   };
 
+  const grafico = (giras, x, w, y0) => {
+    const H = 146;
+    const topo = y0 + 14;
+    const altura = 82;
+    const base = topo + altura;
+    const max = Math.max(1, ...giras.map((g) => g.total));
+    const cores = { preferencial: COR_RESUMO.ouro, normal: COR_RESUMO.licenca, passe: COR_RESUMO.presente };
+    const rotulos = { preferencial: 'Preferencial', normal: 'Normal', passe: 'Passe' };
+    if (pintar) {
+      ctx.strokeStyle = C.line;
+      ctx.lineWidth = 1;
+      [0, 0.5, 1].forEach((fracao) => {
+        const yy = base - altura * fracao;
+        ctx.beginPath(); ctx.moveTo(x, yy); ctx.lineTo(x + w, yy); ctx.stroke();
+      });
+      const slot = w / giras.length;
+      const bw = Math.min(34, slot * 0.56);
+      giras.forEach((g, i) => {
+        const cx = x + slot * (i + 0.5);
+        let yy = base;
+        ['normal', 'passe', 'preferencial'].forEach((tipo) => {
+          const valor = g.atendimentos[tipo];
+          const h = valor ? Math.max(1, (valor / max) * altura) : 0;
+          if (h) {
+            yy -= h;
+            ctx.fillStyle = cores[tipo];
+            ctx.fillRect(cx - bw / 2, yy, bw, h);
+          }
+        });
+        fonte(700, 13); ctx.fillStyle = C.ink; ctx.textAlign = 'center';
+        ctx.fillText(String(g.total), cx, Math.max(y0, yy - 16));
+        fonte(500, 13); ctx.fillStyle = C.muted;
+        ctx.fillText(`${g.data.slice(8, 10)}/${g.data.slice(5, 7)}`, cx, base + 5);
+      });
+      const itens = ['preferencial', 'normal', 'passe'];
+      fonte(500, 13);
+      const larguras = itens.map((tipo) => 12 + 6 + ctx.measureText(rotulos[tipo]).width + 14);
+      let lx = x + (w - larguras.reduce((a, b) => a + b, 0)) / 2;
+      itens.forEach((tipo, i) => {
+        ctx.fillStyle = cores[tipo]; ctx.fillRect(lx, y0 + 125, 12, 12);
+        ctx.fillStyle = C.muted; ctx.textAlign = 'left'; ctx.fillText(rotulos[tipo], lx + 18, y0 + 123);
+        lx += larguras[i];
+      });
+      ctx.textAlign = 'left';
+    }
+    return H;
+  };
+
   // Pílulas: uma ao lado da outra, quebrando a linha quando não cabem.
   const pilulas = (lista, x, w, y0) => {
     const H = 30, GAP = 6;
@@ -154,6 +202,7 @@ function desenhar(ctx, d, logo, pintar) {
     }
     yy += 34;
     if (c.quadros) yy += quadros(c.quadros, ix, iw, yy) + 10;
+    if (c.grafico?.length) yy += grafico(c.grafico, ix, iw, yy) + 8;
     if (c.nota) {
       if (pintar) { fonte(500, 16); ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.fillText(c.nota, ix + iw / 2, yy); ctx.textAlign = 'left'; }
       yy += 26;
