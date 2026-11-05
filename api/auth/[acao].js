@@ -120,11 +120,14 @@ const acoes = {
     if (req.method === 'GET') return resposta(await db.rpc('anamnese_estado'));
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const b = corpo(req);
-    if (b.acao === 'pergunta' || b.acao === 'excluirPergunta') {
+    if (b.acao === 'pergunta' || b.acao === 'editarPergunta' || b.acao === 'excluirPergunta') {
       if (!admin) throw new HttpError(403, 'Só o admin do perfil mexe nas perguntas.');
       if (b.acao === 'excluirPergunta') return resposta(await db.rpc('anamnese_pergunta_excluir', { id: validarId(b.id, 'Pergunta') }));
       const texto = String(b.texto ?? '').replace(/\s+/g, ' ').trim();
       if (!texto || texto.length > ANAMNESE_PERGUNTA_MAX) throw new HttpError(400, `Escreva a pergunta numa linha (até ${ANAMNESE_PERGUNTA_MAX} letras).`);
+      if (b.acao === 'editarPergunta') {
+        return resposta(await db.rpc('anamnese_pergunta_editar', { id: validarId(b.id, 'Pergunta'), texto }));
+      }
       if (!ANAMNESE_TIPOS.some(([k]) => k === b.tipo)) throw new HttpError(400, 'Escolha o tipo da resposta (texto ou sim/não).');
       return resposta(await db.rpc('anamnese_pergunta_salvar', { texto, tipo: b.tipo, opcoes: [], obrigatoria: true }));
     }

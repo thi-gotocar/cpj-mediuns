@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 76;  // v76: questionário completo de anamnese
+export const VERSAO = 77;  // v77: edição do texto das perguntas de anamnese
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2041,6 +2041,15 @@ export const MIGRACOES = [
        where not exists (select 1 from anamnese_perguntas q where lower(q.texto) = lower(v.texto));
        insert into sistema (chave, valor) values ('v76_anamnese_forms_seed', 'ok') on conflict (chave) do nothing;
      end if;
+   end;
+   $$`,
+  // ================================================== v77: editar pergunta sem alterar respostas nem formato
+  `create or replace function anamnese_pergunta_editar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update anamnese_perguntas set texto = btrim(p ->> 'texto') where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Pergunta não encontrada.'; end if;
+     return anamnese_estado();
    end;
    $$`,
 ];

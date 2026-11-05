@@ -1249,6 +1249,10 @@ button.eu-av{cursor:zoom-in}
 .ana-perg li{counter-increment:q;display:flex;align-items:center;gap:8px;justify-content:space-between}
 .ana-perg li::before{content:counter(q) ".";font-weight:700;flex:none;min-width:1.4em}
 .ana-perg li > span{flex:1;min-width:0;overflow-wrap:anywhere}
+.ana-acoes{display:flex;align-items:center;gap:6px;flex:none}
+.ana-edit-field{flex:1;min-width:0}
+.ana-editando{flex-wrap:wrap}
+.ana-editando .row{justify-content:flex-end;gap:6px}
 .ana-perg .lock-x{width:28px;height:28px;padding:0;flex:none}
 .ana-ver{display:grid;gap:10px;font-size:.92rem;border-left:3px solid var(--accent);padding-left:10px}
 .ana-ver > div{display:grid;gap:2px}

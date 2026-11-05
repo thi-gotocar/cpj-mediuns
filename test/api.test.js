@@ -1308,6 +1308,11 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
     assert.deepEqual([m.minhas[q1.id], m.minhas[q2.id]], ['sim', 'dipirona']);
     assert.equal(m.todas, undefined, 'a corrente não vê as respostas dos outros');
   }
+  assert.equal((await pq(USER, { acao: 'editarPergunta', id: q2.id, texto: 'Pergunta alterada' })).status, 403);
+  assert.equal((await pq(ADMIN, { acao: 'editarPergunta', id: q2.id, texto: 'x'.repeat(501) })).status, 400);
+  r = (await pq(ADMIN, { acao: 'editarPergunta', id: q2.id, texto: '  Remédios   em uso? ' })).json;
+  assert.equal(r.perguntas.find((q) => q.id === q2.id).texto, 'Remédios em uso?');
+  assert.ok(r.todas.some((x) => x.perguntaId === q2.id && x.resposta === 'dipirona'), 'editar o texto preserva respostas existentes');
   // Excluir a pergunta tira as respostas dela.
   r = (await pq(ADMIN, { acao: 'excluirPergunta', id: q1.id })).json;
   assert.ok(!r.perguntas.some((q) => q.id === q1.id) && !r.todas.some((x) => x.perguntaId === q1.id));
