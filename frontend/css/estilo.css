@@ -1192,9 +1192,9 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-alunos .al-lista{display:grid;gap:6px;margin:0}
 .pessoas-tela .fn-alunos .al-l{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .pessoas-tela .fn-alunos .al-l:first-child{border-top:1px solid var(--line)}
-.pessoas-tela .fn-alunos .al-l .pp-l1{flex-wrap:wrap}
-.pessoas-tela .fn-alunos .al-l .nm{flex:1 1 140px;min-width:0;overflow-wrap:anywhere}
-.pessoas-tela .fn-alunos .al-l .pp-bts{flex-wrap:wrap}
+.pessoas-tela .fn-alunos .al-l:not(.al-ed) .pp-l1{flex-wrap:nowrap}
+.pessoas-tela .fn-alunos .al-l:not(.al-ed) .nm{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+.pessoas-tela .fn-alunos .al-l:not(.al-ed) .pp-bts{flex-wrap:nowrap;gap:4px}
 .pessoas-tela .fn-alunos .al-l .al-turma{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
 .pessoas-tela .fn-alunos .al-l .al-turma select{width:100%;max-width:none;min-width:0}
 .pessoas-tela .fn-alunos .al-grupo > .muted{margin:0;padding:8px 2px}
