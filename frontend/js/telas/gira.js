@@ -21,6 +21,12 @@ const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s =
 const ATEND = [['normal', 'Atendimento'], ['passe', 'Passe'], ['preferencial', 'Preferencial']];
 const camposAtend = (g) => `<div class="atend-campos">${ATEND.map(([k, t]) => `<label class="field">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" data-act="atend" data-k="${k}" value="${Number(g.atendimentos?.[k]) || 0}"></label>`).join('')}</div>`;
 const numerosAtend = (a) => `<div class="atend-nums">${ATEND.map(([k, t]) => `<div class="at-${k}"><b>${Number(a?.[k]) || 0}</b><span>${t}</span></div>`).join('')}</div>`;
+const campoParticipantes = (g) => `<div class="ev-participantes-bloco">
+  <div class="ev-participantes-cab"><span class="ev-participantes-icone" aria-hidden="true">👥</span><div><h3>Participantes do evento</h3><p>Informe o total, incluindo convidados. Você pode preencher antes de encerrar.</p></div></div>
+  <label class="field ev-participantes-campo">Total de participantes<input class="ev-participantes-input" type="number" inputmode="numeric" min="0" max="100000" step="1" id="ev-participantes" data-act="participantes" aria-label="Total de participantes do evento" value="${Number(g.participantes) || 0}"></label>
+  <span class="ev-participantes-dica">Salvo automaticamente ao sair do campo.</span>
+</div>`;
+const numeroParticipantes = (g) => `<div class="atend-nums participantes"><div class="at-participantes"><b>${Number(g.participantes) || 0}</b><span>Total de participantes</span></div></div>`;
 // Campo bloqueado do Evento fechado: igual aos combos da gira aberta, mas só informa.
 const campoFixo = (v) => `<select disabled title="Gira encerrada: para mudar, reabra a gira"><option>${esc(v || '—')}</option></select>`;
 const seletorOrixa = (g) => `<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
@@ -206,8 +212,8 @@ function blocosFora(ps, g) {
 // Quadro "Gira encerrada" (para todos, só informa): atendimentos e presença.
 function blocoEncerrada(ps, g) {
   const resumo = dadosResumo(estado.pessoas, g);
-  return `<div class="enc-quadro"><h3 class="enc-titulo"><span aria-hidden="true">✓</span> Gira encerrada</h3>
-    ${numerosAtend(g.atendimentos)}
+  return `<div class="enc-quadro"><h3 class="enc-titulo"><span aria-hidden="true">✓</span> ${g.evento ? 'Evento encerrado' : 'Gira encerrada'}</h3>
+    ${g.evento ? numeroParticipantes(g) : numerosAtend(g.atendimentos)}
     ${contagemPresentes(ps, g, resumo)}</div>`;
 }
 
@@ -394,7 +400,7 @@ function renderGira() {
       </div>
       ${campoRecado(g)}
       ${avisoEntidade(ps, g, editar, admin)}
-      <div class="atend-sec"><span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}</div>
+      <div class="atend-sec">${g.evento ? campoParticipantes(g) : `<span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}`}</div>
       <div class="adm-ev-wa">${whats ? botaoWhats(temDuplas, 'Escala') : ''}${botaoWhatsLimpeza(g)}</div>
       <div class="adm-ev-bts">
         <button class="btn" data-act="mudardata" title="Alterar a data da gira (hoje: ${esc(dLong(g.data))})"><span aria-hidden="true">📅</span> Alterar data · ${esc(dDM(g.data))}</button>
@@ -450,7 +456,7 @@ function renderGira() {
   if (editar) {
     const ab = abertos.has('pres');
     iAdm = h.length;
-    h += `<div class="card adm adm-gira">${secaoEvento}<div class="adm-sec"><div class="grp-h"><h2>📋 Presença</h2>${(g.pares || []).length || (g.passes || []).length ? `<label class="of-sw" title="Com a trava, marcar falta ou ausência não muda a escala"><input type="checkbox" role="switch" data-act="travaesc" ${g.travada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Trava</label>` : ''}</div>
+    h += `<div class="card adm adm-gira">${secaoEvento}<div class="adm-sec"><div class="grp-h"><h2>📋 Presença</h2>${!g.evento && ((g.pares || []).length || (g.passes || []).length) ? `<label class="of-sw" title="Com a trava, marcar falta ou ausência não muda a escala"><input type="checkbox" role="switch" data-act="travaesc" ${g.travada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Trava</label>` : ''}</div>
       ${g.travada ? '<p class="muted" style="margin:0;font-size:.85rem">Escala travada: marcar falta ou ausência não muda a escala.</p>' : ''}
       ${presencaRapida(ps, g, antesDoDia)}
       <button class="btn link small ver-mais" data-act="dobrarcard" data-k="pres" aria-expanded="${ab}">${ab ? '− Esconder lista' : '+ Ver lista'}</button>`;
@@ -806,6 +812,15 @@ export const cliques = {
     document.querySelector('.pres.pend')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   },
   encerrar() {
+    const g = giraAtual();
+    if (g.evento) {
+      const input = document.getElementById('ev-participantes');
+      const v = (input?.value || '').trim() || '0';
+      if (!/^\d+$/.test(v) || Number(v) > 100000) { toast('Informe um total válido de participantes.'); input?.focus(); return; }
+      estado.confirm = null;
+      encerrarGira({ participantes: Number(v) });
+      return;
+    }
     const at = {};
     for (const [k, t] of ATEND) {
       const v = (document.getElementById('at-' + k)?.value || '').trim() || '0';   // em branco = 0
@@ -813,7 +828,7 @@ export const cliques = {
       at[k] = Number(v);
     }
     estado.confirm = null;
-    encerrarGira(at);
+    encerrarGira({ atendimentos: at });
   },
   reabrir: () => reabrirGira(),
   cancelenc() { estado.confirm = null; avisar(); },
@@ -1110,6 +1125,17 @@ export const mudancas = {
     const v = t.value.trim() || '0';
     if (!/^\d+$/.test(v)) { toast('Número inválido.'); t.value = Number(g.atendimentos?.[t.dataset.k]) || 0; return; }
     editarGira({ atendimentos: { ...Object.fromEntries(ATEND.map(([k]) => [k, 0])), ...(g.atendimentos || {}), [t.dataset.k]: Number(v) } });
+  },
+  // Eventos registram participantes, sem contagem de atendimentos.
+  participantes(t) {
+    const g = giraAtual();
+    const v = t.value.trim() || '0';
+    if (!/^\d+$/.test(v) || Number(v) > 100000) {
+      toast('Informe um total válido de participantes.');
+      t.value = Number(g.participantes) || 0;
+      return;
+    }
+    editarGira({ participantes: Number(v) });
   },
   // Quem estava Pendente: pede confirmação antes de gravar.
   status(t) {

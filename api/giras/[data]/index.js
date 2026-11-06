@@ -1,9 +1,9 @@
 // GET    /api/giras/:data
-// PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, encerrada?, limpeza?, orixa?, evento? } (só substitui o que vier)
+// PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, participantes?, encerrada?, limpeza?, orixa?, evento? } (só substitui o que vier)
 //                            (gira nova: quem tinha ausência antecipada na data já entra Ausente)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala: só o root)
 // POST   /api/giras/:data   { acao: 'publicar', publicada?: false } → a escala fica visível para todos (ou volta a ficar só para os admins)
-//                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
+//                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } | participantes } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 //                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas), despublica e tira a trava: volta ao botão Sortear
@@ -85,6 +85,12 @@ function validarAtendimentos(a) {
   return at;
 }
 
+function validarParticipantes(v) {
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 0 || n > 100000) throw new HttpError(400, 'Informe o total de participantes (de 0 a 100.000).');
+  return n;
+}
+
 // Quem entra pelo acesso da corrente (cpj), com ou sem senha, avisa que não vai.
 async function declararAusencia(req) {
   const eu = await exigir(req, 'giras:ler');
@@ -118,6 +124,10 @@ export default rota({
     if (!soLimpeza && atual?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
     const mudaEvento = 'evento' in b;
     if (mudaEvento && typeof b.evento !== 'boolean') throw new HttpError(400, 'Opção de evento inválida.');
+    const participantes = 'participantes' in b ? validarParticipantes(b.participantes) : undefined;
+    if (participantes !== undefined && (!(atual?.evento || b.evento === true) || b.evento === false)) {
+      throw new HttpError(409, 'O total de participantes só pode ser registrado em um evento.');
+    }
     if (atual?.evento && b.evento !== false && ('pares' in b || 'passes' in b || 'limpeza' in b)) {
       throw new HttpError(409, 'Evento não pode ter turma da limpeza ou escala.');
     }
@@ -136,6 +146,11 @@ export default rota({
     }
     if ('orixa' in b) p.orixa = validarOrixa(b.orixa);
     if (b.encerrada === true) p.encerrada = true;
+    if (b.evento === true && !atual?.evento) {
+      p.limpeza = null;
+      p.pares = [];
+      p.passes = [];
+    }
     // Gira nova: quem tinha ausência antecipada nesta data já entra como Ausente (o que veio no pedido vale mais).
     const nova = b.encerrada !== true && !(await db.rpc('gira_obter', { data }));
     const previas = nova ? (await db.rpc('ausencias_previas_listar')).filter((x) => x.data === data).map((x) => x.pessoaId) : [];
@@ -143,8 +158,9 @@ export default rota({
     let gira = await db.rpc('gira_salvar', p);
     if ('entidadeNome' in p) gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
     if (nova) await db.rpc('ausencias_previas_usar', { data });
-    if (mudaEvento) return ocultarSorteio(perfil, await db.rpc('gira_evento', { data, usuario: perfil.id, evento: b.evento }));
-    return gira;
+    if (mudaEvento) gira = await db.rpc('gira_evento', { data, usuario: perfil.id, evento: b.evento });
+    if (participantes !== undefined) gira = await db.rpc('gira_participantes', { data, usuario: perfil.id, participantes });
+    return ocultarSorteio(perfil, gira);
   },
   POST: async (req) => {
     const b = corpo(req);
@@ -172,7 +188,7 @@ export default rota({
     }
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
-    const { acao, atendimentos } = b;
+    const { acao, atendimentos, participantes } = b;
     if (acao === 'mudarData') {
       const para = validarData(String(b.para || ''));
       const [atual, ocupada] = await Promise.all([db.rpc('gira_obter', { data }), db.rpc('gira_obter', { data: para })]);
@@ -247,6 +263,11 @@ export default rota({
     const pend = pendentesDaGira(pessoas, atual || giraVazia(data));
     if (pend.length) throw new HttpError(409, `Confirme a presença antes de encerrar: ${pend.length} pendente${pend.length > 1 ? 's' : ''} (${pend.slice(0, 5).map((p) => p.nome).join(', ')}${pend.length > 5 ? '…' : ''}).`);
     const { patch, mensagem } = encerrar(pessoas, atual || giraVazia(data));
+    if (atual?.evento) {
+      const total = validarParticipantes(participantes);
+      await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch });
+      return { gira: await db.rpc('gira_participantes', { data, usuario: perfil.id, participantes: total }), mensagem };
+    }
     // Quantas pessoas foram atendidas na gira.
     if (!atendimentos || typeof atendimentos !== 'object') throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');
     patch.atendimentos = validarAtendimentos(atendimentos);

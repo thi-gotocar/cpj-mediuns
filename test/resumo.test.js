@@ -96,6 +96,20 @@ test('resumo da gira encerrada: texto no formato do WhatsApp e lido de volta', a
   assert.deepEqual(r.atendimentos, { preferencial: 2, normal: 30, passe: 5 });
 });
 
+test('resumo de evento mostra participantes em vez de atendimentos', async () => {
+  const { textoResumo, dadosResumo, historicoAtendimentos } = await import('../shared/resumoGira.js');
+  const evento = {
+    data: '2026-04-15', entidade: 'Festa da Casa', evento: true, encerrada: true, participantes: 42,
+    atendimentos: { preferencial: 3, normal: 20, passe: 7 },
+  };
+  const resumo = dadosResumo([], evento);
+  const texto = textoResumo([], evento);
+  assert.equal(resumo.participantes, 42);
+  assert.match(texto, /TOTAL DE PARTICIPANTES\n👥 Participantes: 42/);
+  assert.doesNotMatch(texto, /ATENDIMENTOS REALIZADOS|Preferencial|Normal:|Passe:/);
+  assert.equal(historicoAtendimentos([evento], evento), null, 'evento não entra no histórico de atendimentos');
+});
+
 test('resumo da gira: turma da limpeza com presente/ausente na frente de cada nome', async () => {
   const { textoResumo } = await import('../shared/resumoGira.js');
   const pessoas = [

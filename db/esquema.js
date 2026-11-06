@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 84;  // v84: promover aluno para a Corrente mantendo o acesso CPJ
+export const VERSAO = 85;  // v85: registrar total de participantes em eventos
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2263,5 +2263,72 @@ export const MIGRACOES = [
    exception when unique_violation then
      raise exception 'Já existe uma pessoa da corrente com esse nome.';
    end;
+   $$`,
+  // ================================================== v85: total de participantes dos eventos (separado dos atendimentos)
+  `alter table giras add column if not exists participantes integer check (participantes between 0 and 100000)`,
+  `update giras set limpeza = null, publicada = false, travada = false where evento`,
+  `delete from duplas where gira_data in (select data from giras where evento)`,
+  `create or replace function gira_evento(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_evento boolean := (p ->> 'evento')::boolean;
+   begin
+     update giras set
+       evento = v_evento,
+       limpeza = case when v_evento then null else limpeza end,
+       publicada = case when v_evento then false else publicada end,
+       travada = case when v_evento then false else travada end,
+       atualizado_em = now(),
+       atualizado_por = nullif(p ->> 'usuario', '')::uuid
+     where data = v_data;
+     if not found then raise exception 'Gira não encontrada.'; end if;
+     if v_evento then delete from duplas where gira_data = v_data; end if;
+     return gira_json(v_data);
+   end;
+   $$`,
+  `create or replace function gira_participantes(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_data date := (p ->> 'data')::date;
+   begin
+     update giras set participantes = (p ->> 'participantes')::integer,
+       atualizado_em = now(), atualizado_por = nullif(p ->> 'usuario', '')::uuid
+     where data = v_data and evento;
+     if not found then
+       if not exists (select 1 from giras where data = v_data) then raise exception 'Gira não encontrada.'; end if;
+       raise exception 'O total de participantes só pode ser registrado em um evento.';
+     end if;
+     return gira_json(v_data);
+   end;
+   $$`,
+  `create or replace function gira_json(d date)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'data', g.data,
+       'entidade', g.entidade,
+       'entidadeNome', g.entidade_nome,
+       'encerrada', g.encerrada,
+       'suporteAuto', g.suporte_auto,
+       'atendimentos', g.atendimentos,
+       'participantes', g.participantes,
+       'limpeza', g.limpeza,
+       'orixa', g.orixa,
+       'evento', g.evento,
+       'pendentePadrao', g.pendente_padrao,
+       'publicada', coalesce(g.publicada, false),
+       'travada', g.travada,
+       'recado', g.recado,
+       'papeis', g.papeis,
+       'atualizadoEm', g.atualizado_em,
+       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
+                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
+       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
+       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
+     )
+     from giras g where g.data = d;
    $$`,
 ];

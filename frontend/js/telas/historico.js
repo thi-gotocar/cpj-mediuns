@@ -110,8 +110,29 @@ const barra = (v, total, cor) => {
   return `<span class="st-bar" title="${pc}%"><i class="${cor}" style="width:${Math.max(pc, 2)}%"></i><em class="${dentro ? 'dentro' : ''}" style="${dentro ? `right:${100 - pc}%` : `left:${Math.max(pc, 2)}%`}">${pc}%</em></span>`;
 };
 
+function cardEventos(todas) {
+  const eventos = todas.filter((g) => g.evento && g.encerrada)
+    .sort((a, b) => b.data.localeCompare(a.data));
+  if (!eventos.length) return '';
+  const participantes = (g) => Number.isInteger(g.participantes) && g.participantes >= 0 ? g.participantes : null;
+  const numero = (n) => new Intl.NumberFormat('pt-BR').format(n);
+  const ranking = eventos.filter((g) => participantes(g) !== null)
+    .sort((a, b) => participantes(b) - participantes(a) || b.data.localeCompare(a.data))
+    .slice(0, 3);
+  return `<div class="card st"><div class="grp-h"><h2>Eventos</h2><span class="count">${eventos.length} realizado${eventos.length === 1 ? '' : 's'}</span></div>
+    <div class="st-grid">
+      <div class="st-bloco"><h3>Top 3 com mais participantes</h3>
+        ${ranking.length ? `<ol class="st-lista st-eventos-lista">${ranking.map((g, i) => `<li>${pos(i)}<span class="st-nome">${esc(nomeEntidadeGira(g) || 'Evento sem nome')}<span class="st-evento-data">${dShort(g.data)}</span></span><span class="st-num"><b>${numero(participantes(g))}</b> participantes</span></li>`).join('')}</ol>`
+          : '<p class="muted" style="margin:0;font-size:.88rem">Ainda não há totais de participantes registrados.</p>'}
+      </div>
+      <div class="st-bloco"><h3>Eventos realizados</h3>
+        <div class="hist st-eventos-hist" data-rolar="3">${eventos.map((g) => `<div class="hi"><div><div class="d">${esc(nomeEntidadeGira(g) || 'Evento sem nome')}</div><span class="muted">${dLong(g.data)}</span></div><span class="st-num">${participantes(g) === null ? 'Participantes não informados' : `<b>${numero(participantes(g))}</b> participantes`}</span></div>`).join('')}</div>
+      </div>
+    </div></div>`;
+}
+
 function cardEstatisticas(todas, ps) {
-  const fechadas = todas.filter((g) => g.encerrada);
+  const fechadas = todas.filter((g) => g.encerrada && !g.evento);
   if (!fechadas.length) return '';
   const anos = [...new Set(fechadas.map((g) => g.data.slice(0, 4)))].sort().reverse();
   const anoAtual = hoje().slice(0, 4);
@@ -245,6 +266,7 @@ export function render() {
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
   h += cardEstatisticas(gs, ps);
+  h += cardEventos(gs);
   h += blocoGirasSalvas(gs, ps);
 
   const meds = ps.filter(recebe).sort(ordRecebe);
@@ -273,7 +295,7 @@ function blocoGirasSalvas(gs, ps) {
   if (!ab) return h + '</div>';
   // (Cadastrar gira antiga e Cadastrar escala, só do admin root, ficam na aba Admin root.)
   // Soma dos atendidos de todas as giras que têm o registro.
-  const comAt = gs.filter((g) => g.atendimentos);
+  const comAt = gs.filter((g) => !g.evento && g.atendimentos);
   if (comAt.length) {
     const tot = Object.fromEntries(ATEND.map(([k]) => [k, comAt.reduce((s, g) => s + (Number(g.atendimentos[k]) || 0), 0)]));
     h += `<p class="muted" style="margin:0;font-size:.9rem">Em ${comAt.length} gira${comAt.length === 1 ? '' : 's'} · ${linhaAt(tot)}</p>`;
@@ -297,7 +319,8 @@ function blocoGirasSalvas(gs, ps) {
         ${esc(dLong(g.data))} <span class="muted" style="font-weight:400">${dShort(g.data).slice(-4)}</span>
         ${pr.pct !== null ? seloPct(pr.pct, `${pr.pres} de ${pr.base} da corrente${nLic ? ` (${nLic} de licença)` : ''}`) : ''}</div>
         <div class="muted" style="font-size:.9rem">${n('p', 'na', 'sup')} presentes · ${n('a')} ausentes · ${n('f')} faltas${nLic ? ` · ${nLic} de licença` : ''}${g.encerrada ? ' · <span class="badge rep">encerrada</span>' : ''}</div>
-        ${g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
+        ${g.evento ? `<div style="font-size:.9rem"><b>Participantes:</b> ${Number.isInteger(g.participantes) ? new Intl.NumberFormat('pt-BR').format(g.participantes) : 'não informado'}</div>`
+          : g.atendimentos ? `<div style="font-size:.9rem">${linhaAt(g.atendimentos)}</div>` : ''}</div>
         <div class="acts"><button class="btn small" data-act="abrir" data-d="${g.data}">Abrir</button>
         ${pode('giras:excluir') ? (conf ? `<button class="btn small danger" data-act="delgira" data-d="${g.data}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="g:${g.data}">Excluir</button>`) : ''}</div>
         ${g.encerrada && pode('escala:completa') ? `<div class="hi-rs">${botaoResumo(g)}${painelResumo(g)}</div>` : ''}</div>`;

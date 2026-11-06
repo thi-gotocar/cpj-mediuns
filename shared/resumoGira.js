@@ -33,7 +33,7 @@ export function dadosResumo(pessoas, g) {
   const at = g.atendimentos || {};
   const atendimentos = { preferencial: Number(at.preferencial) || 0, normal: Number(at.normal) || 0, passe: Number(at.passe) || 0 };
   return {
-    gira: nomeEntidadeGira(g), orixa: orixaDaGira(g), data: g.data, presentes, ausentes, faltas, licenca,
+    gira: nomeEntidadeGira(g), orixa: orixaDaGira(g), data: g.data, evento: !!g.evento, participantes: Number(g.participantes) || 0, presentes, ausentes, faltas, licenca,
     pct: { presenca: pc(presentes.length), ausencia: pc(ausentes.length + faltas.length), licenca: pc(licenca.length) },
     atendimentos, total: atendimentos.preferencial + atendimentos.normal + atendimentos.passe,
   };
@@ -41,7 +41,7 @@ export function dadosResumo(pessoas, g) {
 
 // Histórico encerrado da mesma entidade para o gráfico da imagem de resumo.
 export function historicoAtendimentos(giras, atual) {
-  if (!atual?.entidade || !atual.data) return null;
+  if (!atual?.entidade || !atual.data || atual.evento) return null;
   const chave = (entidade) => nomeGira(entidade).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const entidade = chave(atual.entidade);
@@ -50,7 +50,7 @@ export function historicoAtendimentos(giras, atual) {
   inicio.setUTCFullYear(inicio.getUTCFullYear() - 1);
   const desde = inicio.toISOString().slice(0, 10);
   const registros = [...(giras || []).filter((g) => g.data !== atual.data), atual]
-    .filter((g) => g?.encerrada && g.data >= desde && g.data <= atual.data && chave(g.entidade) === entidade)
+    .filter((g) => g?.encerrada && !g.evento && g.data >= desde && g.data <= atual.data && chave(g.entidade) === entidade)
     .sort((a, b) => a.data.localeCompare(b.data))
     .map((g) => {
       const atendimentos = {
@@ -76,7 +76,7 @@ export function historicoFrequencia(giras, pessoas, atual) {
   const entidade = chave(atual.entidade);
   if (!entidade) return null;
   const registros = [...(giras || []).filter((g) => g.data !== atual.data), atual]
-    .filter((g) => g?.encerrada && g.data <= atual.data && chave(g.entidade) === entidade)
+    .filter((g) => g?.encerrada && !g.evento && g.data <= atual.data && chave(g.entidade) === entidade)
     .sort((a, b) => a.data.localeCompare(b.data))
     .slice(-6)
     .map((g) => {
@@ -154,11 +154,16 @@ export function textoResumo(pessoas, g, local = LOCAL_PADRAO, giras = []) {
   L.push(`Ausência: ${d.pct.ausencia}%`);
   L.push(`Licença: ${d.pct.licenca}%`);
   L.push('');
-  L.push('ATENDIMENTOS REALIZADOS');
-  L.push(`👑 Preferencial: ${d.atendimentos.preferencial}`);
-  L.push(`🤝 Normal: ${d.atendimentos.normal}`);
-  L.push(`🎁 Passe: ${d.atendimentos.passe}`);
-  L.push(`💫 Total: ${d.total}`);
+  if (d.evento) {
+    L.push('TOTAL DE PARTICIPANTES');
+    L.push(`👥 Participantes: ${d.participantes}`);
+  } else {
+    L.push('ATENDIMENTOS REALIZADOS');
+    L.push(`👑 Preferencial: ${d.atendimentos.preferencial}`);
+    L.push(`🤝 Normal: ${d.atendimentos.normal}`);
+    L.push(`🎁 Passe: ${d.atendimentos.passe}`);
+    L.push(`💫 Total: ${d.total}`);
+  }
   L.push('');
   L.push('AUSENTES');
   if (d.ausentes.length) d.ausentes.forEach((p) => L.push(`❌ ${p.nome}`)); else L.push('Nenhum registro');

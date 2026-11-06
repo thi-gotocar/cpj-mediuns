@@ -28,7 +28,10 @@ function dadosImagem(g) {
       { titulo: `Faltas · ${d.faltas.length}`, cor: CR.falta, pilulas: pilulas(d.faltas) },
       { titulo: `Em licença · ${d.licenca.length}`, cor: CR.licenca, linhas: d.licenca.map(linhaLicenca) },
     ],
-  }, {
+  }, d.evento ? {
+    titulo: 'PARTICIPANTES', direita: `Total ${d.participantes}`, cor: CR.presente,
+    quadros: [['Participantes', d.participantes, CR.presente]],
+  } : {
     titulo: 'ATENDIMENTOS', direita: `Total ${d.total}`, cor: CR.licenca,
     quadros: [['Preferencial', d.atendimentos.preferencial, CR.ouro], ['Normal', d.atendimentos.normal, CR.licenca], ['Passe', d.atendimentos.passe, CR.presente]],
   }];

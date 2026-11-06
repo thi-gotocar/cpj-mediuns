@@ -1264,7 +1264,7 @@ test('escala: o sorteio só aparece para todos depois de publicado', async () =>
   await api('DELETE', '/api/giras/' + d, ADMIN);
 });
 
-test('evento na gira: oculta limpeza e escala, e bloqueia operações de escala', async () => {
+test('evento na gira: remove limpeza e escala, e bloqueia operações de escala', async () => {
   const d = '2099-02-11';
   const pessoas = (await api('GET', '/api/pessoas', ADMIN)).json;
   const id = (nome) => pessoas.find((p) => p.nome === nome).id;
@@ -1281,10 +1281,14 @@ test('evento na gira: oculta limpeza e escala, e bloqueia operações de escala'
   assert.equal(evento.status, 200, JSON.stringify(evento.json));
   assert.equal(evento.json.evento, true);
   assert.equal(evento.json.entidade, 'Festa', 'o checkbox pode salvar junto com outro campo pendente');
-  assert.equal(evento.json.limpeza, 3, 'a seleção anterior fica preservada para desfazer o modo Evento');
-  assert.deepEqual(evento.json.pares, [], 'a escala fica oculta');
-  assert.deepEqual(evento.json.passes, [], 'os passes ficam ocultos');
+  assert.equal(evento.json.limpeza, null, 'evento não mantém turma da limpeza');
+  assert.deepEqual(evento.json.pares, [], 'evento não mantém escala');
+  assert.deepEqual(evento.json.passes, [], 'evento não mantém passes');
   assert.equal(evento.json.publicada, false, 'a escala deixa de ser publicada');
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { participantes: 12.5 })).status, 400, 'participantes devem ser inteiros');
+  const comParticipantes = await api('PUT', `/api/giras/${d}`, ADMIN, { participantes: 27 });
+  assert.equal(comParticipantes.status, 200, JSON.stringify(comParticipantes.json));
+  assert.equal(comParticipantes.json.participantes, 27);
   assert.deepEqual((await api('GET', `/api/giras/${d}`, USER)).json.pares, []);
   assert.deepEqual((await api('GET', `/api/giras/${d}`, USER)).json.passes, []);
 
@@ -1298,10 +1302,17 @@ test('evento na gira: oculta limpeza e escala, e bloqueia operações de escala'
   const normal = await api('PUT', `/api/giras/${d}`, ADMIN, { evento: false });
   assert.equal(normal.status, 200, JSON.stringify(normal.json));
   assert.equal(normal.json.evento, false);
-  assert.equal(normal.json.limpeza, 3);
-  assert.deepEqual(normal.json.pares, pares, 'desmarcar restaura a escala anterior');
-  assert.deepEqual(normal.json.passes, passes);
+  assert.equal(normal.json.limpeza, null, 'desmarcar evento não restaura turma removida');
+  assert.deepEqual(normal.json.pares, [], 'desmarcar evento não restaura escala removida');
+  assert.deepEqual(normal.json.passes, []);
   assert.deepEqual((await api('GET', `/api/giras/${d}`, USER)).json.pares, [], 'a escala segue privada até ser publicada de novo');
+
+  await api('PUT', `/api/giras/${d}`, ADMIN, { evento: true });
+  await api('PUT', `/api/giras/${d}`, ADMIN, { presenca: Object.fromEntries(pessoas.map((p) => [p.id, 'p'])) });
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar' })).status, 400, 'evento exige informar o total de participantes');
+  const encerrado = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar', participantes: 31 });
+  assert.equal(encerrado.status, 200, JSON.stringify(encerrado.json));
+  assert.equal(encerrado.json.gira.participantes, 31);
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });
 

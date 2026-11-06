@@ -290,7 +290,7 @@ async function situacaoDaGira(acao, extra = {}) {
     avisar();
   }
 }
-export const encerrarGira = (atendimentos) => situacaoDaGira('encerrar', { atendimentos });
+export const encerrarGira = (dados) => situacaoDaGira('encerrar', dados);
 export const reabrirGira = () => situacaoDaGira('reabrir');
 // Troca a data programada da gira aberta na tela; a tela passa para a data nova.
 export async function mudarDataGira(para) {
