@@ -1,4 +1,4 @@
-// Aba Gira: cards de fora do card da gira (Eventos, Orações, Aula de curimba, Seus compromissos).
+// Cards pessoais e de informação das abas Geral e Gira.
 
 import { estado, pode, carregarOferendas, acaoOracoes, avisar } from '../estado.js';
 import { esc, dDM, toast, hoje, pd } from '../util.js';
@@ -105,7 +105,7 @@ export function cardAulaCurimba() {
       <div class="mp-lista">${aulas.map((a) => `<div class="mp-l"><span class="mp-dia">${dDM(a.data)}</span><span class="mp-gira">${esc(a.nome) || 'Aula'}</span><span class="mp-st ${a.status}">${a.status === 'p' ? 'Presente' : 'Falta'}</span></div>`).join('')}</div></div></div>`;
 }
 
-// Logo depois de "Você nesta gira": os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
+// Na aba Gira: os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
 // e, na oferenda com uma linha por pessoa, o pagamento ou a entrega que faltam. Só aparece quando há algum.
 export function cardCompromissos() {
   if (!pode('oferendas:doar')) return '';

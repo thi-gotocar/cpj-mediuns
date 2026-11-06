@@ -334,7 +334,9 @@ function janelaOracoes() {
 export function render() {
   if (prefs.tab === 'agenda') return renderGira();
   if (visaoAtiva() === 'curimba') return `<section class="panel">${cardSemana({ ocultarAvisos: true })}${cardAulaCurimba()}</section>`;
-  return `<section class="panel">${cardSemana()}${cardOracoes()}</section>`;
+  const g = giraAtual();
+  const eu = estado.me?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
+  return `<section class="panel">${cardSemana()}${cardOracoes()}${eu}${cardAulaCurimba()}</section>`;
 }
 
 function renderGira() {
@@ -350,7 +352,7 @@ function renderGira() {
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return `<section class="panel">${cardCompromissos()}${cardAulaCurimba()}<div class="card card-novo adm">
+    return `<section class="panel">${cardCompromissos()}<div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       <div class="row">${navegarGiras(g)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>
@@ -360,8 +362,7 @@ function renderGira() {
   const temDuplas = !g.evento && (validos.length || passesV.length);
   // WhatsApp da escala (desabilitado sem sorteio): para o admin, na parte ⚙️ Evento; para quem só consulta, no card da gira.
   const whats = pode('escala:completa') && existe && !g.evento;
-  const eu = existe || (estado.me?.pessoaId && licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
-  // Ordem: Eventos, Você nesta gira, Seus compromissos nas oferendas, Aula de curimba, Sua presença e só depois a gira (próximo evento).
+  // Na aba Gira ficam os compromissos e o evento selecionado; os avisos pessoais ficam em Geral.
   // Admin: os comandos do evento ficam na parte "⚙️ Evento" do card do admin, não no card da gira.
   // Aberta: entidade, orixá, turma da limpeza, atendimentos, WhatsApp (escala e limpeza), Alterar data e Encerrar gira.
   // Encerrada: gira e orixá só informam (bloqueados), Compartilhar a escala, Compartilhar resumo e Reabrir gira.
@@ -397,7 +398,7 @@ function renderGira() {
         ${botaoTopo(g, editar, existe)}
       </div>
       ${estado.confirm === 'enc:' + g.data ? caixaEncerrar() : ''}</div>`;
-  let h = `<section class="panel">${eu}${cardCompromissos()}${cardAulaCurimba()}
+  let h = `<section class="panel">${cardCompromissos()}
   <div class="card card-gira${existe && !encerrada ? ' aberta' : ''}">
     <div class="datehead"><div class="dh-linha">${g.evento && !encerrada ? botaoImagemEvento(g, ps) : `<span class="eyebrow">${esc(dLong(g.data))}</span>`}</div><span class="dia gira-nome">${g.evento ? `Evento${g.entidade ? ` · ${esc(nomeEntidadeGira(g))}` : ''}` : g.entidade ? (giraEspecial(g.entidade) ? esc(nomeEntidadeGira(g)) : `Gira de ${esc(nomeEntidadeGira(g))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
@@ -986,7 +987,7 @@ let raizJanela = null;
 function atualizarJanela() {
   const html = prefs.tab === 'agenda'
     ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala()
-    : prefs.tab === 'gira' ? janelaOracoes() : '';
+    : prefs.tab === 'gira' ? janelaFoto() || janelaOracoes() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
