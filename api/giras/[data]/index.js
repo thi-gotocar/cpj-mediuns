@@ -181,6 +181,7 @@ export default rota({
       if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
       if (atual.evento) throw new HttpError(409, 'Evento não tem escala para cancelar.');
+      if (!atual.pares?.length && !atual.passes?.length) throw new HttpError(409, 'Não há sorteio para cancelar.');
       // Cancela o sorteio (apaga duplas e despublica) em uma transação.
       const gira = await db.tx([
         { funcao: 'gira_salvar', p: { data, usuario: quem.id, pares: [], passes: [] } },

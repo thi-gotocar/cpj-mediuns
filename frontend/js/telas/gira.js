@@ -430,9 +430,9 @@ function renderGira() {
     return fecha();
   }
   // Depois de sorteado, "Refazer sorteio" (junto de Remanejar faltas e Ajuste manual) apaga as duplas e volta ao Sortear.
-  const cancelaOk = temDuplas && sortearOk;
+  const cancelaOk = temDuplas && sortearOk && !estado.salvando;
   h += `<div class="${caixa}"><div class="grp-h">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}</div>
-      ${temDuplas ? acoesSorteio(g, sortearOk && !g.travada, editar && !passada, manual, cancelaOk) : ''}
+      ${temDuplas ? acoesSorteio(g, sortearOk && !g.travada && !estado.salvando, editar && !passada, manual, cancelaOk) : ''}
       ${estado.confirm === 'rem:' + g.data ? confirmaRemenajo() : ''}
       ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Refazer o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Depois é só tocar em Sortear de novo.`, 'cancelsort', 'Sim, refazer') : ''}
       ${temDuplas ? '' : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
