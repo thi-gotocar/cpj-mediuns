@@ -189,6 +189,7 @@ export default rota({
         { funcao: 'gira_travar', p: { data, travada: false } },
         { funcao: 'gira_salvar', p: { data, usuario: quem.id, pares: [], passes: [] } },
       ]);
+      console.log('[DEBUG cancelarSorteio] gira retornada:', gira ? `{ data: ${gira.data}, pares: ${gira.pares?.length || 0}, passes: ${gira.passes?.length || 0} }` : 'null');
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     const perfil = await exigir(req, 'giras:editar');
