@@ -133,7 +133,11 @@ function navegarGiras(g) {
 }
 
 function dataGiraAdjacente(data, direcao) {
-  const datas = girasLista().map((g) => g.data).filter((d) => direcao < 0 ? d < data : d > data).sort();
+  const datas = girasLista()
+    .filter(g => g != null)
+    .map((g) => g.data)
+    .filter((d) => direcao < 0 ? d < data : d > data)
+    .sort();
   return direcao < 0 ? datas[datas.length - 1] || '' : datas[0] || '';
 }
 
