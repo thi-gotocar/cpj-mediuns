@@ -1,6 +1,6 @@
 // Cards pessoais e de informação das abas Geral e Gira.
 
-import { estado, pode, carregarOferendas, acaoOracoes, avisar } from '../estado.js';
+import { estado, pode, meAtivo, carregarOferendas, acaoOracoes, avisar } from '../estado.js';
 import { esc, dDM, toast, hoje, pd } from '../util.js';
 import { eventosDoTopo, proximosEventos, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
 import { corDaFaixa } from './curimba.js';
@@ -84,7 +84,7 @@ function aniversariosDaSemana(hj) {
 // A % conta só as aulas marcadas, como na aba Curimba.
 export function cardAulaCurimba() {
   if (!estado.minhaCurimba) {
-    if (estado.me?.papel === 'root' && estado.visaoRoot === 'curimba') {
+    if (meAtivo()?.papel === 'root' && estado.visaoRoot === 'curimba') {
       return '<div class="card comp-of cur-gira"><h2>🥁 Aula de curimba</h2><p class="muted" style="margin:0;font-size:.92rem">A presença individual aparece ao entrar com o acesso de um aluno.</p></div>';
     }
     return '';

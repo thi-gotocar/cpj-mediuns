@@ -533,6 +533,7 @@ header.top .conta{flex:none;flex-wrap:nowrap}
 .conta-bts{display:flex;flex-direction:column;align-items:stretch;gap:6px}
 .visao-root{display:grid;gap:2px;font-size:.7rem;font-weight:700;color:var(--muted)}
 .visao-root select{min-width:100px;padding:4px 7px;font-size:.82rem}
+.espelho-aviso{max-width:180px;color:var(--warn);font-size:.68rem;font-weight:700;line-height:1.2}
 .rodape{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:18px 0 8px;margin-top:8px;border-top:1px solid var(--line)}
 .rodape .quem{font-size:.9rem;font-weight:700}
 body.deslogado .rodape{display:none}

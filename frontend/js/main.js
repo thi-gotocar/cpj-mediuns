@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, meAtivo, espelhandoRoot, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot, mudarEspelhoRoot, pessoasOrd } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
 import { ehAcessoGrupo, PIN_VALIDO } from '/shared/permissoes.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
@@ -34,6 +34,12 @@ let pinLogin = null;          // acesso da corrente: a pessoa tem senha → { no
 let instalado = true;
 let ultimoDesenho = '';    // aba + HTML do último desenho (a aba Vídeos não redesenha se nada mudou)
 let arrastoAnamnese = null;
+const ACOES_ESPELHO_VISUALIZACAO = new Set([
+  'goto', 'pfdobra', 'dobrarcard', 'evsmais', 'giraanterior', 'proximoevento', 'proxgira',
+  'irdata', 'anapessoa', 'infopessoa', 'eufoto', 'fotofechar', 'escimg', 'escimgfechar',
+  'waabrir', 'wafechar', 'watexto', 'waimagem', 'wafmt', 'copiar', 'eventoimagem',
+  'oraabrir', 'orafechar', 'orasalvar', 'oracompartilhar',
+]);
 
 // ---------- render ----------
 // Topo: "Seja bem-vindo, Nome!" e o Sair à direita. No fim da página: o perfil e o Trocar senha.
@@ -51,7 +57,12 @@ function renderConta() {
       <option value="cpj" ${estado.visaoRoot === 'cpj' ? 'selected' : ''}>CPJ</option>
       <option value="alunos" ${estado.visaoRoot === 'alunos' ? 'selected' : ''}>Alunos</option>
       <option value="curimba" ${estado.visaoRoot === 'curimba' ? 'selected' : ''}>Curimba</option>
-    </select></label>` : ''}</span>`;
+    </select></label>
+    <label class="visao-root"><span>Espelhar perfil</span><select data-conta="espelho-root" aria-label="Escolher pessoa para espelhar">
+      <option value="">— não espelhar —</option>
+      ${pessoasOrd().map((p) => `<option value="${p.id}" ${estado.espelhoRootPessoaId === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}
+    </select></label>
+    ${espelhandoRoot() ? `<span class="espelho-aviso">Espelhando ${esc(meAtivo().nome)} · somente leitura</span>` : ''}` : ''}</span>`;
   rodape.hidden = false;
   rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${esc(estado.me.papel)}">${esc(estado.me.papelNome || estado.me.papel)}</span>
     ${estado.me.corrente || estado.me.grupo ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
@@ -74,7 +85,7 @@ function render() {
   const visao = visaoAtiva();
   // Abas que o perfil pode ver.
   let VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
-    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true, agenda: true };
+    pessoas: pode('pessoas:ver') || pode('alunos:ver'),     hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!meAtivo().videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true, agenda: true };
   if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
   if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
@@ -102,6 +113,15 @@ function render() {
   let ss = null, se = null;
   try { if (fid && a.selectionStart != null) { ss = a.selectionStart; se = a.selectionEnd; } } catch { /* input sem seleção */ }
   main.innerHTML = html;
+  if (espelhandoRoot()) {
+    main.querySelectorAll('input, textarea, select, button').forEach((el) => {
+      const acao = el.dataset.act;
+      const leitura = ACOES_ESPELHO_VISUALIZACAO.has(acao)
+        || el.id === 'f-data'
+        || (el.tagName === 'INPUT' && acao === 'irdata');
+      if (!leitura) el.disabled = true;
+    });
+  }
   if (fid) {
     let el = document.getElementById(fid);
     // Campo de data em uso: mantém o mesmo elemento (no celular, trocar o elemento
@@ -144,6 +164,7 @@ async function iniciar() {
 
 quandoSessaoExpirar(() => {
   estado.me = null;
+  estado.espelhoRootPessoaId = '';
   estado.pronto = false;
   estado.usuarios = null;
   estado.ervas = null;
@@ -162,7 +183,7 @@ tabs.addEventListener('click', (e) => {
   prefs.tab = b.dataset.tab;
   estado.confirm = null;
   // Usuários: busca de novo; o bloco Senhas volta minimizado.
-  if (b.dataset.tab === 'usuarios') { estado.usuarios = null; estado.senhasAberto = false; estado.senhaEdit = null; }
+  if (b.dataset.tab === 'usuarios' && !espelhandoRoot()) { estado.usuarios = null; estado.senhasAberto = false; estado.senhaEdit = null; }
   if (b.dataset.tab === 'ervas') { estado.ervas = null; estado.ervasCompra = null; estado.ervasFechar = false; estado.ervasNova = null; estado.ervasHist = null; }
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') estado.oferendas = null;
@@ -175,7 +196,7 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'fotos') { estado.fotos = null; if (!estado.fotUi?.envio) estado.fotUi = null; }
   // Histórico: o bloco Giras salvas volta minimizado.
   if (b.dataset.tab === 'hist') { estado.stPerfis = null; estado.salvasAberto = false; }
-  salvarPerfilAgora();
+  if (!espelhandoRoot()) salvarPerfilAgora();
   salvarPrefs();
   render();
   window.scrollTo(0, 0);   // a aba nova começa do topo
@@ -186,7 +207,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, recadoTxt: null, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, recadoTxt: null, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', espelhoRootPessoaId: '', perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {
@@ -214,14 +235,24 @@ async function cliqueConta(e) {
 conta.addEventListener('click', cliqueConta);
 conta.addEventListener('change', async (e) => {
   const seletor = e.target.closest('[data-conta="visao-root"]');
-  if (!seletor) return;
-  await mudarVisaoRoot(seletor.value);
+  if (seletor) {
+    await mudarVisaoRoot(seletor.value);
+    window.scrollTo(0, 0);
+    return;
+  }
+  const espelho = e.target.closest('[data-conta="espelho-root"]');
+  if (!espelho) return;
+  await mudarEspelhoRoot(espelho.value);
   window.scrollTo(0, 0);
 });
 saudExtra.addEventListener('click', cliqueConta);
 rodape.addEventListener('click', cliqueConta);
 
 main.addEventListener('click', async (e) => {
+  if (espelhandoRoot()) {
+    const acao = e.target.closest('[data-act]')?.dataset.act;
+    if (!ACOES_ESPELHO_VISUALIZACAO.has(acao) && !e.target.closest('.ev-data-adm')) { e.preventDefault(); return; }
+  }
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }
   // Calendário da aba Gira (quem não é admin): abre o seletor de data também no computador.
   if ((e.target.id === 'f-data' && e.target.closest('.nav-cal')) || e.target.dataset.act === 'irdata') { try { e.target.showPicker(); } catch { /* o toque já abre */ } return; }
@@ -253,6 +284,7 @@ main.addEventListener('click', async (e) => {
 
 main.addEventListener('change', (e) => {
   const t = e.target;
+  if (espelhandoRoot() && !['f-data', 'irdata', 'anapessoa', 'infopessoa'].includes(t.id) && !ACOES_ESPELHO_VISUALIZACAO.has(t.dataset.act)) return;
   if (t.id === 'l-email') { login.ajustarCampoSenha(ehAcessoGrupo(t.value)); return; }
   if (t.id === 'f-data') { gira.mudancas.data(t); return; }
   if (t.id === 'f-ent') { gira.mudancas.entidade(t); return; }
@@ -267,6 +299,7 @@ main.addEventListener('focusout', (e) => {
 });
 
 main.addEventListener('pointerdown', (e) => {
+  if (espelhandoRoot()) return;
   const alca = e.target.closest('[data-ana-arrastar]');
   if (!alca || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
   const lista = alca.closest('.ana-perg');
@@ -317,6 +350,7 @@ main.addEventListener('pointercancel', (e) => terminarArrastoAnamnese(e, true));
 
 
 main.addEventListener('input', (e) => {
+  if (espelhandoRoot()) return;
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoGrupo(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
@@ -344,6 +378,7 @@ main.addEventListener('input', (e) => {
 
 main.addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (espelhandoRoot()) return;
   const id = e.target.id;
   if (id === 'f-login') {
     const btn = document.getElementById('l-btn');
@@ -439,9 +474,9 @@ main.addEventListener('submit', async (e) => {
 // Ao voltar para o app, busca o que outras pessoas mudaram.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') atualizarDoServidor();
-  else salvarPerfilAgora();   // saiu do app com o perfil por salvar
+  else if (!espelhandoRoot()) salvarPerfilAgora();   // saiu do app com o perfil por salvar
 });
-window.addEventListener('pagehide', salvarPerfilAgora);
+window.addEventListener('pagehide', () => { if (!espelhandoRoot()) salvarPerfilAgora(); });
 window.addEventListener('focus', () => atualizarDoServidor());
 
 iniciar();

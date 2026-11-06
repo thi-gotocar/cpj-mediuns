@@ -55,6 +55,7 @@ export const estado = {
   salvando: 0,
   visaoRoot: 'root',    // visão simulada pelo root: root, cpj, alunos ou curimba
   permCorrente: [],     // permissões do perfil Corrente, usadas na visão CPJ
+  espelhoRootPessoaId: '', // pessoa cujo acesso o root está espelhando, somente para leitura
 };
 
 const PREF = 'sortmediuns:prefs';
@@ -69,15 +70,38 @@ export function aoMudar(fn) { ouvinte = fn; }
 export const avisar = () => ouvinte();
 
 // ---------- leitura ----------
-export const visaoAtiva = () => estado.me?.papel === 'root' ? estado.visaoRoot : estado.me?.grupo || '';
+export const espelhandoRoot = () => estado.me?.papel === 'root' && !!estado.espelhoRootPessoaId;
+export function meAtivo() {
+  if (!espelhandoRoot()) return estado.me;
+  const pessoa = estado.pessoas.find((p) => p.id === estado.espelhoRootPessoaId);
+  if (!pessoa) return estado.me;
+  const usuario = estado.usuarios?.find((u) => u.pessoaId === pessoa.id);
+  const papel = usuario?.papel || 'corrente';
+  const perfil = (estado.perfisCfg || PERFIS_PADRAO).find((p) => p.chave === papel);
+  return {
+    ...estado.me,
+    id: usuario?.id || null,
+    nome: pessoa.nome,
+    email: usuario?.email || '',
+    papel,
+    papelNome: perfil?.nome || 'Corrente',
+    pessoaId: pessoa.id,
+    corrente: papel === 'corrente',
+    grupo: '',
+    temSenha: false,
+    permissoes: permissoesDe(papel, perfil?.abas),
+  };
+}
+export const visaoAtiva = () => espelhandoRoot() ? '' : estado.me?.papel === 'root' ? estado.visaoRoot : estado.me?.grupo || '';
 export const pode = (perm) => {
-  if (!estado.me) return false;
-  if (estado.me.papel === 'root') {
+  const me = meAtivo();
+  if (!me) return false;
+  if (me.papel === 'root') {
     if (estado.visaoRoot === 'cpj') return (estado.permCorrente || []).includes(perm);
     if (estado.visaoRoot === 'alunos') return perm === 'alunos:ver';
     if (estado.visaoRoot === 'curimba') return false;
   }
-  return (estado.me.permissoes || []).includes(perm);
+  return (me.permissoes || []).includes(perm);
 };
 export const pessoasOrd = () => ordenarPessoas(estado.pessoas);
 export const nome = (id) => estado.pessoas.find((p) => p.id === id)?.nome || '(removido)';
@@ -87,7 +111,9 @@ export const giraAtual = () => estado.giras[prefs.data] || giraVazia(prefs.data)
 function definirGiras(lista) {
   const novo = {};
   // Na visão da corrente, a escala ainda não publicada fica escondida, como o servidor faz para a corrente.
-  const visaoCorrente = estado.me?.papel === 'root' ? estado.visaoRoot === 'cpj' : estado.me?.papel === 'corrente';
+  const me = meAtivo();
+  const visaoCorrente = espelhandoRoot() ? me?.papel === 'corrente'
+    : estado.me?.papel === 'root' ? estado.visaoRoot === 'cpj' : estado.me?.papel === 'corrente';
   lista.forEach((g) => { novo[g.data] = visaoCorrente && !g.publicada ? { ...g, pares: [], passes: [] } : g; });
   // Não sobrescreve giras com edição ainda não enviada.
   Object.keys(pendente).forEach((d) => { if (estado.giras[d]) novo[d] = estado.giras[d]; });
@@ -98,6 +124,7 @@ export async function carregarTudo() {
   const me = await api('GET', '/auth/me');
   estado.me = me;
   estado.visaoRoot = 'root';
+  estado.espelhoRootPessoaId = '';
   if (me.grupo === 'alunos') {
     estado.eventos = await api('GET', '/giras?lista=eventos');
     estado.pessoas = [];
@@ -153,6 +180,7 @@ export async function carregarTudo() {
 export async function mudarVisaoRoot(visao) {
   if (estado.me?.papel !== 'root') return;
   if (!['root', 'cpj', 'alunos', 'curimba'].includes(visao)) return;
+  estado.espelhoRootPessoaId = '';
   if (visao === 'cpj') {
     let abas = PERFIS_PADRAO.find((p) => p.chave === 'corrente').abas;
     try { abas = (await api('GET', '/usuarios?lista=perfis')).find((p) => p.chave === 'corrente')?.abas || abas; } catch { /* usa o padrão */ }
@@ -166,6 +194,32 @@ export async function mudarVisaoRoot(visao) {
   } catch (e) { toast(e.message); }
   if (visao === 'alunos' && estado.alunos === null) await carregarAlunos();
   if (visao === 'curimba') estado.minhaCurimba = null;
+  avisar();
+}
+
+export async function mudarEspelhoRoot(pessoaId) {
+  if (estado.me?.papel !== 'root') return;
+  if (pessoaId && !estado.pessoas.some((p) => p.id === pessoaId)) {
+    toast('Pessoa não encontrada no cadastro.');
+    return;
+  }
+  try {
+    if (pessoaId) {
+      const [usuarios, perfisCfg] = await Promise.all([
+        api('GET', '/usuarios'),
+        api('GET', '/usuarios?lista=perfis'),
+      ]);
+      estado.usuarios = usuarios;
+      estado.perfisCfg = perfisCfg;
+    }
+    estado.espelhoRootPessoaId = pessoaId || '';
+    estado.confirm = null;
+    const giras = await api('GET', '/giras');
+    definirGiras(giras);
+  } catch (e) {
+    estado.espelhoRootPessoaId = '';
+    toast(e.message);
+  }
   avisar();
 }
 

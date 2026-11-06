@@ -3,12 +3,12 @@
 
 import { lerDataCurta, dataCurta } from '/shared/eventos.js';
 import { FOTO_LADO, MINI_LADO, FOTO_QUALIDADE, FOTO_MAX_BYTES, MINI_MAX_BYTES } from '/shared/fotos.js';
-import { estado, pode, carregarFotos, acaoFotos, avisar } from '../estado.js';
+import { estado, pode, meAtivo, carregarFotos, acaoFotos, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const U = () => (estado.fotUi ||= { album: null, novoData: '', novoNome: '', abertos: new Set(), ver: null, apagar: false, editar: null, excluirAlbum: null, envio: null });
-const podeEnviar = () => pode('fotos:ver') && (!estado.me?.corrente || !!estado.me.temSenha);
+const podeEnviar = () => pode('fotos:ver') && (!meAtivo()?.corrente || !!meAtivo().temSenha);
 const tamanho = (b) => (b >= 1024 ** 3 ? (b / 1024 ** 3).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / 1024 ** 2)) + ' MB');
 const fotosDo = (F, albumId) => F.fotos.filter((f) => f.albumId === albumId);
 const titulo = (a) => `${dataCurta(a.data)} - ${esc(a.nome)}`;

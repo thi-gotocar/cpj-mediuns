@@ -2,7 +2,7 @@
 // Cadastrar gira antiga e Cadastrar escala, e os eventos da casa (cadastrar e eventos cadastrados).
 
 import { SEM_CADASTRO, ABAS, PERFIS_SISTEMA, PIN_VALIDO, normalizarAbas } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, avisar } from '../estado.js';
+import { estado, meAtivo, pessoasOrd, carregarUsuarios, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, avisar } from '../estado.js';
 import { esc, toast, ajustarRolagem } from '../util.js';
 import { renderAjustesPerfil } from './perfil.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
@@ -85,7 +85,7 @@ export function render() {
   </div>
   <div class="card adm root">${cabRoot('acesso', 'Quem tem acesso', estado.usuarios.length)}<div>`;
   if (abertosRoot.has('acesso')) estado.usuarios.forEach((u) => {
-    const eu = u.id === estado.me.id;
+    const eu = u.id === meAtivo()?.id;
     const conf = estado.confirm === 'u:' + u.id;
     const nome = nomeDe(u);
     const faltaCadastro = !u.pessoaId && !semCadastro(u.papel);
