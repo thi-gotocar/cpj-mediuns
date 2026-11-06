@@ -52,12 +52,13 @@ function pessoasPorErva(r) {
 
 function cardEscolha(E) {
   const aberta = E.aberta;
-  let h = `<div class="card"><div class="grp-h"><h2>Escolher ervas</h2><span class="count">${esc(E.eu.nome)}</span></div>`;
+  let h = `<div class="card ervas-pedido"><div class="grp-h ervas-pedido-cab"><div><span class="ervas-pedido-etq">🌿 Compra coletiva</span><h2>Escolher ervas</h2></div><span class="ervas-pedido-pessoa"><span aria-hidden="true">👤</span>${esc(E.eu.nome)}</span></div>`;
   if (!aberta) h += `<div class="warnbox">A lista está fechada. Seu pedido não pode mais ser alterado.</div>`;
   if (!E.ervas.length) return h + `<p class="muted" style="margin:0">Nenhuma erva cadastrada ainda.${pode('ervas:gerenciar') ? ' Cadastre abaixo.' : ''}</p></div>`;
   const r = simular(E);
   const m = meuPedido(E, r);
   const nPor = pessoasPorErva(r);
+  h += `<p class="ervas-pedido-dica">${aberta ? 'Toque em − ou + para ajustar as porções do seu pedido.' : 'Seu pedido foi salvo e a lista está fechada.'}</p>`;
   h += `<div class="ervas">`;
   E.ervas.forEach((e) => {
     const q = qtdDe(e.id);
@@ -65,7 +66,7 @@ function cardEscolha(E) {
     const minha = m.porErva[e.id];
     const info = !temPreco(e) ? (temEstimado(e) ? `≈ ${reais(centavos(e.precoEstimado))} a porção (estimado)${serveTxt(e)}` : 'preço a definir')
       : `${reais(centavos(e.preco))} a porção${serveTxt(e)}${n ? ` · ${n} pessoa${n > 1 ? 's' : ''}` : ''}${minha ? ` · sua parte ≈ ${reais(minha.valor)}` : ''}`;
-    h += `<div class="erva ${q ? 'sel' : ''}">
+    h += `<div class="erva erva-pedido-item ${q ? 'sel' : ''}">
       <span class="nmcell"><span class="nm">${esc(e.nome)}</span><span class="muted" style="font-size:.85rem">${info}</span></span>
       <span class="qtd">
         <button class="btn small" data-act="menos" data-id="${e.id}" ${!aberta || !q ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
@@ -74,13 +75,13 @@ function cardEscolha(E) {
       </span></div>`;
   });
   h += `</div>`;
-  h += `<div class="resumo">
+  h += `<div class="resumo ervas-pedido-resumo">
     <div><span>Ervas</span><b>${reais(m.subtotal)}${m.pendente ? ' + a definir' : ''}</b></div>
     <div><span>Frete${m.pessoas ? ` (÷ ${m.pessoas})` : ''}</span><b>${m.itens.length ? '≈ ' + reais(m.frete) : '—'}</b></div>
-    <div class="tot"><span>Total</span><b>${m.itens.length ? '≈ ' + reais(m.total) + (m.pendente ? ' + a definir' : '') : reais(0)}</b></div>
+    <div class="tot"><span>Total estimado</span><b>${m.itens.length ? '≈ ' + reais(m.total) + (m.pendente ? ' + a definir' : '') : reais(0)}</b></div>
   </div>
   ${m.pendente ? '<p class="muted" style="margin:0;font-size:.85rem">Algumas ervas ainda estão sem preço. O valor final sai quando o admin fechar os preços.</p>' : ''}
-  <p class="muted" style="margin:0;font-size:.85rem">O custo de cada erva (preço da porção × porções compradas) é dividido entre quem escolheu aquela erva (na proporção da quantidade), e o frete de ${precoTxt(E.frete)} entre todos que pedirem. Os valores mudam conforme mais pessoas pedem.</p></div>`;
+  <details class="ervas-pedido-explica"><summary>Como o valor é calculado?</summary><p>O custo de cada erva (preço da porção × porções compradas) é dividido entre quem escolheu aquela erva, na proporção da quantidade. O frete de ${precoTxt(E.frete)} é dividido entre todos que pedirem. Os valores podem mudar conforme mais pessoas fazem o pedido.</p></details></div>`;
   return h;
 }
 

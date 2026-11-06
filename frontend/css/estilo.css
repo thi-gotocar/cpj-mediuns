@@ -177,6 +177,27 @@ details.linhas summary{cursor:pointer;font-size:.85rem;color:var(--accent);font-
 .resumo{display:grid;gap:4px;border-top:1px solid var(--line);padding-top:10px;font-variant-numeric:tabular-nums}
 .resumo div{display:flex;justify-content:space-between}
 .resumo .tot{font-size:1.1rem}
+.ervas-pedido{gap:14px;border:1.5px solid color-mix(in srgb,var(--ok) 38%,var(--line));border-top:4px solid var(--ok);background:linear-gradient(145deg,color-mix(in srgb,var(--ok) 4%,var(--surface)),var(--surface) 44%)}
+.ervas-pedido-cab{align-items:center;gap:10px}
+.ervas-pedido-cab>div{display:grid;gap:2px}
+.ervas-pedido-cab h2{margin:0}
+.ervas-pedido-etq{color:var(--ok);font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.ervas-pedido-pessoa{display:inline-flex;align-items:center;gap:6px;max-width:48%;padding:5px 10px;border:1px solid color-mix(in srgb,var(--ok) 30%,var(--line));border-radius:20px;background:var(--ok-soft);color:var(--ok);font-size:.82rem;font-weight:700;overflow-wrap:anywhere}
+.ervas-pedido-dica{margin:0;padding:9px 11px;border-radius:9px;background:color-mix(in srgb,var(--ok) 7%,var(--surface));color:var(--muted);font-size:.88rem}
+.erva-pedido-item{min-height:64px;padding:10px 12px;border-radius:11px}
+.erva-pedido-item.sel{border-width:1.5px}
+.erva-pedido-item .nm{font-size:1rem}
+.erva-pedido-item .muted{line-height:1.35}
+.erva-pedido-item .qtd{gap:9px}
+.erva-pedido-item .qtd .btn{width:42px;height:42px;padding:4px;font-size:1.2rem}
+.erva-pedido-item .qtd .n{min-width:1.8em;font-size:1.05rem}
+.ervas-pedido-resumo{gap:7px;padding:12px;border:1px solid color-mix(in srgb,var(--ok) 24%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--ok) 5%,var(--surface))}
+.ervas-pedido-resumo .tot{align-items:center;margin-top:3px;padding-top:8px;border-top:1px solid color-mix(in srgb,var(--ok) 25%,var(--line));font-size:1.08rem}
+.ervas-pedido-resumo .tot b{color:var(--ok);font-size:1.2rem}
+.ervas-pedido-explica{font-size:.84rem;color:var(--muted)}
+.ervas-pedido-explica summary{width:fit-content;color:var(--accent);font-weight:700;cursor:pointer}
+.ervas-pedido-explica summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+.ervas-pedido-explica p{margin:7px 0 0;line-height:1.45}
 table.pedidos td,table.pedidos th{white-space:normal}
 table.pedidos td.rh{text-align:left;color:var(--muted)}
 table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--bg)}
@@ -828,7 +849,8 @@ body.deslogado .rodape{display:none}
 .aj-of.ok{background:#e3f4e8;color:#1d7a3c}
 .pf-info-pessoa{margin-bottom:2px}
 /* Perfil: Informações mais compacto (2 colunas, campos menores) */
-.pf-info-card{gap:10px;padding:14px}
+.pf-info-card{gap:12px;padding:16px;border:1.5px solid color-mix(in srgb,var(--accent) 38%,var(--line));border-top:4px solid var(--accent);background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 4%,var(--surface)),var(--surface) 48%);box-shadow:0 5px 16px rgba(24,33,47,.08)}
+.pf-info-card .grp-h h2{color:var(--accent);font-size:1.08rem}
 .pf-info{grid-template-columns:1fr 1fr;gap:8px 10px}
 .pf-info .pf-info-c{font-size:.8rem;gap:3px;min-width:0}
 .pf-info .pf-info-c.inteiro{grid-column:1/-1}

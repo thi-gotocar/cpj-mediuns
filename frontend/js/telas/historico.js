@@ -158,10 +158,10 @@ function cardEstatisticas(todas, ps) {
   };
   const ranking = (k, titulo, cor, lista, linha) => {
     const limiteInicial = k === 'pres' ? 10 : 5;
-    const com100 = (x) => x.base > 0 && x.pres === x.base;
-    const cemPorCento = k === 'pres' ? lista.filter(com100) : [];
     const ordenada = k === 'pres'
-      ? [...cemPorCento, ...lista.filter((x) => !com100(x))]
+      ? [...lista].sort((a, b) => b.pres - a.pres
+        || b.pres / b.base - a.pres / a.base
+        || a.p.nome.localeCompare(b.p.nome))
       : lista;
     const ver = ordenada.slice(0, mais[k] ? lista.length : limiteInicial);
     const aberto = estado.stPessoa;
@@ -262,11 +262,6 @@ export function render() {
     h += '</div>';
   }
 
-  if (pode('dados:importar')) {
-    h += `<div class="card adm"><h2>Backup</h2><p class="muted" style="margin:0;font-size:.9rem">Os dados ficam no banco da corrente. O backup é uma cópia extra em arquivo; “Restaurar” também importa o backup da versão anterior do app (a que salvava no aparelho).</p>
-      <div class="row"><button class="btn" data-act="backup">Baixar backup</button>
-      <label class="btn" for="f-import" style="cursor:pointer">Restaurar backup</label><input type="file" id="f-import" accept="application/json,.json" hidden></div></div>`;
-  }
   return h + '</section>';
 }
 
@@ -328,6 +323,16 @@ export const cliques = {
   stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
   abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'agenda'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
   delgira(el) { estado.confirm = null; excluirGira(el.dataset.d); },
+};
+
+export function cardBackup() {
+  if (!pode('usuarios:gerenciar')) return '';
+  return `<div class="card adm root"><h2>Backup</h2><p class="muted" style="margin:0;font-size:.9rem">Os dados ficam no banco da corrente. O backup é uma cópia extra em arquivo; “Restaurar” também importa o backup da versão anterior do app (a que salvava no aparelho).</p>
+    <div class="row"><button class="btn" data-act="backup">Baixar backup</button>
+    <label class="btn" for="f-import" style="cursor:pointer">Restaurar backup</label><input type="file" id="f-import" accept="application/json,.json" hidden></div></div>`;
+}
+
+export const cliquesBackup = {
   backup() {
     baixar(new Blob([JSON.stringify(montarBackup(), null, 1)], { type: 'application/json' }), 'sort-mediuns-backup-' + hoje() + '.json');
   },

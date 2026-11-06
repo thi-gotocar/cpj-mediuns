@@ -6,7 +6,7 @@ import { estado, pessoasOrd, carregarUsuarios, carregarPerfil, criarUsuario, atu
 import { esc, toast, ajustarRolagem } from '../util.js';
 import { renderAjustesPerfil } from './perfil.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
-import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga } from './historico.js';
+import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, cardBackup, cliquesBackup } from './historico.js';
 import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
 import { contaNaPresenca, LINHA_LABEL } from '/shared/regras.js';
 
@@ -112,7 +112,7 @@ export function render() {
       <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
       ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
   });
-  h += `</div></div>${cardPerfis()}${cardEntidades()}${cardAjustesPerfil()}${cardEventos()}${cardRegistros()}</section>`;
+  h += `</div></div>${cardPerfis()}${cardEntidades()}${cardAjustesPerfil()}${cardEventos()}${cardRegistros()}${cardBackup()}</section>`;
   return h;
 }
 
@@ -174,6 +174,7 @@ export const cliques = {
   ...cliquesEventos,
   ...cliquesGiraAntiga,
   ...cliquesEscala,
+  ...cliquesBackup,
   novasenha(el) {
     const u = estado.usuarios.find((x) => x.id === el.dataset.id);
     const s = prompt(`Nova senha para ${u?.nome || 'o usuário'} (mínimo 8 caracteres):`);
