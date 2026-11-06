@@ -53,8 +53,8 @@ export function renderInstalacao(erro) {
   </div>`;
 }
 
-// Com o acesso da corrente no campo de e-mail, o campo de senha vira "Seu nome".
-export function ajustarCampoSenha(ehCorrente) {
+// Com uma palavra-chave de grupo no primeiro campo, o segundo vira "Seu nome".
+export function ajustarCampoSenha(ehCorrente, preservarValor = false) {
   const rot = document.getElementById('l-senha-rotulo');
   const inp = document.getElementById('l-senha');
   if (!rot || !inp) return;
@@ -62,15 +62,17 @@ export function ajustarCampoSenha(ehCorrente) {
   const btn = document.getElementById('l-btn');
   if (btn && !btn.disabled) btn.textContent = ehCorrente ? 'Procurar usuário' : 'Entrar';
   if (ehCorrente && inp.type !== 'text') {
+    const valor = inp.value;
     rot.textContent = 'Seu nome';
     inp.type = 'text';
-    inp.value = '';
+    inp.value = preservarValor ? valor : '';
     inp.autocomplete = 'name';
     inp.placeholder = 'Seu nome como está cadastrado na corrente';
   } else if (!ehCorrente && inp.type !== 'password') {
+    const valor = inp.value;
     rot.textContent = 'Senha';
     inp.type = 'password';
-    inp.value = '';
+    inp.value = preservarValor ? valor : '';
     inp.autocomplete = 'current-password';
     inp.placeholder = '';
   }

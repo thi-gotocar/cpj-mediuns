@@ -199,8 +199,8 @@ export async function atualizarDoServidor() {
     estado.entidadesApelidos = entidadesApelidos || [];
     definirGiras(giras);
     // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
-    // Na aba Gira também, por causa de "Seus compromissos".
-    if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {
+    // Geral e Gira mostram os compromissos das oferendas; atualizar quando qualquer uma estiver aberta.
+    if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {
       estado.oferendas = await api('GET', '/oferendas').catch(() => estado.oferendas);
     }
     avisar();

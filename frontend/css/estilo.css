@@ -1256,9 +1256,12 @@ button.eu-av{cursor:zoom-in}
 .ana-adm-h .btn{margin-left:auto}
 .ana-nova{display:grid;gap:8px;padding:10px;border:1px dashed var(--gold);border-radius:10px}
 .ana-perg{counter-reset:q;list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.92rem}
-.ana-perg li{counter-increment:q;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.ana-perg li{counter-increment:q;display:flex;align-items:center;gap:6px;justify-content:space-between}
 .ana-perg li::before{content:counter(q) ".";font-weight:700;flex:none;min-width:1.4em}
 .ana-perg li > span{flex:1;min-width:0;overflow-wrap:anywhere}
+.ana-ordem{display:flex;gap:3px;flex:none}
+.ana-mover{width:32px;height:32px;padding:0;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--accent);font-size:1.05rem;font-weight:800;line-height:1;cursor:pointer}
+.ana-mover:disabled{opacity:.35;cursor:default}
 .ana-arrastar{flex:none;padding:2px 6px;border:0;border-radius:6px;background:transparent;color:var(--muted);font-size:1.25rem;line-height:1;cursor:grab;touch-action:none}
 .ana-arrastar:active{cursor:grabbing}
 .ana-arrastando{user-select:none}

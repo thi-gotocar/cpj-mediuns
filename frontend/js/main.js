@@ -253,12 +253,17 @@ main.addEventListener('click', async (e) => {
 
 main.addEventListener('change', (e) => {
   const t = e.target;
+  if (t.id === 'l-email') { login.ajustarCampoSenha(ehAcessoGrupo(t.value)); return; }
   if (t.id === 'f-data') { gira.mudancas.data(t); return; }
   if (t.id === 'f-ent') { gira.mudancas.entidade(t); return; }
   if (t.id === 'f-import' && t.files && t.files[0]) { const f = t.files[0]; t.value = ''; historico.restaurar(f); return; }
   const tela = TELAS[prefs.tab];
   const fn = t.dataset.act && tela.mudancas && tela.mudancas[t.dataset.act];
   if (fn) fn(t);
+});
+
+main.addEventListener('focusout', (e) => {
+  if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoGrupo(e.target.value));
 });
 
 main.addEventListener('pointerdown', (e) => {
@@ -343,10 +348,12 @@ main.addEventListener('submit', async (e) => {
   if (id === 'f-login') {
     const btn = document.getElementById('l-btn');
     emailLogin = document.getElementById('l-email').value.trim();
+    const campoSenha = document.getElementById('l-senha');
+    digitadoLogin = campoSenha.value;
+    login.ajustarCampoSenha(ehAcessoGrupo(emailLogin), true);
     btn.disabled = true;
     btn.textContent = ehAcessoGrupo(emailLogin) ? 'Procurando usuário…' : 'Entrando…';
     try {
-      digitadoLogin = document.getElementById('l-senha').value;
       const r = await entrar(emailLogin, digitadoLogin);
       erroLogin = '';
       if (r.candidatos) { candidatosLogin = r.candidatos; render(); return; }

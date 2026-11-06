@@ -300,15 +300,17 @@ function cardAnamneseAdmin(todos) {
     <div class="pf-barra" role="img" aria-label="${pct}% preencheram"><span style="width:${pct}%"></span></div>
     <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
       ${u.anaNova || u.anaEditPergunta ? '' : '<button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button>'}</div>
-    ${A.perguntas.length > 1 && !u.anaNova && !u.anaEditPergunta ? '<p class="ana-instr">Arraste pelo ícone ⠿ para colocar as perguntas na ordem desejada.</p>' : ''}
+    ${A.perguntas.length > 1 && !u.anaNova && !u.anaEditPergunta ? '<p class="ana-instr">Use as setas para mudar a ordem. Se preferir, também pode arrastar pelo ícone ⠿.</p>' : ''}
     ${u.anaNova ? `<div class="ana-nova">
       <label class="field">Pergunta<input type="text" id="ana-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" placeholder="Cabe numa linha" autocomplete="off"></label>
       <span class="ana-sn"><span class="muted">Resposta:</span>${ANAMNESE_TIPOS.map(([k, l], i) => `<label class="check"><input type="radio" name="ana-tipo" value="${k}" ${i ? '' : 'checked'}> ${l}</label>`).join('')}</span>
       <span class="row"><button class="btn small primary" data-act="anaperg">Salvar pergunta</button><button class="btn small" data-act="ananova">Cancelar</button></span></div>` : ''}
-    ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q) => u.anaEditPergunta === q.id
+    ${A.perguntas.length ? `<ol class="ana-perg">${A.perguntas.map((q, i) => u.anaEditPergunta === q.id
       ? `<li class="ana-editando" data-pergunta-id="${q.id}"><label class="ana-edit-field">Pergunta<input type="text" id="ana-editar-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" value="${esc(q.texto)}"></label>
           <span class="row"><button class="btn small primary" data-act="anasalvarpergunta" data-id="${q.id}">Salvar</button><button class="btn small" data-act="anacancelareditar">Cancelar</button></span></li>`
-      : `<li data-pergunta-id="${q.id}"><button type="button" class="ana-arrastar" data-ana-arrastar aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>
+      : `<li data-pergunta-id="${q.id}"><span class="ana-ordem"><button type="button" class="ana-mover" data-act="anamover" data-id="${q.id}" data-direcao="-1" aria-label="Mover pergunta ${i + 1} para cima" title="Mover para cima" ${i === 0 || u.anaReordenando ? 'disabled' : ''}>↑</button>
+          <button type="button" class="ana-mover" data-act="anamover" data-id="${q.id}" data-direcao="1" aria-label="Mover pergunta ${i + 1} para baixo" title="Mover para baixo" ${i === A.perguntas.length - 1 || u.anaReordenando ? 'disabled' : ''}>↓</button></span>
+          <button type="button" class="ana-arrastar" data-ana-arrastar aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>
           <span>${esc(q.texto)} <span class="tag">${ANAMNESE_TIPO_LABEL[q.tipo] || 'Texto'}${q.obrigatoria === false ? ' · opcional' : ''}</span></span>
           ${estado.confirm === 'anaq:' + q.id ? `<button class="btn small danger" data-act="anaexcluir" data-id="${q.id}">Excluir</button>`
             : `<span class="ana-acoes"><button class="btn small" data-act="anaeditarpergunta" data-id="${q.id}" title="Editar pergunta" aria-label="Editar pergunta">Editar</button><button class="btn small lock-x" data-act="askdel" data-k="anaq:${q.id}" title="Excluir a pergunta (as respostas dela também saem)" aria-label="Excluir a pergunta">✕</button></span>`}</li>`).join('')}</ol>`
@@ -430,6 +432,19 @@ export const cliques = {
     const tipo = document.querySelector('input[name=ana-tipo]:checked')?.value;
     if (!texto) { toast('Escreva a pergunta.'); return; }
     if (await acaoAnamnese('pergunta', { texto, tipo })) { U().anaNova = false; toast('Pergunta adicionada.'); avisar(); }
+  },
+  async anamover(el) {
+    if (U().anaReordenando) return;
+    const perguntas = estado.anamnese?.perguntas || [];
+    const origem = perguntas.findIndex((q) => q.id === el.dataset.id);
+    const destino = origem + Number(el.dataset.direcao);
+    if (origem < 0 || destino < 0 || destino >= perguntas.length) return;
+    const ids = perguntas.map((q) => q.id);
+    [ids[origem], ids[destino]] = [ids[destino], ids[origem]];
+    U().anaReordenando = true;
+    avisar();
+    try { await salvarOrdemAnamnese(ids); }
+    finally { U().anaReordenando = false; avisar(); }
   },
   async anaexcluir(el) { estado.confirm = null; if (await acaoAnamnese('excluirPergunta', { id: el.dataset.id })) toast('Pergunta excluída.'); },
   // Um arquivo de texto com as respostas de todos: o celular oferece o WhatsApp; sem isso, baixa o arquivo.

@@ -333,11 +333,11 @@ function janelaOracoes() {
 
 export function render() {
   if (prefs.tab === 'agenda') return renderGira();
-  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardSemana({ ocultarAvisos: true })}${cardAulaCurimba()}</section>`;
+  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
   if (visaoAtiva() === 'alunos') return `<section class="panel">${cardSemana()}</section>`;
   const g = giraAtual();
   const eu = estado.me?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
-  return `<section class="panel">${eu}${cardSemana()}${cardOracoes()}${cardAulaCurimba()}</section>`;
+  return `<section class="panel">${eu}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes()}</section>`;
 }
 
 function renderGira() {
@@ -353,7 +353,7 @@ function renderGira() {
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return `<section class="panel">${cardCompromissos()}<div class="card card-novo adm">
+    return `<section class="panel"><div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       <div class="row">${navegarGiras(g)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>
@@ -369,9 +369,11 @@ function renderGira() {
   // Encerrada: gira e orixá só informam (bloqueados), Compartilhar a escala, Compartilhar resumo e Reabrir gira.
   const dataAnterior = dataGiraAdjacente(g.data, -1);
   const dataProxima = dataGiraAdjacente(g.data, 1);
+  const dataEvento = pd(g.data);
+  const dataLabel = `${dataEvento.toLocaleDateString('pt-BR', { weekday: 'long' }).replace(/^./, (c) => c.toLocaleUpperCase('pt-BR'))}, ${dataEvento.getDate()}/${dataEvento.getMonth() + 1}`;
   const cabEvento = `<div class="grp-h"><h2>⚙️ Evento</h2><div class="ev-nav-adm">
     <button class="btn ev-seta-adm" data-act="giraanterior" title="Evento anterior" aria-label="Ir para o evento anterior" ${dataAnterior ? '' : 'disabled'}>←</button>
-    <label class="ev-data-adm" title="${esc(dLong(g.data))} · Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dDM(g.data))} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label>
+    <label class="ev-data-adm" title="${esc(dLong(g.data))} · Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dataLabel)} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label>
     <button class="btn ev-seta-adm" data-act="proximoevento" title="Próximo evento" aria-label="Ir para o próximo evento" ${dataProxima ? '' : 'disabled'}>→</button>
   </div></div>`;
   const secaoEvento = !admin || !existe ? '' : encerrada
@@ -399,7 +401,7 @@ function renderGira() {
         ${botaoTopo(g, editar, existe)}
       </div>
       ${estado.confirm === 'enc:' + g.data ? caixaEncerrar() : ''}</div>`;
-  let h = `<section class="panel">${cardCompromissos()}
+  let h = `<section class="panel">
   <div class="card card-gira${existe && !encerrada ? ' aberta' : ''}">
     <div class="datehead"><div class="dh-linha">${g.evento && !encerrada ? botaoImagemEvento(g, ps) : `<span class="eyebrow">${esc(dLong(g.data))}</span>`}</div><span class="dia gira-nome">${g.evento ? `Evento${g.entidade ? ` · ${esc(nomeEntidadeGira(g))}` : ''}` : g.entidade ? (giraEspecial(g.entidade) ? esc(nomeEntidadeGira(g)) : `Gira de ${esc(nomeEntidadeGira(g))}`) : 'Gira'}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>
     <div class="row">
