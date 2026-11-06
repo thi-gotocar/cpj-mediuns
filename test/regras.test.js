@@ -494,7 +494,8 @@ test('aba Vídeos: root e Admin curimba administram; os demais acessam quando pu
 });
 
 test('vídeos: código do YouTube sai de qualquer formato de link', async () => {
-  const { idDoYoutube } = await import('../shared/videos.js');
+  const { idDoYoutube, CLASSES_VIDEO_TODAS } = await import('../shared/videos.js');
+  assert.ok(CLASSES_VIDEO_TODAS.includes('Curimba'));
   for (const u of ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10', 'youtu.be/dQw4w9WgXcQ?si=x', 'https://m.youtube.com/shorts/dQw4w9WgXcQ',
     'https://www.youtube.com/live/dQw4w9WgXcQ', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', 'dQw4w9WgXcQ']) assert.equal(idDoYoutube(u), 'dQw4w9WgXcQ', u);
   for (const u of ['https://vimeo.com/123', 'https://evil.com/watch?v=dQw4w9WgXcQ', 'https://youtu.be/curto', '', null]) assert.equal(idDoYoutube(u), null, String(u));

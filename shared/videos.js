@@ -6,6 +6,7 @@ import { ORIXAS, LINHAS } from './regras.js';
 export const CLASSES_VIDEO = [
   { grupo: 'Orixás', itens: ORIXAS },
   ...LINHAS.map((g) => ({ grupo: g.grupo, itens: g.itens.map(([, label]) => label) })),
+  { grupo: 'Outros', itens: ['Curimba'] },
 ];
 export const CLASSES_VIDEO_TODAS = CLASSES_VIDEO.flatMap((g) => g.itens);
 
