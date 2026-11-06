@@ -144,7 +144,7 @@ input[type=email],input[type=password]{font:inherit;font-size:1rem;color:var(--i
 .pres.aus .st-txt{background:var(--off-soft);color:var(--off)}
 .pres.na .st-txt{background:var(--warn-soft);color:var(--warn)}
 .pres.nc .st-txt{background:var(--accent-soft);color:var(--accent)}
-.camrow .nmc{flex:1 1 140px;font-weight:500}
+.camrow .nmc{flex:1 1 140px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prev{width:100%;max-width:440px;justify-self:center;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 .us{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
 .us:last-child{border-bottom:0}
@@ -937,7 +937,7 @@ body.deslogado .rodape{display:none}
 /* Sorteio (admin): botões Falta alinhados à direita; linha entre os médiuns mais grossa */
 .pair{border-bottom-width:2px;padding-bottom:10px}
 .pairs{gap:10px}
-.camrow{flex-wrap:nowrap}
+.camrow{flex-wrap:nowrap;overflow:hidden}
 .camrow select{flex:1 1 0;min-width:0}
 .camrow .badge{white-space:nowrap}
 .camrow .falta-bt,.pair>.falta-bt{margin-left:auto;flex:none}
