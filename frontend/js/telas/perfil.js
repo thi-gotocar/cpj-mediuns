@@ -303,15 +303,22 @@ function cardAnamneseAdmin(todos) {
   const A = estado.anamnese;
   if (!A || A.erro) return '';
   const R = respostasPorPessoa(A.todas);
-  const sim = todos.filter((x) => anamnesePreenchida(A.perguntas, R[x.pessoaId])).length;
-  const pct = todos.length && A.perguntas.length ? Math.round((sim / todos.length) * 100) : 0;
+  const responderam = todos.filter((x) => anamnesePreenchida(A.perguntas, R[x.pessoaId]));
+  const faltam = todos.filter((x) => !anamnesePreenchida(A.perguntas, R[x.pessoaId]));
+  const pct = todos.length && A.perguntas.length ? Math.round((responderam.length / todos.length) * 100) : 0;
   const u = U();
   const x = todos.find((t) => t.pessoaId === u.anaPessoa);
+  const grupoAberto = u.anamneseGrupo;
+  const listaAberta = grupoAberto === 'responderam' ? responderam : grupoAberto === 'faltam' ? faltam : null;
+  const tituloLista = grupoAberto === 'responderam' ? 'Responderam' : 'Ainda não responderam';
   const val = valorAnamnese;
-  return card('anamnese-adm', 'Anamnese', `${sim} de ${todos.length}`, false, () => `
+  return card('anamnese-adm', `<span aria-hidden="true">🩺</span> Anamnese <span class="pf-cab-pct">${pct}%</span>`, `${responderam.length} de ${todos.length}`, false, () => `
     <label class="of-sw ana-vis-toggle"><input type="checkbox" role="switch" data-act="anavisibilidade" ${A.visivel !== false ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir bloco para usuários</label>
-    <div class="pf-resp"><b>${pct}%</b><span>${sim} ${sim === 1 ? 'pessoa preencheu' : 'pessoas preencheram'} · ${todos.length - sim} ${todos.length - sim === 1 ? 'falta' : 'faltam'}</span></div>
-    <div class="pf-barra" role="img" aria-label="${pct}% preencheram"><span style="width:${pct}%"></span></div>
+    <div class="pf-of-totais pf-resp-totais" aria-label="Status das respostas da anamnese">
+      <button class="pf-of-total pf-resp-total fn-respondeu${grupoAberto === 'responderam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="responderam" aria-expanded="${grupoAberto === 'responderam'}" aria-label="Responderam à anamnese: ${responderam.length} pessoas"${responderam.length ? '' : ' disabled'}><b>${responderam.length}</b><span>Responderam</span></button>
+      <button class="pf-of-total pf-resp-total fn-faltam${grupoAberto === 'faltam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="faltam" aria-expanded="${grupoAberto === 'faltam'}" aria-label="Faltam responder à anamnese: ${faltam.length} pessoas"${faltam.length ? '' : ' disabled'}><b>${faltam.length}</b><span>Faltam</span></button>
+    </div>
+    ${listaAberta ? `<div class="pf-grupo"><div class="pf-gt">${tituloLista}<span class="count">${listaAberta.length}</span></div><ul class="pf-lista">${listaAberta.map((p) => `<li>${esc(p.nome)}</li>`).join('')}</ul></div>` : ''}
     <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
       ${u.anaNova || u.anaEditPergunta ? '' : '<button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button>'}</div>
     ${A.perguntas.length > 1 && !u.anaNova && !u.anaEditPergunta ? '<p class="ana-instr">Use as setas para mudar a ordem. Se preferir, também pode arrastar pelo ícone ⠿.</p>' : ''}
@@ -504,6 +511,10 @@ export const cliques = {
   },
   pfrespostas(el) {
     U().respostaGrupo = U().respostaGrupo === el.dataset.grupo ? null : el.dataset.grupo;
+    avisar();
+  },
+  pfanamnese(el) {
+    U().anamneseGrupo = U().anamneseGrupo === el.dataset.grupo ? null : el.dataset.grupo;
     avisar();
   },
   pfofertas(el) {

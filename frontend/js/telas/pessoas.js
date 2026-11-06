@@ -70,7 +70,7 @@ function cardTurmas(todas, editar) {
   ];
   const aberta = grupos.some((g) => g.chave === estado.limpezaTurmaAberta) ? estado.limpezaTurmaAberta : null;
   const turmaAtiva = aberta && aberta !== 'sem' ? grupos.find((g) => g.chave === aberta) : null;
-  const disponiveis = turmaAtiva ? todas.filter((p) => Number(p.limpeza) !== Number(turmaAtiva.chave)) : [];
+  const disponiveis = turmaAtiva ? todas.filter((p) => !p.limpeza) : [];
   return `<div class="card pp-card fn-limpeza"><div class="grp-h turmas-cab"><h2>🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${todas.length}</span></div>
     ${curimba}
     <div class="contagem-quadrados">${grupos.map((g) => `<button type="button" class="fn-limpeza${aberta === g.chave ? ' selecionado' : ''}" data-act="limpezaTurma" data-t="${g.chave}" aria-expanded="${aberta === g.chave}" aria-label="${g.nome}: ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}${aberta === g.chave ? ', recolher lista' : ', expandir lista'}"${!editar && !g.lista.length ? ' disabled' : ''}><span class="muted">${g.nome}</span><b>${g.lista.length}</b></button>`).join('')}</div>
@@ -84,7 +84,7 @@ function cardTurmas(todas, editar) {
         ${editar && turmaAtiva ? disponiveis.length ? `<form id="f-limpeza-atribuir" class="limpeza-atribuir" data-t="${turmaAtiva.chave}">
           <label class="field">Adicionar pessoa nesta turma<select id="limpeza-pessoa" required><option value="">— escolha uma pessoa —</option>${disponiveis.map((p) => `<option value="${p.id}">${esc(p.nome)}${ehCurimba(p) ? ' · Curimba' : ` · ${esc(FUNCOES.find((f) => f.k === p.funcao)?.label || p.funcao)}`}</option>`).join('')}</select></label>
           <button class="btn primary" type="submit">＋ Adicionar à turma</button></form>`
-          : '<p class="muted" style="margin:0">Todas as pessoas já estão nesta turma.</p>' : ''}</div>`;
+          : '<p class="muted" style="margin:0">Não há pessoas sem turma de limpeza para adicionar.</p>' : ''}</div>`;
     })() : ''}</div>`;
 }
 
@@ -134,6 +134,17 @@ function editorLinhas(p, c) {
 // depois o resumo das entidades. Nada muda fora do Editar: em Editar, nome, função, turma, "+ médium de passe"
 // e as entidades ficam editáveis e só são gravados no Salvar (Cancelar descarta).
 function linhaPessoa(p, { funcao = true, acoes = true, simples = false } = {}) {
+  if (simples) {
+    if (estado.limpezaPessoaEditando === p.id) {
+      return `<div class="pp pp2 pp-editando"><form id="f-limpeza-pessoa-ed" class="pp-form limpeza-pessoa-ed" data-id="${p.id}" autocomplete="off">
+        <b class="nm">${esc(p.nome)}</b>
+        <label class="field">Turma da limpeza<select id="limpeza-turma-ed" required><option value="">— escolha a turma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>
+        <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelLimpezaPessoa">Cancelar</button></span></form></div>`;
+    }
+    return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
+      <span class="pp-l2"><span class="pp-limp" title="Turma da limpeza">🧹 Turma ${p.limpeza || '—'}</span></span>
+      ${acoes ? `<span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="editarLimpezaPessoa" data-id="${p.id}" aria-label="Editar turma de ${esc(p.nome)}" title="Editar turma"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="limpezaRemoverAsk" data-id="${p.id}" aria-label="Retirar ${esc(p.nome)} da turma da limpeza" title="Retirar da turma"><span aria-hidden="true">🗑️</span></button></span>` : ''}</div></div>`;
+  }
   const ed = estado.renomear === p.id;
   if (!ed) {
     // Linha 1: nome (quebra entre palavras se precisar), função, 🧹 turma e os botões; "+ médium de passe" na linha de baixo.
@@ -275,6 +286,11 @@ function janelaExcluir() {
     texto = `Remover <b>${esc(t.nome)}</b>? ${n
       ? `${n} aluno${n === 1 ? '' : 's'} passar${n === 1 ? 'á' : 'ão'} para “Sem turma”; nenhum aluno será excluído.`
       : 'Nenhum aluno será excluído.'}`;
+  } else if (x.tipo === 'limpezaPessoa') {
+    const p = estado.pessoas.find((y) => y.id === x.id);
+    if (!p) return '';
+    titulo = 'Retirar da turma da limpeza';
+    texto = `Retirar <b>${esc(p.nome)}</b> da Turma ${p.limpeza}? O cadastro da pessoa será mantido.`;
   } else {
     const p = estado.pessoas.find((y) => (y.licencas || []).some((l) => l.id === x.id));
     const l = p && p.licencas.find((y) => y.id === x.id);
@@ -347,6 +363,9 @@ export const cliques = {
   async atribuirLimpeza(form) {
     const pessoaId = document.getElementById('limpeza-pessoa')?.value;
     if (!pessoaId) { toast('Escolha uma pessoa.'); return; }
+    const pessoa = estado.pessoas.find((p) => p.id === pessoaId);
+    if (!pessoa) { toast('Pessoa não encontrada. Atualize a tela e tente novamente.'); return; }
+    if (pessoa.limpeza) { toast('Esta pessoa já pertence a uma turma de limpeza.'); return; }
     if (await atualizarPessoa(pessoaId, { limpeza: Number(form.dataset.t) })) {
       toast('Pessoa adicionada à turma.');
       avisar();
@@ -384,6 +403,10 @@ export const cliques = {
     avisar();
     if (!x) return;
     if (x.tipo === 'p') await excluirPessoa(x.id);
+    else if (x.tipo === 'limpezaPessoa') {
+      const p = estado.pessoas.find((y) => y.id === x.id);
+      if (p && await atualizarPessoa(x.id, { limpeza: null })) toast(`${p.nome} foi retirada da turma. O cadastro foi mantido.`);
+    }
     else if (x.tipo === 'al') await acaoAlunos('excluirAluno', { id: x.id });
     else if (x.tipo === 'turma') {
       estado.editTurma = null;
@@ -399,6 +422,9 @@ export const cliques = {
     estado.renomear = el.dataset.id;
     avisar();
   },
+  editarLimpezaPessoa(el) { estado.limpezaPessoaEditando = el.dataset.id; avisar(); },
+  cancelLimpezaPessoa() { estado.limpezaPessoaEditando = null; avisar(); },
+  limpezaRemoverAsk(el) { estado.excluirPop = { tipo: 'limpezaPessoa', id: el.dataset.id }; avisar(); },
   cancelren() { estado.renomear = null; avisar(); },
   // "＋" ao lado da turma: cadastra uma turma nova e já deixa escolhida.
   async novaturma() {
@@ -440,6 +466,7 @@ export async function renomear(form) {
     if (estado.pessoas.some((x) => x.id !== id && x.nome.toLowerCase() === novo.toLowerCase())) { toast('Já existe um cadastro com esse nome.'); return; }
     patch.nome = novo;
   }
+
   const turma = sel && sel.value ? Number(sel.value) : null;
   if (sel && turma !== (p.limpeza ? Number(p.limpeza) : null)) {
     patch.limpeza = turma;
@@ -462,6 +489,17 @@ export async function renomear(form) {
       avisar();
     }
     toast('Alterações salvas.');
+  }
+}
+
+export async function salvarTurmaLimpeza(form) {
+  const turma = Number(document.getElementById('limpeza-turma-ed')?.value);
+  if (!TURMAS_LIMPEZA.includes(turma)) { toast('Escolha uma turma da limpeza.'); return; }
+  if (await atualizarPessoa(form.dataset.id, { limpeza: turma })) {
+    estado.limpezaPessoaEditando = null;
+    estado.limpezaTurmaAberta = String(turma);
+    toast('Turma da limpeza alterada.');
+    avisar();
   }
 }
 

@@ -1057,10 +1057,11 @@ function janelaPresenca() {
 }
 
 export const mudancas = {
-  // Acesso da corrente: Pendente → Ausente (só ela mesma, até a véspera).
+  // “Não poderei ir” usa o valor de presença 'a' (Ausente) no cadastro da gira.
+  // A própria pessoa só pode declarar até a véspera.
   async ausencia(t) {
     if (t.value !== 'a') return;
-    if (!confirm('Confirmar que você NÃO vai nesta gira?\nDepois disso, só a Michelle consegue mudar.')) { t.value = 'pend'; return; }
+    if (!confirm('Registrar ausência antecipada?\nSua presença será marcada como “Ausente” no cadastro desta gira. Depois disso, só a Michelle consegue alterar.')) { t.value = 'pend'; return; }
     await declararAusencia();
   },
   // Função na gira: a do cadastro (volta para Presente, ou Pendente antes do dia), Suporte ou Não atende.

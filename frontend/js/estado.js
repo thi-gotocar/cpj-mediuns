@@ -40,6 +40,7 @@ export const estado = {
   perfisCfg: null,     // aba Admin root: perfis e as abas de cada um
   senhas: null,        // aba Admin root: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
+  limpezaPessoaEditando: null, // aba Pessoas: pessoa com turma da limpeza em edição
   stPerfis: null,      // Histórico → Estatísticas: contagens do Perfil { total, chefe, frente, orixa } (undefined = carregando)
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
   entidadesApelidos: [], // apelidos opcionais das entidades, configurados pelo Admin root
