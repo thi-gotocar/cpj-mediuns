@@ -11,8 +11,19 @@ const ROTULO_PRESENCA = { pend: 'Pendente', p: 'Presente', f: 'Falta', a: 'Ausen
 export function blocoEu(g) {
   const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p) return '';
-  if (!naCorrenteEm(p, g.data)) return `<div class="card eu"><div class="grp-h"><span class="eyebrow">Você nesta gira</span></div>
-    <div class="eu-nome"><b>${esc(p.nome)}</b></div><p class="muted" style="margin:0">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}: esta gira ainda não conta para você.</p></div>`;
+  const foto = () => {
+    const F = estado.fotosPessoa;
+    if (F[p.id] === undefined) carregarFoto(p.id);
+    return F[p.id]
+      ? `<button type="button" class="eu-avatar" data-act="eufoto" data-id="${p.id}" aria-label="Ver sua foto de perfil"><img src="${F[p.id]}" alt=""></button>`
+      : `<span class="eu-avatar" aria-hidden="true"><span>${esc(iniciais(p.nome))}</span></span>`;
+  };
+  const identidade = (convertido = '', possivel = false) => `<div class="eu-identidade">${foto()}<div class="eu-identidade-dados">
+    <div class="eu-nome"><b>${esc(p.nome)}</b></div>
+    <div class="eu-tags">${possivel ? '<span class="muted eu-poss">Possivelmente:</span>' : ''}<span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
+  </div></div>`;
+  if (!naCorrenteEm(p, g.data)) return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span></div>
+    ${identidade()}<p class="eu-nota muted">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}. Esta gira ainda não conta para você.</p></div>`;
   const curimba = ehCurimba(p);
   const st = curimba ? 'p' : status(p, g);
   const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
@@ -101,7 +112,7 @@ export function blocoEu(g) {
   const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
   const nomeDaGira = g.entidade ? `${nomeEntidadeGira(g)}${orixaDaGira(g) ? ` · ${orixaDaGira(g)}` : ''}` : '';
   return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span>${nomeDaGira ? `<span class="eu-gira">${esc(nomeDaGira)}</span>` : ''}</div>
-    <div class="eu-nome"><b>${esc(p.nome)}</b> ${!sorteado && !['medium', 'cambone'].includes(p.funcao) ? '<span class="muted eu-poss">Possivelmente:</span> ' : ''}<span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
+    ${identidade(convertido, !sorteado && !['medium', 'cambone'].includes(p.funcao))}
     ${(funcao === 'medium' || funcao === 'extra') && st !== 'lic' && guiaNaGira(p, g) ? `<div class="eu-l eu-guia"><span class="muted">Guia de atendimento:</span> <b>${esc(guiaNaGira(p, g))}</b></div>` : ''}
     ${L.join('')}</div>`;
 }
