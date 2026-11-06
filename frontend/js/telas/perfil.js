@@ -343,11 +343,15 @@ function cardRespostas(todos) {
   const sim = todos.filter((x) => respondeu(x.perfil));
   const nao = todos.filter((x) => !respondeu(x.perfil));
   const pct = todos.length ? Math.round((sim.length / todos.length) * 100) : 0;
-  return card('respostas', `<span aria-hidden="true">📝</span> Respostas <span class="pf-cab-pct">${pct}%</span>`, `${sim.length} de ${todos.length}`, false, () => `
-    <div class="pf-resp"><span>${sim.length} ${sim.length === 1 ? 'pessoa respondeu' : 'pessoas responderam'} · ${nao.length} ${nao.length === 1 ? 'falta' : 'faltam'}</span></div>
-    <div class="pf-barra" role="img" aria-label="${pct}% responderam"><span style="width:${pct}%"></span></div>
-    ${nao.length ? `<button class="btn link small pf-mais" data-act="pffaltam">${U().faltam ? '− Esconder' : `＋ Ver quem ainda não respondeu (${nao.length})`}</button>
-      ${U().faltam ? `<ul class="pf-lista">${nao.map((x) => `<li>${esc(x.nome)}</li>`).join('')}</ul>` : ''}` : '<p class="muted" style="margin:6px 0 0">Todo mundo já respondeu. 🙌</p>'}`, true, true);
+  const grupoAberto = U().respostaGrupo;
+  const listaAberta = grupoAberto === 'responderam' ? sim : grupoAberto === 'faltam' ? nao : null;
+  const tituloLista = grupoAberto === 'responderam' ? 'Responderam' : 'Ainda não responderam';
+  return card('respostas', `<span aria-hidden="true">📝</span> Respostas <span class="pf-cab-pct">${pct}%</span>`, `${sim.length} de ${todos.length}`, true, () => `
+    <div class="pf-of-totais pf-resp-totais" aria-label="Status das respostas">
+      <button class="pf-of-total pf-resp-total fn-respondeu${grupoAberto === 'responderam' ? ' selecionado' : ''}" type="button" data-act="pfrespostas" data-grupo="responderam" aria-expanded="${grupoAberto === 'responderam'}" aria-label="Responderam: ${sim.length} pessoas"${sim.length ? '' : ' disabled'}><b>${sim.length}</b><span>Responderam</span></button>
+      <button class="pf-of-total pf-resp-total fn-faltam${grupoAberto === 'faltam' ? ' selecionado' : ''}" type="button" data-act="pfrespostas" data-grupo="faltam" aria-expanded="${grupoAberto === 'faltam'}" aria-label="Ainda não responderam: ${nao.length} pessoas"${nao.length ? '' : ' disabled'}><b>${nao.length}</b><span>Faltam</span></button>
+    </div>
+    ${listaAberta ? `<div class="pf-grupo"><div class="pf-gt">${tituloLista}<span class="count">${listaAberta.length}</span></div><ul class="pf-lista">${listaAberta.map((x) => `<li>${esc(x.nome)}</li>`).join('')}</ul></div>` : ''}`, true, true);
 }
 
 // Guias da corrente: todos veem (só guia chefe e de frente de cada um); começa minimizado.
@@ -484,6 +488,12 @@ export const cliques = {
   },
   pfdobra(el) {
     const k = el.dataset.k;
+    if (k === 'respostas') {
+      U().abertos[k] = true;
+      U().respostaGrupo = null;
+      avisar();
+      return;
+    }
     if (k === 'corrente-oferendas') {
       U().abertos[k] = true;
       U().oferendaFuncao = null;
@@ -493,7 +503,10 @@ export const cliques = {
     U().abertos[k] = el.getAttribute('aria-expanded') !== 'true';
     avisar();
   },
-  pffaltam() { U().faltam = !U().faltam; avisar(); },
+  pfrespostas(el) {
+    U().respostaGrupo = U().respostaGrupo === el.dataset.grupo ? null : el.dataset.grupo;
+    avisar();
+  },
   pfofertas(el) {
     U().oferendaFuncao = U().oferendaFuncao === el.dataset.funcao ? null : el.dataset.funcao;
     avisar();
