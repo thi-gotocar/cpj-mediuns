@@ -66,13 +66,13 @@ const abasDe = (o) => normalizarAbas(o);
 // Perfis que já vêm cadastrados (o root pode mudar tudo, menos o próprio Admin root).
 export const PERFIS_PADRAO = [
   { chave: 'root', nome: 'Admin root', ordem: 0, abas: abasDe(Object.fromEntries(ABA_KEYS.map((k) => [k, tudo(true, true)]))) },
-  // A aba Curimba é um controle à parte: só o root e o Admin curimba. A aba Vídeos, por enquanto, só o root.
+  // A aba Curimba é um controle à parte. O Admin curimba também administra os vídeos.
   { chave: 'admin', nome: 'Admin', ordem: 1, abas: abasDe(Object.fromEntries(ABA_KEYS.filter((k) => k !== 'curimba' && k !== 'videos').map((k) => [k, tudo(true, true)]))) },
   // Fotos: todos veem e enviam; os perfis de admin também apagam a foto de qualquer pessoa.
   { chave: 'usuario', nome: 'Usuário', ordem: 2, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true) }) },
   { chave: 'admin_oferendas', nome: 'Admin oferendas', ordem: 3, abas: abasDe({ gira: tudo(true), alunos: tudo(true, true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true, true), perfil: tudo(true), fotos: tudo(true, true) }) },
   { chave: 'admin_ervas', nome: 'Admin ervas', ordem: 4, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true, true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true, true) }) },
-  { chave: 'admin_curimba', nome: 'Admin curimba', ordem: 5, abas: abasDe({ gira: tudo(true), perfil: tudo(true), curimba: tudo(true, true), fotos: tudo(true, true) }) },
+  { chave: 'admin_curimba', nome: 'Admin curimba', ordem: 5, abas: abasDe({ gira: tudo(true), perfil: tudo(true), curimba: tudo(true, true), videos: tudo(true, true), fotos: tudo(true, true) }) },
   // Admin do perfil: o que a corrente vê e, na aba Perfil, o perfil de todos e a Anamnese (perguntas e respostas).
   { chave: 'admin_perfil', nome: 'Admin perfil', ordem: 6, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true, true), fotos: tudo(true, true) }) },
   { chave: 'corrente', nome: 'Corrente', ordem: 99, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true) }) },

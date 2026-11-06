@@ -482,9 +482,15 @@ test('eventos: orixá aparece só no próprio dia (com duas datas, nas duas)', a
   assert.deepEqual(orixasDoDia('2026-08-16').map((e) => e.nome), ['Dia de Obaluaê', 'Dia de Omulu']);
 });
 
-test('aba Vídeos: só o root (o Admin não vem com ela)', () => {
+test('aba Vídeos: root e Admin curimba administram; os demais acessam quando publicada', () => {
   assert.ok(PERMISSOES_ROOT.includes('videos:ver') && PERMISSOES_ROOT.includes('videos:editar'));
-  for (const p of PERFIS_PADRAO.filter((x) => x.chave !== 'root')) assert.ok(!permissoesDe(p.chave, p.abas).includes('videos:ver'), p.chave);
+  const curimba = PERFIS_PADRAO.find((x) => x.chave === 'admin_curimba');
+  assert.ok(permissoesDe(curimba.chave, curimba.abas).includes('videos:ver'));
+  assert.ok(permissoesDe(curimba.chave, curimba.abas).includes('videos:editar'));
+  for (const p of PERFIS_PADRAO.filter((x) => !['root', 'admin_curimba'].includes(x.chave))) {
+    assert.ok(!permissoesDe(p.chave, p.abas).includes('videos:ver'), p.chave);
+    assert.ok(!permissoesDe(p.chave, p.abas).includes('videos:editar'), p.chave);
+  }
 });
 
 test('vídeos: código do YouTube sai de qualquer formato de link', async () => {

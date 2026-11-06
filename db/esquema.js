@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 81;  // v81: acesso de alunos e curimba por nome cadastrado
+export const VERSAO = 82;  // v82: Admin curimba pode administrar a aba Vídeos
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2199,4 +2199,7 @@ export const MIGRACOES = [
      where (nullif(p ->> 'alunoId', '') is not null and a.id = (p ->> 'alunoId')::uuid)
         or (nullif(p ->> 'alunoId', '') is null and a.pessoa_id = (p ->> 'pessoaId')::uuid)
    $$`,
+  // ================================================== v82: Admin curimba publica e administra os vídeos da casa
+  `update perfis set abas = jsonb_set(coalesce(abas, '{}'::jsonb), '{videos}', '{"ver":true,"editar":true}'::jsonb, true)
+    where chave = 'admin_curimba'`,
 ];

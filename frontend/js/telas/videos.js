@@ -87,9 +87,9 @@ export function render() {
   const editar = pode('videos:editar');
   const u = U();
   const pub = !!estado.me?.videosPublicada;
-  // Quem vê a aba: marcada = toda a corrente; desmarcada = só quem tem a aba Vídeos no perfil (os admins).
+  // Quando publicada, a aba fica visível para CPJ, Curimba e todos os perfis de admin.
   const aba = editar ? `<div class="card adm"><label class="check vd-pub"><input type="checkbox" data-act="vidpublicar" ${pub ? 'checked' : ''}>
-    <span><b>Aba publicada</b><br><span class="muted">${pub ? 'Toda a corrente vê a aba Vídeos.' : 'Só os admins veem a aba Vídeos.'}</span></span></label></div>` : '';
+    <span><b>Aba publicada</b><br><span class="muted">${pub ? 'Toda a corrente (CPJ e Curimba) e os admins veem a aba Vídeos.' : 'Só os perfis com acesso administrativo veem a aba Vídeos.'}</span></span></label></div>` : '';
   const novo = editar ? `<div class="card adm">${cabDobra('vidnovo', '＋ Publicar vídeo', '', u.novo)}${u.novo ? formulario(null) : ''}</div>` : '';
   return `<section class="panel">${aba}${novo}${cardLista(V, editar)}${janela()}</section>`;
 }

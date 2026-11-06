@@ -157,19 +157,17 @@ function cardEstatisticas(todas, ps) {
       ${fora ? `<span class="muted">${fora} gira${fora > 1 ? 's' : ''} antes da entrada (${dShort(p.entrada)}) não conta${fora > 1 ? 'm' : ''}.</span>` : ''}</div>`;
   };
   const ranking = (k, titulo, cor, lista, linha) => {
-    const limiteInicial = 5;
+    const limiteInicial = k === 'pres' ? 10 : 5;
     const com100 = (x) => x.base > 0 && x.pres === x.base;
     const cemPorCento = k === 'pres' ? lista.filter(com100) : [];
-    const maisDeCincoCom100 = cemPorCento.length > 5;
-    const limiteAberta = maisDeCincoCom100 ? 10 : lista.length;
-    const expandida = maisDeCincoCom100
+    const ordenada = k === 'pres'
       ? [...cemPorCento, ...lista.filter((x) => !com100(x))]
       : lista;
-    const ver = expandida.slice(0, mais[k] ? limiteAberta : limiteInicial);
+    const ver = ordenada.slice(0, mais[k] ? lista.length : limiteInicial);
     const aberto = estado.stPessoa;
     return `<div class="st-bloco"><h3>${titulo}</h3>
       ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<button class="st-nome st-nome-bt" data-act="stpessoa" data-k="${k}:${x.p.id}" title="Ver gira a gira">${esc(x.p.nome)}</button>${barra(x[k], x.base, cor)}<span class="st-num">${linha(x)}</span>${aberto === k + ':' + x.p.id ? detalhe(x.p) : ''}</li>`).join('')}</ol>
-      ${lista.length > limiteInicial ? `<button class="btn link small" data-act="stmais" data-k="${k}">${mais[k] ? 'Ver menos' : `Ver mais (${Math.min(lista.length, limiteAberta)})`}</button>` : ''}`
+      ${lista.length > limiteInicial ? `<button class="btn link small" data-act="stmais" data-k="${k}">${mais[k] ? 'Ver menos' : `Ver mais (${lista.length})`}</button>` : ''}`
       : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém por aqui.</p>'}</div>`;
   };
   const presentes = porPessoa.filter((x) => x.pres).sort((a, b) => b.pres - a.pres || a.p.nome.localeCompare(b.p.nome));
