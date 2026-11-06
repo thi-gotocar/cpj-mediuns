@@ -312,7 +312,7 @@ function cardAnamneseAdmin(todos) {
   const listaAberta = grupoAberto === 'responderam' ? responderam : grupoAberto === 'faltam' ? faltam : null;
   const tituloLista = grupoAberto === 'responderam' ? 'Responderam' : 'Ainda não responderam';
   const val = valorAnamnese;
-  return card('anamnese-adm', `<span aria-hidden="true">🩺</span> Anamnese <span class="pf-cab-pct">${pct}%</span>`, `${responderam.length} de ${todos.length}`, false, () => `
+  return card('anamnese-adm', `<span aria-hidden="true">🩺</span> Anamnese <span class="pf-cab-pct">${pct}%</span>`, `${responderam.length} de ${todos.length}`, true, () => `
     <label class="of-sw ana-vis-toggle"><input type="checkbox" role="switch" data-act="anavisibilidade" ${A.visivel !== false ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir bloco para usuários</label>
     <div class="pf-of-totais pf-resp-totais" aria-label="Status das respostas da anamnese">
       <button class="pf-of-total pf-resp-total fn-respondeu${grupoAberto === 'responderam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="responderam" aria-expanded="${grupoAberto === 'responderam'}" aria-label="Responderam à anamnese: ${responderam.length} pessoas"${responderam.length ? '' : ' disabled'}><b>${responderam.length}</b><span>Responderam</span></button>
