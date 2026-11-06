@@ -20,7 +20,7 @@ const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s =
 // Atendimentos da gira: o admin preenche na gira aberta (⚙️ Evento, salva sozinho); na encerrada, todos veem.
 const ATEND = [['normal', 'Atendimento'], ['passe', 'Passe'], ['preferencial', 'Preferencial']];
 const camposAtend = (g) => `<div class="atend-campos">${ATEND.map(([k, t]) => `<label class="field">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" data-act="atend" data-k="${k}" value="${Number(g.atendimentos?.[k]) || 0}"></label>`).join('')}</div>`;
-const numerosAtend = (a) => `<div class="atend-nums">${ATEND.map(([k, t]) => `<div><b>${Number(a?.[k]) || 0}</b><span>${t}</span></div>`).join('')}</div>`;
+const numerosAtend = (a) => `<div class="atend-nums">${ATEND.map(([k, t]) => `<div class="at-${k}"><b>${Number(a?.[k]) || 0}</b><span>${t}</span></div>`).join('')}</div>`;
 // Campo bloqueado do Evento fechado: igual aos combos da gira aberta, mas só informa.
 const campoFixo = (v) => `<select disabled title="Gira encerrada: para mudar, reabra a gira"><option>${esc(v || '—')}</option></select>`;
 const seletorOrixa = (g) => `<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
@@ -136,7 +136,7 @@ function avisoEntidade(ps, g, editar, admin) {
 // Antes, o total de presentes (quem está na gira), separado pelo que cada um faz no dia:
 // médium, cambone (inclui quem "não atende" e extra/passe fora da linha), passe, extra, senha e suporte.
 // Total de presentes (quem está na gira), separado pelo que cada um faz no dia. Fica no primeiro bloco.
-function contagemPresentes(ps, g, pct = null) {
+function contagemPresentes(ps, g, resumo) {
   const dia = pessoasDaGira(ps, g);
   const conta = {
     'Médium': dia.filter((p) => presente(p, g) && p.funcao === 'medium').length,
@@ -153,10 +153,19 @@ function contagemPresentes(ps, g, pct = null) {
   const planejamento = !g.encerrada && g.data > hoje();
   const topo = planejamento
     ? `<h3>Em planejamento</h3><span class="count">${extra ? `<span class="muted">${extra}</span>` : ''}</span>`
-    : `<h3>Presentes</h3><span class="count"><b>${naGira}</b>${pct !== null ? ` · <b>${pct}%</b>` : ''}${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span>`;
+    : `<h3>Presentes</h3><span class="count"><b>${naGira}</b>${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span>`;
   const fn = { 'Médium': 'medium', Cambone: 'cambone', Passe: 'passe', Extra: 'extra', Senha: 'senha', Suporte: 'suporte' };
+  const qtd = { presente: resumo.presentes.length, falta: resumo.faltas.length, ausencia: resumo.ausentes.length, licenca: resumo.licenca.length };
+  const base = Object.values(qtd).reduce((s, n) => s + n, 0);
+  const situacoes = [
+    ['presente', 'Presentes', 'ok'],
+    ['falta', 'Faltas', 'off'],
+    ['ausencia', 'Ausências', 'warn'],
+    ['licenca', 'Licença', 'muted'],
+  ];
   return `<div class="pres-topo enc-pres-topo"><div class="grp-h">${topo}</div>
-    <div class="presentes enc-func-totais">${Object.entries(conta).map(([t, n]) => `<span class="fn-${fn[t]}"><span class="muted">${t}</span><b>${n}</b></span>`).join('')}</div></div>`;
+    <div class="presentes enc-func-totais">${Object.entries(conta).map(([t, n]) => `<span class="fn-${fn[t]}"><span class="muted">${t}</span><b>${n}</b></span>`).join('')}</div>
+    <div class="enc-situacoes" aria-label="Percentuais de presença e situação">${situacoes.map(([k, t, cor]) => `<div class="enc-situacao ${cor}"><b>${base ? Math.round(qtd[k] / base * 100) : 0}%</b><span>${t}</span><small>${qtd[k]} de ${base}</small></div>`).join('')}</div></div>`;
 }
 
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
@@ -203,9 +212,10 @@ function blocosFora(ps, g) {
 
 // Quadro "Gira encerrada" (para todos, só informa): atendimentos e presença.
 function blocoEncerrada(ps, g) {
+  const resumo = dadosResumo(estado.pessoas, g);
   return `<div class="enc-quadro"><h3>Gira encerrada</h3>
-    <div class="atend-sec"><span class="atend-tit">Atendidos</span>${numerosAtend(g.atendimentos)}</div>
-    ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}</div>`;
+    <div class="atend-sec enc-atend"><span class="atend-tit">Atendidos</span>${numerosAtend(g.atendimentos)}</div>
+    ${contagemPresentes(ps, g, resumo)}</div>`;
 }
 
 // Ao lado da data: para o admin, numa gira em aberto, "Encerrar gira"; nos outros casos, "Próxima gira".
