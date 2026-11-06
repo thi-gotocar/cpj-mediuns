@@ -78,8 +78,8 @@ function cardTurmas(todas, editar) {
       const g = grupos.find((x) => x.chave === aberta);
       return `<div class="turmas-conteudo"><div class="turma-cab"><b>${g.nome}</b><span class="turma-count">${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></div>
         <div class="ppl turma-pessoas">${g.lista.length ? g.lista.map((p) => editar
-          ? linhaPessoa(p, { funcao: !ehCurimba(p) })
-          : `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span><span class="pp-l2"><span class="pp-fn">${esc(FUNCOES.find((f) => f.k === p.funcao)?.label || p.funcao)}</span><span class="pp-limp">🧹 ${p.limpeza || '—'}</span></span></div></div>`).join('')
+          ? linhaPessoa(p, { funcao: false, simples: true })
+          : `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span><span class="pp-l2"><span class="pp-limp">🧹 Turma ${p.limpeza || '—'}</span></span></div></div>`).join('')
           : '<p class="muted" style="margin:0">Ninguém nesta turma.</p>'}</div>
         ${editar && turmaAtiva ? disponiveis.length ? `<form id="f-limpeza-atribuir" class="limpeza-atribuir" data-t="${turmaAtiva.chave}">
           <label class="field">Adicionar pessoa nesta turma<select id="limpeza-pessoa" required><option value="">— escolha uma pessoa —</option>${disponiveis.map((p) => `<option value="${p.id}">${esc(p.nome)}${ehCurimba(p) ? ' · Curimba' : ` · ${esc(FUNCOES.find((f) => f.k === p.funcao)?.label || p.funcao)}`}</option>`).join('')}</select></label>
@@ -133,24 +133,24 @@ function editorLinhas(p, c) {
 // Uma pessoa (quem edita): linha 1 = nome, função, 🧹 turma, "+ médium de passe" e os botões ✎ (Editar) e 🗑️ (Excluir);
 // depois o resumo das entidades. Nada muda fora do Editar: em Editar, nome, função, turma, "+ médium de passe"
 // e as entidades ficam editáveis e só são gravados no Salvar (Cancelar descarta).
-function linhaPessoa(p, { funcao = true, acoes = true } = {}) {
+function linhaPessoa(p, { funcao = true, acoes = true, simples = false } = {}) {
   const ed = estado.renomear === p.id;
   if (!ed) {
     // Linha 1: nome (quebra entre palavras se precisar), função, 🧹 turma e os botões; "+ médium de passe" na linha de baixo.
     return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
-        <span class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
-          <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span></span>
+        <span class="pp-l2">${funcao && !simples ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
+          <span class="pp-limp" title="Turma da limpeza">🧹 ${simples ? 'Turma ' : ''}${p.limpeza || '—'}</span></span>
         ${acoes ? `<span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="p" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span>` : ''}</div>
-      ${p.funcao === 'medium' && p.experiente ? '<div class="pp-l3"><span class="pp-fn pp-exp-on">+ médium de passe</span></div>' : ''}
-      ${camposDe(p).length ? `<div class="pp-res">${resumoLinhas(p)}</div>` : ''}</div>`;
+      ${!simples && p.funcao === 'medium' && p.experiente ? '<div class="pp-l3"><span class="pp-fn pp-exp-on">+ médium de passe</span></div>' : ''}
+      ${!simples && camposDe(p).length ? `<div class="pp-res">${resumoLinhas(p)}</div>` : ''}</div>`;
   }
-  return `<div class="pp pp2 pp-editando"><form id="f-ren" class="pp-form" data-id="${p.id}" autocomplete="off">
+  return `<div class="pp pp2 pp-editando"><form id="f-ren" class="pp-form" data-id="${p.id}" data-simples="${simples ? '1' : '0'}" autocomplete="off">
       <div class="pp-l1"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Nome de ${esc(p.nome)}">
         <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelren">Cancelar</button></span></div>
-      <div class="pp-l2">${funcao ? `<select id="ren-func" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>` : ''}
+      <div class="pp-l2">${funcao && !simples ? `<select id="ren-func" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>` : ''}
         <label class="pp-limp ed">🧹 <select class="limp-sel" id="ren-limp" aria-label="Turma da limpeza de ${esc(p.nome)}"><option value="">—</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-        ${p.funcao === 'medium' ? `<label class="check small pp-exp"><input type="checkbox" id="ren-exp" ${p.experiente ? 'checked' : ''}> + médium de passe</label>` : ''}</div>
-      ${camposDe(p).map((c) => editorLinhas(p, c)).join('')}
+        ${!simples && p.funcao === 'medium' ? `<label class="check small pp-exp"><input type="checkbox" id="ren-exp" ${p.experiente ? 'checked' : ''}> + médium de passe</label>` : ''}</div>
+      ${simples ? '' : camposDe(p).map((c) => editorLinhas(p, c)).join('')}
     </form></div>`;
 }
 
@@ -249,7 +249,7 @@ function cardAlunos() {
             <label class="al-turma">Turma <select id="al-turma" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${A.turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label></form>`;
         }
         return `<div class="al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
-          <span class="pp-bts"><button class="btn small pp-bt" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}">Editar</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="al" data-id="${a.id}">Excluir</button></span></div></div>`;
+          <span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
       }).join('')}</div>` : '<p class="muted" style="margin:4px 0 0;font-size:.9rem">Nenhum aluno nesta turma.</p>'}</div></div>`;
   return h + '</div>';
 }
@@ -448,7 +448,7 @@ export async function renomear(form) {
   if (fn && fn.value !== p.funcao) patch.funcao = fn.value;
   if (exp && exp.checked !== !!p.experiente) patch.experiente = exp.checked;
   // Entidades marcadas em cada escolha (Todas / linhas).
-  camposDe(p).forEach((c) => {
+  if (form.dataset.simples !== '1') camposDe(p).forEach((c) => {
     const ls = [...form.querySelectorAll(`input[data-act="lnedit"][data-c="${c}"][data-l]:checked`)].map((i) => i.dataset.l).sort();
     if (ls.join() !== [...(p[c] || [])].sort().join()) patch[c] = ls;
   });
