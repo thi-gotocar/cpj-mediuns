@@ -42,9 +42,11 @@ python manuais/manual_admin.py "manuais/Guia do Administrador.pdf"
 - Nunca imprimir segredos, nunca decifrar variáveis da Vercel, nunca acessar o banco de produção direto: **mudança de dados só por migração no código**.
 - Senhas e PINs ficam com hash (scrypt). O root **redefine** senhas, nunca as vê.
 
-## Testes e conferência
+## Testes e CI/CD
 
-> **Hoje os testes só rodam em Linux.** `test/apoio.js` chama o Postgres via `runuser -u postgres`, e esta máquina (Windows) não tem Postgres instalado. Os comandos abaixo são do ambiente Linux antigo; adaptar para Windows está no roadmap.
+### Testes locais (Linux com Postgres)
+
+> **Hoje os testes rodam em Linux** via GitHub Actions (veja abaixo). Para rodar localmente no Linux:
 
 ```bash
 pg_ctlcluster 16 main start          # Postgres local
@@ -55,6 +57,20 @@ node test/e2e-servidor.js             # servidor de teste na porta 4310 (banco s
 - Não rodar `npm test` e o servidor e2e ao mesmo tempo (mesmo banco).
 - Parar o servidor: `pkill -f "e2e-servido[r]"` em comando separado.
 - Conferência visual: scripts Playwright (viewport 390 px) que instalam o app (`codigo-de-teste`), criam pessoas pela API e tiram screenshots.
+
+### GitHub Actions CI (`.github/workflows/test.yml`)
+
+A cada `push` ou `pull_request` para `main`, o CI:
+
+1. **Cria banco Postgres** temporário (container) no Ubuntu
+2. **Roda `npm run build`** — valida que o bundle fica funcional
+3. **Roda `npm test`** — testa backend com Postgres real + testes de regras/ervas/resumo
+
+**Status**: O workflow está ativo. Se algum PR quebrar a build ou testes, o status fica 🔴 e não deixa fazer merge (configurável no GitHub).
+
+### Migração de testes para CI
+
+As ~30 migrações não testadas (v56-v85, veja `db/ESTRUTURA-ESQUEMA.md`) agora rodam em CI a cada alteração, garantindo idempotência em Postgres real. Sem CI, essas versões só eram validadas no banco falso (durante o desenvolvimento).
 
 ---
 

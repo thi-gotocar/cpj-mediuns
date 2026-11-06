@@ -5,6 +5,9 @@
 // são idempotentes (podem rodar de novo sem estragar nada).
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
+//
+// Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
+// quais migrações foram testadas no Postgres.
 
 export const VERSAO = 85;  // v85: registrar total de participantes em eventos
 

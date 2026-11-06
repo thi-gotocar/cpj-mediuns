@@ -181,9 +181,12 @@ export default rota({
       if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
       if (atual.evento) throw new HttpError(409, 'Evento não tem escala para cancelar.');
-      let gira = await db.rpc('gira_salvar', { data, usuario: quem.id, pares: [], passes: [] });
-      if (gira.publicada) gira = await db.rpc('gira_publicar', { data, publicada: false });
-      if (gira.travada) gira = await db.rpc('gira_travar', { data, travada: false });
+      // Cancela o sorteio (apaga duplas e despublica) em uma transação.
+      const gira = await db.tx([
+        { funcao: 'gira_salvar', p: { data, usuario: quem.id, pares: [], passes: [] } },
+        { funcao: 'gira_publicar', p: { data, publicada: false } },
+        { funcao: 'gira_travar', p: { data, travada: false } },
+      ]);
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     const perfil = await exigir(req, 'giras:editar');
@@ -218,7 +221,9 @@ export default rota({
       }
       if (!atual.orixa && orixa) p.orixa = orixa;
       let gira = await db.rpc('gira_salvar', p);
-      if ('entidadeNome' in p) gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
+      if ('entidadeNome' in p) {
+        gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
+      }
       return { gira, mensagem: `Escala gravada na gira de ${d}/${m}/${y} (presença e atendidos não mudaram).` };
     }
     if (acao === 'publicar') {
@@ -265,8 +270,10 @@ export default rota({
     const { patch, mensagem } = encerrar(pessoas, atual || giraVazia(data));
     if (atual?.evento) {
       const total = validarParticipantes(participantes);
-      await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch });
-      return { gira: await db.rpc('gira_participantes', { data, usuario: perfil.id, participantes: total }), mensagem };
+      return { gira: await db.tx([
+        { funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...patch } },
+        { funcao: 'gira_participantes', p: { data, usuario: perfil.id, participantes: total } },
+      ]), mensagem };
     }
     // Quantas pessoas foram atendidas na gira.
     if (!atendimentos || typeof atendimentos !== 'object') throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');

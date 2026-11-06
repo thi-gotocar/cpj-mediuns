@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, LINHA_LABEL, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
+import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -14,6 +14,8 @@ import { htmlStatus, abertos, cabDobra, caixaPendente, ICONE_WHATS } from './gir
 import { blocoEu } from './giraEu.js';
 import { sugAbertas, blocoSugestao } from './giraSugestao.js';
 import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './giraTopo.js';
+import { blocoLimpeza, blocoRecado, campoRecado, blocoLicenca, blocoBanho, blocoAusPrevia, blocoAusencia, blocoFaltas, avisoEntidade, contagemPresentes } from './giraInformacoes.js';
+import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, titDobra, linhaEscala } from './giraEscala.js';
 export { enviarOracao } from './giraTopo.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
@@ -26,7 +28,6 @@ const campoParticipantes = (g) => `<div class="ev-participantes-bloco">
   <input class="ev-participantes-input" type="number" inputmode="numeric" min="0" max="100000" step="1" id="ev-participantes" data-act="participantes" aria-label="Total de participantes do evento" value="${Number(g.participantes) || 0}">
   <span class="ev-participantes-salvo">✓ Salvo automaticamente</span>
 </div>`;
-const numeroParticipantes = (g) => `<div class="atend-nums participantes"><div class="at-participantes"><b>${Number(g.participantes) || 0}</b><span>Total de participantes</span></div></div>`;
 // Campo bloqueado do Evento fechado: igual aos combos da gira aberta, mas só informa.
 const campoFixo = (v) => `<select disabled title="Gira encerrada: para mudar, reabra a gira"><option>${esc(v || '—')}</option></select>`;
 const seletorOrixa = (g) => `<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
@@ -49,122 +50,6 @@ function seletorEntidade(atual, nomeAtual = '') {
   return `<select id="f-ent"><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
     ${opcoesGira(estado.entidadesApelidos).map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([canonico, label, alias]) => `<option value="${esc(canonico)}" data-alias="${esc(alias)}" ${canonico === valor && alias === nomeAtual ? 'selected' : ''}>${esc(label)}</option>`).join('')}</optgroup>`).join('')}
   </select>`;
-}
-
-// Turma da limpeza do dia e quem ajuda (faltou na gira anterior). Vale para todos verem.
-// (O WhatsApp da turma fica na parte ⚙️ Evento do card do admin: "Compartilhar turma da limpeza".)
-function blocoLimpeza(g) {
-  if (g.evento || !temLimpeza(g)) return '';
-  const L = limpezaDaGira(estado.pessoas, g, girasLista());
-  if (!L) return '';
-  // Quem já está com ausência (ou falta) nesta gira aparece em vermelho e riscado.
-  const nomes = (l) => l.map((p) => (['a', 'f'].includes(status(p, g)) ? `<s class="limp-nao">${esc(p.nome)}</s>` : esc(p.nome))).join(', ');
-  return `<div class="limpeza"><div class="limp-cab"><b>🧹 Limpeza · Turma ${L.turma}</b></div>
-    <span>${L.membros.length ? nomes(L.membros) : '<span class="muted">Ninguém cadastrado nesta turma (cadastre na aba Pessoas).</span>'}</span>
-    ${L.deLicenca.length ? `<span class="muted" style="font-size:.85rem">De licença: ${nomes(L.deLicenca)}</span>` : ''}
-    ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeEntidadeGira(L.anterior))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
-      : L.anterior ? `<span class="muted" style="font-size:.85rem">Ninguém da Turma ${L.anterior.limpeza} faltou na gira de ${dDM(L.anterior.data)}.</span>` : ''}
-  </div>`;
-}
-
-// Recado do admin: primeiro bloco do card do evento em andamento, para todos verem.
-function blocoRecado(g) {
-  if (!g.recado) return '';
-  return `<div class="limpeza recado"><b><span aria-hidden="true">📢</span> Recado</b><span class="recado-txt">${esc(g.recado)}</span></div>`;
-}
-
-// Campo do recado (⚙️ Evento, gira aberta): salva sozinho ao sair do campo.
-function campoRecado(g) {
-  const r = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : g.recado || '';
-  return `<label class="field">Recado para a corrente<textarea id="ev-recado" data-act="recadogira" data-d="${esc(g.data)}" rows="5" maxlength="300" placeholder="Até 5 linhas. Aparece para todos no evento.">${esc(r)}</textarea></label>`;
-}
-
-// Quem está de licença na data: mesmo padrão da limpeza, em vermelho, logo abaixo dela. Vale para todos verem.
-function blocoLicenca(ps, g) {
-  const quem = ps.filter((p) => licencaEm(p, g.data));
-  if (!quem.length) return '';
-  return `<div class="limpeza licenca"><b><span class="cruz-vermelha" aria-hidden="true">✚</span> De licença · ${quem.length}</b>
-    <span>${quem.map((p) => `${esc(p.nome)} <span class="muted">(até ${dDM(licencaEm(p, g.data).fim)})</span>`).join(', ')}</span></div>`;
-}
-
-// Banho: ervas do orixá do dia e da linha da gira (das apostilas), logo abaixo da limpeza. Vale para todos verem.
-function blocoBanho(g) {
-  const { orixa, guia } = banhosDaGira(g);
-  if (!orixa && !guia) return '';
-  const parte = (titulo, b) => `<div class="banho-p"><b>${titulo} · ${esc(b.nome)}</b>
-    <div class="banho-ervas">${b.ervas.map((e) => `<span>${esc(e)}</span>`).join('')}</div>
-    ${b.obs ? `<span class="muted banho-obs">${esc(b.obs)}</span>` : ''}${b.aviso ? `<span class="banho-aviso">⚠️ ${esc(b.aviso)}</span>` : ''}</div>`;
-  return `<div class="limpeza banho"><b><span aria-hidden="true">🌿</span> Banho</b>
-    ${orixa ? parte('Banho orixá', orixa) : ''}${guia ? parte('Banho guia', guia) : ''}</div>`;
-}
-
-// Ausência: quem está com status Ausente nesta gira (um por linha), logo acima do bloco de licença.
-// Admin, data de hoje em diante ainda sem gira: marca quem não vai. Ao criar a gira, essas pessoas já entram Ausente.
-function blocoAusPrevia(ps, g) {
-  if (estado.ausPrevias === null) { estado.ausPrevias = undefined; carregarAusPrevias(); }
-  const ids = new Set((estado.ausPrevias || []).filter((x) => x.data === g.data).map((x) => x.pessoaId));
-  const marcadas = ps.filter((p) => ids.has(p.id));
-  const livres = ps.filter((p) => !ids.has(p.id) && !licencaEm(p, g.data));
-  return `<div class="limpeza ausencia aus-prev"><b><span class="aus-ico" aria-hidden="true">✖</span> Ausência antecipada${marcadas.length ? ` · ${marcadas.length}` : ''}</b>
-    <span class="muted" style="font-size:.85rem">Quem já avisou que não vem. Ao adicionar o evento, já entra como Ausente.</span>
-    ${marcadas.map((p) => `<span class="aus-prev-l"><span>${esc(p.nome)}</span><button class="btn small lock-x" data-act="ausprevtira" data-id="${p.id}" title="Tirar a ausência de ${esc(p.nome)}" aria-label="Tirar a ausência de ${esc(p.nome)}">✕</button></span>`).join('')}
-    ${livres.length ? `<span class="aus-prev-add"><select id="ausprev-pessoa" aria-label="Pessoa que não vem"><option value="">&lt;escolha a pessoa&gt;</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
-      <button class="btn small" data-act="ausprevadd">Marcar ausência</button></span>` : ''}</div>`;
-}
-
-function blocoNomesFora(ps, g, st, classe, titulo) {
-  const quem = ps.filter((p) => status(p, g) === st);
-  if (!quem.length) return '';
-  return `<div class="limpeza ${classe}"><b><span class="aus-ico" aria-hidden="true">✖</span> ${titulo} · ${quem.length}</b>
-    <span class="aus-nomes">${quem.map((p) => `<span class="aus-nome">${esc(p.nome)}</span>`).join('')}</span></div>`;
-}
-const blocoAusencia = (ps, g) => blocoNomesFora(ps, g, 'a', 'ausencia', 'Ausência');
-const blocoFaltas = (ps, g) => blocoNomesFora(ps, g, 'f', 'faltas', 'Faltas');
-
-// Avisa quando há Extra/Passe com linhas marcadas e a entidade do dia não está definida.
-// A lista de quem cambona por causa da linha só aparece para o admin.
-function avisoEntidade(ps, g, editar, admin) {
-  const comLinhas = ps.filter(usaLinhas);
-  if (!comLinhas.length) return '';
-  if (giraEspecial(g.entidade)) {
-    return admin ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(nomeEntidadeGira(g))}: extras e passes atuam na própria função, sem olhar as linhas.</p>` : '';
-  }
-  if (!linhaDaEntidade(g.entidade)) {
-    return editar ? `<div class="warnbox">Escolha a entidade do dia: é ela que define quem atua como extra ou passe e quem cambona.</div>` : '';
-  }
-  const viram = comLinhas.filter((p) => funcaoNaGira(p, g) === 'cambone');
-  return admin && viram.length
-    ? `<p class="muted" style="margin:0;font-size:.88rem">Nesta gira de ${esc(LINHA_LABEL[linhaDaEntidade(g.entidade)])}, cambonam: ${viram.map((p) => esc(p.nome)).join(', ')}.</p>`
-    : '';
-}
-
-// Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
-// Antes, o total de presentes (quem está na gira), separado pelo que cada um faz no dia:
-// médium, cambone (inclui quem "não atende" e extra/passe fora da linha), passe, extra, senha e suporte.
-// Totais por função e situação da presença na gira encerrada.
-function contagemPresentes(ps, g, resumo) {
-  const dia = pessoasDaGira(ps, g);
-  const conta = {
-    'Médium': dia.filter((p) => presente(p, g) && p.funcao === 'medium').length,
-    'Cambone': dia.filter((p) => cambonaHoje(p, g)).length,
-    'Passe': dia.filter((p) => presente(p, g) && p.funcao === 'passe').length,
-    'Extra': dia.filter((p) => presente(p, g) && p.funcao === 'extra').length,
-    'Senha': dia.filter((p) => presente(p, g) && p.funcao === 'senha').length,
-    'Suporte': dia.filter((p) => status(p, g) === 'sup').length,
-  };
-  const fn = { 'Médium': 'medium', Cambone: 'cambone', Passe: 'passe', Extra: 'extra', Senha: 'senha', Suporte: 'suporte' };
-  const qtd = { presente: resumo.presentes.length, falta: resumo.faltas.length, ausencia: resumo.ausentes.length, licenca: resumo.licenca.length };
-  const base = Object.values(qtd).reduce((s, n) => s + n, 0);
-  const situacoes = [
-    ['presente', 'Presentes', 'ok'],
-    ['falta', 'Faltas', 'off'],
-    ['ausencia', 'Ausências', 'warn'],
-    ['licenca', 'Licença', 'muted'],
-  ];
-  return `<div class="enc-totais">
-    <div class="enc-func-totais" aria-label="Pessoas por função">${Object.entries(conta).map(([t, n]) => `<span class="fn-${fn[t]}"><span class="muted">${t}</span><b>${n}</b></span>`).join('')}</div>
-    <div class="enc-situacoes" aria-label="Percentuais de presença e situação">${situacoes.map(([k, t, cor]) => `<div class="enc-situacao ${cor}"><b>${base ? Math.round(qtd[k] / base * 100) : 0}%</b><span>${t}</span><small>${qtd[k]} de ${base}</small></div>`).join('')}</div>
-  </div>`;
 }
 
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
@@ -265,32 +150,6 @@ function proximaQuarta() {
   d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-
-// "Médiuns e cambones" começa minimizado; abre enquanto o app estiver aberto.
-const duplasAbertas = new Set();
-// Quem não edita a gira vê "Ver escala"; o admin, "Ver mais".
-const botaoDobrar = (aberto) => `<button class="btn link small ver-mais" data-act="dobrarduplas" aria-expanded="${aberto}">${aberto ? '▾ Minimizar' : pode('giras:editar') ? '▸ Ver mais' : '▸ Ver escala'}</button>`;
-// Depois do sorteio: Remanejar faltas e Ajuste manual, lado a lado, do mesmo tamanho (amarelos).
-// Remanejar pede confirmação antes.
-function acoesSorteio(g, remanejarOk, manualOk, manual, refazerOk = false) {
-  const bts = [];
-  if (remanejarOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="rem:${g.data}"><span aria-hidden="true">🔄</span> Remanejar faltas</button>`);
-  if (manualOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="manual" aria-pressed="${manual}"><span aria-hidden="true">✋</span> ${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>`);
-  // Refazer sorteio: apaga as duplas (também as fixadas) e volta ao Sortear, depois de confirmar.
-  if (refazerOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="csort:${g.data}"><span aria-hidden="true">↻</span> Refazer sorteio</button>`);
-  if (!bts.length) return '';
-  const conf = estado.confirm === 'rem:' + g.data
-    ? `<div class="infobox rem-conf"><span><b>Remanejar faltas?</b> Refaz só as duplas de quem faltou ou mudou de status; as outras ficam como estão.</span>
-        <span class="row" style="gap:6px"><button class="btn small primary" data-act="remanejar">Confirmar</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>` : '';
-  return `<div class="sort-acoes n${bts.length}">${bts.join('')}</div>${conf}`;
-}
-// Título do bloco do sorteio: para quem não edita, depois de publicado, "Sorteio realizado!";
-// para o admin, "Sorteio de escala" com o ícone de bingo depois de sorteado.
-const tituloSorteio = (sorteado) => (sorteado && !pode('giras:editar') ? '<h2 class="sorteio-ok">🚀 Sorteio realizado! ❤️</h2>'
-  : `<h2>Sorteio de escala${sorteado ? ' <span aria-hidden="true">🎱</span>' : ''}</h2>`);
-// Confirmação dentro do bloco do sorteio (antes de sortear e antes de cancelar o sorteio).
-const confirmaSorteio = (texto, act, botao) => `<div class="infobox rem-conf"><span>${texto}</span>
-  <span class="row" style="gap:6px"><button class="btn small primary" data-act="${act}">${botao}</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`;
 
 // Quem está logado tem o bloco "Você nesta gira" (lá vai o aviso de pendente).
 const temBlocoEu = () => !!(estado.me?.pessoaId && estado.pessoas.some((x) => x.id === estado.me.pessoaId));
@@ -942,6 +801,7 @@ export const cliques = {
       .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Tente pelo texto.'); });
   },
   wafmt(el) { prefs.fmt = el.dataset.v; salvarPrefs(); atualizarJanela(); },
+  status(el) { gravarPresenca(el.dataset.id, el.value); },
   copiar() {
     const txt = textoWhats(estado.pessoas, giraAtual(), prefs.fmt, girasLista());
     // Sem acesso à área de transferência: copia por uma caixa de texto escondida.

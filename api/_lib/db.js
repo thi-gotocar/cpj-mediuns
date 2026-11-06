@@ -86,4 +86,19 @@ export const db = {
     const valor = r?.rows?.[0]?.[0];
     return valor == null ? null : JSON.parse(valor);
   },
+  // Executa vários RPCs em uma transação: [{ funcao: 'nome', p: {...} }, ...]
+  // Devolve o resultado do ÚLTIMO RPC.
+  async tx(chamadas) {
+    await garantirEsquema();
+    const queries = chamadas.map(({ funcao, p = {} }) => {
+      if (!/^[a-z_]+$/.test(funcao)) throw new Error('Função inválida: ' + funcao);
+      return { query: `select ${funcao}($1::jsonb)`, params: [JSON.stringify(p)] };
+    });
+    const r = await enviar({ queries }, { 'Neon-Batch-Isolation-Level': 'Serializable' });
+    // Retorna o resultado do último select (última chamada RPC).
+    const ultimos = r?.rows?.slice(-1)?.[0];
+    if (!ultimos) return null;
+    const valor = ultimos[0];
+    return valor == null ? null : JSON.parse(valor);
+  },
 };

@@ -24,7 +24,7 @@ Tudo isso para caber no plano gratuito (Vercel Hobby + Neon) e não ter dependê
 
 | Pasta | Papel |
 |---|---|
-| `frontend/js/telas/` | Uma tela por aba (ver padrão em [como-trabalhamos.md](como-trabalhamos.md)); a aba Gira é dividida em `gira.js` (card da gira e ações) e `gira*.js` (topo, "Você nesta gira", Sugestão e peças comuns) |
+| `frontend/js/telas/` | Uma tela por aba (ver padrão em [como-trabalhamos.md](como-trabalhamos.md)); a aba Gira separa composição e ações em `gira.js`, blocos informativos em `giraInformacoes.js` e outras peças em `gira*.js` (topo, "Você nesta gira", Sugestão e componentes comuns) |
 | `frontend/js/` | `main.js` (boot, abas, roteamento de eventos), `estado.js` (estado + chamadas à API), exportação para WhatsApp (texto e PNG) |
 | `api/` | Endpoints; `api/_lib/` tem banco, sessão/permissão, senhas, HTTP, `escala.js` (esconde escala não publicada) e a lógica que sai dos arquivos de rota grandes (`videos.js`, `oracoes.js`, `fotos.js`, usados por `api/giras`) |
 | `db/esquema.js` | `VERSAO` + lista `MIGRACOES`: todas as tabelas e funções SQL |
