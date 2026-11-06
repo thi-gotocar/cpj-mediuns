@@ -83,7 +83,7 @@ export const pode = (perm) => {
 };
 export const pessoasOrd = () => ordenarPessoas(estado.pessoas);
 export const nome = (id) => estado.pessoas.find((p) => p.id === id)?.nome || '(removido)';
-export const girasLista = () => Object.values(estado.giras);
+export const girasLista = () => Object.values(estado.giras).filter(g => g != null);
 export const giraAtual = () => estado.giras[prefs.data] || giraVazia(prefs.data);
 
 function definirGiras(lista) {
@@ -280,7 +280,13 @@ async function situacaoDaGira(acao, extra = {}) {
   estado.salvando++;
   try {
     const r = await api('POST', '/giras/' + data, { acao, ...extra });
-    estado.giras[data] = r.gira;
+    // Se o backend retorna null, isso é um erro — não armazenar null para não corromper o estado.
+    // Isso mantém a gira anterior ou deixa o estado vazio.
+    if (r.gira) {
+      estado.giras[data] = r.gira;
+    } else {
+      delete estado.giras[data];
+    }
     estado.manual = null;
     toast(r.mensagem);
   } catch (e) {
