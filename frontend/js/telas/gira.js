@@ -332,8 +332,9 @@ function janelaOracoes() {
 // Pedido de oração: até 3 linhas.
 
 export function render() {
-  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardSemana({ ocultarAvisos: true })}${cardAulaCurimba()}</section>`;
-  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardOracoes());
+  if (prefs.tab === 'agenda') return `<section class="panel">${cardSemana({ ocultarAvisos: visaoAtiva() === 'curimba' })}</section>`;
+  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}</section>`;
+  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardOracoes());
 }
 
 function renderGira() {
@@ -731,7 +732,7 @@ export const cliques = {
   // Gira nova já vem com a próxima turma da limpeza (depois da última gira encerrada, pulando turmas vazias).
   criargira() {
     const d = giraAtual().data;
-    abertos.clear(); duplasAbertas.delete(d);
+    abertos.clear(); abertos.add('oracoes'); duplasAbertas.delete(d);
     const t = proximaTurma(estado.pessoas, girasLista(), d);
     // Quem tinha ausência antecipada nesta data já entra Ausente (o servidor faz o mesmo e apaga as antecipadas).
     const aus = (estado.ausPrevias || []).filter((x) => x.data === d).map((x) => x.pessoaId);

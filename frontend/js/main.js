@@ -25,7 +25,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
+const TELAS = { gira, agenda: gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -74,16 +74,17 @@ function render() {
   const visao = visaoAtiva();
   // Abas que o perfil pode ver.
   let VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
-    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true };
-  if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: true, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: false };
-  if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true };
+    pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true, agenda: true };
+  if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: true, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: false, agenda: false };
+  if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: true };
   if (!VE[prefs.tab]) prefs.tab = visao === 'alunos' ? 'pessoas' : 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
-  tabs.querySelector('[data-tab="gira"]').textContent = visao === 'curimba' ? 'Geral' : 'Gira';
+  tabs.querySelector('[data-tab="gira"]').textContent = 'Geral';
+  tabs.querySelector('[data-tab="agenda"]').textContent = 'Gira';
   // Perfil: logo depois de Gira; para quem é admin, depois de Pessoas.
   const btPerfil = tabs.querySelector('[data-tab="perfil"]');
-  const antes = tabs.querySelector(pode('pessoas:editar') ? '[data-tab="pessoas"]' : '[data-tab="gira"]');
+  const antes = tabs.querySelector(pode('pessoas:editar') ? '[data-tab="pessoas"]' : '[data-tab="agenda"]');
   if (VE.perfil && antes.nextElementSibling !== btPerfil) antes.after(btPerfil);
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();

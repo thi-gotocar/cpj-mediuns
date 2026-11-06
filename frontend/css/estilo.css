@@ -1184,6 +1184,11 @@ button.eu-av{cursor:zoom-in}
 
 /* Aba Gira: Orações */
 .or-card{border-top-color:#a78bfa}
+.or-cab{display:flex;align-items:center;gap:8px}
+.or-dobra{flex:1 1 auto;min-width:0;flex-wrap:nowrap}
+.or-dobra h2{flex:1 1 auto;min-width:0;margin:0}
+.or-dobra .count{flex:none}
+.or-lista{max-height:none;overflow:visible}
 .or-l{align-items:flex-start}
 .or-txt{white-space:pre-line;font-weight:500;align-self:center}
 .or-dir{flex:none;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin-left:auto}

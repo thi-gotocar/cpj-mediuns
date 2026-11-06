@@ -13,7 +13,7 @@ export function htmlStatus(g, sel, s, antesDoDia) {
 }
 
 // A Presença também começa minimizada (abre enquanto o app estiver aberto).
-export const abertos = new Set();
+export const abertos = new Set(['oracoes']);
 export const cabDobra = (k, titulo, extra = '') => {
   const ab = abertos.has(k);
   return `<button class="grp-h dobra" data-act="dobrarcard" data-k="${k}" aria-expanded="${ab}"><h2>${titulo}</h2><span class="count">${extra} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
