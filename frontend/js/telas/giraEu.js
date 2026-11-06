@@ -25,6 +25,7 @@ export function blocoEu(g) {
   if (!naCorrenteEm(p, g.data)) return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span><span class="eu-h-info"><span class="eu-gira">${dDM(g.data)}</span></span></div>
     ${identidade()}<p class="eu-nota muted">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}. Esta gira ainda não conta para você.</p></div>`;
   const curimba = ehCurimba(p);
+  const rootVinculado = estado.me?.papel === 'root' && p.id === estado.me.pessoaId;
   const st = curimba ? 'p' : status(p, g);
   const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
   const pares = g.evento ? [] : g.pares || [], passes = g.evento ? [] : g.passes || [];
@@ -83,8 +84,8 @@ export function blocoEu(g) {
   if (!g.evento && !sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push(caixaPendente(g));
   const pr = presencaDe(p, g);
   // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
-  if (sorteado) { /* nada */ } else if (!curimba && estado.me?.corrente) {
-    // Acesso da corrente (cpj): o combo mostra sempre o status da lista de presença.
+  if (sorteado) { /* nada */ } else if (!curimba && (estado.me?.corrente || rootVinculado)) {
+    // O próprio usuário vê o controle de participação da corrente; para root, grava pela ação administrativa.
     // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica bloqueado.
     const gs = estado.giras[g.data];
     const declara = podeDeclararAusencia(p, gs, hoje());
@@ -92,9 +93,10 @@ export function blocoEu(g) {
     const motivo = declara ? '' : pr === 'pend' && !statusMarcado(p, gs) && gs && hoje() >= g.data
       ? 'No dia da gira, só a Michelle altera.'
       : gs?.encerrada ? 'Gira encerrada.' : 'Status definido na lista de presença.';
+    const act = rootVinculado ? `data-act="status" data-id="${p.id}"` : 'data-act="ausencia"';
     L.push(`<div class="eu-aus-box">${declara ? '<p class="eu-aus-aviso">Não poderá comparecer? Informe a ausência até a véspera.</p>' : ''}
       <label class="eu-aus"><span class="muted">Sua participação:</span>
-        <select id="eu-aus" class="st-${pr}" data-act="ausencia" aria-label="Sua participação nesta gira" ${declara ? '' : 'disabled'}>${opts.map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <select id="eu-aus" class="st-${pr}" ${act} aria-label="Sua participação nesta gira" ${declara ? '' : 'disabled'}>${opts.map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
         ${declara ? '' : `<span class="muted eu-trava">🔒 ${motivo}</span>`}</label></div>`);
   } else if (!curimba && pode('giras:editar') && estado.giras[g.data] && !g.encerrada && st !== 'lic') {
     // Admin ligado a uma pessoa: muda o próprio status aqui, com as mesmas opções da lista de presença.

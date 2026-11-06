@@ -494,6 +494,12 @@ export const cliques = {
   },
   pfdobra(el) {
     const k = el.dataset.k;
+    if (k === 'anamnese-adm') {
+      U().abertos[k] = el.getAttribute('aria-expanded') !== 'true';
+      U().anamneseGrupo = null;
+      avisar();
+      return;
+    }
     if (k === 'respostas') {
       U().abertos[k] = true;
       U().respostaGrupo = null;
