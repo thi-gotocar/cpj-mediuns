@@ -22,9 +22,9 @@ const ATEND = [['normal', 'Atendimento'], ['passe', 'Passe'], ['preferencial', '
 const camposAtend = (g) => `<div class="atend-campos">${ATEND.map(([k, t]) => `<label class="field">${t}<input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" data-act="atend" data-k="${k}" value="${Number(g.atendimentos?.[k]) || 0}"></label>`).join('')}</div>`;
 const numerosAtend = (a) => `<div class="atend-nums">${ATEND.map(([k, t]) => `<div class="at-${k}"><b>${Number(a?.[k]) || 0}</b><span>${t}</span></div>`).join('')}</div>`;
 const campoParticipantes = (g) => `<div class="ev-participantes-bloco">
-  <div class="ev-participantes-cab"><span class="ev-participantes-icone" aria-hidden="true">👥</span><div><h3>Participantes do evento</h3><p>Informe o total, incluindo convidados. Você pode preencher antes de encerrar.</p></div></div>
-  <label class="field ev-participantes-campo">Total de participantes<input class="ev-participantes-input" type="number" inputmode="numeric" min="0" max="100000" step="1" id="ev-participantes" data-act="participantes" aria-label="Total de participantes do evento" value="${Number(g.participantes) || 0}"></label>
-  <span class="ev-participantes-dica">Salvo automaticamente ao sair do campo.</span>
+  <span class="ev-participantes-titulo">Total de participantes</span>
+  <input class="ev-participantes-input" type="number" inputmode="numeric" min="0" max="100000" step="1" id="ev-participantes" data-act="participantes" aria-label="Total de participantes do evento" value="${Number(g.participantes) || 0}">
+  <span class="ev-participantes-salvo">✓ Salvo automaticamente</span>
 </div>`;
 const numeroParticipantes = (g) => `<div class="atend-nums participantes"><div class="at-participantes"><b>${Number(g.participantes) || 0}</b><span>Total de participantes</span></div></div>`;
 // Campo bloqueado do Evento fechado: igual aos combos da gira aberta, mas só informa.
