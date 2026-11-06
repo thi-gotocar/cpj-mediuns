@@ -320,6 +320,7 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoGrupo(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
+  if (e.target.id === 'info-pessoa-busca') perfil.buscarInfo(e.target);
   if (e.target.id === 'vid-busca') videos.buscar(e.target);
   // Pedido de oração: até 3 linhas (não deixa passar da 3ª) e guardado para um redesenho não apagar.
   if (e.target.id === 'or-texto') {

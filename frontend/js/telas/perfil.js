@@ -105,14 +105,22 @@ async function reduzirFoto(arquivo) {
 // Informações de outra pessoa (admin): altera e grava ao tocar em Salvar.
 function formInfoAdmin(x) {
   const I = x.perfil.info || {};
+  const infoMais = !!estado.pfUi.infoMais;
   const c = (k, rot, attrs, v) => `<label class="field">${rot}<input name="${k}" ${attrs} value="${esc(v || '')}"></label>`;
   return `<form id="f-ajinfo" class="aj-info" autocomplete="off" data-id="${x.pessoaId}">
-    <div class="aj-foto">${blocoFoto(x.pessoaId, x.nome)}</div>
-    ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
-    ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
-    ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.celular))}
-    ${c('contatoNome', 'Nome para contato', 'type="text" maxlength="80"', I.contatoNome)}
-    ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.contatoTelefone))}
+    <div class="aj-info-principais">
+      ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
+      ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.contatoTelefone))}
+    </div>
+    <button class="btn link small pf-mais aj-info-toggle" type="button" data-act="infomais" aria-expanded="${infoMais}" aria-controls="info-mais-${x.pessoaId}">${infoMais ? '− Ver menos informações' : '＋ Ver mais informações'}</button>
+    <div class="aj-info-mais" id="info-mais-${x.pessoaId}" ${infoMais ? '' : 'hidden'}>
+      <div class="aj-info">
+        ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
+        ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.celular))}
+        ${c('contatoNome', 'Nome para contato', 'type="text" maxlength="80"', I.contatoNome)}
+      </div>
+      <div class="aj-foto">${blocoFoto(x.pessoaId, x.nome)}</div>
+    </div>
     <div class="aj-bts"><button class="btn primary" type="submit">Salvar</button></div></form>`;
 }
 
@@ -120,10 +128,20 @@ function formInfoAdmin(x) {
 function cardInfoAdmin(todos) {
   const sel = estado.infoPessoa || '';
   const x = todos.find((t) => t.pessoaId === sel);
-  return card('info-corrente', 'Informações da corrente', '', false, () => `<label class="field">Pessoa<select data-act="infopessoa" aria-label="De quem são as informações">
-      <option value="">— escolha a pessoa —</option>
-      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === sel ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
-    ${x ? formInfoAdmin(x) : '<p class="muted" style="margin:0;font-size:.88rem">Escolha a pessoa para ver e alterar as informações.</p>'}`, true, true);
+  const busca = normalizarBusca(estado.pfUi.infoBusca || '');
+  const pessoas = todos.filter((t) => t.pessoaId === sel || normalizarBusca(t.nome).includes(busca));
+  return card('info-corrente', '<span aria-hidden="true">👤</span> Informações da corrente', '', false, () => `<div class="pf-info-escolha">
+      <label class="field">Pessoa<select id="info-pessoa" data-act="infopessoa" aria-label="De quem são as informações">
+        <option value="">— escolha a pessoa —</option>
+        ${pessoas.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === sel ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
+      <button class="btn pf-info-busca-bt" type="button" data-act="infobusca" aria-label="Buscar pessoa" title="Buscar pessoa">🔍</button>
+    </div>
+    <label class="pf-info-busca" id="info-busca" ${estado.pfUi.infoBuscaVisivel ? '' : 'hidden'}><span aria-hidden="true">🔍</span><input type="search" id="info-pessoa-busca" placeholder="Buscar pelo nome" aria-label="Buscar pessoa" value="${esc(estado.pfUi.infoBusca || '')}"></label>
+    ${x ? formInfoAdmin(x) : '<p class="muted" style="margin:0;font-size:.88rem">Escolha a pessoa para ver as informações.</p>'}`, false, true);
+}
+
+function normalizarBusca(texto) {
+  return String(texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
 }
 
 // Bloco Informações (o próprio perfil; salva enquanto digita): "Seus dados" e, numa caixinha, "Pessoa para contato".
@@ -328,8 +346,8 @@ function cardRespostas(todos) {
   const sim = todos.filter((x) => respondeu(x.perfil));
   const nao = todos.filter((x) => !respondeu(x.perfil));
   const pct = todos.length ? Math.round((sim.length / todos.length) * 100) : 0;
-  return card('respostas', 'Respostas', `${sim.length} de ${todos.length}`, false, () => `
-    <div class="pf-resp"><b>${pct}%</b><span>${sim.length} ${sim.length === 1 ? 'pessoa respondeu' : 'pessoas responderam'} · ${nao.length} ${nao.length === 1 ? 'falta' : 'faltam'}</span></div>
+  return card('respostas', `<span aria-hidden="true">📝</span> Respostas <span class="pf-cab-pct">${pct}%</span>`, `${sim.length} de ${todos.length}`, false, () => `
+    <div class="pf-resp"><span>${sim.length} ${sim.length === 1 ? 'pessoa respondeu' : 'pessoas responderam'} · ${nao.length} ${nao.length === 1 ? 'falta' : 'faltam'}</span></div>
     <div class="pf-barra" role="img" aria-label="${pct}% responderam"><span style="width:${pct}%"></span></div>
     ${nao.length ? `<button class="btn link small pf-mais" data-act="pffaltam">${U().faltam ? '− Esconder' : `＋ Ver quem ainda não respondeu (${nao.length})`}</button>
       ${U().faltam ? `<ul class="pf-lista">${nao.map((x) => `<li>${esc(x.nome)}</li>`).join('')}</ul>` : ''}` : '<p class="muted" style="margin:6px 0 0">Todo mundo já respondeu. 🙌</p>'}`, true, true);
@@ -363,7 +381,7 @@ function cardOferendas(todos) {
     .filter(([, pessoas]) => pessoas.length);
   const total = pendentes.length;
   const listaAberta = !!U().oferendas;
-  return card('corrente-oferendas', 'Oferendas pendentes', total, false, () => `
+  return card('corrente-oferendas', '<span aria-hidden="true">🪔</span> Oferendas pendentes', total, false, () => `
     <div class="pf-of-totais" aria-label="Pessoas com oferendas pendentes por função">
       ${porFuncao.map(([funcao, pessoas]) => `<span class="pf-of-total fn-${funcao}"><b>${pessoas.length}</b><span>${tituloCurto[funcao]}</span></span>`).join('')}
     </div>
@@ -374,7 +392,7 @@ function cardOferendas(todos) {
       ${l.length ? `<ul class="pf-lista">${l.map((x) => `<li><b>${esc(x.nome)}</b> <span class="muted">— ${x.falta.map(esc).join(', ')}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:2px 0 0">Ninguém pendente.</p>'}
     </div>`).join('')}
       </div>` : ''}` : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}
-    <p class="muted" style="margin:8px 0 0;font-size:.82rem">Agrupado pela função do cadastro em Pessoas; só de quem já respondeu o perfil.</p>` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'}`, false, true);
+    ` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'}`, false, true);
 }
 
 export function render() {
@@ -486,6 +504,15 @@ export async function salvarOrdemAnamnese(ids) {
   if (await acaoAnamnese('reordenar', { ids })) toast('Ordem das perguntas atualizada.');
 }
 
+export function buscarInfo(el) {
+  U().infoBusca = el.value;
+  const select = document.getElementById('info-pessoa');
+  const busca = normalizarBusca(el.value);
+  for (const option of select.options) {
+    if (option.value && option.value !== select.value) option.hidden = busca && !normalizarBusca(option.textContent).includes(busca);
+  }
+}
+
 // Informações da corrente: o admin salva os dados da pessoa escolhida.
 export async function enviarInfo(form) {
   const f = form.elements;
@@ -559,7 +586,32 @@ export const mudancas = {
     if (!bloco) return;
     salvarAfinidade(bloco.tipo, t.checked ? [...LINHA_KEYS].sort() : []);
   },
-  infopessoa(t) { estado.infoPessoa = t.value; avisar(); },
+  infopessoa(t) {
+    estado.infoPessoa = t.value;
+    U().infoMais = false;
+    U().infoBusca = '';
+    U().infoBuscaVisivel = false;
+    avisar();
+  },
+  infobusca() {
+    const busca = document.getElementById('info-pessoa-busca');
+    const caixa = document.getElementById('info-busca');
+    U().infoBuscaVisivel = !U().infoBuscaVisivel;
+    if (!U().infoBuscaVisivel) {
+      U().infoBusca = '';
+      busca.value = '';
+      buscarInfo(busca);
+    }
+    caixa.hidden = !U().infoBuscaVisivel;
+    if (U().infoBuscaVisivel) busca.focus();
+  },
+  infomais(el) {
+    const detalhes = document.getElementById(el.getAttribute('aria-controls'));
+    U().infoMais = detalhes.hidden;
+    detalhes.hidden = !U().infoMais;
+    el.setAttribute('aria-expanded', String(U().infoMais));
+    el.textContent = U().infoMais ? '− Ver menos informações' : '＋ Ver mais informações';
+  },
   pfsel(el) {
     const { g, k } = el.dataset;
     const campo = g === 'orixas' ? 'nome' : 'linha';
