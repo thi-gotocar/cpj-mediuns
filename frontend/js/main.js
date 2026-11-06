@@ -424,8 +424,6 @@ main.addEventListener('submit', async (e) => {
     await usuarios.criarPerfil();
   } else if (id === 'f-perfilnome') {
     await usuarios.renomearPerfil(e.target);
-  } else if (id === 'f-ajinfo') {
-    await perfil.enviarInfo(e.target);
   } else if (id === 'f-sn') {
     await usuarios.confirmarSenha(e.target);
   } else if (id === 'f-user') {

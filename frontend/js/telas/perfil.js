@@ -4,7 +4,7 @@
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual,
   ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_TIPO_LABEL, anamnesePreenchida, respostasPorPessoa, textoAnamnese, valorAnamnese } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarAfinidade, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
 import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
@@ -102,26 +102,23 @@ async function reduzirFoto(arquivo) {
 }
 
 // Primeiro bloco: informações da pessoa (salva ao sair de cada campo).
-// Informações de outra pessoa (admin): altera e grava ao tocar em Salvar.
-function formInfoAdmin(x) {
+// Informações de contato de outra pessoa (admin): consulta rápida para ligação.
+function infoContatoAdmin(x) {
   const I = x.perfil.info || {};
-  const infoMais = !!estado.pfUi.infoMais;
-  const c = (k, rot, attrs, v) => `<label class="field">${rot}<input name="${k}" ${attrs} value="${esc(v || '')}"></label>`;
-  return `<form id="f-ajinfo" class="aj-info" autocomplete="off" data-id="${x.pessoaId}">
-    <div class="aj-info-principais">
-      ${c('nome', 'Nome', `type="text" maxlength="80" placeholder="${esc(x.nome)}"`, I.nome)}
-      ${c('contatoTelefone', 'Telefone para contato', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.contatoTelefone))}
+  const F = estado.fotosPessoa;
+  if (F[x.pessoaId] === undefined) carregarFoto(x.pessoaId);
+  const url = F[x.pessoaId];
+  const nomeContato = I.contatoNome || '';
+  const numeroContato = soNumeros(I.contatoTelefone || '');
+  const telefone = telefoneBR(I.contatoTelefone);
+  return `<div class="aj-contato">
+    <div class="pf-foto-img">${url ? `<img src="${url}" alt="Foto de ${esc(x.nome)}">` : `<span aria-hidden="true">${esc(iniciais(x.nome))}</span>`}</div>
+    <div class="aj-contato-dados">
+      <h3>${esc(x.nome)}</h3>
+      <div><span class="muted">Nome para contato</span><strong>${esc(nomeContato || 'Não informado')}</strong></div>
+      <div><span class="muted">Telefone para contato</span>${numeroContato ? `<a href="tel:${numeroContato}">${esc(telefone)}</a>` : '<strong>Não informado</strong>'}</div>
     </div>
-    <button class="btn link small pf-mais aj-info-toggle" type="button" data-act="infomais" aria-expanded="${infoMais}" aria-controls="info-mais-${x.pessoaId}">${infoMais ? '− Ver menos informações' : '＋ Ver mais informações'}</button>
-    <div class="aj-info-mais" id="info-mais-${x.pessoaId}" ${infoMais ? '' : 'hidden'}>
-      <div class="aj-info">
-        ${c('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990"', nascimentoBR(I.nascimento))}
-        ${c('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="preencher"', telefoneBR(I.celular))}
-        ${c('contatoNome', 'Nome para contato', 'type="text" maxlength="80"', I.contatoNome)}
-      </div>
-      <div class="aj-foto">${blocoFoto(x.pessoaId, x.nome)}</div>
-    </div>
-    <div class="aj-bts"><button class="btn primary" type="submit">Salvar</button></div></form>`;
+  </div>`;
 }
 
 // Admin: informações de qualquer pessoa da corrente (escolhe no combo, altera e toca em Salvar).
@@ -137,7 +134,7 @@ function cardInfoAdmin(todos) {
       <button class="btn pf-info-busca-bt" type="button" data-act="infobusca" aria-label="Buscar pessoa" title="Buscar pessoa">🔍</button>
     </div>
     <label class="pf-info-busca" id="info-busca" ${estado.pfUi.infoBuscaVisivel ? '' : 'hidden'}><span aria-hidden="true">🔍</span><input type="search" id="info-pessoa-busca" placeholder="Buscar pelo nome" aria-label="Buscar pessoa" value="${esc(estado.pfUi.infoBusca || '')}"></label>
-    ${x ? formInfoAdmin(x) : '<p class="muted" style="margin:0;font-size:.88rem">Escolha a pessoa para ver as informações.</p>'}`, false, true);
+    ${x ? infoContatoAdmin(x) : '<p class="muted" style="margin:0;font-size:.88rem">Pesquise e escolha uma pessoa para ver os dados de contato.</p>'}`, false, true);
 }
 
 function normalizarBusca(texto) {
@@ -377,22 +374,16 @@ function cardOferendas(todos) {
   const titulo = { medium: 'Médiuns', extra: 'Médiuns At. Extra', passe: 'Médiuns de Passe', cambone: 'Cambones', senha: 'Senhas' };
   const tituloCurto = { medium: 'Médiuns', extra: 'At. Extra', passe: 'Passe', cambone: 'Cambones', senha: 'Senhas' };
   const porFuncao = ordem.map((funcao) => [funcao, pendentes.filter((x) => x.funcao === funcao)]);
-  const grupos = porFuncao.map(([funcao, pessoas]) => [titulo[funcao], pessoas])
-    .filter(([, pessoas]) => pessoas.length);
   const total = pendentes.length;
-  const listaAberta = !!U().oferendas;
-  return card('corrente-oferendas', '<span aria-hidden="true">🪔</span> Oferendas pendentes', total, false, () => `
+  const funcaoAberta = U().oferendaFuncao;
+  const grupoAberto = porFuncao.find(([funcao]) => funcao === funcaoAberta);
+  return card('corrente-oferendas', '<span aria-hidden="true">🪔</span> Oferendas pendentes', total, true, () => `
     <div class="pf-of-totais" aria-label="Pessoas com oferendas pendentes por função">
-      ${porFuncao.map(([funcao, pessoas]) => `<span class="pf-of-total fn-${funcao}"><b>${pessoas.length}</b><span>${tituloCurto[funcao]}</span></span>`).join('')}
+      ${porFuncao.map(([funcao, pessoas]) => `<button class="pf-of-total fn-${funcao}${funcao === funcaoAberta ? ' selecionado' : ''}" type="button" data-act="pfofertas" data-funcao="${funcao}" aria-expanded="${funcao === funcaoAberta}" aria-label="${tituloCurto[funcao]}: ${pessoas.length} pessoas com oferendas pendentes"${pessoas.length ? '' : ' disabled'}><b>${pessoas.length}</b><span>${tituloCurto[funcao]}</span></button>`).join('')}
     </div>
-    ${resp.length ? `
-    ${total ? `<button class="btn link small pf-mais" data-act="pfofertas" aria-expanded="${listaAberta}" aria-controls="pf-of-lista">${listaAberta ? '− Ver menos' : `＋ Ver mais (${total})`}</button>
-      ${listaAberta ? `<div id="pf-of-lista">
-    ${grupos.map(([t, l]) => `<div class="pf-grupo"><div class="pf-gt">${t} <span class="count">${l.length}</span></div>
-      ${l.length ? `<ul class="pf-lista">${l.map((x) => `<li><b>${esc(x.nome)}</b> <span class="muted">— ${x.falta.map(esc).join(', ')}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:2px 0 0">Ninguém pendente.</p>'}
-    </div>`).join('')}
-      </div>` : ''}` : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}
-    ` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'}`, false, true);
+    ${grupoAberto ? `<div class="pf-grupo" id="pf-of-lista"><div class="pf-gt">${titulo[grupoAberto[0]]} <span class="count">${grupoAberto[1].length}</span></div>
+      <ul class="pf-lista">${grupoAberto[1].map((x) => `<li><b>${esc(x.nome)}</b> <span class="muted">— ${x.falta.map(esc).join(', ')}</span></li>`).join('')}</ul>
+    </div>` : total ? '' : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}`, true, true);
 }
 
 export function render() {
@@ -406,7 +397,7 @@ export function render() {
     // Respostas e oferendas pendentes contam só quem cadastra orixás e guias (a curimba fica fora).
     const comOrixas = todos.filter((x) => cadastraEspiritual(x.funcao));
     h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
-      ${cardInfoAdmin(todos)}${cardRespostas(comOrixas)}${cardOferendas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
+      ${cardInfoAdmin(todos)}${cardOferendas(comOrixas)}${cardRespostas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
   }
   if (eu) h += meusCards(eu) + cardAnamnese();
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
@@ -493,11 +484,20 @@ export const cliques = {
   },
   pfdobra(el) {
     const k = el.dataset.k;
+    if (k === 'corrente-oferendas') {
+      U().abertos[k] = true;
+      U().oferendaFuncao = null;
+      avisar();
+      return;
+    }
     U().abertos[k] = el.getAttribute('aria-expanded') !== 'true';
     avisar();
   },
   pffaltam() { U().faltam = !U().faltam; avisar(); },
-  pfofertas() { U().oferendas = !U().oferendas; avisar(); },
+  pfofertas(el) {
+    U().oferendaFuncao = U().oferendaFuncao === el.dataset.funcao ? null : el.dataset.funcao;
+    avisar();
+  },
 };
 
 export async function salvarOrdemAnamnese(ids) {
@@ -511,26 +511,6 @@ export function buscarInfo(el) {
   for (const option of select.options) {
     if (option.value && option.value !== select.value) option.hidden = busca && !normalizarBusca(option.textContent).includes(busca);
   }
-}
-
-// Informações da corrente: o admin salva os dados da pessoa escolhida.
-export async function enviarInfo(form) {
-  const f = form.elements;
-  const nasc = f.nascimento.value.trim();
-  const iso = nasc ? lerNascimento(nasc) : '';
-  if (nasc && !iso) { toast('Data de nascimento inválida. Use dia/mês/ano, por exemplo 31/10/1990.'); return; }
-  const tel = (campo, rot) => {
-    const d = soNumeros(f[campo].value);
-    if (d && d.length < 10) { toast(`${rot} incompleto: coloque o DDD e o número.`); return null; }
-    return d;
-  };
-  const celular = tel('celular', 'Celular');
-  if (celular === null) return;
-  const contatoTelefone = tel('contatoTelefone', 'Telefone para contato');
-  if (contatoTelefone === null) return;
-  const limpo = (v) => v.replace(/\s+/g, ' ').trim();
-  const info = { nome: limpo(f.nome.value), nascimento: iso, celular, contatoNome: limpo(f.contatoNome.value), contatoTelefone };
-  if (await salvarInfoDe(form.dataset.id, info)) toast('Informações salvas.');
 }
 
 // Enquanto digita: guarda e salva sozinho (sem esperar sair do campo), se o valor já estiver completo.
@@ -588,7 +568,6 @@ export const mudancas = {
   },
   infopessoa(t) {
     estado.infoPessoa = t.value;
-    U().infoMais = false;
     U().infoBusca = '';
     U().infoBuscaVisivel = false;
     avisar();
@@ -604,13 +583,6 @@ export const mudancas = {
     }
     caixa.hidden = !U().infoBuscaVisivel;
     if (U().infoBuscaVisivel) busca.focus();
-  },
-  infomais(el) {
-    const detalhes = document.getElementById(el.getAttribute('aria-controls'));
-    U().infoMais = detalhes.hidden;
-    detalhes.hidden = !U().infoMais;
-    el.setAttribute('aria-expanded', String(U().infoMais));
-    el.textContent = U().infoMais ? '− Ver menos informações' : '＋ Ver mais informações';
   },
   pfsel(el) {
     const { g, k } = el.dataset;

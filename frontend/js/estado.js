@@ -36,7 +36,7 @@ export const estado = {
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
   anamnese: null,      // GET /api/auth/anamnese: { visivel, perguntas, minhas, todas? } (ou { erro })
   fotosPessoa: {},     // aba Perfil: pessoaId → foto (data URL; '' = sem foto; null = buscando)
-  pfUi: { abertos: {}, faltam: false, infoMais: false, infoBuscaVisivel: false, infoBusca: '' },
+  pfUi: { abertos: {}, faltam: false, infoBuscaVisivel: false, infoBusca: '' },
   perfisCfg: null,     // aba Admin root: perfis e as abas de cada um
   senhas: null,        // aba Admin root: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
