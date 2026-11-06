@@ -357,15 +357,21 @@ function cardOferendas(todos) {
   }).filter((x) => x.falta.length);
   const ordem = ['medium', 'extra', 'passe', 'cambone', 'senha'];
   const titulo = { medium: 'Médiuns', extra: 'Médiuns At. Extra', passe: 'Médiuns de Passe', cambone: 'Cambones', senha: 'Senhas' };
-  const grupos = ordem.map((funcao) => [titulo[funcao], pendentes.filter((x) => x.funcao === funcao)])
+  const tituloCurto = { medium: 'Médiuns', extra: 'At. Extra', passe: 'Passe', cambone: 'Cambones', senha: 'Senhas' };
+  const porFuncao = ordem.map((funcao) => [funcao, pendentes.filter((x) => x.funcao === funcao)]);
+  const grupos = porFuncao.map(([funcao, pessoas]) => [titulo[funcao], pessoas])
     .filter(([, pessoas]) => pessoas.length);
   const total = pendentes.length;
-  return card('corrente-oferendas', 'Oferendas pendentes', total, false, () => (resp.length ? `
+  return card('corrente-oferendas', 'Oferendas pendentes', total, false, () => `
+    <div class="pf-of-totais" aria-label="Pessoas com oferendas pendentes por função">
+      ${porFuncao.map(([funcao, pessoas]) => `<span class="pf-of-total fn-${funcao}"><b>${pessoas.length}</b><span>${tituloCurto[funcao]}</span></span>`).join('')}
+    </div>
+    ${resp.length ? `
     ${grupos.map(([t, l]) => `<div class="pf-grupo"><div class="pf-gt">${t} <span class="count">${l.length}</span></div>
       ${l.length ? `<ul class="pf-lista">${l.map((x) => `<li><b>${esc(x.nome)}</b> <span class="muted">— ${x.falta.map(esc).join(', ')}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:2px 0 0">Ninguém pendente.</p>'}
     </div>`).join('')}
     ${grupos.length ? '' : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}
-    <p class="muted" style="margin:8px 0 0;font-size:.82rem">Agrupado pela função do cadastro em Pessoas; só de quem já respondeu o perfil.</p>` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'), true, true);
+    <p class="muted" style="margin:8px 0 0;font-size:.82rem">Agrupado pela função do cadastro em Pessoas; só de quem já respondeu o perfil.</p>` : '<p class="muted" style="margin:0">Ninguém respondeu ainda.</p>'}`, false, true);
 }
 
 export function render() {

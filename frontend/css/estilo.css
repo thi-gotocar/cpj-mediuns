@@ -605,6 +605,15 @@ body.deslogado .rodape{display:none}
 .pf-grupo{padding:8px 0;border-top:1px solid var(--line)}
 .pf-grupo:first-of-type{border-top:0}
 .pf-gt{font-weight:700;display:flex;justify-content:space-between}
+.pf-of-totais{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.pf-of-total{--fn:var(--accent);display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;min-width:0;padding:7px 3px 6px;border:1px solid var(--line);border-top:3px solid var(--fn);border-radius:9px;background:var(--bg);text-align:center}
+.pf-of-total.fn-medium{--fn:var(--gold)}
+.pf-of-total.fn-extra{--fn:var(--orange)}
+.pf-of-total.fn-passe{--fn:var(--accent)}
+.pf-of-total.fn-cambone{--fn:var(--ok)}
+.pf-of-total.fn-senha{--fn:var(--muted)}
+.pf-of-total b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
+.pf-of-total span{font-size:.62rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere;color:var(--muted)}
 .saud-extra:empty{display:none}
 .saud-extra{margin-top:6px}
 /* aba Usuários: perfis e senhas */
