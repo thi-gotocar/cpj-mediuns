@@ -252,7 +252,7 @@ function linhaAluno(a, turmas, editar, podePromover) {
       <label class="al-turma">Turma <select id="al-turma" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label></form>`;
   }
   return `<div class="al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
-    <span class="pp-bts">${podePromover ? `<button class="btn small pp-bt" type="button" data-act="promoverAlunoCPJ" data-id="${a.id}">Promover CPJ</button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
+    <span class="pp-bts">${podePromover ? `<button class="btn small pp-bt al-promover" type="button" data-act="promoverAlunoCPJ" data-id="${a.id}" aria-label="Promover ${esc(a.nome)} para a Corrente CPJ">↑ UP CPJ</button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
 }
 
 function cardAlunos() {
