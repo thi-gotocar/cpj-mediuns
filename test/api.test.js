@@ -97,6 +97,10 @@ test('perfil: cada um vê e salva só o seu; root sem cadastro não tem', async 
   assert.equal(vazio.todos, undefined, 'usuário não vê o dos outros');
   assert.equal(vazio.eu.nome, 'Zé');
   assert.deepEqual(vazio.eu.perfil.orixas.frente, { nome: '', oferenda: false });
+  const contato = vazio.contatos.find((x) => x.nome === 'Zé');
+  assert.deepEqual(Object.keys(contato).sort(), ['contatoNome', 'contatoTelefone', 'nome', 'pessoaId']);
+  assert.equal(contato.contatoNome, vazio.eu.perfil.info.contatoNome);
+  assert.equal(contato.contatoTelefone, vazio.eu.perfil.info.contatoTelefone);
   const salvo = await api('POST', '/api/auth/perfil', USER, { perfil: { orixas: { frente: { nome: 'Oxum', oferenda: true } }, guias: { chefe: { linha: 'exu' } }, outros: { caboclo: 'Sete Flechas', x: 'y' } } });
   assert.equal(salvo.status, 200, JSON.stringify(salvo.json));
   const lido = (await api('GET', '/api/auth/perfil', USER)).json.eu.perfil;

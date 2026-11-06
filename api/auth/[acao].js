@@ -55,10 +55,15 @@ const acoes = {
     const limpo = (r) => ({ ...r, perfil: perfilDaFuncao(r.perfil, r.funcao) });
     if (req.method === 'GET') {
       const r = { eu: eu.pessoaId ? limpo(await db.rpc('perfil_ler', { pessoaId: eu.pessoaId })) : null };
-      // Admin: o perfil de todos, para acompanhar respostas, guias e oferendas.
-      // Todos: só os guias chefe e de frente de cada um (bloco "Guias da corrente").
+      // Admin: perfil completo. Corrente: só contato e guias para consulta.
       const todos = (await db.rpc('perfis_listar')).map(limpo);
       if (pode(eu, 'perfil:corrente')) r.todos = todos;
+      if (pode(eu, 'perfil:ver')) r.contatos = todos.map((x) => ({
+          pessoaId: x.pessoaId,
+          nome: x.nome,
+          contatoNome: x.perfil.info.contatoNome || '',
+          contatoTelefone: x.perfil.info.contatoTelefone || '',
+        }));
       r.guias = todos.filter((x) => x.perfil.guias.chefe.linha || x.perfil.guias.frente.linha)
         .map((x) => ({ pessoaId: x.pessoaId, nome: x.nome, chefe: x.perfil.guias.chefe.linha, frente: x.perfil.guias.frente.linha }));
       return r;

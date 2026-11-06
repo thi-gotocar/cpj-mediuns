@@ -102,15 +102,14 @@ async function reduzirFoto(arquivo) {
 }
 
 // Primeiro bloco: informações da pessoa (salva ao sair de cada campo).
-// Informações de contato de outra pessoa (admin): consulta rápida para ligação.
-function infoContatoAdmin(x) {
-  const I = x.perfil.info || {};
+// Informações de contato da corrente: consulta rápida para ligação.
+function infoContato(x) {
   const F = estado.fotosPessoa;
   if (F[x.pessoaId] === undefined) carregarFoto(x.pessoaId);
   const url = F[x.pessoaId];
-  const nomeContato = I.contatoNome || '';
-  const numeroContato = soNumeros(I.contatoTelefone || '');
-  const telefone = telefoneBR(I.contatoTelefone);
+  const nomeContato = x.contatoNome || '';
+  const numeroContato = soNumeros(x.contatoTelefone || '');
+  const telefone = telefoneBR(x.contatoTelefone);
   return `<div class="aj-contato">
     <div class="pf-foto-img">${url ? `<img src="${url}" alt="Foto de ${esc(x.nome)}">` : `<span aria-hidden="true">${esc(iniciais(x.nome))}</span>`}</div>
     <div class="aj-contato-dados">
@@ -121,12 +120,12 @@ function infoContatoAdmin(x) {
   </div>`;
 }
 
-// Admin: informações de qualquer pessoa da corrente (escolhe no combo, altera e toca em Salvar).
-function cardInfoAdmin(todos) {
+// Qualquer pessoa da corrente pode consultar os dados de contato dos demais.
+function cardInfoCorrente(contatos) {
   const sel = estado.infoPessoa || '';
-  const x = todos.find((t) => t.pessoaId === sel);
+  const x = contatos.find((t) => t.pessoaId === sel);
   const busca = normalizarBusca(estado.pfUi.infoBusca || '');
-  const pessoas = todos.filter((t) => t.pessoaId === sel || normalizarBusca(t.nome).includes(busca));
+  const pessoas = contatos.filter((t) => t.pessoaId === sel || normalizarBusca(t.nome).includes(busca));
   return card('info-corrente', '<span aria-hidden="true">👤</span> Informações da corrente', '', false, () => `<div class="pf-info-escolha">
       <label class="field">Pessoa<select id="info-pessoa" data-act="infopessoa" aria-label="De quem são as informações">
         <option value="">— escolha a pessoa —</option>
@@ -134,7 +133,7 @@ function cardInfoAdmin(todos) {
       <button class="btn pf-info-busca-bt" type="button" data-act="infobusca" aria-label="Buscar pessoa" title="Buscar pessoa">🔍</button>
     </div>
     <label class="pf-info-busca" id="info-busca" ${estado.pfUi.infoBuscaVisivel ? '' : 'hidden'}><span aria-hidden="true">🔍</span><input type="search" id="info-pessoa-busca" placeholder="Buscar pelo nome" aria-label="Buscar pessoa" value="${esc(estado.pfUi.infoBusca || '')}"></label>
-    ${x ? infoContatoAdmin(x) : '<p class="muted" style="margin:0;font-size:.88rem">Pesquise e escolha uma pessoa para ver os dados de contato.</p>'}`, false, true);
+    ${x ? infoContato(x) : '<p class="muted" style="margin:0;font-size:.88rem">Pesquise e escolha uma pessoa para ver os dados de contato.</p>'}`, false, false);
 }
 
 function normalizarBusca(texto) {
@@ -395,13 +394,13 @@ export function render() {
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;
   if (estado.anamnese === null) { estado.anamnese = undefined; carregarAnamnese(); }
-  let h = '';
+  let h = cardInfoCorrente(estado.perfil.contatos || []);
   // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".
   if (admin()) {
     // Respostas e oferendas pendentes contam só quem cadastra orixás e guias (a curimba fica fora).
     const comOrixas = todos.filter((x) => cadastraEspiritual(x.funcao));
     h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
-      ${cardInfoAdmin(todos)}${cardOferendas(comOrixas)}${cardRespostas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
+      ${cardOferendas(comOrixas)}${cardRespostas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
   }
   if (eu) h += meusCards(eu) + cardAnamnese();
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;

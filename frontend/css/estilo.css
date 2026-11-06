@@ -587,6 +587,14 @@ body.deslogado .rodape{display:none}
 /* Estatísticas: totais do período */
 .st-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
 .st-resumo > div{display:flex;flex-direction:column;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.st-at-totais{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:3px}
+.st-at-total{--fn:var(--accent);display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;min-width:0;padding:7px 3px 6px;border:1px solid var(--line);border-top:3px solid var(--fn);border-radius:9px;background:var(--surface);text-align:center}
+.st-at-total.fn-total{--fn:var(--gold)}
+.st-at-total.fn-preferencial{--fn:var(--orange)}
+.st-at-total.fn-normal{--fn:var(--accent)}
+.st-at-total.fn-passe{--fn:var(--ok)}
+.st-at-total b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
+.st-at-total span{font-size:.62rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere;color:var(--muted)}
 .st-grande{font:700 1.6rem var(--f-display);line-height:1.1}
 .st-det2{font-size:.85rem;color:var(--muted)}
 

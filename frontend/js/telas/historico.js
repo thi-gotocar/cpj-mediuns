@@ -157,11 +157,15 @@ function cardEstatisticas(todas, ps) {
       ${fora ? `<span class="muted">${fora} gira${fora > 1 ? 's' : ''} antes da entrada (${dShort(p.entrada)}) não conta${fora > 1 ? 'm' : ''}.</span>` : ''}</div>`;
   };
   const ranking = (k, titulo, cor, lista, linha) => {
-    const max = lista.length ? lista[0][k] : 0;
     const limiteInicial = 5;
-    const maisDeCincoCom100 = k === 'pres' && lista.filter((x) => x.base > 0 && x.pres === x.base).length > 5;
+    const com100 = (x) => x.base > 0 && x.pres === x.base;
+    const cemPorCento = k === 'pres' ? lista.filter(com100) : [];
+    const maisDeCincoCom100 = cemPorCento.length > 5;
     const limiteAberta = maisDeCincoCom100 ? 10 : lista.length;
-    const ver = lista.slice(0, mais[k] ? limiteAberta : limiteInicial);
+    const expandida = maisDeCincoCom100
+      ? [...cemPorCento, ...lista.filter((x) => !com100(x))]
+      : lista;
+    const ver = expandida.slice(0, mais[k] ? limiteAberta : limiteInicial);
     const aberto = estado.stPessoa;
     return `<div class="st-bloco"><h3>${titulo}</h3>
       ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<button class="st-nome st-nome-bt" data-act="stpessoa" data-k="${k}:${x.p.id}" title="Ver gira a gira">${esc(x.p.nome)}</button>${barra(x[k], x.base, cor)}<span class="st-num">${linha(x)}</span>${aberto === k + ':' + x.p.id ? detalhe(x.p) : ''}</li>`).join('')}</ol>
@@ -187,12 +191,16 @@ function cardEstatisticas(todas, ps) {
   const media = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
   const giraAt = gs.filter((g) => g.atendimentos).length;
 
+  const totalAt = somaAt(totAt);
   return `<div class="card st"><div class="grp-h"><h2>Estatísticas</h2>
       <select data-act="stano" aria-label="Período das estatísticas">${anos.map((a) => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}<option value="todos" ${ano === 'todos' ? 'selected' : ''}>Todos os anos</option></select></div>
     <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}. Licenças não contam.</p>
     <div class="st-resumo">
-      <div><span class="muted">Total de atendimentos${giraAt ? ` <span style="font-size:.8rem">(${giraAt} gira${giraAt === 1 ? '' : 's'})</span>` : ''}</span><b class="st-grande">${somaAt(totAt)}</b>
-        <span class="st-det2">${ATEND.map(([k, t]) => `${t} <b>${totAt[k]}</b>`).join(' · ')}</span></div>
+      <div class="st-resumo-at"><span class="muted">Total de atendimentos${giraAt ? ` · ${giraAt} gira${giraAt === 1 ? '' : 's'} com registro` : ''}</span>
+        <div class="st-at-totais" aria-label="Total de atendimentos por tipo">
+          <div class="st-at-total fn-total"><b>${totalAt}</b><span>Total</span></div>
+          ${ATEND.map(([k, t]) => `<div class="st-at-total fn-${k}"><b>${totAt[k]}</b><span>${t}</span></div>`).join('')}
+        </div></div>
       <div><span class="muted">Média de presença da corrente</span>${media !== null ? `<b class="st-grande">${media}%</b>${barra(media, 100, media >= 80 ? 'ok' : media >= 60 ? 'warn' : 'off')}` : '<b class="st-grande">—</b>'}</div>
     </div>
     <div class="st-grid">
