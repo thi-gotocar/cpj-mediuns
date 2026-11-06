@@ -623,14 +623,14 @@ export async function salvarAluno(form) {
   if (await acaoAlunos('aluno', { id, ...patch })) toast('Aluno alterado.');
 }
 
-export const promoverAlunoCPJ = async (el) => {
+async function promoverAlunoCPJ(el) {
   const aluno = estado.alunos?.alunos.find((a) => a.id === el.dataset.id);
   if (!aluno) { toast('Aluno não encontrado. Atualize a tela e tente novamente.'); return; }
   if (!confirm(`Promover ${aluno.nome} para a Corrente como Cambone?\n\nO acesso passará de “alunos” para “cpj”. O nome usado como senha será mantido.`)) return;
   const r = await acaoAlunos('promoverAlunoCPJ', { id: aluno.id });
   if (!r) return;
   toast(`${aluno.nome} foi promovido(a) para a Corrente como Cambone.`);
-};
+}
 
 // Turma em Editar: salva o novo nome.
 export async function salvarTurma(form) {
