@@ -53,7 +53,6 @@ export default rota({
     }
     if (req.query.lista === 'eventos') {
       const eu = await exigir(req);
-      if (eu.grupo === 'alunos') throw new HttpError(403, 'Este acesso não tem permissão para ver os eventos.');
       const eventos = await db.rpc('eventos_listar');
       return eu.grupo === 'curimba' ? eventos.filter((x) => x.tipo !== 'aviso') : eventos;
     }

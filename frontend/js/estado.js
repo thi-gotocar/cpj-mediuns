@@ -99,14 +99,14 @@ export async function carregarTudo() {
   estado.me = me;
   estado.visaoRoot = 'root';
   if (me.grupo === 'alunos') {
+    estado.eventos = await api('GET', '/giras?lista=eventos');
     estado.pessoas = [];
     estado.giras = {};
-    estado.eventos = [];
     estado.minhaCurimba = null;
     estado.curimba = null;
     estado.oracoes = [];
-    estado.alunos = await api('GET', '/pessoas?lista=alunos');
-    prefs.tab = 'pessoas';
+    estado.alunos = null;
+    prefs.tab = 'gira';
     prefs.data = hoje();
     estado.pronto = true;
     avisar();

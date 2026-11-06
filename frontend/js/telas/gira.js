@@ -334,9 +334,10 @@ function janelaOracoes() {
 export function render() {
   if (prefs.tab === 'agenda') return renderGira();
   if (visaoAtiva() === 'curimba') return `<section class="panel">${cardSemana({ ocultarAvisos: true })}${cardAulaCurimba()}</section>`;
+  if (visaoAtiva() === 'alunos') return `<section class="panel">${cardSemana()}</section>`;
   const g = giraAtual();
   const eu = estado.me?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
-  return `<section class="panel">${cardSemana()}${cardOracoes()}${eu}${cardAulaCurimba()}</section>`;
+  return `<section class="panel">${eu}${cardSemana()}${cardOracoes()}${cardAulaCurimba()}</section>`;
 }
 
 function renderGira() {
@@ -370,7 +371,7 @@ function renderGira() {
   const dataProxima = dataGiraAdjacente(g.data, 1);
   const cabEvento = `<div class="grp-h"><h2>⚙️ Evento</h2><div class="ev-nav-adm">
     <button class="btn ev-seta-adm" data-act="giraanterior" title="Evento anterior" aria-label="Ir para o evento anterior" ${dataAnterior ? '' : 'disabled'}>←</button>
-    <label class="ev-data-adm" title="Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dLong(g.data))} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label>
+    <label class="ev-data-adm" title="${esc(dLong(g.data))} · Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dDM(g.data))} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label>
     <button class="btn ev-seta-adm" data-act="proximoevento" title="Próximo evento" aria-label="Ir para o próximo evento" ${dataProxima ? '' : 'disabled'}>→</button>
   </div></div>`;
   const secaoEvento = !admin || !existe ? '' : encerrada

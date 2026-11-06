@@ -13,7 +13,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Aba Pessoas: tudo só muda em **Editar** (nome, função, turma, + médium de passe, entidades) e grava no **Salvar**; Excluir abre janela de confirmação.
 - Bloco Alunos: cada turma tem **Editar** ao lado do nome (quem edita os alunos) para renomear; o nome não repete. Oferendas por turma guardam a turma, não o nome, e continuam valendo.
 - Bloco Alunos: **Remover** uma turma pede confirmação; os alunos dela são mantidos e passam para **Sem turma**.
-- Login por grupo: `cpj` procura nomes na corrente; `alunos` procura no bloco Alunos da aba Pessoas e limita a sessão ao cadastro escolhido; `curimba` procura em Alunos de curimba e libera só a aba Geral, com eventos (sem avisos) e presença individual nas aulas. A aba Curimba administrativa não fica visível nesses acessos.
+- Login por grupo: `cpj` procura nomes na corrente; `alunos` procura no cadastro de alunos, limita a sessão ao registro escolhido e libera somente a aba Geral com os eventos; `curimba` procura em Alunos de curimba e libera só a aba Geral, com eventos (sem avisos) e presença individual nas aulas. A aba Curimba administrativa não fica visível nesses acessos.
 
 ## Presença (status por gira)
 

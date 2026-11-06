@@ -480,7 +480,7 @@ test('acessos alunos e curimba: nome do cadastro, dados restritos e eventos sem 
   assert.deepEqual(meusAlunos.json.alunos.map((x) => x.id), [aluna.id]);
   assert.equal((await api('GET', '/api/pessoas', loginAluna.json.token)).status, 403);
   assert.equal((await api('GET', '/api/giras', loginAluna.json.token)).status, 403);
-  assert.equal((await api('GET', '/api/giras?lista=eventos', loginAluna.json.token)).status, 403);
+  assert.equal((await api('GET', '/api/giras?lista=eventos', loginAluna.json.token)).status, 200);
   assert.equal((await api('GET', '/api/giras?lista=oracoes', loginAluna.json.token)).status, 403);
   assert.equal((await api('POST', '/api/auth/senha', loginAluna.json.token, { atual: 'x', nova: 'senha-forte-1' })).status, 403);
   assert.equal((await api('POST', '/api/giras', loginAluna.json.token, { acao: 'oracao', texto: 'Oração de teste' })).status, 403);
