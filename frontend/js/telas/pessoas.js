@@ -69,12 +69,22 @@ function cardTurmas(todas, editar) {
     { chave: 'sem', nome: 'Sem turma', lista: todas.filter((p) => !p.limpeza) },
   ];
   const aberta = grupos.some((g) => g.chave === estado.limpezaTurmaAberta) ? estado.limpezaTurmaAberta : null;
+  const turmaAtiva = aberta && aberta !== 'sem' ? grupos.find((g) => g.chave === aberta) : null;
+  const disponiveis = turmaAtiva ? todas.filter((p) => Number(p.limpeza) !== Number(turmaAtiva.chave)) : [];
   return `<div class="card pp-card fn-limpeza"><div class="grp-h turmas-cab"><h2>🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${todas.length}</span></div>
     ${curimba}
-    <div class="contagem-quadrados">${grupos.map((g) => `<button type="button" class="fn-limpeza${aberta === g.chave ? ' selecionado' : ''}" data-act="limpezaTurma" data-t="${g.chave}" aria-expanded="${aberta === g.chave}" aria-label="${g.nome}: ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}${aberta === g.chave ? ', recolher lista' : ', expandir lista'}"${g.lista.length ? '' : ' disabled'}><span class="muted">${g.nome}</span><b>${g.lista.length}</b></button>`).join('')}</div>
+    <div class="contagem-quadrados">${grupos.map((g) => `<button type="button" class="fn-limpeza${aberta === g.chave ? ' selecionado' : ''}" data-act="limpezaTurma" data-t="${g.chave}" aria-expanded="${aberta === g.chave}" aria-label="${g.nome}: ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}${aberta === g.chave ? ', recolher lista' : ', expandir lista'}"${!editar && !g.lista.length ? ' disabled' : ''}><span class="muted">${g.nome}</span><b>${g.lista.length}</b></button>`).join('')}</div>
     ${aberta ? (() => {
       const g = grupos.find((x) => x.chave === aberta);
-      return `<div class="turmas-conteudo"><div class="turma-l"><span class="turma-n" aria-hidden="true">${g.chave === 'sem' ? '—' : g.chave}</span><div class="turma-info"><div class="turma-cab"><b>${g.nome}</b><span class="turma-count">${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></div><div class="turma-nomes">${g.lista.map((p) => esc(p.nome) + (ehCurimba(p) ? ' 🥁' : '')).join(', ')}</div></div></div></div>`;
+      return `<div class="turmas-conteudo"><div class="turma-cab"><b>${g.nome}</b><span class="turma-count">${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></div>
+        <div class="ppl turma-pessoas">${g.lista.length ? g.lista.map((p) => editar
+          ? linhaPessoa(p, { funcao: !ehCurimba(p) })
+          : `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span><span class="pp-l2"><span class="pp-fn">${esc(FUNCOES.find((f) => f.k === p.funcao)?.label || p.funcao)}</span><span class="pp-limp">🧹 ${p.limpeza || '—'}</span></span></div></div>`).join('')
+          : '<p class="muted" style="margin:0">Ninguém nesta turma.</p>'}</div>
+        ${editar && turmaAtiva ? disponiveis.length ? `<form id="f-limpeza-atribuir" class="limpeza-atribuir" data-t="${turmaAtiva.chave}">
+          <label class="field">Adicionar pessoa nesta turma<select id="limpeza-pessoa" required><option value="">— escolha uma pessoa —</option>${disponiveis.map((p) => `<option value="${p.id}">${esc(p.nome)}${ehCurimba(p) ? ' · Curimba' : ` · ${esc(FUNCOES.find((f) => f.k === p.funcao)?.label || p.funcao)}`}</option>`).join('')}</select></label>
+          <button class="btn primary" type="submit">＋ Adicionar à turma</button></form>`
+          : '<p class="muted" style="margin:0">Todas as pessoas já estão nesta turma.</p>' : ''}</div>`;
     })() : ''}</div>`;
 }
 
@@ -157,7 +167,7 @@ document.addEventListener('toggle', (e) => {
 function cardCurimba(todas, editar) {
   const cs = todas.filter(ehCurimba);
   if (!cs.length) return '';
-  const aberto = !!estado.curimbaAberta;
+  const aberto = !!estado.curimbaAberta && !estado.limpezaTurmaAberta;
   let h = `<div class="card pp-card fn-curimba">${cabDobra('dobrarcurimba', '🧹 Adicionar pessoas limpeza', cs.length, aberto)}`;
   if (!aberto) return h + `</div>`;
   h += `<p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
@@ -217,8 +227,7 @@ function cardAlunos() {
   const A = estado.alunos;
   if (!A) return `<div class="card pp-card fn-alunos"><h2>🎓 Alunos</h2><div class="loading">Carregando alunos…</div></div>`;
   const ed = pode('alunos:editar');
-  const grupos = [...A.turmas.map((t) => ({ id: t.id, nome: t.nome, lista: A.alunos.filter((a) => a.turmaId === t.id) })),
-    { id: 'sem', nome: 'Sem turma', lista: A.alunos.filter((a) => !a.turmaId || !A.turmas.some((t) => t.id === a.turmaId)) }];
+  const grupos = A.turmas.map((t) => ({ id: t.id, nome: t.nome, lista: A.alunos.filter((a) => a.turmaId === t.id) }));
   const aberta = grupos.some((g) => g.id === estado.alunosTurmaAberta) ? estado.alunosTurmaAberta : null;
   let h = `<div class="card pp-card fn-alunos"><div class="grp-h turmas-cab"><h2>🎓 Alunos</h2><span class="count">${A.alunos.length}</span></div>
     <div class="contagem-quadrados">${grupos.map((g) => `<button type="button" class="fn-alunos${aberta === g.id ? ' selecionado' : ''}" data-act="alunosTurma" data-t="${esc(g.id)}" aria-expanded="${aberta === g.id}" aria-label="${esc(g.nome)}: ${g.lista.length} ${g.lista.length === 1 ? 'aluno' : 'alunos'}${aberta === g.id ? ', recolher lista' : ', expandir lista'}"${g.id === 'sem' && !g.lista.length ? ' disabled' : ''}><span class="muted">${esc(g.nome)}</span><b>${g.lista.length}</b></button>`).join('')}</div>`;
@@ -229,7 +238,7 @@ function cardAlunos() {
       ? `<form id="f-turma-ed" class="al-gh-l" data-id="${g.id}" autocomplete="off"><input type="text" id="turma-nome" value="${esc(g.nome)}" maxlength="40" aria-label="Nome da turma">
           <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelturma">Cancelar</button></span></form>`
       : `<div class="al-gh-l"><h3>${esc(g.nome)}</h3><span class="pp-bts"><button class="btn small pp-bt" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}">Editar turma</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="turma" data-id="${g.id}" aria-label="Remover ${esc(g.nome)}">Remover turma</button></span></div>`;
-  h += `<div class="al-grupos"><div class="al-grupo">${cabTurma}
+  h += `<div class="turmas-conteudo al-grupos"><div class="al-grupo">${cabTurma}
       ${g.lista.length ? `<div class="al-lista">${g.lista.map((a) => {
         if (!ed) return `<div class="al-l"><span class="nm">${esc(a.nome)}</span></div>`;
         // Editar: o nome e a turma ficam editáveis (Salvar / Cancelar).
@@ -316,18 +325,32 @@ function renderPessoas() {
 
 export const cliques = {
   dobraradd() { estado.addAberto = !(estado.addAberto ?? !pessoasOrd().some((p) => !ehCurimba(p))); avisar(); },
-  dobrarcurimba() { estado.curimbaAberta = !estado.curimbaAberta; avisar(); },
+  dobrarcurimba() {
+    estado.curimbaAberta = !estado.curimbaAberta;
+    if (estado.curimbaAberta) { estado.limpezaTurmaAberta = null; estado.correnteFuncaoAberta = null; }
+    avisar();
+  },
   correnteFuncao(el) {
     estado.correnteFuncaoAberta = estado.correnteFuncaoAberta === el.dataset.f ? null : el.dataset.f;
+    if (estado.correnteFuncaoAberta) { estado.limpezaTurmaAberta = null; estado.curimbaAberta = false; }
     avisar();
   },
   limpezaTurma(el) {
     estado.limpezaTurmaAberta = estado.limpezaTurmaAberta === el.dataset.t ? null : el.dataset.t;
+    if (estado.limpezaTurmaAberta) { estado.correnteFuncaoAberta = null; estado.curimbaAberta = false; }
     avisar();
   },
   alunosTurma(el) {
     estado.alunosTurmaAberta = estado.alunosTurmaAberta === el.dataset.t ? null : el.dataset.t;
     avisar();
+  },
+  async atribuirLimpeza(form) {
+    const pessoaId = document.getElementById('limpeza-pessoa')?.value;
+    if (!pessoaId) { toast('Escolha uma pessoa.'); return; }
+    if (await atualizarPessoa(pessoaId, { limpeza: Number(form.dataset.t) })) {
+      toast('Pessoa adicionada à turma.');
+      avisar();
+    }
   },
   // Troca o que adicionar sem abrir nenhum campo sozinho (o combo de pessoas só abre ao tocar nele).
   addmodo(el) { estado.addModo = el.dataset.v; avisar(); },
@@ -365,7 +388,7 @@ export const cliques = {
     else if (x.tipo === 'turma') {
       estado.editTurma = null;
       if (await acaoAlunos('excluirTurma', { id: x.id })) {
-        estado.alunosTurmaAberta = 'sem';
+        estado.alunosTurmaAberta = null;
         toast('Turma removida. Os alunos foram mantidos sem turma.');
       }
     }
@@ -409,6 +432,7 @@ export async function renomear(form) {
   const fn = document.getElementById('ren-func');
   const exp = document.getElementById('ren-exp');
   const p = estado.pessoas.find((x) => x.id === id);
+  let novaTurmaLimpeza;
   if (!novo) { toast('Digite o nome.'); return; }
   if (!p) { estado.renomear = null; avisar(); return; }
   const patch = {};
@@ -417,7 +441,10 @@ export async function renomear(form) {
     patch.nome = novo;
   }
   const turma = sel && sel.value ? Number(sel.value) : null;
-  if (sel && turma !== (p.limpeza ? Number(p.limpeza) : null)) patch.limpeza = turma;
+  if (sel && turma !== (p.limpeza ? Number(p.limpeza) : null)) {
+    patch.limpeza = turma;
+    novaTurmaLimpeza = turma ? String(turma) : 'sem';
+  }
   if (fn && fn.value !== p.funcao) patch.funcao = fn.value;
   if (exp && exp.checked !== !!p.experiente) patch.experiente = exp.checked;
   // Entidades marcadas em cada escolha (Todas / linhas).
@@ -427,8 +454,15 @@ export async function renomear(form) {
   });
   estado.renomear = null;
   if (!Object.keys(patch).length) { avisar(); return; }
-  await atualizarPessoa(id, patch);
-  toast('Alterações salvas.');
+  if (await atualizarPessoa(id, patch)) {
+    if (novaTurmaLimpeza) {
+      estado.limpezaTurmaAberta = novaTurmaLimpeza;
+      estado.curimbaAberta = false;
+      estado.correnteFuncaoAberta = null;
+      avisar();
+    }
+    toast('Alterações salvas.');
+  }
 }
 
 export const mudancas = {

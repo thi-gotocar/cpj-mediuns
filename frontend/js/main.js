@@ -406,6 +406,8 @@ main.addEventListener('submit', async (e) => {
     await pessoas.enviarFormulario();
   } else if (id === 'f-curimba') {
     await pessoas.enviarCurimba();
+  } else if (id === 'f-limpeza-atribuir') {
+    await pessoas.cliques.atribuirLimpeza(e.target);
   } else if (id === 'f-uren') {
     await usuarios.renomear(e.target);
   } else if (id === 'f-evento' || id === 'f-evento-ed') {

@@ -378,8 +378,11 @@ export async function atualizarPessoa(id, patch) {
   } catch (e) {
     estado.pessoas = antes;
     toast(e.message);
+    avisar();
+    return false;
   }
   avisar();
+  return true;
 }
 
 // Licenças (admin): a resposta é a lista da corrente atualizada.

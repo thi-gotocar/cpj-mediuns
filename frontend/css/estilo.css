@@ -1161,17 +1161,30 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .turma-cab{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 .pessoas-tela .turma-cab b{font-size:.94rem}
 .pessoas-tela .turma-count{padding:2px 8px;border-radius:20px;background:color-mix(in srgb,var(--fn) 13%,var(--surface));color:var(--ink);font-size:.74rem;font-weight:700}
+.pessoas-tela .turma-pessoas{gap:6px}
+.pessoas-tela .limpeza-atribuir{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;padding:12px;border:1px solid color-mix(in srgb,var(--fn) 34%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--fn) 5%,var(--surface))}
+.pessoas-tela .limpeza-atribuir .field{margin:0}
+.pessoas-tela .limpeza-atribuir .btn{min-height:42px}
 .pessoas-tela .turma-nomes{font-size:.88rem;line-height:1.5;overflow-wrap:anywhere}
 .pessoas-tela .turma-sem{padding:8px 10px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:.84rem}
 .pessoas-tela .fn-limpeza .fn-curimba{gap:10px;margin:0;padding:12px;border-color:color-mix(in srgb,var(--off) 45%,var(--line));background:color-mix(in srgb,var(--off) 4%,var(--surface))}
 .pessoas-tela .fn-limpeza .fn-curimba > .grp-h h2{font-size:1rem}
 .pessoas-tela .fn-limpeza .fn-curimba .ppl{gap:6px}
-.pessoas-tela .al-grupo{background:var(--bg)}
-.pessoas-tela .al-gh-l h3{margin:0;font-size:1rem}
-.pessoas-tela .al-grupo .al-gh-l{justify-content:space-between;flex-wrap:wrap}
-.pessoas-tela .al-grupo .al-lista{margin-top:8px}
-.pessoas-tela .al-grupo .al-l{padding:8px 0}
-.pessoas-tela .al-l{padding:8px 0}
+@media(max-width:520px){.pessoas-tela .limpeza-atribuir{grid-template-columns:1fr}.pessoas-tela .limpeza-atribuir .btn{width:100%}}
+.pessoas-tela .fn-alunos .al-grupo{gap:10px;padding:12px;border-color:color-mix(in srgb,var(--fn) 30%,var(--line));background:color-mix(in srgb,var(--fn) 4%,var(--surface))}
+.pessoas-tela .fn-alunos .al-gh-l{justify-content:space-between;flex-wrap:wrap;gap:8px;padding-bottom:10px;border-bottom:1px solid color-mix(in srgb,var(--fn) 22%,var(--line))}
+.pessoas-tela .fn-alunos .al-gh-l h3{margin:0;color:var(--fn);font-size:1rem}
+.pessoas-tela .fn-alunos .al-gh-l input{flex:1 1 160px}
+.pessoas-tela .fn-alunos .al-gh-l .pp-bts{flex-wrap:wrap}
+.pessoas-tela .fn-alunos .al-lista{display:grid;gap:6px;margin:0}
+.pessoas-tela .fn-alunos .al-l{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.pessoas-tela .fn-alunos .al-l:first-child{border-top:1px solid var(--line)}
+.pessoas-tela .fn-alunos .al-l .pp-l1{flex-wrap:wrap}
+.pessoas-tela .fn-alunos .al-l .nm{flex:1 1 140px;min-width:0;overflow-wrap:anywhere}
+.pessoas-tela .fn-alunos .al-l .pp-bts{flex-wrap:wrap}
+.pessoas-tela .fn-alunos .al-l .al-turma{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
+.pessoas-tela .fn-alunos .al-l .al-turma select{width:100%;max-width:none;min-width:0}
+.pessoas-tela .fn-alunos .al-grupo > .muted{margin:0;padding:8px 2px}
 .pp-editando{background:color-mix(in srgb,var(--accent) 4%,transparent);border-radius:10px;padding:10px;margin:4px -6px}
 /* Sorteio: Remanejar faltas e Ajuste manual do mesmo tamanho, em amarelo */
 .sort-acoes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
