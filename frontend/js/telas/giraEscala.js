@@ -1,8 +1,8 @@
 // Bloco de escala e sorteio de duplas: renderização, ajustes e ações.
 // Extrai componentes reutilizáveis do sorteio para facilitar testes e manutenção.
 
-import { pode, dDM } from '../estado.js';
-import { esc } from '../util.js';
+import { pode } from '../estado.js';
+import { esc, dDM } from '../util.js';
 
 // "Médiuns e cambones" começa minimizado; abre enquanto o app estiver aberto.
 export const duplasAbertas = new Set();
