@@ -4,7 +4,7 @@
 
 import { lerDataCurta, dataCurta } from '/shared/eventos.js';
 import { CLASSES_VIDEO, idDoYoutube } from '/shared/videos.js';
-import { estado, pode, meAtivo, carregarVideos, acaoVideos, publicarVideos, avisar } from '../estado.js';
+import { estado, pode, carregarVideos, acaoVideos, publicarVideos, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -86,7 +86,7 @@ export function render() {
   if (!V) return '<section class="panel"><div class="loading">Carregando os vídeos…</div></section>';
   const editar = pode('videos:editar');
   const u = U();
-  const pub = !!meAtivo()?.videosPublicada;
+  const pub = !!estado.me?.videosPublicada;
   // Quem vê a aba: marcada = toda a corrente; desmarcada = só quem tem a aba Vídeos no perfil (os admins).
   const aba = editar ? `<div class="card adm"><label class="check vd-pub"><input type="checkbox" data-act="vidpublicar" ${pub ? 'checked' : ''}>
     <span><b>Aba publicada</b><br><span class="muted">${pub ? 'Toda a corrente vê a aba Vídeos.' : 'Só os admins veem a aba Vídeos.'}</span></span></label></div>` : '';

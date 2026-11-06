@@ -1,7 +1,7 @@
 // Aba Gira: bloco "Você nesta gira" de quem está logado.
 
 import { nomeEntidadeGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naCorrenteEm, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira } from '/shared/regras.js';
-import { estado, pode, meAtivo, nome, girasLista, carregarFoto } from '../estado.js';
+import { estado, pode, nome, girasLista, carregarFoto } from '../estado.js';
 import { esc, dDM, hoje, iniciais } from '../util.js';
 import { htmlStatus, caixaPendente } from './giraComum.js';
 
@@ -9,7 +9,7 @@ const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone
 // Bloco de quem está logado: com quem trabalha nesta gira e se é da turma da limpeza.
 const ROTULO_PRESENCA = { pend: 'Pendente', p: 'Presente', f: 'Falta', a: 'Ausente', lic: 'Licença' };
 export function blocoEu(g) {
-  const p = meAtivo()?.pessoaId && estado.pessoas.find((x) => x.id === meAtivo().pessoaId);
+  const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p) return '';
   if (!naCorrenteEm(p, g.data)) return `<div class="card eu"><div class="grp-h"><span class="eyebrow">Você nesta gira</span></div>
     <div class="eu-nome"><b>${esc(p.nome)}</b></div><p class="muted" style="margin:0">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}: esta gira ainda não conta para você.</p></div>`;
@@ -72,7 +72,7 @@ export function blocoEu(g) {
   if (!g.evento && !sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push(caixaPendente(g));
   const pr = presencaDe(p, g);
   // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
-  if (sorteado) { /* nada */   } else if (!curimba && meAtivo()?.corrente) {
+  if (sorteado) { /* nada */ } else if (!curimba && estado.me?.corrente) {
     // Acesso da corrente (cpj): o combo mostra sempre o status da lista de presença.
     // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica bloqueado.
     const gs = estado.giras[g.data];

@@ -4,7 +4,7 @@
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual,
   ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_TIPO_LABEL, anamnesePreenchida, respostasPorPessoa, textoAnamnese, valorAnamnese } from '/shared/perfil.js';
-import { estado, pode, meAtivo, espelhandoRoot, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarInfoDe, salvarAfinidade, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
 import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
@@ -245,11 +245,7 @@ function campoAnamnese(q, i, v, ed) {
   return `<label class="ana-item">${rot}<textarea rows="4" maxlength="${ANAMNESE_TEXTO_MAX}" data-act="anaresp" data-q="${q.id}"${ed ? ' placeholder="Sua resposta (até 20 linhas)"' : ' readonly placeholder="—"'}>${esc(v)}</textarea></label>`;
 }
 function cardAnamnese() {
-  const A = espelhandoRoot() && estado.anamnese
-    ? { ...estado.anamnese, minhas: Object.fromEntries((estado.anamnese.todas || [])
-      .filter((r) => r.pessoaId === meAtivo()?.pessoaId)
-      .map((r) => [r.perguntaId, r.resposta])) }
-    : estado.anamnese;
+  const A = estado.anamnese;
   if (A?.visivel === false && !admin()) return '';
   if (!A || A.erro) return card('anamnese', 'Anamnese', '', false, () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>`, true);
   const ok = anamnesePreenchida(A.perguntas, A.minhas);
@@ -375,14 +371,7 @@ function cardOferendas(todos) {
 export function render() {
   if (estado.perfil === null) { carregarPerfil(); return `<div class="loading">Carregando perfil…</div>`; }
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
-  const dadosCorrente = new Map(estado.pessoas.map((p) => [p.id, p]));
-  const todos = (estado.perfil.todos || []).map((p) => ({
-    ...(dadosCorrente.get(p.pessoaId) || {}),
-    ...p,
-  }));
-  const eu = espelhandoRoot()
-    ? todos.find((x) => x.pessoaId === meAtivo()?.pessoaId) || null
-    : estado.perfil.eu;
+  const { eu, todos } = estado.perfil;
   if (estado.anamnese === null) { estado.anamnese = undefined; carregarAnamnese(); }
   let h = '';
   // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".

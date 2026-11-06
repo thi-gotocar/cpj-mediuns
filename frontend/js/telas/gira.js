@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, LINHA_LABEL, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, meAtivo, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -287,7 +287,7 @@ const confirmaSorteio = (texto, act, botao) => `<div class="infobox rem-conf"><s
   <span class="row" style="gap:6px"><button class="btn small primary" data-act="${act}">${botao}</button><button class="btn small" data-act="cancelrei">Cancelar</button></span></div>`;
 
 // Quem está logado tem o bloco "Você nesta gira" (lá vai o aviso de pendente).
-const temBlocoEu = () => !!(meAtivo()?.pessoaId && estado.pessoas.some((x) => x.id === meAtivo().pessoaId));
+const temBlocoEu = () => !!(estado.me?.pessoaId && estado.pessoas.some((x) => x.id === estado.me.pessoaId));
 
 // Acesso da corrente: com a escala publicada, a imagem dela fica no card da gira (blocoImagemEscala);
 // aqui só os avisos de quando ainda não há escala. (A corrente só recebe as duplas depois de publicadas.)
@@ -336,7 +336,7 @@ export function render() {
   if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
   if (visaoAtiva() === 'alunos') return `<section class="panel">${cardSemana()}</section>`;
   const g = giraAtual();
-  const eu = meAtivo()?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === meAtivo().pessoaId) || {}, g.data)) ? blocoEu(g) : '';
+  const eu = estado.me?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
   return `<section class="panel">${eu}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes()}</section>`;
 }
 
