@@ -14,52 +14,74 @@ frontend/              Site (HTML, CSS e módulos JS que o navegador carrega dir
   js/estado.js         estado da tela e chamadas à API
   js/exportar.js       texto para o WhatsApp
   js/imagem.js         imagem PNG da escala
-  js/telas/            gira, pessoas, histórico, usuários, login
+  js/telas/            gira, pessoas, histórico, usuários, login, oferendas, ervas, curimba, perfil, fotos, vídeos
 api/                   Backend: funções da Vercel (Node)
-  _lib/db.js           acesso ao Postgres (SQL por HTTP) e migração automática
+  _lib/db.js           acesso ao Postgres (SQL por HTTP), migração automática e transações
   _lib/senhas.js       senhas (scrypt) e sessões (token assinado)
   _lib/sessao.js       quem está chamando e permissões
-  auth/[acao].js       estado, instalar, entrar, trocar senha, me
+  _lib/escala.js       ocultação de sorteio não publicado
+  _lib/r2.js           assinatura de URLs para fotos no Cloudflare R2
+  auth/[acao].js       estado, instalar, entrar, trocar senha, me, foto
   ervas/index.js       compra coletiva de ervas
   oferendas/index.js   oferendas: itens e doações
-  importar.js  pessoas/  giras/  usuarios/
-db/esquema.js          tabelas e funções do banco (aplicadas sozinhas)
+  pessoas/index.js     cadastro, edição, curimba
+  usuarios/index.js    criação e gerenciamento de contas
+  importar.js          restauração de backup
+  giras/[data]/index.js giras: criar, editar, sortear, presença, escala e eventos
+db/esquema.js          tabelas e funções do banco (aplicadas automaticamente)
 shared/                Usado pelos dois lados
   regras.js            regras do sorteio, rodízio e remanejamento
-  permissoes.js        o que cada perfil pode fazer
+  permissoes.js        o que cada perfil pode fazer e acessos de corrente
+  perfil.js            papéis (medium, extra, passe, cambone, curimba, aluno)
+  eventos.js           tipos de eventos
   ervas.js             cálculo dos pedidos, divisão do frete e exportação
   oferendas.js         situação dos itens e texto para compartilhar
+  escalaTexto.js       leitura de escala em texto puro
 scripts/               servidor local e build
 test/                  testes do backend (Postgres local)
+docs/                  Arquitetura, regras de negócio, instruções de trabalho
 ```
 
-O backend é quem decide: valida o login, confere a permissão de cada chamada e roda o sorteio. O frontend só mostra e envia.
+O backend é quem decide: valida o login, confere a permissão de cada chamada, executa as regras de sorteio e garante a consistência dos dados. O frontend mostra e envia requisições. As operações críticas (sorteio, encerrar gira) usam transações atômicas para evitar estado inconsistente.
 
-## Perfis
+## Perfis e Acessos
 
-| | Admin | Usuário |
-|---|---|---|
-| Ver a corrente, a escala e o histórico | ✓ | ✓ |
-| Copiar texto e gerar imagem para o WhatsApp | ✓ | ✓ |
-| Cadastrar e editar pessoas | ✓ | |
-| Presença, entidade, trocar e fixar duplas | ✓ | |
-| Sortear e remanejar faltas | ✓ | |
-| Excluir giras | ✓ | |
-| Criar usuários, mudar perfil, redefinir senha | ✓ | |
-| Backup e restauração | ✓ | |
-| Escolher ervas | ✓ | ✓ |
-| Cadastrar ervas, frete e exportar pedidos | ✓ | |
+### Perfis de login (admin e controle)
 
-Para mudar, edite `shared/permissoes.js`. Vale para o backend e para a tela.
+| Recurso | Admin | Usuário | admin_oferendas | admin_ervas | admin_curimba | admin_perfil |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Gira** — ver escala e presença | ✓ | ✓ | | | | |
+| **Gira** — editar e sortear | ✓ | | | | | |
+| **Pessoas** — cadastro e editar | ✓ | | | | | |
+| **Histórico** (giras passadas) | ✓ | ✓ | | | | |
+| **Usuários** — criar e gerenciar | ✓ (root) | | | | | |
+| **Ervas** — ver pedidos | ✓ | ✓ | | | | |
+| **Ervas** — cadastro e gerenciar | ✓ | | | | ✓ | |
+| **Oferendas** — ver e doar | ✓ | ✓ | ✓ | | | |
+| **Oferendas** — gerenciar | ✓ | | ✓ | | | |
+| **Perfil** — editar próprio perfil | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Perfil** — editar perfil de outros | ✓ (root) | | | | | ✓ |
+| **Curimba** — aba administrativa | ✓ | | | | ✓ (admin_curimba) | |
+| **Fotos** — ver | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Fotos** — apagar de outros | ✓ | | | | | |
+| **Vídeos** — gerenciar | ✓ (root) | | | | | |
 
-### Acesso da corrente (sem senha)
+### Acessos de corrente (sem conta admin)
 
-No login, quem digita **`corrente-cpj`** no campo de e-mail entra sem senha: o campo de senha vira **"Seu nome"**. Esse acesso vê só duas abas: **Gira**, com o resultado do sorteio (abre direto na próxima gira sorteada), e **Ervas**. O nome digitado é o que aparece nos pedidos. Entrar de novo com o mesmo nome continua o mesmo pedido. Para mudar o texto do acesso, edite `ACESSO_CORRENTE` em `shared/permissoes.js`.
+Além dos perfis acima, há três acessos em **grupo** para a corrente:
+
+| Acesso | Login | Senha | Vê | Pode fazer |
+|---|---|---|---|---|
+| **CPJ** | `corrente-cpj` | nome digitado | Gira (próxima sorteada), Ervas, Histórico, Oferendas | Confirmar presença na próxima gira, escolher ervas, fazer oferendas |
+| **Alunos** | `alunos` | senha da turma | Geral (eventos de outras turmas), oferendas da turma | Presença em eventos, oferendas |
+| **Curimba** | `curimba` | senha da turma | Geral (eventos de curimba), presença individual em aulas | Marcar presença em aulas |
+
+Ao entrar por acesso de grupo, o navegador pede escolher o nome (Pessoas da corrente para `cpj`, Alunos para `alunos` e `curimba`).
 
 ### Ervas (compra coletiva)
 
-- **Todos** (admin, usuário e corrente) escolhem as ervas e a quantidade na aba **Ervas**. Quem tem conta aparece sempre com o nome cadastrado.
-- **Admin** cadastra as ervas e monta a **Compra**: nome da gira e data, as porções e o preço da porção de cada erva (o preço é opcional: pode ficar "a definir" e ser preenchido no fim). No cadastro, cada erva pode ter "porção serve N pessoas": com mais pedidos, as porções (e o custo dividido) sobem sozinhas e o **frete** (logo abaixo da última erva; começa em R$ 60,00 e é dividido por igual entre quem pediu). A tabela do pedido mostra erva, quantidade pedida pela corrente, quantidade do pedido, valor unitário, valor e o total. Os campos ficam travados: **Editar** libera (e vira **Cancelar**, que desfaz as mudanças) e **Salvar** grava. Na Compra também ficam **Fechar/Reabrir lista** (fechar pede confirmação e já guarda a compra no **Histórico de compras** como compra atual — reabrindo e fechando de novo, ela é atualizada lá; com a lista fechada ninguém altera nada, nem o admin: pedidos, Compra e cadastro ficam travados até reabrir — para pôr preço é preciso reabrir), os dois botões de exportação (texto, WhatsApp e planilha `.csv`) — **Pedido ao fornecedor** (as ervas com as porções da Compra, sem valores) e **Cobrança** (quanto cada pessoa paga, liberada quando todas as ervas pedidas têm preço) — e **Nova compra**: primeiro pergunta "Tem certeza?" (avisa que há um pedido em andamento) e depois se o pedido atual é **encerrado** (guardado no **Histórico de compras**, com a tabela do pedido e a cobrança de cada pessoa) ou **descartado**; depois apaga os pedidos, zera as quantidades da Compra e reabre a lista. Em **Pedidos da corrente** o admin vê e corrige o pedido de cada pessoa.
+- **Todos** (admin, usuário, admin_ervas, corrente, alunos e curimba) escolhem as ervas e a quantidade na aba **Ervas**. Quem tem conta aparece sempre com o nome cadastrado; acesso de grupo usa o nome escolhido.
+- **admin** ou **admin_ervas** cadastra as ervas e monta a **Compra**: nome da gira e data, as porções e o preço da porção de cada erva (o preço é opcional: pode ficar "a definir" e ser preenchido no fim). No cadastro, cada erva pode ter "porção serve N pessoas": com mais pedidos, as porções (e o custo dividido) sobem sozinhas e o **frete** (logo abaixo da última erva; começa em R$ 60,00 e é dividido por igual entre quem pediu). A tabela do pedido mostra erva, quantidade pedida pela corrente, quantidade do pedido, valor unitário, valor e o total. Os campos ficam travados: **Editar** libera (e vira **Cancelar**, que desfaz as mudanças) e **Salvar** grava. Na Compra também ficam **Fechar/Reabrir lista** (fechar pede confirmação e já guarda a compra no **Histórico de compras** como compra atual — reabrindo e fechando de novo, ela é atualizada lá; com a lista fechada ninguém altera nada, nem o admin: pedidos, Compra e cadastro ficam travados até reabrir — para pôr preço é preciso reabrir), os dois botões de exportação (texto, WhatsApp e planilha `.csv`) — **Pedido ao fornecedor** (as ervas com as porções da Compra, sem valores) e **Cobrança** (quanto cada pessoa paga, liberada quando todas as ervas pedidas têm preço) — e **Nova compra**: primeiro pergunta "Tem certeza?" (avisa que há um pedido em andamento) e depois se o pedido atual é **encerrado** (guardado no **Histórico de compras**, com a tabela do pedido e a cobrança de cada pessoa) ou **descartado**; depois apaga os pedidos, zera as quantidades da Compra e reabre a lista. Em **Pedidos da corrente** o admin vê e corrige o pedido de cada pessoa.
 
 ## Como colocar no ar
 
@@ -95,20 +117,25 @@ Todas exigem `Authorization: Bearer <token>`, exceto `GET /api/auth/estado`, `PO
 
 | Método e rota | Permissão |
 |---|---|
-| `GET /api/auth/estado` · `POST /api/auth/instalar` · `POST /api/auth/entrar` | pública |
-| `POST /api/auth/senha` · `GET /api/auth/me` | logado |
-| `GET /api/pessoas` · `POST /api/pessoas` | `pessoas:ler` · `pessoas:editar` |
-| `PATCH/DELETE /api/pessoas/:id` | `pessoas:editar` |
-| `GET /api/giras` · `GET /api/giras/:data` | `giras:ler` |
-| `PUT /api/giras/:data` | `giras:editar` |
-| `DELETE /api/giras/:data` | `giras:excluir` |
-| `POST /api/giras/:data/sortear` · `/remanejar` | `giras:sortear` |
-| `GET/POST /api/usuarios` · `PATCH/DELETE /api/usuarios/:id` | `usuarios:gerenciar` |
-| `POST /api/importar` | `dados:importar` |
-| `GET/PUT /api/ervas` · `POST /api/ervas` | `ervas:escolher` · `ervas:gerenciar` |
-| `GET /api/oferendas` · `POST /api/oferendas` (doar · demais ações) | `oferendas:doar` · `oferendas:gerenciar` |
+## Rotas da API
 
-Plano Hobby: o projeto usa 12 funções, que é o limite do plano. Uma rota nova precisa reaproveitar um arquivo existente.
+Todas exigem `Authorization: ......` exceto `GET /api/auth/estado`, `POST /api/auth/instalar` e `POST /api/auth/entrar`.
+
+| Método e rota | Permissão | Ações/listas |
+|---|---|---|
+| `GET /api/auth/estado` · `POST /api/auth/instalar` · `POST /api/auth/entrar` | pública | — |
+| `POST /api/auth/senha` · `GET /api/auth/me` · `POST /api/auth/foto` · `DELETE /api/auth/foto` | logado | — |
+| `GET /api/pessoas` · `POST /api/pessoas` · `PATCH /api/pessoas/:id` · `DELETE /api/pessoas/:id` | `pessoas:ler` · `pessoas:editar` | `lista=curimba`, `lista=minhaCurimba`, `acao=curimba*` |
+| `GET /api/giras` · `GET /api/giras/:data` | `giras:ler` | — |
+| `PUT /api/giras/:data` | `giras:editar` | `acao=escala`, `acao=evento`, `acao=recado`, `acao=foto*`, `acao=video*` |
+| `DELETE /api/giras/:data` | `giras:excluir` | — |
+| `POST /api/giras/:data/sortear` · `/remanejar` | `giras:sortear` | `acao=sortear`, `acao=remanejar`, `acao=refazer`, `acao=cancelarSorteio` |
+| `GET /api/usuarios` · `POST /api/usuarios` · `PATCH /api/usuarios/:id` · `DELETE /api/usuarios/:id` | `usuarios:gerenciar` | — |
+| `POST /api/importar` | `dados:importar` | — |
+| `GET /api/ervas` · `PUT /api/ervas` · `POST /api/ervas` | `ervas:escolher` · `ervas:gerenciar` | — |
+| `GET /api/oferendas` · `POST /api/oferendas` | `oferendas:doar` · `oferendas:gerenciar` | `acao=doar`, `acao=editar`, `acao=remover`, `acao=cancelar` |
+
+**Nota**: Plano Hobby (12 funções). Uma rota nova reutiliza um arquivo existente com `acao` ou `?lista=`.
 
 ## Segurança
 
@@ -133,14 +160,26 @@ Abra http://localhost:3000. O servidor local imita a Vercel: serve o `frontend/`
 
 ## Testes
 
-Os testes do backend usam um Postgres local no lugar do banco da Vercel, com o login real:
+Os testes do backend rodam automaticamente via **GitHub Actions** a cada `push` ou `pull_request` para `main`. O workflow:
+
+1. Inicia um container **Postgres 16** com banco vazio
+2. Roda `npm run build` (valida bundle)
+3. Roda `npm test` com variáveis de ambiente `DATABASE_URL` e `CODIGO_INSTALACAO`
+
+Veja `.github/workflows/test.yml` para os detalhes. O CI também testa as ~30 migrações não validadas em Postgres real (v56–v85).
+
+Para rodar localmente (requer Postgres 16+):
 
 ```bash
 npm test
 ```
 
-Veja `test/apoio.js` para os requisitos (Postgres local acessível pelo usuário `postgres`).
+Veja `test/apoio.js` para os requisitos e como configurar o banco de testes local.
 
-## Regras do sorteio
+## Referências
 
-Estão em `shared/regras.js` e documentadas em `regras-sort-mediuns.md` no projeto do Claude.
+- **Regras de negócio** (sorteio, presença, estado dos eventos): [docs/regras.md](docs/regras.md)
+- **Arquitetura e stack**: [docs/arquitetura.md](docs/arquitetura.md)
+- **Fluxo de desenvolvimento**: [docs/como-trabalhamos.md](docs/como-trabalhamos.md)
+- **Roadmap e pendências**: [docs/visao.md](docs/visao.md)
+- **Estrutura das migrações**: [db/ESTRUTURA-ESQUEMA.md](db/ESTRUTURA-ESQUEMA.md)
