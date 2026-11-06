@@ -73,8 +73,20 @@ export const avisar = () => ouvinte();
 export const espelhandoRoot = () => estado.me?.papel === 'root' && !!estado.espelhoRootPessoaId;
 export function meAtivo() {
   if (!espelhandoRoot()) return estado.me;
+  if (estado.visaoRoot === 'alunos') {
+    const aluno = estado.alunos?.alunos?.find((a) => a.id === estado.espelhoRootPessoaId);
+    return aluno ? { ...estado.me, id: null, nome: aluno.nome, email: '', papel: 'alunos', papelNome: 'Aluno', pessoaId: null,
+      grupo: 'alunos', alunoId: aluno.id, permissoes: ['alunos:ver'] } : estado.me;
+  }
+  if (estado.visaoRoot === 'curimba') {
+    const aluno = estado.curimba?.alunos?.find((a) => a.id === estado.espelhoRootPessoaId);
+    return aluno ? { ...estado.me, id: null, nome: aluno.nome, email: '', papel: 'curimba', papelNome: 'Curimba', pessoaId: null,
+      grupo: 'curimba', curimbaAlunoId: aluno.id, permissoes: [] } : estado.me;
+  }
   const pessoa = estado.pessoas.find((p) => p.id === estado.espelhoRootPessoaId);
   if (!pessoa) return estado.me;
+  if (estado.visaoRoot === 'cpj') return { ...estado.me, id: null, nome: pessoa.nome, email: '', papel: 'corrente', papelNome: 'Corrente CPJ',
+    pessoaId: pessoa.id, corrente: true, grupo: '', temSenha: false, permissoes: estado.permCorrente || [] };
   const usuario = estado.usuarios?.find((u) => u.pessoaId === pessoa.id);
   const papel = usuario?.papel || 'corrente';
   const perfil = (estado.perfisCfg || PERFIS_PADRAO).find((p) => p.chave === papel);
@@ -92,7 +104,7 @@ export function meAtivo() {
     permissoes: permissoesDe(papel, perfil?.abas),
   };
 }
-export const visaoAtiva = () => espelhandoRoot() ? '' : estado.me?.papel === 'root' ? estado.visaoRoot : estado.me?.grupo || '';
+export const visaoAtiva = () => estado.me?.papel === 'root' ? estado.visaoRoot : estado.me?.grupo || '';
 export const pode = (perm) => {
   const me = meAtivo();
   if (!me) return false;
@@ -188,32 +200,44 @@ export async function mudarVisaoRoot(visao) {
   }
   estado.visaoRoot = visao;
   estado.confirm = null;
+  if (visao === 'alunos' && estado.alunos === null) await carregarAlunos();
+  if (visao === 'curimba' && estado.curimba === null) await carregarCurimba();
   try {
     const giras = await api('GET', '/giras');
     definirGiras(giras);
   } catch (e) { toast(e.message); }
-  if (visao === 'alunos' && estado.alunos === null) await carregarAlunos();
-  if (visao === 'curimba') estado.minhaCurimba = null;
+  estado.minhaCurimba = null;
   avisar();
 }
 
 export async function mudarEspelhoRoot(pessoaId) {
   if (estado.me?.papel !== 'root') return;
-  if (pessoaId && !estado.pessoas.some((p) => p.id === pessoaId)) {
+  const opcoes = estado.visaoRoot === 'alunos' ? estado.alunos?.alunos || []
+    : estado.visaoRoot === 'curimba' ? estado.curimba?.alunos || [] : estado.pessoas;
+  if (pessoaId && !opcoes.some((p) => p.id === pessoaId)) {
     toast('Pessoa não encontrada no cadastro.');
     return;
   }
   try {
-    if (pessoaId) {
-      const [usuarios, perfisCfg] = await Promise.all([
-        api('GET', '/usuarios'),
-        api('GET', '/usuarios?lista=perfis'),
-      ]);
-      estado.usuarios = usuarios;
-      estado.perfisCfg = perfisCfg;
+    if (pessoaId && ['root', 'cpj'].includes(estado.visaoRoot)) {
+      if (estado.visaoRoot === 'root') {
+        const [usuarios, perfisCfg] = await Promise.all([
+          api('GET', '/usuarios'),
+          api('GET', '/usuarios?lista=perfis'),
+        ]);
+        estado.usuarios = usuarios;
+        estado.perfisCfg = perfisCfg;
+      }
     }
     estado.espelhoRootPessoaId = pessoaId || '';
     estado.confirm = null;
+    if (pessoaId && estado.visaoRoot === 'curimba') {
+      estado.minhaCurimba = await api('GET', `/pessoas?lista=minhaCurimba&alunoId=${encodeURIComponent(pessoaId)}`);
+    } else if (pessoaId && ['root', 'cpj'].includes(estado.visaoRoot)) {
+      estado.minhaCurimba = await api('GET', `/pessoas?lista=minhaCurimba&pessoaId=${encodeURIComponent(pessoaId)}`);
+    } else {
+      estado.minhaCurimba = null;
+    }
     const giras = await api('GET', '/giras');
     definirGiras(giras);
   } catch (e) {

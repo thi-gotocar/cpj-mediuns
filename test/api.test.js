@@ -302,6 +302,7 @@ test('curimba: alunos da corrente e de fora, aulas e presença; o aluno vê as p
   assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'curimbaAluno', nome: 'X' })).status, 403);
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Aluna Curimba', funcao: 'senha' });
   const pe = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Aluna Curimba');
+  assert.equal((await api('GET', `/api/pessoas?lista=minhaCurimba&pessoaId=${pe.id}`, USER)).status, 403, 'só quem tem acesso à Curimba pode consultar presença individual');
   await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, email: 'cur@corrente.org', senha: 'senha-forte-9', papel: 'admin_curimba' });
   const cur = (await api('POST', '/api/auth/entrar', null, { email: 'cur@corrente.org', senha: 'senha-forte-9' })).json.token;
   assert.equal((await api('GET', '/api/pessoas?lista=minhaCurimba', cur)).json?.aulas, undefined, 'ainda não é aluna');
@@ -320,6 +321,9 @@ test('curimba: alunos da corrente e de fora, aulas e presença; o aluno vê as p
   assert.equal(C.presencas.length, 2);
   assert.equal((await api('POST', '/api/pessoas', cur, { acao: 'curimbaPresenca', aulaId: aula.id, alunoId: eu.id, status: 'a' })).status, 400);
   assert.deepEqual((await api('GET', '/api/pessoas?lista=minhaCurimba', cur)).json.aulas, [{ data: '2026-03-07', nome: 'Toques', status: 'p' }]);
+  assert.deepEqual((await api('GET', `/api/pessoas?lista=minhaCurimba&alunoId=${eu.id}`, ADMIN)).json.aulas, [{ data: '2026-03-07', nome: 'Toques', status: 'p' }], 'o root pode espelhar a presença do aluno escolhido');
+  assert.deepEqual((await api('GET', `/api/pessoas?lista=minhaCurimba&pessoaId=${pe.id}`, ADMIN)).json.aulas, [{ data: '2026-03-07', nome: 'Toques', status: 'p' }], 'o root pode carregar aulas associadas ao perfil da corrente');
+  assert.equal((await api('GET', `/api/pessoas?lista=minhaCurimba&alunoId=${eu.id}`, USER)).status, 403, 'quem não administra a curimba não pode consultar outro aluno');
   assert.equal((await api('GET', '/api/pessoas?lista=curimba', ADMIN)).status, 200, 'o root vê');
   C = (await api('POST', '/api/pessoas', cur, { acao: 'curimbaPresenca', aulaId: aula.id, alunoId: fora.id, status: '' })).json;
   assert.equal(C.presencas.length, 1, 'vazio tira a marcação');

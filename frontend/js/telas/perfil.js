@@ -375,7 +375,11 @@ function cardOferendas(todos) {
 export function render() {
   if (estado.perfil === null) { carregarPerfil(); return `<div class="loading">Carregando perfil…</div>`; }
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
-  const todos = estado.perfil.todos || [];
+  const dadosCorrente = new Map(estado.pessoas.map((p) => [p.id, p]));
+  const todos = (estado.perfil.todos || []).map((p) => ({
+    ...(dadosCorrente.get(p.pessoaId) || {}),
+    ...p,
+  }));
   const eu = espelhandoRoot()
     ? todos.find((x) => x.pessoaId === meAtivo()?.pessoaId) || null
     : estado.perfil.eu;

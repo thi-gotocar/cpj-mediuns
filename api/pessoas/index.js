@@ -9,6 +9,7 @@
 //                              · { acao: 'excluirTurma', id } (alunos passam para sem turma) → { turmas, alunos }
 // GET  /api/pessoas?lista=curimba      { alunos, aulas, presencas }  (aba Curimba: controle à parte da corrente)
 // GET  /api/pessoas?lista=minhaCurimba { aulas: [{ data, nome, status }] } | null  (aba Gira: as aulas de quem está logado)
+// GET  /api/pessoas?lista=minhaCurimba&alunoId=…  aulas de um aluno (só admin Curimba/root)
 // POST /api/pessoas            { acao: 'curimbaAluno', pessoaId? | nome } · { acao: 'curimbaExcluirAluno', id }
 //                              { acao: 'curimbaAula', id?, data, nome? } · { acao: 'curimbaExcluirAula', id }
 //                              { acao: 'curimbaPresenca', aulaId, alunoId, status: 'p'|'f'|'' }  → { alunos, aulas, presencas }
@@ -79,6 +80,14 @@ export default rota({
       return db.rpc('curimba_estado');
     }
     if (req.query.lista === 'minhaCurimba') {
+      if (req.query.alunoId) {
+        await exigir(req, 'curimba:ver');
+        return db.rpc('curimba_minha', { alunoId: validarId(req.query.alunoId, 'Aluno de curimba') });
+      }
+      if (req.query.pessoaId) {
+        await exigir(req, 'curimba:ver');
+        return db.rpc('curimba_minha', { pessoaId: validarId(req.query.pessoaId, 'Pessoa') });
+      }
       const eu = await exigir(req);
       if (eu.grupo === 'curimba') return db.rpc('curimba_minha', { alunoId: eu.curimbaAlunoId });
       return eu.pessoaId ? db.rpc('curimba_minha', { pessoaId: eu.pessoaId }) : null;

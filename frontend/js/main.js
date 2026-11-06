@@ -50,6 +50,8 @@ function renderConta() {
   saudExtra.innerHTML = estado.me.corrente && !estado.me.temSenha ? '<button class="btn small" data-conta="criarsenha">🔒 Criar senha</button>' : '';
   // Root escolhe entre a visão administrativa e as visões dos acessos de grupo.
   const root = estado.me.papel === 'root';
+  const opcoesEspelho = estado.visaoRoot === 'alunos' ? estado.alunos?.alunos || []
+    : estado.visaoRoot === 'curimba' ? estado.curimba?.alunos || [] : pessoasOrd();
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : ''}</span>` : ''}
     <span class="conta-bts"><button class="btn small" data-conta="sair">Sair</button>
     ${root ? `<label class="visao-root"><span>Visão</span><select data-conta="visao-root" aria-label="Escolher visualização">
@@ -58,9 +60,9 @@ function renderConta() {
       <option value="alunos" ${estado.visaoRoot === 'alunos' ? 'selected' : ''}>Alunos</option>
       <option value="curimba" ${estado.visaoRoot === 'curimba' ? 'selected' : ''}>Curimba</option>
     </select></label>
-    <label class="visao-root"><span>Espelhar perfil</span><select data-conta="espelho-root" aria-label="Escolher pessoa para espelhar">
+    <label class="visao-root"><span>Espelhar acesso</span><select data-conta="espelho-root" aria-label="Escolher pessoa para espelhar">
       <option value="">— não espelhar —</option>
-      ${pessoasOrd().map((p) => `<option value="${p.id}" ${estado.espelhoRootPessoaId === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}
+      ${opcoesEspelho.map((p) => `<option value="${p.id}" ${estado.espelhoRootPessoaId === p.id ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}
     </select></label>
     ${espelhandoRoot() ? `<span class="espelho-aviso">Espelhando ${esc(meAtivo().nome)} · somente leitura</span>` : ''}` : ''}</span>`;
   rodape.hidden = false;
