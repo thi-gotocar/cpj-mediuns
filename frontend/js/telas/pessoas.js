@@ -4,11 +4,7 @@ import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, TURMAS_LIMPEZA, CURI
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 
-// Nome do bloco Extras nesta tela.
-// Título do bloco de cada função (os quadradinhos da Corrente CPJ usam os nomes curtos).
-const TITULO_BLOCO = { extra: 'Médiuns At. Extra', passe: 'Médiuns de Passe' };
-const tituloFuncao = (f) => TITULO_BLOCO[f.k] || f.pl;
-// Ordem dos blocos de função nesta tela.
+// Ordem das funções exibidas nos totais da Corrente CPJ.
 const ORDEM_FUNCOES = ['medium', 'extra', 'passe', 'cambone', 'senha'].map((k) => FUNCOES.find((f) => f.k === k)).filter(Boolean);
 const cabDobra = (act, titulo, count, aberto) => `<button class="grp-h dobra" data-act="${act}" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'}">
   <h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
@@ -298,13 +294,14 @@ function renderPessoas() {
   // Perfil que só cuida dos alunos (ex.: Admin oferendas): só o Adicionar e o bloco Alunos.
   if (!pode('pessoas:ver')) return h + add + (verAlunos ? cardAlunos() : '') + '</section>';
   if (!editar) h += `<p class="leitura" style="margin:0">Lista da corrente, só para consulta.</p>`;
+  h += add;
   if (!ps.length) {
-    return h + add + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div>${cardTurmas(todas, editar)}${verAlunos ? cardAlunos() : ''}</section>`;
+    return h + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div>${cardTurmas(todas, editar)}${verAlunos ? cardAlunos() : ''}</section>`;
   }
   const funcaoCorrenteAberta = estado.correnteFuncaoAberta;
   const pessoasPorFuncao = Object.fromEntries(ORDEM_FUNCOES.map((f) => [f.k, ps.filter((p) => p.funcao === f.k)]));
   const correnteListaAberta = pessoasPorFuncao[funcaoCorrenteAberta]?.length ? funcaoCorrenteAberta : null;
-  // Ordem: Corrente (com as licenças), Adicionar, funções (Médiuns, Extras, Passe, Cambones, Senha), Turmas da limpeza (com Curimba), Alunos.
+  // Ordem: Adicionar, Corrente (com as licenças), Turmas da limpeza (com Curimba), Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="presentes">${ORDEM_FUNCOES.map((f) => {
       const abertas = pessoasPorFuncao[f.k];
@@ -313,24 +310,6 @@ function renderPessoas() {
     }).join('')}</div>
     ${correnteListaAberta ? `<div class="corrente-pessoas"><div class="ppl">${pessoasPorFuncao[correnteListaAberta].map((p) => linhaPessoa(p)).join('')}</div></div>` : ''}
     ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
-  h += add;
-  ORDEM_FUNCOES.forEach((f) => {
-    const gp = ps.filter((p) => p.funcao === f.k);
-    if (!gp.length || f.k === correnteListaAberta) return;
-    const fechado = (prefs.pessoasFechadas || []).includes(f.k);
-    h += `<div class="card pp-card fn-${f.k}"><button class="grp-h dobra" data-act="dobrar" data-f="${f.k}" aria-expanded="${!fechado}" aria-label="${fechado ? 'Expandir' : 'Minimizar'} ${tituloFuncao(f)}">
-      <h2>${tituloFuncao(f)}</h2><span class="count">${gp.length} <span class="seta" aria-hidden="true">${fechado ? '▸' : '▾'}</span></span></button>`;
-    if (fechado) { h += `</div>`; return; }
-    h += `<div class="ppl">`;
-    gp.forEach((p) => {
-      if (!editar) {
-        h += `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nmcell"><span class="nm">${esc(p.nome)}</span>${resumoLinhas(p)}${p.limpeza ? `<span class="muted" style="font-size:.85rem">🧹 Turma ${p.limpeza} da limpeza</span>` : ''}</span>${p.funcao === 'medium' && p.experiente ? '<span class="muted" style="font-size:.85rem">+ médium de passe</span>' : ''}</div>`;
-        return;
-      }
-      h += linhaPessoa(p);
-    });
-    h += `</div></div>`;
-  });
   h += cardTurmas(todas, editar);
   if (verAlunos) h += cardAlunos();
   return h + '</section>';
@@ -345,15 +324,6 @@ export const cliques = {
   },
   // Troca o que adicionar sem abrir nenhum campo sozinho (o combo de pessoas só abre ao tocar nele).
   addmodo(el) { estado.addModo = el.dataset.v; avisar(); },
-  // Minimiza / expande o bloco de uma função (lembra no aparelho).
-  dobrar(el) {
-    const k = el.dataset.f;
-    const set = new Set(prefs.pessoasFechadas || []);
-    if (set.has(k)) set.delete(k); else set.add(k);
-    prefs.pessoasFechadas = [...set];
-    salvarPrefs();
-    avisar();
-  },
   editlich(el) { guardarRascunhoLic(); estado.editLicH = el.dataset.id; avisar(); },
   cancelarlich() { guardarRascunhoLic(); estado.editLicH = null; avisar(); },
   async salvarlich(el) {
