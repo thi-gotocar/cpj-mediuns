@@ -147,7 +147,6 @@ function contagemPresentes(ps, g, pct = null) {
     'Suporte': dia.filter((p) => status(p, g) === 'sup').length,
   };
   const naGira = Object.values(conta).reduce((a, n) => a + n, 0);
-  if (!naGira) return '';
   const fora = (st) => ps.filter((p) => presencaDe(p, g) === st).length;
   const extra = [['pend', 'pendente', 'pendentes'], ['f', 'falta', 'faltas'], ['a', 'ausente', 'ausentes'], ['lic', 'de licença', 'de licença']].filter(([st]) => fora(st)).map(([st, um, varios]) => `${fora(st)} ${fora(st) === 1 ? um : varios}`).join(' · ');
   // Gira em aberto e ainda por vir: em vez de "Presentes" + total, "Em planejamento" (pendentes, licença… continuam).
@@ -155,8 +154,9 @@ function contagemPresentes(ps, g, pct = null) {
   const topo = planejamento
     ? `<h3>Em planejamento</h3><span class="count">${extra ? `<span class="muted">${extra}</span>` : ''}</span>`
     : `<h3>Presentes</h3><span class="count"><b>${naGira}</b>${pct !== null ? ` · <b>${pct}%</b>` : ''}${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span>`;
-  return `<div class="pres-topo"><div class="grp-h">${topo}</div>
-    <div class="presentes">${Object.entries(conta).map(([t, n]) => `<span><span class="muted">${t}</span> <b>${n}</b></span>`).join('')}</div></div>`;
+  const fn = { 'Médium': 'medium', Cambone: 'cambone', Passe: 'passe', Extra: 'extra', Senha: 'senha', Suporte: 'suporte' };
+  return `<div class="pres-topo enc-pres-topo"><div class="grp-h">${topo}</div>
+    <div class="presentes enc-func-totais">${Object.entries(conta).map(([t, n]) => `<span class="fn-${fn[t]}"><span class="muted">${t}</span><b>${n}</b></span>`).join('')}</div></div>`;
 }
 
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
@@ -201,14 +201,11 @@ function blocosFora(ps, g) {
   }).join('');
 }
 
-// Quadro "Gira encerrada" (para todos, só informa): atendimentos, presença e a turma da limpeza.
+// Quadro "Gira encerrada" (para todos, só informa): atendimentos e presença.
 function blocoEncerrada(ps, g) {
-  const L = limpezaDaGira(estado.pessoas, g, girasLista());
-  const quem = L ? `${L.membros.map((p) => esc(p.nome)).join(', ')}${L.ajudantes.length ? ` · ajudam: ${L.ajudantes.map((p) => esc(p.nome)).join(', ')}` : ''}` : '';
-  return `<div class="infobox enc-quadro"><b>Gira encerrada</b>
-    <span class="atend-tit">Atendidos</span>${numerosAtend(g.atendimentos)}
-    ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}
-    ${L ? `<span>🧹 Limpeza: <b>Turma ${L.turma}</b>${quem ? ` <span class="muted">(${quem})</span>` : ''}</span>` : ''}</div>`;
+  return `<div class="enc-quadro"><h3>Gira encerrada</h3>
+    <div class="atend-sec"><span class="atend-tit">Atendidos</span>${numerosAtend(g.atendimentos)}</div>
+    ${contagemPresentes(ps, g, dadosResumo(estado.pessoas, g).pct.presenca)}</div>`;
 }
 
 // Ao lado da data: para o admin, numa gira em aberto, "Encerrar gira"; nos outros casos, "Próxima gira".
@@ -410,12 +407,12 @@ function renderGira() {
     </div>
     ${encerrada ? '' : blocoRecado(g)}
     ${encerrada ? '' : blocoLimpeza(g)}
+    ${encerrada ? blocoEncerrada(ps, g) : ''}
     ${blocoBanho(g)}
     ${blocoAusencia(ps, g)}
     ${blocoFaltas(ps, g)}
     ${blocoLicenca(ps, g)}
     ${!g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala() : ''}
-    ${encerrada ? blocoEncerrada(ps, g) : ''}
     ${encerrada && whats && !admin ? painelResumo(g) : ''}
   </div>`;
 

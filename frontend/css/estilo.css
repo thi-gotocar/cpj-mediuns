@@ -489,8 +489,18 @@ button.eu-avatar{cursor:zoom-in}
 .eu-fora{background:var(--off-soft);color:var(--off);border-radius:8px;padding:8px 10px;font-size:.95rem}
 .datehead .dia.gira-nome{text-transform:none}
 /* Quadro "Gira encerrada" (só informa) e os atendimentos (campos na gira aberta, números na encerrada) */
-.enc-quadro{display:grid;gap:8px}
-.enc-quadro .pres-topo{border-top-color:var(--accent);margin-top:2px}
+.enc-quadro{display:grid;gap:12px;border:1px solid var(--line);border-radius:var(--r);padding:12px;background:var(--bg)}
+.enc-quadro>h3{color:var(--accent)}
+.enc-quadro .pres-topo{border-top:1px solid var(--line);margin:0;padding-top:10px}
+.enc-func-totais{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.enc-func-totais>span{--fn:var(--accent);display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;min-width:0;padding:7px 3px 6px;border:1px solid var(--line);border-top:3px solid var(--fn);border-radius:9px;background:var(--surface);text-align:center}
+.enc-func-totais .fn-medium{--fn:var(--gold)}
+.enc-func-totais .fn-extra{--fn:var(--orange)}
+.enc-func-totais .fn-passe{--fn:var(--accent)}
+.enc-func-totais .fn-cambone{--fn:var(--ok)}
+.enc-func-totais .fn-senha,.enc-func-totais .fn-suporte{--fn:var(--muted)}
+.enc-func-totais b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
+.enc-func-totais .muted{font-size:.68rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere}
 .atend-sec{display:grid;gap:6px}
 .atend-tit{font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .atend-campos,.atend-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}

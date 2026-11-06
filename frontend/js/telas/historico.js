@@ -111,12 +111,13 @@ const barra = (v, total, cor) => {
 };
 
 function cardEstatisticas(todas, ps) {
-  if (!todas.length) return '';
-  const anos = [...new Set(todas.map((g) => g.data.slice(0, 4)))].sort().reverse();
+  const fechadas = todas.filter((g) => g.encerrada);
+  if (!fechadas.length) return '';
+  const anos = [...new Set(fechadas.map((g) => g.data.slice(0, 4)))].sort().reverse();
   const anoAtual = hoje().slice(0, 4);
   let ano = estado.stAno || (anos.includes(anoAtual) ? anoAtual : anos[0]);
   if (ano !== 'todos' && !anos.includes(ano)) ano = anos[0];
-  const gs = ano === 'todos' ? todas : todas.filter((g) => g.data.startsWith(ano));
+  const gs = ano === 'todos' ? fechadas : fechadas.filter((g) => g.data.startsWith(ano));
   const mais = estado.stMais || {};
 
   // Por pessoa: presenças, faltas, ausências e giras que contam (sem licença).
@@ -157,11 +158,12 @@ function cardEstatisticas(todas, ps) {
   };
   const ranking = (k, titulo, cor, lista, linha) => {
     const max = lista.length ? lista[0][k] : 0;
-    const ver = mais[k] ? lista : lista.slice(0, 5);
+    const limiteInicial = k === 'pres' && lista.filter((x) => x.base > 0 && x.pres === x.base).length > 5 ? 10 : 5;
+    const ver = mais[k] ? lista : lista.slice(0, limiteInicial);
     const aberto = estado.stPessoa;
     return `<div class="st-bloco"><h3>${titulo}</h3>
       ${lista.length ? `<ol class="st-lista">${ver.map((x, i) => `<li>${pos(i)}<button class="st-nome st-nome-bt" data-act="stpessoa" data-k="${k}:${x.p.id}" title="Ver gira a gira">${esc(x.p.nome)}</button>${barra(x[k], x.base, cor)}<span class="st-num">${linha(x)}</span>${aberto === k + ':' + x.p.id ? detalhe(x.p) : ''}</li>`).join('')}</ol>
-      ${lista.length > 5 ? `<button class="btn link small" data-act="stmais" data-k="${k}">${mais[k] ? 'Ver menos' : `Ver mais (${lista.length})`}</button>` : ''}`
+      ${lista.length > limiteInicial ? `<button class="btn link small" data-act="stmais" data-k="${k}">${mais[k] ? 'Ver menos' : `Ver mais (${lista.length})`}</button>` : ''}`
       : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém por aqui.</p>'}</div>`;
   };
   const presentes = porPessoa.filter((x) => x.pres).sort((a, b) => b.pres - a.pres || a.p.nome.localeCompare(b.p.nome));
@@ -185,7 +187,7 @@ function cardEstatisticas(todas, ps) {
 
   return `<div class="card st"><div class="grp-h"><h2>Estatísticas</h2>
       <select data-act="stano" aria-label="Período das estatísticas">${anos.map((a) => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}<option value="todos" ${ano === 'todos' ? 'selected' : ''}>Todos os anos</option></select></div>
-    <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}. Licenças não contam.</p>
+    <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}. Licenças não contam.</p>
     <div class="st-resumo">
       <div><span class="muted">Total de atendimentos${giraAt ? ` <span style="font-size:.8rem">(${giraAt} gira${giraAt === 1 ? '' : 's'})</span>` : ''}</span><b class="st-grande">${somaAt(totAt)}</b>
         <span class="st-det2">${ATEND.map(([k, t]) => `${t} <b>${totAt[k]}</b>`).join(' · ')}</span></div>
