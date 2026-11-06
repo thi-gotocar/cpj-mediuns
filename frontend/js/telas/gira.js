@@ -135,7 +135,7 @@ function avisoEntidade(ps, g, editar, admin) {
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
 // Antes, o total de presentes (quem está na gira), separado pelo que cada um faz no dia:
 // médium, cambone (inclui quem "não atende" e extra/passe fora da linha), passe, extra, senha e suporte.
-// Total de presentes (quem está na gira), separado pelo que cada um faz no dia. Fica no primeiro bloco.
+// Totais por função e situação da presença na gira encerrada.
 function contagemPresentes(ps, g, resumo) {
   const dia = pessoasDaGira(ps, g);
   const conta = {
@@ -146,14 +146,6 @@ function contagemPresentes(ps, g, resumo) {
     'Senha': dia.filter((p) => presente(p, g) && p.funcao === 'senha').length,
     'Suporte': dia.filter((p) => status(p, g) === 'sup').length,
   };
-  const naGira = Object.values(conta).reduce((a, n) => a + n, 0);
-  const fora = (st) => ps.filter((p) => presencaDe(p, g) === st).length;
-  const extra = [['pend', 'pendente', 'pendentes'], ['f', 'falta', 'faltas'], ['a', 'ausente', 'ausentes'], ['lic', 'de licença', 'de licença']].filter(([st]) => fora(st)).map(([st, um, varios]) => `${fora(st)} ${fora(st) === 1 ? um : varios}`).join(' · ');
-  // Gira em aberto e ainda por vir: em vez de "Presentes" + total, "Em planejamento" (pendentes, licença… continuam).
-  const planejamento = !g.encerrada && g.data > hoje();
-  const topo = planejamento
-    ? `<h3>Em planejamento</h3><span class="count">${extra ? `<span class="muted">${extra}</span>` : ''}</span>`
-    : `<h3>Presentes</h3><span class="count"><b>${naGira}</b>${extra ? ` <span class="muted">· ${extra}</span>` : ''}</span>`;
   const fn = { 'Médium': 'medium', Cambone: 'cambone', Passe: 'passe', Extra: 'extra', Senha: 'senha', Suporte: 'suporte' };
   const qtd = { presente: resumo.presentes.length, falta: resumo.faltas.length, ausencia: resumo.ausentes.length, licenca: resumo.licenca.length };
   const base = Object.values(qtd).reduce((s, n) => s + n, 0);
@@ -163,9 +155,10 @@ function contagemPresentes(ps, g, resumo) {
     ['ausencia', 'Ausências', 'warn'],
     ['licenca', 'Licença', 'muted'],
   ];
-  return `<div class="pres-topo enc-pres-topo"><div class="grp-h">${topo}</div>
-    <div class="presentes enc-func-totais">${Object.entries(conta).map(([t, n]) => `<span class="fn-${fn[t]}"><span class="muted">${t}</span><b>${n}</b></span>`).join('')}</div>
-    <div class="enc-situacoes" aria-label="Percentuais de presença e situação">${situacoes.map(([k, t, cor]) => `<div class="enc-situacao ${cor}"><b>${base ? Math.round(qtd[k] / base * 100) : 0}%</b><span>${t}</span><small>${qtd[k]} de ${base}</small></div>`).join('')}</div></div>`;
+  return `<div class="enc-totais">
+    <div class="enc-func-totais" aria-label="Pessoas por função">${Object.entries(conta).map(([t, n]) => `<span class="fn-${fn[t]}"><span class="muted">${t}</span><b>${n}</b></span>`).join('')}</div>
+    <div class="enc-situacoes" aria-label="Percentuais de presença e situação">${situacoes.map(([k, t, cor]) => `<div class="enc-situacao ${cor}"><b>${base ? Math.round(qtd[k] / base * 100) : 0}%</b><span>${t}</span><small>${qtd[k]} de ${base}</small></div>`).join('')}</div>
+  </div>`;
 }
 
 // Faltas e ausentes: na tela, para todos conferirem (não entram no texto nem na imagem do evento).
@@ -213,8 +206,8 @@ function blocosFora(ps, g) {
 // Quadro "Gira encerrada" (para todos, só informa): atendimentos e presença.
 function blocoEncerrada(ps, g) {
   const resumo = dadosResumo(estado.pessoas, g);
-  return `<div class="enc-quadro"><h3>Gira encerrada</h3>
-    <div class="atend-sec enc-atend"><span class="atend-tit">Atendidos</span>${numerosAtend(g.atendimentos)}</div>
+  return `<div class="enc-quadro"><h3 class="enc-titulo"><span aria-hidden="true">✓</span> Gira encerrada</h3>
+    ${numerosAtend(g.atendimentos)}
     ${contagemPresentes(ps, g, resumo)}</div>`;
 }
 
