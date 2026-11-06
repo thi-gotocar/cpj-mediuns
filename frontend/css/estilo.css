@@ -1084,9 +1084,22 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .corrente-card{border-top:4px solid var(--gold)}
 /* Os quadradinhos das funções numa linha só (as licenças ficam embaixo) */
 .pessoas-tela .corrente-card .presentes{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));grid-auto-flow:column;gap:5px}
-.pessoas-tela .corrente-card .presentes > span{display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;padding:7px 3px 6px;border-radius:9px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--fn);min-width:0;text-align:center}
+.pessoas-tela .corrente-card .presentes > span,.pessoas-tela .corrente-card .presentes > button{display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;padding:7px 3px 6px;border-radius:9px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--fn);min-width:0;text-align:center}
+.pessoas-tela .corrente-card .presentes > button{color:inherit;font:inherit;cursor:pointer}
+.pessoas-tela .corrente-card .presentes > button.selecionado{background:color-mix(in srgb,var(--fn) 12%,var(--surface));border-color:var(--fn)}
+.pessoas-tela .corrente-card .presentes > button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .pessoas-tela .corrente-card .presentes b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
 .pessoas-tela .corrente-card .presentes .muted{font-size:.62rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere}
+.pessoas-tela .corrente-pessoas{margin-top:8px}
+.pessoas-tela .corrente-pessoas .pp{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg)}
+.pessoas-tela .corrente-pessoas .pp2{display:grid;gap:4px}
+.pessoas-tela .corrente-pessoas .pp-l1{gap:6px}
+.pessoas-tela .corrente-pessoas .pp-l1>.nm{flex:1 1 auto;min-width:0;overflow-wrap:break-word}
+.pessoas-tela .corrente-pessoas .pp-l1>.pp-l2{flex:none;flex-wrap:nowrap;gap:4px}
+.pessoas-tela .corrente-pessoas .pp-fn,.pessoas-tela .corrente-pessoas .pp-limp{font-size:.74rem;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.pessoas-tela .corrente-pessoas .pp-l3{display:flex}
+.pessoas-tela .corrente-pessoas .pp-res{padding-top:4px;gap:1px}
+.pessoas-tela .corrente-pessoas .pp-res .muted{font-size:.72rem !important;line-height:1.25}
 .pessoas-tela .pp-card{border-top:4px solid var(--fn)}
 .pessoas-tela .pp-card > .grp-h h2{color:var(--fn)}
 .pessoas-tela .pp-card .ppl{gap:6px}

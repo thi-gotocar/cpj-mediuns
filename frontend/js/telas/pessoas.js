@@ -64,16 +64,17 @@ function guardarRascunhoLic() {
 }
 
 // Quem é de cada turma da limpeza (para conferir de uma vez).
-function cardTurmas(ps) {
-  const com = ps.filter((p) => p.limpeza);
-  if (!com.length) return '';
+function cardTurmas(todas, editar) {
+  const com = todas.filter((p) => p.limpeza);
+  const curimba = cardCurimba(todas, editar);
+  if (!com.length && !curimba) return '';
   const aberto = estado.turmasAbertas ? ' open' : '';
-  return `<div class="card pp-card fn-limpeza"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${ps.length}</span></summary>
-    <div class="turmas" style="margin-top:8px">${TURMAS_LIMPEZA.map((t) => {
-      const nomes = ps.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome) + (ehCurimba(p) ? ' 🥁' : ''));
+  return `<div class="card pp-card fn-limpeza"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${todas.length}</span></summary>
+    <div class="turmas" style="margin-top:8px">${curimba}${TURMAS_LIMPEZA.map((t) => {
+      const nomes = todas.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome) + (ehCurimba(p) ? ' 🥁' : ''));
       return `<div class="turma-l"><span class="turma-n" aria-hidden="true">${t}</span><div><b>Turma ${t}</b> <span class="muted">(${nomes.length})</span>: ${nomes.length ? nomes.join(', ') : '<span class="muted">ninguém</span>'}</div></div>`;
     }).join('')}
-    ${ps.length > com.length ? `<div class="muted">Sem turma: ${ps.length - com.length}</div>` : ''}</div></details></div>`;
+    ${todas.length > com.length ? `<div class="muted">Sem turma: ${todas.length - com.length}</div>` : ''}</div></details></div>`;
 }
 
 const nomeFuncao = (p) => (p.funcao === 'extra' ? 'at. extra' : 'médium de passe');
@@ -121,14 +122,14 @@ function editorLinhas(p, c) {
 // Uma pessoa (quem edita): linha 1 = nome, função, 🧹 turma, "+ médium de passe" e os botões ✎ (Editar) e 🗑️ (Excluir);
 // depois o resumo das entidades. Nada muda fora do Editar: em Editar, nome, função, turma, "+ médium de passe"
 // e as entidades ficam editáveis e só são gravados no Salvar (Cancelar descarta).
-function linhaPessoa(p, { funcao = true } = {}) {
+function linhaPessoa(p, { funcao = true, acoes = true, somenteLeitura = false } = {}) {
   const ed = estado.renomear === p.id;
-  if (!ed) {
+  if (!ed || somenteLeitura) {
     // Linha 1: nome (quebra entre palavras se precisar), função, 🧹 turma e os botões; "+ médium de passe" na linha de baixo.
     return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
         <span class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
           <span class="pp-limp" title="Turma da limpeza">🧹 ${p.limpeza || '—'}</span></span>
-        <span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="p" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div>
+        ${acoes ? `<span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="p" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span>` : ''}</div>
       ${p.funcao === 'medium' && p.experiente ? '<div class="pp-l3"><span class="pp-fn pp-exp-on">+ médium de passe</span></div>' : ''}
       ${camposDe(p).length ? `<div class="pp-res">${resumoLinhas(p)}</div>` : ''}</div>`;
   }
@@ -140,6 +141,10 @@ function linhaPessoa(p, { funcao = true } = {}) {
         ${p.funcao === 'medium' ? `<label class="check small pp-exp"><input type="checkbox" id="ren-exp" ${p.experiente ? 'checked' : ''}> + médium de passe</label>` : ''}</div>
       ${camposDe(p).map((c) => editorLinhas(p, c)).join('')}
     </form></div>`;
+}
+
+function pessoaResumoCorrente(p) {
+  return linhaPessoa(p, { acoes: false, somenteLeitura: true });
 }
 
 // Lembra quais editores de linhas estão abertos entre redesenhos.
@@ -298,11 +303,18 @@ function renderPessoas() {
   if (!pode('pessoas:ver')) return h + add + (verAlunos ? cardAlunos() : '') + '</section>';
   if (!editar) h += `<p class="leitura" style="margin:0">Lista da corrente, só para consulta.</p>`;
   if (!ps.length) {
-    return h + add + cardCurimba(todas, editar) + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div>${verAlunos ? cardAlunos() : ''}</section>`;
+    return h + add + `<div class="card empty"><p class="muted">${editar ? 'Ninguém cadastrado ainda. Digite os nomes acima; pode colar uma lista inteira separada por vírgulas.' : 'Ninguém cadastrado ainda.'}</p></div>${cardTurmas(todas, editar)}${verAlunos ? cardAlunos() : ''}</section>`;
   }
-  // Ordem: Corrente (com as licenças), Adicionar, funções (Médiuns, Extras, Passe, Cambones, Senha), Curimba, Turmas da limpeza, Alunos.
+  const funcaoCorrenteAberta = estado.correnteFuncaoAberta;
+  const pessoasPorFuncao = Object.fromEntries(ORDEM_FUNCOES.map((f) => [f.k, ps.filter((p) => p.funcao === f.k)]));
+  // Ordem: Corrente (com as licenças), Adicionar, funções (Médiuns, Extras, Passe, Cambones, Senha), Turmas da limpeza (com Curimba), Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
-    <div class="presentes">${ORDEM_FUNCOES.map((f) => `<span class="fn-${f.k}"><span class="muted">${f.k === 'extra' ? 'At. Extra' : f.pl}</span> <b>${ps.filter((p) => p.funcao === f.k).length}</b></span>`).join('')}</div>
+    <div class="presentes">${ORDEM_FUNCOES.map((f) => {
+      const abertas = pessoasPorFuncao[f.k];
+      const aberta = funcaoCorrenteAberta === f.k;
+      return `<button type="button" class="fn-${f.k}${aberta ? ' selecionado' : ''}" data-act="correnteFuncao" data-f="${f.k}" aria-expanded="${aberta}" aria-label="${f.pl}: ${abertas.length} pessoas${aberta ? ', recolher lista' : ', expandir lista'}"${abertas.length ? '' : ' disabled'}><span class="muted">${f.k === 'extra' ? 'At. Extra' : f.pl}</span> <b>${abertas.length}</b></button>`;
+    }).join('')}</div>
+    ${funcaoCorrenteAberta && pessoasPorFuncao[funcaoCorrenteAberta]?.length ? `<div class="corrente-pessoas"><div class="ppl">${pessoasPorFuncao[funcaoCorrenteAberta].map(pessoaResumoCorrente).join('')}</div></div>` : ''}
     ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
   h += add;
   ORDEM_FUNCOES.forEach((f) => {
@@ -322,8 +334,7 @@ function renderPessoas() {
     });
     h += `</div></div>`;
   });
-  h += cardCurimba(todas, editar);
-  h += cardTurmas(todas);
+  h += cardTurmas(todas, editar);
   if (verAlunos) h += cardAlunos();
   return h + '</section>';
 }
@@ -331,6 +342,10 @@ function renderPessoas() {
 export const cliques = {
   dobraradd() { estado.addAberto = !(estado.addAberto ?? !pessoasOrd().some((p) => !ehCurimba(p))); avisar(); },
   dobrarcurimba() { estado.curimbaAberta = !estado.curimbaAberta; avisar(); },
+  correnteFuncao(el) {
+    estado.correnteFuncaoAberta = estado.correnteFuncaoAberta === el.dataset.f ? null : el.dataset.f;
+    avisar();
+  },
   // Troca o que adicionar sem abrir nenhum campo sozinho (o combo de pessoas só abre ao tocar nele).
   addmodo(el) { estado.addModo = el.dataset.v; avisar(); },
   // Minimiza / expande o bloco de uma função (lembra no aparelho).
