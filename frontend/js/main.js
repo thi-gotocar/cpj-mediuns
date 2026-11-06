@@ -76,7 +76,7 @@ function render() {
   let VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
     pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true, agenda: true };
   if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: true, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: false, agenda: false };
-  if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: true };
+  if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
   if (!VE[prefs.tab]) prefs.tab = visao === 'alunos' ? 'pessoas' : 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
@@ -131,7 +131,7 @@ async function iniciar() {
     return;
   }
   main.innerHTML = '<div class="loading">Carregando a corrente…</div>';
-  // Ao abrir o app (ou entrar), começa sempre na aba Gira e, para o root, com o "Admin" ligado.
+  // Ao abrir o app (ou entrar), começa em Geral; a visão root começa no perfil Root.
   prefs.tab = 'gira';
   estado.visaoRoot = 'root';
   try {

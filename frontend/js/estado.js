@@ -200,7 +200,7 @@ export async function atualizarDoServidor() {
     definirGiras(giras);
     // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
     // Na aba Gira também, por causa de "Seus compromissos".
-    if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira') && !Object.values(timersDoacao).some(Boolean)) {
+    if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {
       estado.oferendas = await api('GET', '/oferendas').catch(() => estado.oferendas);
     }
     avisar();

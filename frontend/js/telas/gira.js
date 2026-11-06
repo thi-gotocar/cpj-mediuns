@@ -332,9 +332,9 @@ function janelaOracoes() {
 // Pedido de oração: até 3 linhas.
 
 export function render() {
-  if (prefs.tab === 'agenda') return `<section class="panel">${cardSemana({ ocultarAvisos: visaoAtiva() === 'curimba' })}</section>`;
-  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}</section>`;
-  return renderGira().replace('<section class="panel">', '<section class="panel">' + cardOracoes());
+  if (prefs.tab === 'agenda') return renderGira();
+  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardSemana({ ocultarAvisos: true })}${cardAulaCurimba()}</section>`;
+  return `<section class="panel">${cardSemana()}${cardOracoes()}</section>`;
 }
 
 function renderGira() {
@@ -984,7 +984,9 @@ function gravarRapida(c) {
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
-  const html = prefs.tab === 'gira' ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala() || janelaOracoes() : '';
+  const html = prefs.tab === 'agenda'
+    ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala()
+    : prefs.tab === 'gira' ? janelaOracoes() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');

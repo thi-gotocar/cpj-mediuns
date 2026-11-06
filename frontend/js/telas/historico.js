@@ -316,7 +316,7 @@ export const cliques = {
   dobrarsalvas() { estado.salvasAberto = !estado.salvasAberto; avisar(); },
   stpessoa(el) { estado.stPessoa = estado.stPessoa === el.dataset.k ? null : el.dataset.k; avisar(); },
   stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
-  abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'gira'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
+  abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'agenda'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
   delgira(el) { estado.confirm = null; excluirGira(el.dataset.d); },
   backup() {
     baixar(new Blob([JSON.stringify(montarBackup(), null, 1)], { type: 'application/json' }), 'sort-mediuns-backup-' + hoje() + '.json');
