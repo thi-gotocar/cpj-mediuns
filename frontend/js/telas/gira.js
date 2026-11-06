@@ -15,7 +15,7 @@ import { blocoEu } from './giraEu.js';
 import { sugAbertas, blocoSugestao } from './giraSugestao.js';
 import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './giraTopo.js';
 import { blocoLimpeza, blocoRecado, campoRecado, blocoLicenca, blocoBanho, blocoAusPrevia, blocoAusencia, blocoFaltas, avisoEntidade, contagemPresentes } from './giraInformacoes.js';
-import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, titDobra, linhaEscala } from './giraEscala.js';
+import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra, linhaEscala } from './giraEscala.js';
 export { enviarOracao } from './giraTopo.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
@@ -429,6 +429,7 @@ function renderGira() {
   const cancelaOk = temDuplas && sortearOk;
   h += `<div class="${caixa}"><div class="grp-h">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}</div>
       ${temDuplas ? acoesSorteio(g, sortearOk && !g.travada, editar && !passada, manual, cancelaOk) : ''}
+      ${estado.confirm === 'rem:' + g.data ? confirmaRemenajo() : ''}
       ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Refazer o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Depois é só tocar em Sortear de novo.`, 'cancelsort', 'Sim, refazer') : ''}
       ${temDuplas ? '' : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
         ? confirmaSorteio('<b>Tem certeza que quer sortear?</b> O app monta as duplas agora.', 'sortear', '🎲 Sortear')
