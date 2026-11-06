@@ -88,6 +88,12 @@ export const ACESSO_CORRENTE = 'corrente-cpj';
 // Textos aceitos no campo de e-mail para o acesso da corrente.
 export const ACESSOS_CORRENTE = [ACESSO_CORRENTE, 'cpj'];
 export const ehAcessoCorrente = (email) => ACESSOS_CORRENTE.includes(String(email || '').trim().toLowerCase());
+export const GRUPOS_ACESSO = ['alunos', 'curimba'];
+export const grupoAcesso = (email) => {
+  const valor = String(email || '').trim().toLowerCase();
+  return GRUPOS_ACESSO.includes(valor) ? valor : ehAcessoCorrente(valor) ? 'cpj' : '';
+};
+export const ehAcessoGrupo = (email) => !!grupoAcesso(email);
 
 // Senha (PIN) de quem entra pelo acesso da corrente: só números, de 4 a 8.
 export const PIN_VALIDO = /^\d{4,8}$/;

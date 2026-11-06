@@ -53,8 +53,8 @@ export const estado = {
   fotUi: null,         // aba Fotos: álbum escolhido, álbuns abertos, foto em tela cheia, envio em andamento
   ofUi: { editar: null, editarItem: null, compartilhar: null, img: null },    // formulário "Cadastrar gira antiga" (aba Histórico)       // id da licença em edição (aba Pessoas)      // id da pessoa com o nome em edição (aba Pessoas)        // data da gira com "Ajuste manual" ligado (giras passadas já vêm ligadas)
   salvando: 0,
-  visaoCorrente: false, // root com o botão "Admin" desligado: vê o app como a corrente (só na tela)
-  permCorrente: [],     // permissões do perfil Corrente, usadas nessa visão
+  visaoRoot: 'root',    // visão simulada pelo root: root, cpj, alunos ou curimba
+  permCorrente: [],     // permissões do perfil Corrente, usadas na visão CPJ
 };
 
 const PREF = 'sortmediuns:prefs';
@@ -69,7 +69,16 @@ export function aoMudar(fn) { ouvinte = fn; }
 export const avisar = () => ouvinte();
 
 // ---------- leitura ----------
-export const pode = (perm) => !!estado.me && ((estado.visaoCorrente ? estado.permCorrente : estado.me.permissoes) || []).includes(perm);
+export const visaoAtiva = () => estado.me?.papel === 'root' ? estado.visaoRoot : estado.me?.grupo || '';
+export const pode = (perm) => {
+  if (!estado.me) return false;
+  if (estado.me.papel === 'root') {
+    if (estado.visaoRoot === 'cpj') return (estado.permCorrente || []).includes(perm);
+    if (estado.visaoRoot === 'alunos') return perm === 'alunos:ver';
+    if (estado.visaoRoot === 'curimba') return false;
+  }
+  return (estado.me.permissoes || []).includes(perm);
+};
 export const pessoasOrd = () => ordenarPessoas(estado.pessoas);
 export const nome = (id) => estado.pessoas.find((p) => p.id === id)?.nome || '(removido)';
 export const girasLista = () => Object.values(estado.giras);
@@ -78,17 +87,52 @@ export const giraAtual = () => estado.giras[prefs.data] || giraVazia(prefs.data)
 function definirGiras(lista) {
   const novo = {};
   // Na visão da corrente, a escala ainda não publicada fica escondida, como o servidor faz para a corrente.
-  lista.forEach((g) => { novo[g.data] = estado.visaoCorrente && !g.publicada ? { ...g, pares: [], passes: [] } : g; });
+  const visaoCorrente = estado.me?.papel === 'root' ? estado.visaoRoot === 'cpj' : estado.me?.papel === 'corrente';
+  lista.forEach((g) => { novo[g.data] = visaoCorrente && !g.publicada ? { ...g, pares: [], passes: [] } : g; });
   // Não sobrescreve giras com edição ainda não enviada.
   Object.keys(pendente).forEach((d) => { if (estado.giras[d]) novo[d] = estado.giras[d]; });
   estado.giras = novo;
 }
 
 export async function carregarTudo() {
-  const [me, pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos] = await Promise.all([api('GET', '/auth/me'), api('GET', '/pessoas'), api('GET', '/giras'),
+  const me = await api('GET', '/auth/me');
+  estado.me = me;
+  estado.visaoRoot = 'root';
+  if (me.grupo === 'alunos') {
+    estado.pessoas = [];
+    estado.giras = {};
+    estado.eventos = [];
+    estado.minhaCurimba = null;
+    estado.curimba = null;
+    estado.oracoes = [];
+    estado.alunos = await api('GET', '/pessoas?lista=alunos');
+    prefs.tab = 'pessoas';
+    prefs.data = hoje();
+    estado.pronto = true;
+    avisar();
+    return;
+  }
+  if (me.grupo === 'curimba') {
+    const [eventos, minhaCurimba] = await Promise.all([
+      api('GET', '/giras?lista=eventos'),
+      api('GET', '/pessoas?lista=minhaCurimba'),
+    ]);
+    estado.pessoas = [];
+    estado.giras = {};
+    estado.eventos = eventos;
+    estado.minhaCurimba = minhaCurimba;
+    estado.curimba = null;
+    estado.alunos = null;
+    estado.oracoes = [];
+    prefs.tab = 'gira';
+    prefs.data = hoje();
+    estado.pronto = true;
+    avisar();
+    return;
+  }
+  const [pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'),
     api('GET', '/giras?lista=eventos').catch(() => []), api('GET', '/pessoas?lista=minhaCurimba').catch(() => null), api('GET', '/giras?lista=oracoes').catch(() => []),
     api('GET', '/giras?lista=entidades').catch(() => [])]);
-  estado.me = me;
   estado.oracoes = oracoes || [];
   estado.eventos = eventos;
   estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
@@ -105,18 +149,23 @@ export async function carregarTudo() {
   avisar();
 }
 
-// Root: botão "Admin" no topo. Desligado, a tela fica como a da corrente (abas, botões e escala não publicada);
-// o servidor continua respondendo como root. Ao abrir o app, começa sempre ligado.
-export async function alternarVisaoAdmin() {
+// Root pode alternar a apresentação; o backend continua reconhecendo o usuário como root.
+export async function mudarVisaoRoot(visao) {
   if (estado.me?.papel !== 'root') return;
-  if (!estado.visaoCorrente) {
+  if (!['root', 'cpj', 'alunos', 'curimba'].includes(visao)) return;
+  if (visao === 'cpj') {
     let abas = PERFIS_PADRAO.find((p) => p.chave === 'corrente').abas;
     try { abas = (await api('GET', '/usuarios?lista=perfis')).find((p) => p.chave === 'corrente')?.abas || abas; } catch { /* usa o padrão */ }
     estado.permCorrente = permissoesDe('corrente', abas);
   }
-  estado.visaoCorrente = !estado.visaoCorrente;
+  estado.visaoRoot = visao;
   estado.confirm = null;
-  try { definirGiras(await api('GET', '/giras')); } catch (e) { toast(e.message); }
+  try {
+    const giras = await api('GET', '/giras');
+    definirGiras(giras);
+  } catch (e) { toast(e.message); }
+  if (visao === 'alunos' && estado.alunos === null) await carregarAlunos();
+  if (visao === 'curimba') estado.minhaCurimba = null;
   avisar();
 }
 
@@ -128,6 +177,18 @@ export async function atualizarDoServidor() {
   if (Date.now() - ultimaAtualizacao < 15000) return;
   ultimaAtualizacao = Date.now();
   try {
+    if (estado.me?.grupo === 'alunos') {
+      estado.alunos = await api('GET', '/pessoas?lista=alunos');
+      avisar();
+      return;
+    }
+    if (estado.me?.grupo === 'curimba') {
+      const [eventos, minhaCurimba] = await Promise.all([api('GET', '/giras?lista=eventos'), api('GET', '/pessoas?lista=minhaCurimba')]);
+      estado.eventos = eventos;
+      estado.minhaCurimba = minhaCurimba;
+      avisar();
+      return;
+    }
     const [pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos),
       api('GET', '/pessoas?lista=minhaCurimba').catch(() => estado.minhaCurimba), api('GET', '/giras?lista=oracoes').catch(() => estado.oracoes),
       api('GET', '/giras?lista=entidades').catch(() => estado.entidadesApelidos)]);

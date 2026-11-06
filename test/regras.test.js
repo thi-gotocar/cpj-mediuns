@@ -2,7 +2,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium, opcoesGira, apelidoEntidade, nomeEntidadeGira } from '../shared/regras.js';
-import { PERFIS_PADRAO, PERMISSOES_ROOT, permissoesDe } from '../shared/permissoes.js';
+import { PERFIS_PADRAO, PERMISSOES_ROOT, permissoesDe, grupoAcesso } from '../shared/permissoes.js';
+
+test('palavras-passe de acesso reconhecem CPJ, Alunos e Curimba', () => {
+  assert.equal(grupoAcesso(' CPJ '), 'cpj');
+  assert.equal(grupoAcesso('ALUNOS'), 'alunos');
+  assert.equal(grupoAcesso('curimba'), 'curimba');
+  assert.equal(grupoAcesso('ervas'), '');
+  assert.equal(grupoAcesso('email@exemplo.com'), '');
+});
 
 test('entidade da gira é reconhecida com variações de escrita', () => {
   assert.equal(linhaDaEntidade('Preto Velho'), 'preto-velho');

@@ -469,6 +469,47 @@ test('acesso da corrente: entra só com o nome, sem senha', async () => {
   assert.equal((await api('POST', '/api/auth/senha', tok, { atual: 'x', nova: 'yyyyyyyy' })).status, 400);
 });
 
+test('acessos alunos e curimba: nome do cadastro, dados restritos e eventos sem avisos', async () => {
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluna da CPJ, Outra Aluna' });
+  const turmaAlunos = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json;
+  const aluna = turmaAlunos.alunos.find((x) => x.nome === 'Aluna da CPJ');
+  const loginAluna = await api('POST', '/api/auth/entrar', null, { email: 'alunos', senha: 'aluna da cpj' });
+  assert.equal(loginAluna.status, 200, JSON.stringify(loginAluna.json));
+  assert.equal(loginAluna.json.usuario.grupo, 'alunos');
+  const meusAlunos = await api('GET', '/api/pessoas?lista=alunos', loginAluna.json.token);
+  assert.deepEqual(meusAlunos.json.alunos.map((x) => x.id), [aluna.id]);
+  assert.equal((await api('GET', '/api/pessoas', loginAluna.json.token)).status, 403);
+  assert.equal((await api('GET', '/api/giras', loginAluna.json.token)).status, 403);
+  assert.equal((await api('GET', '/api/giras?lista=eventos', loginAluna.json.token)).status, 403);
+  assert.equal((await api('GET', '/api/giras?lista=oracoes', loginAluna.json.token)).status, 403);
+  assert.equal((await api('POST', '/api/auth/senha', loginAluna.json.token, { atual: 'x', nova: 'senha-forte-1' })).status, 403);
+  assert.equal((await api('POST', '/api/giras', loginAluna.json.token, { acao: 'oracao', texto: 'Oração de teste' })).status, 403);
+
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'curimbaAluno', nome: 'Aluna de Curimba' });
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'curimbaAluno', nome: 'Outra Aluna de Curimba' });
+  const curimba = (await api('GET', '/api/pessoas?lista=curimba', ADMIN)).json;
+  const minha = curimba.alunos.find((x) => x.nome === 'Aluna de Curimba');
+  const aula = await api('POST', '/api/pessoas', ADMIN, { acao: 'curimbaAula', data: '2034-05-10', nome: 'Toques' });
+  const aulaId = aula.json.aulas.find((x) => x.data === '2034-05-10').id;
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'curimbaPresenca', aulaId, alunoId: minha.id, status: 'p' });
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'curimbaPresenca', aulaId, alunoId: curimba.alunos.find((x) => x.nome === 'Outra Aluna de Curimba').id, status: 'f' });
+  await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2034-05-11', nome: 'Aviso interno', tipo: 'aviso' });
+  await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2034-05-12', nome: 'Festa da casa', tipo: 'evento' });
+  const loginCurimba = await api('POST', '/api/auth/entrar', null, { email: 'curimba', senha: 'aluna de curimba' });
+  assert.equal(loginCurimba.status, 200, JSON.stringify(loginCurimba.json));
+  assert.equal(loginCurimba.json.usuario.grupo, 'curimba');
+  const minhasAulas = await api('GET', '/api/pessoas?lista=minhaCurimba', loginCurimba.json.token);
+  assert.deepEqual(minhasAulas.json.aulas, [{ data: '2034-05-10', nome: 'Toques', status: 'p' }]);
+  const eventos = await api('GET', '/api/giras?lista=eventos', loginCurimba.json.token);
+  assert.equal(eventos.status, 200);
+  assert.ok(eventos.json.some((x) => x.nome === 'Festa da casa'));
+  assert.ok(!eventos.json.some((x) => x.tipo === 'aviso'));
+  assert.equal((await api('GET', '/api/giras?lista=oracoes', loginCurimba.json.token)).status, 403);
+  assert.equal((await api('GET', '/api/pessoas?lista=curimba', loginCurimba.json.token)).status, 403);
+  assert.equal((await api('GET', '/api/giras', loginCurimba.json.token)).status, 403);
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ervas', senha: 'qualquer nome' })).status, 401);
+});
+
 test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', async () => {
   const add = (nome, preco) => api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', nome, preco });
   assert.equal((await add('Arruda', '5,00')).status, 200);

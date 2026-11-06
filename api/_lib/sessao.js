@@ -14,6 +14,23 @@ export async function exigir(req, permissao) {
   const sessao = await lerToken(token);
   if (!sessao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
 
+  if (sessao.grupo) {
+    const aluno = sessao.grupo === 'alunos'
+      ? await db.rpc('aluno_acesso', { id: sessao.registroId })
+      : await db.rpc('curimba_aluno_acesso', { id: sessao.registroId });
+    if (!aluno) throw new HttpError(401, 'Cadastro não encontrado. Entre de novo.');
+    const permissoes = sessao.grupo === 'alunos' ? ['alunos:ver'] : [];
+    const quem = {
+      id: null, nome: aluno.nome, email: '', papel: sessao.grupo, papelNome: sessao.grupo === 'alunos' ? 'Aluno' : 'Curimba',
+      grupo: sessao.grupo, alunoId: sessao.grupo === 'alunos' ? aluno.id : null,
+      curimbaAlunoId: sessao.grupo === 'curimba' ? aluno.id : null,
+      pessoaId: sessao.grupo === 'curimba' ? aluno.pessoaId || null : null,
+      permissoes,
+    };
+    if (permissao && !permissoes.includes(permissao)) throw new HttpError(403, 'Este acesso não tem permissão para isso.');
+    return quem;
+  }
+
   if (sessao.corrente) {
     // Sessões antigas (antes de ligar o acesso à pessoa cadastrada) precisam entrar de novo.
     if (!sessao.pessoaId) throw new HttpError(401, 'Sessão expirada. Entre de novo.');

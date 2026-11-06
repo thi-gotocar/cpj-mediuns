@@ -57,7 +57,12 @@ export async function emitirTokenCorrente(nome, pessoaId, versao = 0) {
   return corpo + '.' + assinar(corpo, await obterSegredo());
 }
 
-// Devolve { id, versao } (usuário), { corrente: true, nome, pessoaId } ou null se inválido/vencido.
+export async function emitirTokenGrupo(grupo, registroId, nome) {
+  const corpo = b64url(JSON.stringify({ g: grupo, a: registroId, n: nome, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
+  return corpo + '.' + assinar(corpo, await obterSegredo());
+}
+
+// Devolve usuário, acesso da corrente, aluno ou null se inválido/vencido.
 export async function lerToken(token) {
   const [corpo, assinatura] = String(token || '').split('.');
   if (!corpo || !assinatura) return null;
@@ -68,6 +73,9 @@ export async function lerToken(token) {
     const d = JSON.parse(Buffer.from(corpo, 'base64url').toString('utf8'));
     if (!d.exp || d.exp < Date.now() / 1000) return null;
     if (typeof d.c === 'string' && d.c.trim()) return { corrente: true, nome: d.c, pessoaId: typeof d.p === 'string' ? d.p : null, versao: Number(d.v) || 0 };
+    if (['alunos', 'curimba'].includes(d.g) && typeof d.a === 'string' && typeof d.n === 'string') {
+      return { grupo: d.g, registroId: d.a, nome: d.n };
+    }
     if (!d.u) return null;
     return { id: d.u, versao: d.v };
   } catch {

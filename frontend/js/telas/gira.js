@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, LINHA_LABEL, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, funcaoNaGira, usaLinhas, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, carregarAusPrevias, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -231,10 +231,27 @@ function caixaEncerrar() {
 // Próxima quarta-feira (hoje, se hoje for quarta).
 // Gira anterior, próxima gira e o calendário para buscar outra data (para todos).
 function navegarGiras(g) {
+  const anterior = dataGiraAdjacente(g.data, -1);
+  const proxima = dataGiraAdjacente(g.data, 1);
   return `<div class="nav-gira">
+    <button class="btn nav-seta" data-act="giraanterior" title="Evento anterior" aria-label="Ir para o evento anterior" ${anterior ? '' : 'disabled'}>←</button>
     <span class="nav-data"><span aria-hidden="true">📅</span> ${esc(dLong(g.data))}</span>
+    <button class="btn nav-seta" data-act="proximoevento" title="Próximo evento" aria-label="Ir para o próximo evento" ${proxima ? '' : 'disabled'}>→</button>
     <label class="btn nav-cal" title="Escolher outra data"><span aria-hidden="true">📅</span><input type="date" id="f-data" value="${esc(g.data)}" aria-label="Escolher outra data"></label>
   </div>`;
+}
+
+function dataGiraAdjacente(data, direcao) {
+  const datas = girasLista().map((g) => g.data).filter((d) => direcao < 0 ? d < data : d > data).sort();
+  return direcao < 0 ? datas[datas.length - 1] || '' : datas[0] || '';
+}
+
+function irParaGiraAdjacente(direcao) {
+  const data = dataGiraAdjacente(prefs.data, direcao);
+  if (!data) return;
+  prefs.data = data;
+  salvarPrefs();
+  avisar();
 }
 
 function proximaQuarta() {
@@ -315,6 +332,7 @@ function janelaOracoes() {
 // Pedido de oração: até 3 linhas.
 
 export function render() {
+  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardSemana({ ocultarAvisos: true })}${cardAulaCurimba()}</section>`;
   return renderGira().replace('<section class="panel">', '<section class="panel">' + cardSemana() + cardOracoes());
 }
 
@@ -346,7 +364,13 @@ function renderGira() {
   // Admin: os comandos do evento ficam na parte "⚙️ Evento" do card do admin, não no card da gira.
   // Aberta: entidade, orixá, turma da limpeza, atendimentos, WhatsApp (escala e limpeza), Alterar data e Encerrar gira.
   // Encerrada: gira e orixá só informam (bloqueados), Compartilhar a escala, Compartilhar resumo e Reabrir gira.
-  const cabEvento = `<div class="grp-h"><h2>⚙️ Evento</h2><label class="ev-data-adm" title="Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dLong(g.data))} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label></div>`;
+  const dataAnterior = dataGiraAdjacente(g.data, -1);
+  const dataProxima = dataGiraAdjacente(g.data, 1);
+  const cabEvento = `<div class="grp-h"><h2>⚙️ Evento</h2><div class="ev-nav-adm">
+    <button class="btn ev-seta-adm" data-act="giraanterior" title="Evento anterior" aria-label="Ir para o evento anterior" ${dataAnterior ? '' : 'disabled'}>←</button>
+    <label class="ev-data-adm" title="Escolher outro dia: giras passadas ou futuras (numa data futura sem gira, dá para marcar as ausências)"><span aria-hidden="true">📅</span> ${esc(dLong(g.data))} <span class="seta" aria-hidden="true">▾</span><input type="date" data-act="irdata" value="${esc(g.data)}" aria-label="Ir para outro dia"></label>
+    <button class="btn ev-seta-adm" data-act="proximoevento" title="Próximo evento" aria-label="Ir para o próximo evento" ${dataProxima ? '' : 'disabled'}>→</button>
+  </div></div>`;
   const secaoEvento = !admin || !existe ? '' : encerrada
     ? `<div class="adm-sec adm-evento">${cabEvento}
       <div class="row">
@@ -763,6 +787,7 @@ export const cliques = {
     if (!d) { toast('Não há gira anterior a esta.'); return; }
     prefs.data = d; salvarPrefs(); avisar();
   },
+  proximoevento() { irParaGiraAdjacente(1); },
   proxgira() {
     // A próxima gira cadastrada a partir de hoje; se não houver, a próxima quarta.
     const cad = Object.keys(estado.giras).filter((x) => x >= hoje()).sort()[0];

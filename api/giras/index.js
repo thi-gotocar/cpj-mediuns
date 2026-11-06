@@ -52,15 +52,21 @@ export default rota({
       return db.rpc('entidades_apelidos_listar');
     }
     if (req.query.lista === 'eventos') {
-      await exigir(req);
-      return db.rpc('eventos_listar');
+      const eu = await exigir(req);
+      if (eu.grupo === 'alunos') throw new HttpError(403, 'Este acesso não tem permissão para ver os eventos.');
+      const eventos = await db.rpc('eventos_listar');
+      return eu.grupo === 'curimba' ? eventos.filter((x) => x.tipo !== 'aviso') : eventos;
     }
     if (req.query.lista === 'videos') {
       const eu = await exigir(req);
       if (!pode(eu, 'videos:ver') && !(await db.rpc('videos_publicada'))) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
       return db.rpc('videos_listar');
     }
-    if (req.query.lista === 'oracoes') return oracoes(await exigir(req));
+    if (req.query.lista === 'oracoes') {
+      const eu = await exigir(req);
+      if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para ver as orações.');
+      return oracoes(eu);
+    }
     if (req.query.lista === 'ausencias') {
       await exigir(req, 'giras:editar');
       return db.rpc('ausencias_previas_listar');
@@ -94,7 +100,11 @@ export default rota({
       if (await db.rpc('gira_obter', { data })) throw new HttpError(409, 'A gira desta data já foi criada: marque a ausência na Presença.');
       return db.rpc('ausencia_previa_salvar', { data, pessoaId: validarId(b.pessoaId, 'Pessoa'), ausente: b.ausente !== false });
     }
-    if (ACOES_ORACOES.includes(b.acao)) return acaoOracao(await exigir(req), b);
+    if (ACOES_ORACOES.includes(b.acao)) {
+      const eu = await exigir(req);
+      if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para alterar as orações.');
+      return acaoOracao(eu, b);
+    }
     if (ACOES_FOTOS.includes(b.acao)) {
       exigirFotosAtiva();
       return acaoFoto(await exigir(req, 'fotos:ver'), b);

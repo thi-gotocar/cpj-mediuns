@@ -2,9 +2,9 @@
 
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
-import { estado, prefs, salvarPrefs, pode, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, alternarVisaoAdmin } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
-import { ehAcessoCorrente, PIN_VALIDO } from '/shared/permissoes.js';
+import { ehAcessoGrupo, PIN_VALIDO } from '/shared/permissoes.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
 import * as gira from './telas/gira.js';
 import * as pessoas from './telas/pessoas.js';
@@ -42,14 +42,19 @@ function renderConta() {
   saudNome.textContent = estado.me.nome;
   // Acesso da corrente sem senha: pode criar uma (depois disso o botão some).
   saudExtra.innerHTML = estado.me.corrente && !estado.me.temSenha ? '<button class="btn small" data-conta="criarsenha">🔒 Criar senha</button>' : '';
-  // Root: o botão "Admin" fica embaixo do Sair (ligado = tudo do root; desligado = vê como a corrente).
+  // Root escolhe entre a visão administrativa e as visões dos acessos de grupo.
   const root = estado.me.papel === 'root';
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : ''}</span>` : ''}
     <span class="conta-bts"><button class="btn small" data-conta="sair">Sair</button>
-    ${root ? `<button class="btn small bt-admin" data-conta="admin" aria-pressed="${!estado.visaoCorrente}" title="${estado.visaoCorrente ? 'Vendo como a corrente. Toque para voltar às opções de admin.' : 'Toque para ver o app como a corrente.'}">Admin</button>` : ''}</span>`;
+    ${root ? `<label class="visao-root"><span>Visão</span><select data-conta="visao-root" aria-label="Escolher visualização">
+      <option value="root" ${estado.visaoRoot === 'root' ? 'selected' : ''}>Root</option>
+      <option value="cpj" ${estado.visaoRoot === 'cpj' ? 'selected' : ''}>CPJ</option>
+      <option value="alunos" ${estado.visaoRoot === 'alunos' ? 'selected' : ''}>Alunos</option>
+      <option value="curimba" ${estado.visaoRoot === 'curimba' ? 'selected' : ''}>Curimba</option>
+    </select></label>` : ''}</span>`;
   rodape.hidden = false;
   rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${esc(estado.me.papel)}">${esc(estado.me.papelNome || estado.me.papel)}</span>
-    ${estado.me.corrente ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
+    ${estado.me.corrente || estado.me.grupo ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
 }
 
 function render() {
@@ -61,21 +66,25 @@ function render() {
     renderConta();
     if (!logado()) {
       main.innerHTML = instalado ? (pinLogin ? login.renderPin(erroLogin, pinLogin.nome) : login.render(erroLogin, emailLogin, candidatosLogin)) : login.renderInstalacao(erroLogin);
-      if (instalado && !pinLogin && ehAcessoCorrente(emailLogin)) login.ajustarCampoSenha(true);
+      if (instalado && !pinLogin && ehAcessoGrupo(emailLogin)) login.ajustarCampoSenha(true);
       if (pinLogin) document.getElementById('l-pin')?.focus();
     }
     return;
   }
-  // Abas que o perfil pode ver (a Gira sempre aparece).
-  const VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
+  const visao = visaoAtiva();
+  // Abas que o perfil pode ver.
+  let VE = { usuarios: pode('usuarios:gerenciar'), ervas: pode('ervas:escolher'), oferendas: pode('oferendas:doar'),
     pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true };
-  if (!VE[prefs.tab]) prefs.tab = 'gira';
+  if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: true, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: false };
+  if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true };
+  if (!VE[prefs.tab]) prefs.tab = visao === 'alunos' ? 'pessoas' : 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
+  tabs.querySelector('[data-tab="gira"]').textContent = visao === 'curimba' ? 'Geral' : 'Gira';
   // Perfil: logo depois de Gira; para quem é admin, depois de Pessoas.
   const btPerfil = tabs.querySelector('[data-tab="perfil"]');
   const antes = tabs.querySelector(pode('pessoas:editar') ? '[data-tab="pessoas"]' : '[data-tab="gira"]');
-  if (antes.nextElementSibling !== btPerfil) antes.after(btPerfil);
+  if (VE.perfil && antes.nextElementSibling !== btPerfil) antes.after(btPerfil);
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();
 
@@ -123,7 +132,7 @@ async function iniciar() {
   main.innerHTML = '<div class="loading">Carregando a corrente…</div>';
   // Ao abrir o app (ou entrar), começa sempre na aba Gira e, para o root, com o "Admin" ligado.
   prefs.tab = 'gira';
-  estado.visaoCorrente = false;
+  estado.visaoRoot = 'root';
   try {
     await carregarTudo();
   } catch (e) {
@@ -176,12 +185,9 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, recadoTxt: null, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoCorrente: false, perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, recadoTxt: null, usuarios: null, ervas: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
-  } else if (b.dataset.conta === 'admin') {
-    await alternarVisaoAdmin();
-    window.scrollTo(0, 0);
   } else if (b.dataset.conta === 'senha') {
     const atual = prompt('Sua senha atual:');
     if (atual === null) return;
@@ -205,6 +211,12 @@ async function cliqueConta(e) {
   }
 }
 conta.addEventListener('click', cliqueConta);
+conta.addEventListener('change', async (e) => {
+  const seletor = e.target.closest('[data-conta="visao-root"]');
+  if (!seletor) return;
+  await mudarVisaoRoot(seletor.value);
+  window.scrollTo(0, 0);
+});
 saudExtra.addEventListener('click', cliqueConta);
 rodape.addEventListener('click', cliqueConta);
 
@@ -299,7 +311,7 @@ main.addEventListener('pointercancel', (e) => terminarArrastoAnamnese(e, true));
 
 
 main.addEventListener('input', (e) => {
-  if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoCorrente(e.target.value));
+  if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoGrupo(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
   if (e.target.id === 'vid-busca') videos.buscar(e.target);
@@ -331,7 +343,7 @@ main.addEventListener('submit', async (e) => {
     const btn = document.getElementById('l-btn');
     emailLogin = document.getElementById('l-email').value.trim();
     btn.disabled = true;
-    btn.textContent = ehAcessoCorrente(emailLogin) ? 'Procurando usuário…' : 'Entrando…';
+    btn.textContent = ehAcessoGrupo(emailLogin) ? 'Procurando usuário…' : 'Entrando…';
     try {
       digitadoLogin = document.getElementById('l-senha').value;
       const r = await entrar(emailLogin, digitadoLogin);

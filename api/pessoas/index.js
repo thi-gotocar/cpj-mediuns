@@ -70,8 +70,9 @@ function acaoCurimba(b) {
 export default rota({
   GET: async (req) => {
     if (req.query.lista === 'alunos') {
-      await exigir(req, 'alunos:ver');
-      return db.rpc('alunos_estado');
+      const eu = await exigir(req, 'alunos:ver');
+      const estado = await db.rpc('alunos_estado');
+      return eu.grupo === 'alunos' ? { ...estado, alunos: estado.alunos.filter((a) => a.id === eu.alunoId) } : estado;
     }
     if (req.query.lista === 'curimba') {
       await exigir(req, 'curimba:ver');
@@ -79,6 +80,7 @@ export default rota({
     }
     if (req.query.lista === 'minhaCurimba') {
       const eu = await exigir(req);
+      if (eu.grupo === 'curimba') return db.rpc('curimba_minha', { alunoId: eu.curimbaAlunoId });
       return eu.pessoaId ? db.rpc('curimba_minha', { pessoaId: eu.pessoaId }) : null;
     }
     if (req.query.lista === 'perfis') {

@@ -19,8 +19,8 @@
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
-import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
-import { permissoesDe, ehAcessoCorrente, pode, PIN_VALIDO } from '../../shared/permissoes.js';
+import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, emitirTokenGrupo, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
+import { permissoesDe, ehAcessoCorrente, grupoAcesso, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
 import { normalizarPerfil, perfilDaFuncao, blocosAfinidade, ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_SIMNAO, ANAMNESE_OPCOES_MAX, ANAMNESE_OPCAO_MAX, limparRespostaTexto, limparRespostaData } from '../../shared/perfil.js';
 import { LINHA_KEYS } from '../../shared/regras.js';
@@ -29,6 +29,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function publico(u) {
   return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, papelNome: u.papelNome || '', pessoaId: u.pessoaId || null,
+    ...(u.grupo ? { grupo: u.grupo } : {}),
     permissoes: u.permissoes || permissoesDe(u.papel, u.abas) };
 }
 
@@ -50,6 +51,7 @@ const acoes = {
   // A curimba só tem as informações pessoais (sem orixás, guias e guias de atendimento).
   async perfil(req) {
     const eu = await exigir(req);
+    if (eu.grupo) throw new HttpError(403, 'Este acesso não tem perfil pessoal.');
     const limpo = (r) => ({ ...r, perfil: perfilDaFuncao(r.perfil, r.funcao) });
     if (req.method === 'GET') {
       const r = { eu: eu.pessoaId ? limpo(await db.rpc('perfil_ler', { pessoaId: eu.pessoaId })) : null };
@@ -95,6 +97,7 @@ const acoes = {
   // trocar ou tirar, só a própria pessoa ou quem vê o perfil de todos (admin).
   async foto(req) {
     const eu = await exigir(req);
+    if (eu.grupo) throw new HttpError(403, 'Este acesso não tem fotos de perfil.');
     const pessoaId = validarId(String((req.method === 'GET' ? req.query.pessoaId : corpo(req).pessoaId) || eu.pessoaId || ''), 'Pessoa');
     if (req.method === 'GET') return { foto: await db.rpc('pessoa_foto_ler', { pessoaId }) };
     if (pessoaId !== eu.pessoaId && !pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin mexe na foto de outra pessoa.');
@@ -111,6 +114,7 @@ const acoes = {
   // cada pessoa da corrente responde as suas.
   async anamnese(req) {
     const eu = await exigir(req);
+    if (eu.grupo) throw new HttpError(403, 'Este acesso não tem Anamnese.');
     const admin = pode(eu, 'perfil:corrente');
     const resposta = (E) => ({
       visivel: E.visivel !== false,
@@ -206,6 +210,25 @@ const acoes = {
   async entrar(req) {
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const b = corpo(req);
+    const grupo = grupoAcesso(b.email);
+    if (grupo === 'alunos' || grupo === 'curimba') {
+      const lista = grupo === 'alunos'
+        ? (await db.rpc('alunos_estado')).alunos
+        : (await db.rpc('curimba_estado')).alunos;
+      const digitado = String(b.senha || '').replace(/\s+/g, ' ').trim();
+      if (digitado.length < 2 || digitado.length > 80) throw new HttpError(400, 'Digite o seu nome.');
+      const pessoa = lista.find((x) => normalizarNome(x.nome) === normalizarNome(digitado));
+      if (pessoa) {
+        const usuario = {
+          id: null, nome: pessoa.nome, email: '', papel: grupo, papelNome: grupo === 'alunos' ? 'Aluno' : 'Curimba',
+          grupo, pessoaId: null, permissoes: grupo === 'alunos' ? ['alunos:ver'] : [],
+        };
+        return { token: await emitirTokenGrupo(grupo, pessoa.id, pessoa.nome), usuario: publico(usuario) };
+      }
+      const candidatos = nomesParecidos(lista.map((x) => x.nome), digitado);
+      if (candidatos.length) return { confirmar: true, candidatos };
+      throw new HttpError(404, 'Não encontrei esse nome neste cadastro. Confira a palavra-passe e tente de novo.');
+    }
     // Acesso da corrente: no lugar da senha vem o nome da pessoa.
     if (ehAcessoCorrente(b.email)) {
       const digitado = String(b.senha || '').replace(/\s+/g, ' ').trim();
@@ -264,6 +287,7 @@ const acoes = {
   async senha(req) {
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const eu = await exigir(req);
+    if (eu.grupo) throw new HttpError(403, 'Este acesso não tem senha para trocar.');
     if (eu.papel === 'corrente') throw new HttpError(400, 'O acesso da corrente não tem senha.');
     const b = corpo(req);
     const info = await db.rpc('usuario_para_login', { email: eu.email });

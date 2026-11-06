@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 80;  // v80: apelidos de entidade configuráveis
+export const VERSAO = 81;  // v81: acesso de alunos e curimba por nome cadastrado
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2178,5 +2178,25 @@ export const MIGRACOES = [
                            from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
      )
      from giras g where g.data = d;
+   $$`,
+  // ================================================== v81: login limitado para alunos da CPJ e alunos de curimba
+  `create or replace function aluno_acesso(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id)
+     from alunos a where a.id = (p ->> 'id')::uuid
+   $$`,
+  `create or replace function curimba_aluno_acesso(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', a.id, 'nome', coalesce(pe.nome, a.nome), 'pessoaId', a.pessoa_id)
+     from curimba_alunos a left join pessoas pe on pe.id = a.pessoa_id
+     where a.id = (p ->> 'id')::uuid
+   $$`,
+  `create or replace function curimba_minha(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('aulas', coalesce((select jsonb_agg(jsonb_build_object('data', au.data, 'nome', au.nome, 'status', cp.status) order by au.data)
+                                                  from curimba_aulas au left join curimba_presencas cp on cp.aula_id = au.id and cp.aluno_id = a.id), '[]'::jsonb))
+     from curimba_alunos a
+     where (nullif(p ->> 'alunoId', '') is not null and a.id = (p ->> 'alunoId')::uuid)
+        or (nullif(p ->> 'alunoId', '') is null and a.pessoa_id = (p ->> 'pessoaId')::uuid)
    $$`,
 ];

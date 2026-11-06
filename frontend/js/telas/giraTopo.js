@@ -8,13 +8,16 @@ import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe } from '/shared/ofe
 import { abertos, cabDobra, ICONE_WHATS } from './giraComum.js';
 
 // Topo da aba Gira (só data e nome): gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.
-export function cardSemana() {
+export function cardSemana({ ocultarAvisos = false } = {}) {
   const hj = hoje();
+  const eventos = ocultarAvisos ? estado.eventos.filter((e) => e.tipo !== 'aviso') : estado.eventos;
   // Aniversariantes da semana (domingo a sábado): dia/mês do Perfil, com 🎈🎂 antes do nome.
   // Orixás: só no próprio dia (DIAS_ORIXAS). No mesmo dia: eventos, depois orixás, depois aniversários.
   const ordem = (e) => (e.niver ? 2 : e.orixa ? 1 : 0);
-  const prox = proximosEventos(estado.eventos, hj);
-  const evs = [...new Set([...eventosDoTopo(estado.eventos, hj), ...prox]), ...orixasDoDia(hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
+  const prox = proximosEventos(eventos, hj);
+  const evs = ocultarAvisos
+    ? [...new Set([...eventosDoTopo(eventos, hj), ...prox])].sort((a, b) => a.data.localeCompare(b.data))
+    : [...new Set([...eventosDoTopo(eventos, hj), ...prox]), ...orixasDoDia(hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
   // Cada evento: "folhinha" com o dia da semana (ou HOJE) e a data, o nome e o tipo num selo à direita.
   const semana = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()));
   const tipo = (e) => (e.niver ? ['niver', 'Aniversário'] : e.orixa ? ['orixa', 'Orixá'] : [e.tipo || 'evento', TIPO_EVENTO_LABEL[e.tipo] || 'Evento']);
@@ -81,7 +84,12 @@ function aniversariosDaSemana(hj) {
 // Mesmo padrão de "Seus compromissos" (faixa à esquerda, aqui na cor da % de presença); fica logo acima de "Sua presença".
 // A % conta só as aulas marcadas, como na aba Curimba.
 export function cardAulaCurimba() {
-  if (!estado.minhaCurimba) return '';
+  if (!estado.minhaCurimba) {
+    if (estado.me?.papel === 'root' && estado.visaoRoot === 'curimba') {
+      return '<div class="card comp-of cur-gira"><h2>🥁 Aula de curimba</h2><p class="muted" style="margin:0;font-size:.92rem">A presença individual aparece ao entrar com o acesso de um aluno.</p></div>';
+    }
+    return '';
+  }
   const hj = hoje();
   const aulas = estado.minhaCurimba.aulas.filter((a) => a.data <= hj && a.status).reverse();
   // Sempre começa recolhido (só o título, com a % ao lado); tocar no título expande e recolhe.
