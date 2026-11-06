@@ -319,8 +319,14 @@ function cardAnamneseAdmin(todos) {
       <button class="pf-of-total pf-resp-total fn-faltam${grupoAberto === 'faltam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="faltam" aria-expanded="${grupoAberto === 'faltam'}" aria-label="Faltam responder à anamnese: ${faltam.length} pessoas"${faltam.length ? '' : ' disabled'}><b>${faltam.length}</b><span>Faltam</span></button>
     </div>
     ${listaAberta ? `<div class="pf-grupo"><div class="pf-gt">${tituloLista}<span class="count">${listaAberta.length}</span></div><ul class="pf-lista">${listaAberta.map((p) => `<li>${esc(p.nome)}</li>`).join('')}</ul></div>` : ''}
+    <label class="field">Ver as respostas de<select data-act="anapessoa" aria-label="De quem são as respostas">
+      <option value="">— escolha a pessoa —</option>
+      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === u.anaPessoa ? 'selected' : ''}>${esc(t.nome)}${anamnesePreenchida(A.perguntas, R[t.pessoaId]) ? ' ✓' : ''}</option>`).join('')}</select></label>
+    ${x ? `<div class="ana-ver">${A.perguntas.map((q, i) => { const v = val(q, (R[x.pessoaId] || {})[q.id]); return `<div><span class="ana-q">${i + 1}. ${esc(q.texto)}</span><span class="${v ? 'ana-r' : 'muted'}">${esc(v || 'sem resposta')}</span></div>`; }).join('')}</div>` : ''}
     <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
-      ${u.anaNova || u.anaEditPergunta ? '' : '<button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button>'}</div>
+      <button class="btn link small" type="button" data-act="anaperguntas" aria-expanded="${!!u.anamneseAdminAberta}" aria-controls="ana-adm-conteudo">${u.anamneseAdminAberta ? 'Ocultar perguntas' : 'Ver perguntas'}</button></div>
+    <div id="ana-adm-conteudo" ${u.anamneseAdminAberta ? '' : 'hidden'}>
+    ${u.anaNova || u.anaEditPergunta ? '' : '<div class="row" style="justify-content:flex-end"><button class="btn small" data-act="ananova"><span aria-hidden="true">＋</span> Adicionar pergunta</button></div>'}
     ${A.perguntas.length > 1 && !u.anaNova && !u.anaEditPergunta ? '<p class="ana-instr">Use as setas para mudar a ordem. Se preferir, também pode arrastar pelo ícone ⠿.</p>' : ''}
     ${u.anaNova ? `<div class="ana-nova">
       <label class="field">Pergunta<input type="text" id="ana-texto" maxlength="${ANAMNESE_PERGUNTA_MAX}" placeholder="Cabe numa linha" autocomplete="off"></label>
@@ -336,12 +342,9 @@ function cardAnamneseAdmin(todos) {
           ${estado.confirm === 'anaq:' + q.id ? `<button class="btn small danger" data-act="anaexcluir" data-id="${q.id}">Excluir</button>`
             : `<span class="ana-acoes"><button class="btn small" data-act="anaeditarpergunta" data-id="${q.id}" title="Editar pergunta" aria-label="Editar pergunta">Editar</button><button class="btn small lock-x" data-act="askdel" data-k="anaq:${q.id}" title="Excluir a pergunta (as respostas dela também saem)" aria-label="Excluir a pergunta">✕</button></span>`}</li>`).join('')}</ol>`
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma pergunta ainda.</p>'}
-    <label class="field">Ver as respostas de<select data-act="anapessoa" aria-label="De quem são as respostas">
-      <option value="">— escolha a pessoa —</option>
-      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === u.anaPessoa ? 'selected' : ''}>${esc(t.nome)}${anamnesePreenchida(A.perguntas, R[t.pessoaId]) ? ' ✓' : ''}</option>`).join('')}</select></label>
-    ${x ? `<div class="ana-ver">${A.perguntas.map((q, i) => { const v = val(q, (R[x.pessoaId] || {})[q.id]); return `<div><span class="ana-q">${i + 1}. ${esc(q.texto)}</span><span class="${v ? 'ana-r' : 'muted'}">${esc(v || 'sem resposta')}</span></div>`; }).join('')}</div>` : ''}
     <p class="ana-instr">O arquivo contém informações pessoais e de saúde. Compartilhe apenas com pessoas autorizadas.</p>
-    <button class="btn" data-act="anacompartilhar"><span aria-hidden="true">📄</span> Compartilhar todas as respostas (arquivo)</button>`, true, true);
+    <button class="btn" data-act="anacompartilhar"><span aria-hidden="true">📄</span> Compartilhar todas as respostas (arquivo)</button>
+    </div>`, true, true);
 }
 
 // ---------- admin: a corrente ----------
@@ -497,6 +500,7 @@ export const cliques = {
     if (k === 'anamnese-adm') {
       U().abertos[k] = el.getAttribute('aria-expanded') !== 'true';
       U().anamneseGrupo = null;
+      U().anamneseAdminAberta = false;
       avisar();
       return;
     }
@@ -521,6 +525,10 @@ export const cliques = {
   },
   pfanamnese(el) {
     U().anamneseGrupo = U().anamneseGrupo === el.dataset.grupo ? null : el.dataset.grupo;
+    avisar();
+  },
+  anaperguntas() {
+    U().anamneseAdminAberta = !U().anamneseAdminAberta;
     avisar();
   },
   pfofertas(el) {
