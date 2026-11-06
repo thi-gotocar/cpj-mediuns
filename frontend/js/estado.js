@@ -40,6 +40,7 @@ export const estado = {
   perfisCfg: null,     // aba Admin root: perfis e as abas de cada um
   senhas: null,        // aba Admin root: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
+  alunosAdicionarTurma: null, // aba Pessoas: turma com o formulário de inclusão de alunos aberto
   limpezaPessoaEditando: null, // aba Pessoas: pessoa com turma da limpeza em edição
   stPerfis: null,      // Histórico → Estatísticas: contagens do Perfil { total, chefe, frente, orixa } (undefined = carregando)
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
@@ -541,6 +542,7 @@ export async function acaoAlunos(acao, dados = {}) {
   try {
     const r = await api('POST', '/pessoas', { acao, ...dados });
     estado.alunos = { turmas: r.turmas, alunos: r.alunos };
+    if (Array.isArray(r.pessoas)) estado.pessoas = r.pessoas;
     avisar();
     return r;
   } catch (e) { toast(e.message); avisar(); return null; }

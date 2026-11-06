@@ -6,7 +6,7 @@
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
 
-export const VERSAO = 82;  // v82: Admin curimba pode administrar a aba Vídeos
+export const VERSAO = 84;  // v84: promover aluno para a Corrente mantendo o acesso CPJ
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2202,4 +2202,66 @@ export const MIGRACOES = [
   // ================================================== v82: Admin curimba publica e administra os vídeos da casa
   `update perfis set abas = jsonb_set(coalesce(abas, '{}'::jsonb), '{videos}', '{"ver":true,"editar":true}'::jsonb, true)
     where chave = 'admin_curimba'`,
+  // ================================================== v83: transferir aluno para a Corrente como Cambone sem perder histórico de oferendas
+  `create or replace function aluno_transferir_cambone(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_nome text;
+     v_pessoa_id uuid;
+   begin
+     select nome into v_nome from alunos where id = v_id for update;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     v_nome := coalesce(nullif(btrim(p ->> 'nome'), ''), v_nome);
+     if length(v_nome) > 80 then raise exception 'Nome inválido.'; end if;
+     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_nome))) then
+       raise exception 'Já existe uma pessoa da corrente com esse nome.';
+     end if;
+
+     insert into pessoas (nome, funcao) values (v_nome, 'cambone') returning id into v_pessoa_id;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
+       select oferenda_id, v_pessoa_id, pagamento, entrega, excluido, atualizado_em
+       from oferenda_alunos where aluno_id = v_id
+       on conflict (oferenda_id, pessoa_id) do update set
+         pagamento = excluded.pagamento, entrega = excluded.entrega,
+         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
+     update oferenda_doacoes set pessoa_chave = 'p:' || v_pessoa_id::text
+       where pessoa_chave = 'a:' || v_id::text;
+     delete from alunos where id = v_id;
+
+     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar());
+   exception when unique_violation then
+     raise exception 'Já existe uma pessoa da corrente com esse nome.';
+   end;
+   $$`,
+  // ================================================== v84: promover aluno para CPJ como Cambone, mantendo o nome usado no acesso
+  `create or replace function aluno_transferir_cambone(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_nome text;
+     v_pessoa_id uuid;
+   begin
+     select nome into v_nome from alunos where id = v_id for update;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_nome))) then
+       raise exception 'Já existe uma pessoa da corrente com esse nome.';
+     end if;
+
+     insert into pessoas (nome, funcao) values (v_nome, 'cambone') returning id into v_pessoa_id;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
+       select oferenda_id, v_pessoa_id, pagamento, entrega, excluido, atualizado_em
+       from oferenda_alunos where aluno_id = v_id
+       on conflict (oferenda_id, pessoa_id) do update set
+         pagamento = excluded.pagamento, entrega = excluded.entrega,
+         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
+     update oferenda_doacoes set pessoa_chave = 'p:' || v_pessoa_id::text
+       where pessoa_chave = 'a:' || v_id::text;
+     delete from alunos where id = v_id;
+
+     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar());
+   exception when unique_violation then
+     raise exception 'Já existe uma pessoa da corrente com esse nome.';
+   end;
+   $$`,
 ];

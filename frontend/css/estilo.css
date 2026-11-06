@@ -1185,6 +1185,10 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-alunos .al-gh-l h3{margin:0;color:var(--fn);font-size:1rem}
 .pessoas-tela .fn-alunos .al-gh-l input{flex:1 1 160px}
 .pessoas-tela .fn-alunos .al-gh-l .pp-bts{flex-wrap:wrap}
+.pessoas-tela .fn-alunos .al-add-wrap{padding-top:8px}
+.pessoas-tela .fn-alunos .al-add-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
+.pessoas-tela .fn-alunos .al-add-form .field{min-width:0}
+.pessoas-tela .fn-alunos .al-add-form .pp-bts{display:flex;flex-wrap:wrap;gap:6px}
 .pessoas-tela .fn-alunos .al-lista{display:grid;gap:6px;margin:0}
 .pessoas-tela .fn-alunos .al-l{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 .pessoas-tela .fn-alunos .al-l:first-child{border-top:1px solid var(--line)}
@@ -1194,6 +1198,7 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-alunos .al-l .al-turma{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
 .pessoas-tela .fn-alunos .al-l .al-turma select{width:100%;max-width:none;min-width:0}
 .pessoas-tela .fn-alunos .al-grupo > .muted{margin:0;padding:8px 2px}
+@media (max-width:520px){.pessoas-tela .fn-alunos .al-add-form{grid-template-columns:minmax(0,1fr)}}
 .pp-editando{background:color-mix(in srgb,var(--accent) 4%,transparent);border-radius:10px;padding:10px;margin:4px -6px}
 /* Sorteio: Remanejar faltas e Ajuste manual do mesmo tamanho, em amarelo */
 .sort-acoes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -1383,6 +1388,9 @@ button.eu-av{cursor:zoom-in}
 .adm-evento select:disabled{opacity:1;color:var(--ink);-webkit-text-fill-color:var(--ink);background:var(--bg);border-style:dashed;cursor:not-allowed;appearance:none;-webkit-appearance:none}
 
 /* Aba Perfil: Anamnese (pessoa: perguntas travadas até Editar; admin: perguntas, respostas e arquivo) */
+.ana-adm-blocos{display:grid;gap:12px}
+.ana-adm-bloco{display:grid;gap:9px;min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.ana-adm-bloco-titulo{font-size:.78rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .ana-instr{margin:0 0 2px;font-size:.86rem;color:var(--muted)}
 .ana-obrig{color:var(--off)}
 .ana-lista{display:grid;gap:14px}
@@ -1396,7 +1404,7 @@ button.eu-av{cursor:zoom-in}
 .ana-sn .check{align-items:flex-start;max-width:100%}
 .ana-item[disabled] .ana-sn{opacity:.75}
 .ana-bts{justify-content:flex-end}
-.ana-adm-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
+.ana-adm-h{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .ana-vis-toggle{align-self:flex-start;margin-bottom:4px}
 .ana-adm-h .btn{margin-left:auto}
 .ana-nova{display:grid;gap:8px;padding:10px;border:1px dashed var(--gold);border-radius:10px}

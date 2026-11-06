@@ -313,16 +313,24 @@ function cardAnamneseAdmin(todos) {
   const tituloLista = grupoAberto === 'responderam' ? 'Responderam' : 'Ainda não responderam';
   const val = valorAnamnese;
   return card('anamnese-adm', `<span aria-hidden="true">🩺</span> Anamnese <span class="pf-cab-pct">${pct}%</span>`, `${responderam.length} de ${todos.length}`, true, () => `
-    <label class="of-sw ana-vis-toggle"><input type="checkbox" role="switch" data-act="anavisibilidade" ${A.visivel !== false ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir bloco para usuários</label>
-    <div class="pf-of-totais pf-resp-totais" aria-label="Status das respostas da anamnese">
-      <button class="pf-of-total pf-resp-total fn-respondeu${grupoAberto === 'responderam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="responderam" aria-expanded="${grupoAberto === 'responderam'}" aria-label="Responderam à anamnese: ${responderam.length} pessoas"${responderam.length ? '' : ' disabled'}><b>${responderam.length}</b><span>Responderam</span></button>
-      <button class="pf-of-total pf-resp-total fn-faltam${grupoAberto === 'faltam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="faltam" aria-expanded="${grupoAberto === 'faltam'}" aria-label="Faltam responder à anamnese: ${faltam.length} pessoas"${faltam.length ? '' : ' disabled'}><b>${faltam.length}</b><span>Faltam</span></button>
-    </div>
-    ${listaAberta ? `<div class="pf-grupo"><div class="pf-gt">${tituloLista}<span class="count">${listaAberta.length}</span></div><ul class="pf-lista">${listaAberta.map((p) => `<li>${esc(p.nome)}</li>`).join('')}</ul></div>` : ''}
-    <label class="field">Ver as respostas de<select data-act="anapessoa" aria-label="De quem são as respostas">
-      <option value="">— escolha a pessoa —</option>
-      ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === u.anaPessoa ? 'selected' : ''}>${esc(t.nome)}${anamnesePreenchida(A.perguntas, R[t.pessoaId]) ? ' ✓' : ''}</option>`).join('')}</select></label>
-    ${x ? `<div class="ana-ver">${A.perguntas.map((q, i) => { const v = val(q, (R[x.pessoaId] || {})[q.id]); return `<div><span class="ana-q">${i + 1}. ${esc(q.texto)}</span><span class="${v ? 'ana-r' : 'muted'}">${esc(v || 'sem resposta')}</span></div>`; }).join('')}</div>` : ''}
+    <div class="ana-adm-blocos">
+    <section class="ana-adm-bloco">
+      <div class="ana-adm-bloco-titulo">Acompanhamento</div>
+      <label class="of-sw ana-vis-toggle"><input type="checkbox" role="switch" data-act="anavisibilidade" ${A.visivel !== false ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir bloco para usuários</label>
+      <div class="pf-of-totais pf-resp-totais" aria-label="Status das respostas da anamnese">
+        <button class="pf-of-total pf-resp-total fn-respondeu${grupoAberto === 'responderam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="responderam" aria-expanded="${grupoAberto === 'responderam'}" aria-label="Responderam à anamnese: ${responderam.length} pessoas"${responderam.length ? '' : ' disabled'}><b>${responderam.length}</b><span>Responderam</span></button>
+        <button class="pf-of-total pf-resp-total fn-faltam${grupoAberto === 'faltam' ? ' selecionado' : ''}" type="button" data-act="pfanamnese" data-grupo="faltam" aria-expanded="${grupoAberto === 'faltam'}" aria-label="Faltam responder à anamnese: ${faltam.length} pessoas"${faltam.length ? '' : ' disabled'}><b>${faltam.length}</b><span>Faltam</span></button>
+      </div>
+      ${listaAberta ? `<div class="pf-grupo"><div class="pf-gt">${tituloLista}<span class="count">${listaAberta.length}</span></div><ul class="pf-lista">${listaAberta.map((p) => `<li>${esc(p.nome)}</li>`).join('')}</ul></div>` : ''}
+    </section>
+    <section class="ana-adm-bloco">
+      <div class="ana-adm-bloco-titulo">Respostas individuais</div>
+      <label class="field">Ver as respostas de<select data-act="anapessoa" aria-label="De quem são as respostas">
+        <option value="">— escolha a pessoa —</option>
+        ${todos.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === u.anaPessoa ? 'selected' : ''}>${esc(t.nome)}${anamnesePreenchida(A.perguntas, R[t.pessoaId]) ? ' ✓' : ''}</option>`).join('')}</select></label>
+      ${x ? `<div class="ana-ver">${A.perguntas.map((q, i) => { const v = val(q, (R[x.pessoaId] || {})[q.id]); return `<div><span class="ana-q">${i + 1}. ${esc(q.texto)}</span><span class="${v ? 'ana-r' : 'muted'}">${esc(v || 'sem resposta')}</span></div>`; }).join('')}</div>` : '<p class="muted" style="margin:0">Escolha uma pessoa para consultar as respostas.</p>'}
+    </section>
+    <section class="ana-adm-bloco">
     <div class="ana-adm-h"><b>Perguntas</b> <span class="muted">(${A.perguntas.length})</span>
       <button class="btn link small" type="button" data-act="anaperguntas" aria-expanded="${!!u.anamneseAdminAberta}" aria-controls="ana-adm-conteudo">${u.anamneseAdminAberta ? 'Ocultar perguntas' : 'Ver perguntas'}</button></div>
     <div id="ana-adm-conteudo" ${u.anamneseAdminAberta ? '' : 'hidden'}>
@@ -344,6 +352,8 @@ function cardAnamneseAdmin(todos) {
       : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma pergunta ainda.</p>'}
     <p class="ana-instr">O arquivo contém informações pessoais e de saúde. Compartilhe apenas com pessoas autorizadas.</p>
     <button class="btn" data-act="anacompartilhar"><span aria-hidden="true">📄</span> Compartilhar todas as respostas (arquivo)</button>
+    </div>
+    </section>
     </div>`, true, true);
 }
 

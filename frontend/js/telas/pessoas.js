@@ -250,6 +250,12 @@ function cardAlunos() {
           <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelturma">Cancelar</button></span></form>`
       : `<div class="al-gh-l"><h3>${esc(g.nome)}</h3><span class="pp-bts"><button class="btn small pp-bt" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}">Editar turma</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="turma" data-id="${g.id}" aria-label="Remover ${esc(g.nome)}">Remover turma</button></span></div>`;
   h += `<div class="turmas-conteudo al-grupos"><div class="al-grupo">${cabTurma}
+      ${ed && g.id !== 'sem' ? `<div class="al-add-wrap">
+        ${estado.alunosAdicionarTurma === g.id ? `<form id="f-alunos-turma" class="al-add-form" data-id="${g.id}" autocomplete="off">
+          <label class="field">Nome do aluno (ou vários separados por vírgula)<input type="text" id="alunos-turma-nomes" maxlength="4000" required autocomplete="off"></label>
+          <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Adicionar</button><button class="btn small pp-bt" type="button" data-act="cancelarAddAlunosTurma">Cancelar</button></span></form>`
+          : `<button class="btn small pp-bt" type="button" data-act="abrirAddAlunosTurma" data-id="${g.id}">＋ Adicionar alunos</button>`}
+      </div>` : ''}
       ${g.lista.length ? `<div class="al-lista">${g.lista.map((a) => {
         if (!ed) return `<div class="al-l"><span class="nm">${esc(a.nome)}</span></div>`;
         // Editar: o nome e a turma ficam editáveis (Salvar / Cancelar).
@@ -260,7 +266,7 @@ function cardAlunos() {
             <label class="al-turma">Turma <select id="al-turma" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${A.turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label></form>`;
         }
         return `<div class="al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
-          <span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
+          <span class="pp-bts">${pode('pessoas:editar') ? `<button class="btn small pp-bt" type="button" data-act="promoverAlunoCPJ" data-id="${a.id}">Promover CPJ</button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
       }).join('')}</div>` : '<p class="muted" style="margin:4px 0 0;font-size:.9rem">Nenhum aluno nesta turma.</p>'}</div></div>`;
   return h + '</div>';
 }
@@ -358,8 +364,16 @@ export const cliques = {
   },
   alunosTurma(el) {
     estado.alunosTurmaAberta = estado.alunosTurmaAberta === el.dataset.t ? null : el.dataset.t;
+    estado.alunosAdicionarTurma = null;
     avisar();
   },
+  abrirAddAlunosTurma(el) {
+    estado.alunosAdicionarTurma = el.dataset.id;
+    avisar();
+    document.getElementById('alunos-turma-nomes')?.focus();
+  },
+  cancelarAddAlunosTurma() { estado.alunosAdicionarTurma = null; avisar(); },
+  promoverAlunoCPJ,
   async atribuirLimpeza(form) {
     const pessoaId = document.getElementById('limpeza-pessoa')?.value;
     if (!pessoaId) { toast('Escolha uma pessoa.'); return; }
@@ -609,6 +623,15 @@ export async function salvarAluno(form) {
   if (await acaoAlunos('aluno', { id, ...patch })) toast('Aluno alterado.');
 }
 
+export const promoverAlunoCPJ = async (el) => {
+  const aluno = estado.alunos?.alunos.find((a) => a.id === el.dataset.id);
+  if (!aluno) { toast('Aluno não encontrado. Atualize a tela e tente novamente.'); return; }
+  if (!confirm(`Promover ${aluno.nome} para a Corrente como Cambone?\n\nO acesso passará de “alunos” para “cpj”. O nome usado como senha será mantido.`)) return;
+  const r = await acaoAlunos('promoverAlunoCPJ', { id: aluno.id });
+  if (!r) return;
+  toast(`${aluno.nome} foi promovido(a) para a Corrente como Cambone.`);
+};
+
 // Turma em Editar: salva o novo nome.
 export async function salvarTurma(form) {
   const id = form.dataset.id;
@@ -617,4 +640,17 @@ export async function salvarTurma(form) {
   if (!nome) { toast('Digite o nome da turma.'); return; }
   if (t && nome === t.nome) { estado.editTurma = null; avisar(); return; }
   if (await acaoAlunos('turma', { id, nome })) { estado.editTurma = null; toast('Turma renomeada.'); avisar(); }
+}
+
+export async function salvarAlunosTurma(form) {
+  const turmaId = form.dataset.id;
+  const inp = document.getElementById('alunos-turma-nomes');
+  if (!inp?.value.trim()) { toast('Digite pelo menos um nome.'); return; }
+  const r = await acaoAlunos('alunos', { nome: inp.value, turmaId });
+  if (!r) return;
+  estado.alunosAdicionarTurma = null;
+  estado.alunosTurmaAberta = turmaId;
+  const turma = r.turmas.find((x) => x.id === turmaId);
+  toast(r.criadas ? `${r.criadas} aluno${r.criadas > 1 ? 's' : ''} adicionado${r.criadas > 1 ? 's' : ''} ${turma ? `à ${turma.nome}` : 'à turma'}.` : 'Esses alunos já estão cadastrados.');
+  avisar();
 }

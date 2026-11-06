@@ -1085,6 +1085,43 @@ test('alunos da CPJ: turmas 09 a 11, fora da corrente; admin oferendas cadastra 
   assert.ok(alunoTurma13.alunos.some((a) => a.nome === 'Aluno Turma Treze'), 'o aluno permanece cadastrado');
 });
 
+test('promover aluno para CPJ como Cambone mantém o acesso e preserva o histórico de oferendas', async () => {
+  const A = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json;
+  const turmaId = A.turmas.find((t) => t.nome === 'Turma 09').id;
+  const criado = (await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluno Transferido Cambone', turmaId })).json;
+  const aluno = criado.alunos.find((a) => a.nome === 'Aluno Transferido Cambone');
+  const acessoAluno = await api('POST', '/api/auth/entrar', null, { email: 'alunos', senha: aluno.nome });
+  assert.equal(acessoAluno.status, 200);
+  const oferta = (await api('POST', '/api/oferendas', ADMIN, {
+    acao: 'salvar', responsavelId: RESP(), titulo: 'Histórico aluno transferido', data: '2038-05-01', porMedium: true, grupos: ['alunos'],
+  })).json.oferendas.find((o) => o.titulo === 'Histórico aluno transferido');
+  let r = (await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: oferta.id, pessoaId: 'a:' + aluno.id, pagamento: 'pago', entrega: 'entregue' })).json;
+  let atual = r.oferendas.find((o) => o.id === oferta.id);
+  const item = (await api('POST', '/api/oferendas', ADMIN, { acao: 'item', oferendaId: oferta.id, nome: 'Flores', quantidade: 2, entrega: '' })).json.oferendas.find((o) => o.id === oferta.id).itens[0];
+  await api('POST', '/api/oferendas', ADMIN, { acao: 'doarPor', itemId: item.id, pessoaId: 'a:' + aluno.id, quantidade: 1 });
+
+  const of = (await api('POST', '/api/auth/entrar', null, { email: 'of@corrente.org', senha: 'senha-forte-9' })).json.token;
+  assert.equal((await api('POST', '/api/pessoas', of, { acao: 'promoverAlunoCPJ', id: aluno.id })).status, 403);
+  const transferido = await api('POST', '/api/pessoas', ADMIN, { acao: 'promoverAlunoCPJ', id: aluno.id });
+  assert.equal(transferido.status, 200, JSON.stringify(transferido.json));
+  assert.ok(!transferido.json.alunos.some((a) => a.id === aluno.id));
+  const pessoa = transferido.json.pessoas.find((p) => p.nome === aluno.nome);
+  assert.equal(pessoa.funcao, 'cambone');
+  assert.equal((await api('GET', '/api/pessoas?lista=alunos', acessoAluno.json.token)).status, 401, 'a sessão antiga de aluno é encerrada');
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alunos', senha: aluno.nome })).status, 404, 'o acesso alunos deixa de funcionar');
+  const acessoCPJ = await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: aluno.nome });
+  assert.equal(acessoCPJ.status, 200, JSON.stringify(acessoCPJ.json));
+  assert.equal(acessoCPJ.json.usuario.papel, 'corrente');
+  assert.equal(acessoCPJ.json.usuario.nome, aluno.nome, 'o mesmo nome de acesso é mantido');
+
+  atual = (await api('GET', '/api/oferendas', ADMIN)).json.oferendas.find((o) => o.id === oferta.id);
+  const membro = atual.mediuns.find((m) => m.pessoaId === pessoa.id);
+  assert.deepEqual([membro.pagamento, membro.entrega], ['pago', 'entregue']);
+  const doacao = atual.itens[0].doacoes.find((d) => d.chave === 'p:' + pessoa.id);
+  assert.equal(doacao.quantidade, 1);
+  await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: oferta.id });
+});
+
 test('oferenda 100% há mais de um dia: só o responsável altera; o card mostra o percentual', async () => {
   const of = (b, tok = ADMIN) => api('POST', '/api/oferendas', tok, b);
   let r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Oferenda Completa', data: '2027-03-01' })).json;
