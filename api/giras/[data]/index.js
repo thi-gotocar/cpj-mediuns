@@ -177,14 +177,11 @@ export default rota({
     if (b.acao === 'cancelarSorteio') {
       const quem = await exigir(req, 'giras:sortear');
       const data = validarData(req.query.data);
-      console.log('[DEBUG cancelarSorteio] iniciando com data:', data);
       const atual = await db.rpc('gira_obter', { data });
-      console.log('[DEBUG cancelarSorteio] gira antes:', atual ? `{ data: ${atual.data}, pares: ${atual.pares?.length || 0}, passes: ${atual.passes?.length || 0} }` : 'null');
       if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
       if (atual.evento) throw new HttpError(409, 'Evento não tem escala para cancelar.');
       if (!atual.pares?.length && !atual.passes?.length) throw new HttpError(409, 'Não há sorteio para cancelar.');
-      console.log('[DEBUG cancelarSorteio] validações passaram, iniciando transação');
       // Cancela o sorteio (apaga duplas e despublica) em uma transação.
       // gira_salvar deve ser a última chamada porque db.tx() retorna o resultado do último RPC.
       const gira = await db.tx([
@@ -192,7 +189,6 @@ export default rota({
         { funcao: 'gira_travar', p: { data, travada: false } },
         { funcao: 'gira_salvar', p: { data, usuario: quem.id, pares: [], passes: [] } },
       ]);
-      console.log('[DEBUG cancelarSorteio] gira retornada:', gira ? `{ data: ${gira.data}, pares: ${gira.pares?.length || 0}, passes: ${gira.passes?.length || 0} }` : 'null');
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     const perfil = await exigir(req, 'giras:editar');
