@@ -188,6 +188,7 @@ export default rota({
         { funcao: 'gira_publicar', p: { data, publicada: false } },
         { funcao: 'gira_travar', p: { data, travada: false } },
       ]);
+      console.log('[cancelarSorteio] gira:', gira);
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     const perfil = await exigir(req, 'giras:editar');
