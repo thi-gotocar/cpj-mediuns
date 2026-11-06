@@ -69,12 +69,12 @@ function cardTurmas(todas, editar) {
   const curimba = cardCurimba(todas, editar);
   if (!com.length && !curimba) return '';
   const aberto = estado.turmasAbertas ? ' open' : '';
-  return `<div class="card pp-card fn-limpeza"><details class="turmas-d"${aberto}><summary class="grp-h" style="cursor:pointer"><h2 style="display:inline">🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${todas.length}</span></summary>
-    <div class="turmas" style="margin-top:8px">${curimba}${TURMAS_LIMPEZA.map((t) => {
+  return `<div class="card pp-card fn-limpeza"><details class="turmas-d"${aberto}><summary class="grp-h turmas-cab"><h2>🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${todas.length}</span></summary>
+    <div class="turmas-conteudo">${curimba}<div class="turmas">${TURMAS_LIMPEZA.map((t) => {
       const nomes = todas.filter((p) => Number(p.limpeza) === t).map((p) => esc(p.nome) + (ehCurimba(p) ? ' 🥁' : ''));
-      return `<div class="turma-l"><span class="turma-n" aria-hidden="true">${t}</span><div><b>Turma ${t}</b> <span class="muted">(${nomes.length})</span>: ${nomes.length ? nomes.join(', ') : '<span class="muted">ninguém</span>'}</div></div>`;
+      return `<div class="turma-l"><span class="turma-n" aria-hidden="true">${t}</span><div class="turma-info"><div class="turma-cab"><b>Turma ${t}</b><span class="turma-count">${nomes.length} ${nomes.length === 1 ? 'pessoa' : 'pessoas'}</span></div><div class="turma-nomes">${nomes.length ? nomes.join(', ') : '<span class="muted">Ninguém nesta turma</span>'}</div></div></div>`;
     }).join('')}
-    ${todas.length > com.length ? `<div class="muted">Sem turma: ${todas.length - com.length}</div>` : ''}</div></details></div>`;
+    ${todas.length > com.length ? `<div class="turma-sem">${todas.length - com.length} ${todas.length - com.length === 1 ? 'pessoa sem turma' : 'pessoas sem turma'}</div>` : ''}</div></div></details></div>`;
 }
 
 const nomeFuncao = (p) => (p.funcao === 'extra' ? 'at. extra' : 'médium de passe');
@@ -122,9 +122,9 @@ function editorLinhas(p, c) {
 // Uma pessoa (quem edita): linha 1 = nome, função, 🧹 turma, "+ médium de passe" e os botões ✎ (Editar) e 🗑️ (Excluir);
 // depois o resumo das entidades. Nada muda fora do Editar: em Editar, nome, função, turma, "+ médium de passe"
 // e as entidades ficam editáveis e só são gravados no Salvar (Cancelar descarta).
-function linhaPessoa(p, { funcao = true, acoes = true, somenteLeitura = false } = {}) {
+function linhaPessoa(p, { funcao = true, acoes = true } = {}) {
   const ed = estado.renomear === p.id;
-  if (!ed || somenteLeitura) {
+  if (!ed) {
     // Linha 1: nome (quebra entre palavras se precisar), função, 🧹 turma e os botões; "+ médium de passe" na linha de baixo.
     return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
         <span class="pp-l2">${funcao ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
@@ -143,10 +143,6 @@ function linhaPessoa(p, { funcao = true, acoes = true, somenteLeitura = false } 
     </form></div>`;
 }
 
-function pessoaResumoCorrente(p) {
-  return linhaPessoa(p, { acoes: false, somenteLeitura: true });
-}
-
 // Lembra quais editores de linhas estão abertos entre redesenhos.
 const estadoAberto = new Set();
 document.addEventListener('toggle', (e) => {
@@ -162,7 +158,7 @@ function cardCurimba(todas, editar) {
   const cs = todas.filter(ehCurimba);
   if (!cs.length) return '';
   const aberto = !!estado.curimbaAberta;
-  let h = `<div class="card pp-card fn-curimba">${cabDobra('dobrarcurimba', '🥁 Curimba', cs.length, aberto)}`;
+  let h = `<div class="card pp-card fn-curimba">${cabDobra('dobrarcurimba', '🧹 Adicionar pessoas limpeza', cs.length, aberto)}`;
   if (!aberto) return h + `</div>`;
   h += `<p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
   h += `<div class="ppl">${cs.map((p) => (editar ? linhaPessoa(p, { funcao: false })
@@ -307,6 +303,7 @@ function renderPessoas() {
   }
   const funcaoCorrenteAberta = estado.correnteFuncaoAberta;
   const pessoasPorFuncao = Object.fromEntries(ORDEM_FUNCOES.map((f) => [f.k, ps.filter((p) => p.funcao === f.k)]));
+  const correnteListaAberta = pessoasPorFuncao[funcaoCorrenteAberta]?.length ? funcaoCorrenteAberta : null;
   // Ordem: Corrente (com as licenças), Adicionar, funções (Médiuns, Extras, Passe, Cambones, Senha), Turmas da limpeza (com Curimba), Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="presentes">${ORDEM_FUNCOES.map((f) => {
@@ -314,12 +311,12 @@ function renderPessoas() {
       const aberta = funcaoCorrenteAberta === f.k;
       return `<button type="button" class="fn-${f.k}${aberta ? ' selecionado' : ''}" data-act="correnteFuncao" data-f="${f.k}" aria-expanded="${aberta}" aria-label="${f.pl}: ${abertas.length} pessoas${aberta ? ', recolher lista' : ', expandir lista'}"${abertas.length ? '' : ' disabled'}><span class="muted">${f.k === 'extra' ? 'At. Extra' : f.pl}</span> <b>${abertas.length}</b></button>`;
     }).join('')}</div>
-    ${funcaoCorrenteAberta && pessoasPorFuncao[funcaoCorrenteAberta]?.length ? `<div class="corrente-pessoas"><div class="ppl">${pessoasPorFuncao[funcaoCorrenteAberta].map(pessoaResumoCorrente).join('')}</div></div>` : ''}
+    ${correnteListaAberta ? `<div class="corrente-pessoas"><div class="ppl">${pessoasPorFuncao[correnteListaAberta].map((p) => linhaPessoa(p)).join('')}</div></div>` : ''}
     ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
   h += add;
   ORDEM_FUNCOES.forEach((f) => {
     const gp = ps.filter((p) => p.funcao === f.k);
-    if (!gp.length) return;
+    if (!gp.length || f.k === correnteListaAberta) return;
     const fechado = (prefs.pessoasFechadas || []).includes(f.k);
     h += `<div class="card pp-card fn-${f.k}"><button class="grp-h dobra" data-act="dobrar" data-f="${f.k}" aria-expanded="${!fechado}" aria-label="${fechado ? 'Expandir' : 'Minimizar'} ${tituloFuncao(f)}">
       <h2>${tituloFuncao(f)}</h2><span class="count">${gp.length} <span class="seta" aria-hidden="true">${fechado ? '▸' : '▾'}</span></span></button>`;

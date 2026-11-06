@@ -1100,6 +1100,9 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .corrente-pessoas .pp-l3{display:flex}
 .pessoas-tela .corrente-pessoas .pp-res{padding-top:4px;gap:1px}
 .pessoas-tela .corrente-pessoas .pp-res .muted{font-size:.72rem !important;line-height:1.25}
+.pessoas-tela .corrente-pessoas .pp-bts{gap:4px}
+.pessoas-tela .corrente-pessoas .btn.pp-ico{min-width:0;width:32px;height:32px;padding:0;display:inline-grid;place-items:center;font-size:.95rem;line-height:1}
+.pessoas-tela .corrente-pessoas .btn.pp-del{border-color:color-mix(in srgb,var(--off) 40%,var(--line))}
 .pessoas-tela .pp-card{border-top:4px solid var(--fn)}
 .pessoas-tela .pp-card > .grp-h h2{color:var(--fn)}
 .pessoas-tela .pp-card .ppl{gap:6px}
@@ -1123,9 +1126,23 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .pp-l2{gap:6px}
 .pessoas-tela .pp-fn,.pessoas-tela .pp-limp{font-size:.74rem;padding:2px 8px;border-radius:20px}
 .pessoas-tela .pp-res{padding-top:6px;border-top:1px dashed var(--line)}
-.pessoas-tela .turmas{gap:6px}
-.pessoas-tela .turma-l{display:flex;align-items:flex-start;gap:10px;padding:6px 10px;border-radius:10px;background:var(--bg);border:1px solid var(--line)}
+.pessoas-tela .fn-limpeza{padding:12px}
+.pessoas-tela .turmas-cab{align-items:center;gap:10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--fn) 42%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--fn) 9%,var(--surface));cursor:pointer}
+.pessoas-tela .turmas-cab h2{flex:1 1 auto;margin:0;font-size:1.08rem}
+.pessoas-tela .turmas-cab .count{flex:none;padding:4px 9px;border-radius:20px;background:var(--surface);font-size:.78rem}
+.pessoas-tela .turmas-conteudo{display:grid;gap:12px;margin-top:12px}
+.pessoas-tela .turmas{gap:8px}
+.pessoas-tela .turma-l{display:grid;grid-template-columns:2.2rem minmax(0,1fr);align-items:start;gap:10px;padding:10px 12px;border-radius:12px;background:var(--bg);border:1px solid var(--line)}
 .pessoas-tela .turma-n{flex:none;display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;font-weight:800;font-size:.85rem;color:var(--accent);background:var(--accent-soft)}
+.pessoas-tela .turma-info{display:grid;gap:4px;min-width:0}
+.pessoas-tela .turma-cab{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.pessoas-tela .turma-cab b{font-size:.94rem}
+.pessoas-tela .turma-count{padding:2px 8px;border-radius:20px;background:color-mix(in srgb,var(--fn) 13%,var(--surface));color:var(--ink);font-size:.74rem;font-weight:700}
+.pessoas-tela .turma-nomes{font-size:.88rem;line-height:1.5;overflow-wrap:anywhere}
+.pessoas-tela .turma-sem{padding:8px 10px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:.84rem}
+.pessoas-tela .fn-limpeza .fn-curimba{gap:10px;margin:0;padding:12px;border-color:color-mix(in srgb,var(--off) 45%,var(--line));background:color-mix(in srgb,var(--off) 4%,var(--surface))}
+.pessoas-tela .fn-limpeza .fn-curimba > .grp-h h2{font-size:1rem}
+.pessoas-tela .fn-limpeza .fn-curimba .ppl{gap:6px}
 .pessoas-tela .al-grupo{background:var(--bg)}
 .pessoas-tela .al-l{padding:8px 0}
 .pp-editando{background:color-mix(in srgb,var(--accent) 4%,transparent);border-radius:10px;padding:10px;margin:4px -6px}
