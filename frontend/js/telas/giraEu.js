@@ -89,7 +89,7 @@ export function blocoEu(g) {
     // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica bloqueado.
     const gs = estado.giras[g.data];
     const declara = podeDeclararAusencia(p, gs, hoje());
-    const opts = declara ? [['pend', 'Ainda não definido'], ['a', 'Não poderei ir (ausência antecipada)']] : [[pr, ROTULO_PRESENCA[pr] || pr]];
+    const opts = declara ? [['pend', 'Estarei presente 😊'], ['a', 'Não poderei ir (ausência antecipada)']] : [[pr, ROTULO_PRESENCA[pr] || pr]];
     const motivo = declara ? '' : pr === 'pend' && !statusMarcado(p, gs) && gs && hoje() >= g.data
       ? 'No dia da gira, só a Michelle altera.'
       : gs?.encerrada ? 'Gira encerrada.' : 'Status definido na lista de presença.';
