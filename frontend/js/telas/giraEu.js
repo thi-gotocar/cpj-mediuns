@@ -94,7 +94,7 @@ export function blocoEu(g) {
       ? 'No dia da gira, só a Michelle altera.'
       : gs?.encerrada ? 'Gira encerrada.' : 'Status definido na lista de presença.';
     const act = rootVinculado ? `data-act="status" data-id="${p.id}"` : 'data-act="ausencia"';
-    L.push(`<div class="eu-aus-box">${declara ? '<p class="eu-aus-aviso">Não poderá comparecer? <br> Iforme a ausência até a véspera.</p>' : ''}
+    L.push(`<div class="eu-aus-box">${declara ? '<p class="eu-aus-aviso">Não poderá comparecer? <br> Informe a ausência até a véspera.</p>' : ''}
       <label class="eu-aus"><span class="muted">Sua participação:</span>
         <select id="eu-aus" class="st-${pr}" ${act} aria-label="Sua participação nesta gira" ${declara ? '' : 'disabled'}>${opts.map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
         ${declara ? '' : `<span class="muted eu-trava">🔒 ${motivo}</span>`}</label></div>`);
