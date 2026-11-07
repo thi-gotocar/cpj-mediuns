@@ -869,7 +869,7 @@ let raizJanela = null;
 function atualizarJanela() {
   const html = prefs.tab === 'agenda'
     ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala()
-    : prefs.tab === 'gira' ? janelaFoto() || janelaOracoes() : '';
+    : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
@@ -1009,6 +1009,7 @@ export const mudancas = {
       estado.confPres = { id: t.dataset.id, valor: t.value };
       t.blur();   // fecha a lista do combo (no celular ela ficava por cima da janela)
       avisar();   // o combo volta para Pendente até confirmar
+      atualizarJanela();   // na aba Geral (root no "Você nesta gira") o render não redesenha a janela
       return;
     }
     gravarPresenca(t.dataset.id, t.value);
