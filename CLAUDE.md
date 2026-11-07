@@ -27,7 +27,7 @@ Leia o doc certo antes de mexer na área:
 
 ## Comandos
 
-Pasta de trabalho: `C:\Users\Thi\OneDrive\Documentos\sort-mediuns` (Windows). **`npm test` ainda não roda aqui** (depende de Linux + Postgres local) — detalhes em [docs/como-trabalhamos.md](docs/como-trabalhamos.md).
+Pasta de trabalho: `C:\Users\Thi\Documents\sort-mediuns` (Windows). **`npm test` ainda não roda aqui** (depende de Linux + Postgres local) — detalhes em [docs/como-trabalhamos.md](docs/como-trabalhamos.md).
 
 ## Manter os docs vivos
 

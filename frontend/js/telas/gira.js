@@ -26,7 +26,6 @@ const numerosAtend = (a) => `<div class="atend-nums">${ATEND.map(([k, t]) => `<d
 const campoParticipantes = (g) => `<div class="ev-participantes-bloco">
   <span class="ev-participantes-titulo">Total de participantes</span>
   <input class="ev-participantes-input" type="number" inputmode="numeric" min="0" max="100000" step="1" id="ev-participantes" data-act="participantes" aria-label="Total de participantes do evento" value="${Number(g.participantes) || 0}">
-  <span class="ev-participantes-salvo">✓ Salvo automaticamente</span>
 </div>`;
 // Campo bloqueado do Evento fechado: igual aos combos da gira aberta, mas só informa.
 const campoFixo = (v) => `<select disabled title="Gira encerrada: para mudar, reabra a gira"><option>${esc(v || '—')}</option></select>`;

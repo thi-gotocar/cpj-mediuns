@@ -179,7 +179,7 @@ function cardCurimba(todas, editar) {
   const cs = todas.filter(ehCurimba);
   if (!cs.length) return '';
   const aberto = !!estado.curimbaAberta && !estado.limpezaTurmaAberta;
-  let h = `<div class="card pp-card fn-curimba">${cabDobra('dobrarcurimba', '🧹 Adicionar pessoas limpeza', cs.length, aberto)}`;
+  let h = `<div class="card pp-card fn-curimba">${cabDobra('dobrarcurimba', '🧹 Limpeza extra(curimba)', cs.length, aberto)}`;
   if (!aberto) return h + `</div>`;
   h += `<p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
   h += `<div class="ppl">${cs.map((p) => (editar ? linhaPessoa(p, { funcao: false })

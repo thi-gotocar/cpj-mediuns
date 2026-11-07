@@ -213,7 +213,7 @@ function cardEstatisticas(todas, ps) {
   const totalAt = somaAt(totAt);
   return `<div class="card st"><div class="grp-h"><h2>Estatísticas</h2>
       <select data-act="stano" aria-label="Período das estatísticas">${anos.map((a) => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}<option value="todos" ${ano === 'todos' ? 'selected' : ''}>Todos os anos</option></select></div>
-    <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}. Licenças não contam.</p>
+    <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}.</p>
     <div class="st-resumo">
       <div class="st-resumo-at"><span class="muted">Total de atendimentos${giraAt ? ` · ${giraAt} gira${giraAt === 1 ? '' : 's'} com registro` : ''}</span>
         <div class="st-at-totais" aria-label="Total de atendimentos por tipo">
