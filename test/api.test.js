@@ -1220,6 +1220,19 @@ test('eventos: o admin cadastra, edita e exclui; todos leem', async () => {
   assert.ok(!fim.some((e) => e.id === ev.id));
 });
 
+test('perfil: a própria pessoa salva só as informações; outra pessoa, só o admin', async () => {
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const ana = ps.find((p) => p.nome === 'Ana').id;
+  const outra = ps.find((p) => p.nome !== 'Ana').id;
+  const tok = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  const antes = (await api('GET', '/api/auth/perfil', tok)).json.eu.perfil;
+  const r = await api('POST', '/api/auth/perfil', tok, { pessoaId: ana, info: { contatoNome: 'Dona Lia' } });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.perfil.info.contatoNome, 'Dona Lia');
+  assert.deepEqual(r.json.perfil.orixas, antes.orixas, 'o resto do perfil fica igual');
+  assert.equal((await api('POST', '/api/auth/perfil', tok, { pessoaId: outra, info: { contatoNome: 'X' } })).status, 403);
+});
+
 test('perfil: admin ajusta a data de nascimento de outra pessoa (Ajustes)', async () => {
   const ana = RESP();
   const r = await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: ana, info: { nascimento: '1990-10-31' } });

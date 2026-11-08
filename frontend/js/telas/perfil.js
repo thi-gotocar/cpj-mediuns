@@ -4,7 +4,7 @@
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual,
   ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_TIPO_LABEL, anamnesePreenchida, respostasPorPessoa, textoAnamnese, valorAnamnese } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarAfinidade, carregarFoto, salvarFoto, carregarAnamnese, acaoAnamnese } from '../estado.js';
+import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarAfinidade, carregarFoto, salvarFoto, salvarInfoDe, carregarAnamnese, acaoAnamnese } from '../estado.js';
 import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
@@ -74,15 +74,17 @@ export function renderAjustesPerfil(todos) {
 }
 
 // Foto da pessoa no canto do bloco Informações: a própria pessoa troca ou tira; o admin, de qualquer um.
-function blocoFoto(pessoaId, nome) {
+// Editando: mostra a foto escolhida, que só é gravada no Salvar.
+function blocoFoto(pessoaId, nome, editando) {
   if (!pessoaId) return '';
   const F = estado.fotosPessoa;
   if (F[pessoaId] === undefined) carregarFoto(pessoaId);
-  const url = F[pessoaId];
+  const rasc = editando ? U().infoFoto : undefined;
+  const url = rasc ? (rasc.b64 ? 'data:image/jpeg;base64,' + rasc.b64 : '') : F[pessoaId];
   return `<div class="pf-foto">
     <div class="pf-foto-img">${url ? `<img src="${url}" alt="Foto de ${esc(nome)}">` : `<span aria-hidden="true">${esc(iniciais(nome))}</span>`}</div>
-    <label class="btn small pf-foto-bt">📷 ${url ? 'Trocar' : 'Pôr foto'}<input type="file" accept="image/*" data-act="pffoto" data-id="${pessoaId}" hidden></label>
-    ${url ? `<button type="button" class="btn link pf-foto-tirar" data-act="pftirafoto" data-id="${pessoaId}">Remover</button>` : ''}
+    ${editando ? `<label class="btn small pf-foto-bt">📷 ${url ? 'Trocar' : 'Pôr foto'}<input type="file" accept="image/*" data-act="pffoto" hidden></label>
+    ${url ? '<button type="button" class="btn link pf-foto-tirar" data-act="pftirafoto">Remover</button>' : ''}` : ''}
   </div>`;
 }
 
@@ -101,61 +103,82 @@ async function reduzirFoto(arquivo) {
   return new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = erro; r.readAsDataURL(blob); });
 }
 
-// Primeiro bloco: informações da pessoa (salva ao sair de cada campo).
-// Informações de contato da corrente: consulta rápida para ligação.
-function infoContato(x) {
-  const F = estado.fotosPessoa;
-  if (F[x.pessoaId] === undefined) carregarFoto(x.pessoaId);
-  const url = F[x.pessoaId];
-  const nomeContato = x.contatoNome || '';
-  const numeroContato = soNumeros(x.contatoTelefone || '');
-  const telefone = telefoneBR(x.contatoTelefone);
-  return `<div class="aj-contato">
-    <div class="pf-foto-img">${url ? `<img src="${url}" alt="Foto de ${esc(x.nome)}">` : `<span aria-hidden="true">${esc(iniciais(x.nome))}</span>`}</div>
-    <div class="aj-contato-dados">
-      <h3>${esc(x.nome)}</h3>
-      <div><span class="muted">Nome para contato</span><strong>${esc(nomeContato || 'Não informado')}</strong></div>
-      <div><span class="muted">Telefone para contato</span>${numeroContato ? `<a href="tel:${numeroContato}">${esc(telefone)}</a>` : '<strong>Não informado</strong>'}</div>
-    </div>
-  </div>`;
-}
-
-// Qualquer pessoa da corrente pode consultar os dados de contato dos demais.
-function cardInfoCorrente(contatos) {
-  const sel = estado.infoPessoa || '';
-  const x = contatos.find((t) => t.pessoaId === sel);
-  const busca = normalizarBusca(estado.pfUi.infoBusca || '');
-  const pessoas = contatos.filter((t) => t.pessoaId === sel || normalizarBusca(t.nome).includes(busca));
-  return card('info-corrente', '<span aria-hidden="true">👤</span> Informações da corrente', '', false, () => `<div class="pf-info-escolha">
-      <label class="field">Pessoa<select id="info-pessoa" data-act="infopessoa" aria-label="De quem são as informações">
-        <option value="">— escolha a pessoa —</option>
-        ${pessoas.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === sel ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
-      <button class="btn pf-info-busca-bt" type="button" data-act="infobusca" aria-label="Buscar pessoa" title="Buscar pessoa">🔍</button>
-    </div>
-    <label class="pf-info-busca" id="info-busca" ${estado.pfUi.infoBuscaVisivel ? '' : 'hidden'}><span aria-hidden="true">🔍</span><input type="search" id="info-pessoa-busca" placeholder="Buscar pelo nome" aria-label="Buscar pessoa" value="${esc(estado.pfUi.infoBusca || '')}"></label>
-    ${x ? infoContato(x) : '<p class="muted" style="margin:0;font-size:.88rem">Pesquise e escolha uma pessoa para ver os dados de contato.</p>'}`, false, false);
-}
-
 function normalizarBusca(texto) {
   return String(texto).normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
 }
 
-// Bloco Informações (o próprio perfil; salva enquanto digita): "Seus dados" e, numa caixinha, "Pessoa para contato".
+// De quem são os dados do bloco Informações: a pessoa do combo (começa na própria).
+// Quem não é admin só recebe o contato das outras pessoas (parcial).
+function pessoaDoBloco(eu) {
+  const id = estado.infoPessoa || eu?.pessoaId || '';
+  if (!id) return null;
+  if (id === eu?.pessoaId) return { pessoaId: id, nome: eu.nome, info: eu.perfil.info || {}, propria: true };
+  const t = admin() ? estado.perfil.todos.find((x) => x.pessoaId === id) : null;
+  if (t) return { pessoaId: id, nome: t.nome, info: t.perfil.info || {} };
+  const c = (estado.perfil.contatos || []).find((x) => x.pessoaId === id);
+  return c ? { pessoaId: id, nome: c.nome, info: { contatoNome: c.contatoNome, contatoTelefone: c.contatoTelefone }, parcial: true } : null;
+}
+const podeEditarInfo = (x) => !!x && (x.propria || admin());
+
+// Bloco Informações: a pessoa no combo; os campos só abrem em Editar e só gravam em Salvar (depois de confirmar).
 function cardInfo(eu) {
-  const I = eu.perfil.info || {};
-  const campo = (k, rotulo, attrs, valor, cls = '') => `<label class="field pf-info-c${cls}">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} value="${esc(valor || '')}"></label>`;
+  const contatos = estado.perfil.contatos || [];
+  if (!eu && !contatos.length) return '';
+  const x = pessoaDoBloco(eu);
+  const u = U();
+  const editando = !!x && u.infoEdit === x.pessoaId;
+  const I = x?.info || {};
+  const atual = { nome: x?.parcial ? x.nome : I.nome, nascimento: nascimentoBR(I.nascimento), celular: telefoneBR(I.celular), contatoNome: I.contatoNome, contatoTelefone: telefoneBR(I.contatoTelefone) };
+  const campo = (k, rotulo, attrs, dica, cls = '') => `<label class="field pf-info-c${cls}">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} ${editando || k === 'nome' ? `placeholder="${esc(dica)}"` : ''} ${editando ? '' : 'disabled'} value="${esc((editando ? u.infoRasc[k] : atual[k]) || '')}"></label>`;
   const sv = estado.perfilSalvo;
-  return `<div class="card pf-info-card"><div class="grp-h"><h2><span aria-hidden="true">👤</span> Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>
-    <p class="pf-info-dica">Salva sozinho enquanto você digita.</p>
-    <div class="pf-info-sec"><h3>Seus dados</h3><div class="pf-dados"><div class="pf-info pf-info-1">
-      ${campo('nome', 'Nome', `type="text" maxlength="80" autocomplete="name" placeholder="${esc(eu.nome)}"`, I.nome, ' inteiro')}
-      ${campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="31/10/1990" autocomplete="bday"', nascimentoBR(I.nascimento))}
-      ${campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 91234-5678" autocomplete="tel"', telefoneBR(I.celular))}
-    </div>${blocoFoto(eu.pessoaId, eu.nome)}</div></div>
+  const sel = x?.pessoaId || '';
+  const busca = normalizarBusca(u.infoBusca || '');
+  const pessoas = contatos.filter((t) => t.pessoaId === sel || normalizarBusca(t.nome).includes(busca));
+  const numeroContato = soNumeros(I.contatoTelefone || '');
+  const escolha = `<div class="pf-info-escolha">
+      <label class="field">Pessoa<select id="info-pessoa" data-act="infopessoa" aria-label="De quem são as informações" ${editando ? 'disabled' : ''}>
+        ${x ? '' : '<option value="">— escolha a pessoa —</option>'}
+        ${pessoas.map((t) => `<option value="${t.pessoaId}" ${t.pessoaId === sel ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label>
+      <button class="btn pf-info-busca-bt" type="button" data-act="infobusca" aria-label="Buscar pessoa" title="Buscar pessoa" ${editando ? 'disabled' : ''}>🔍</button>
+    </div>
+    <label class="pf-info-busca" id="info-busca" ${u.infoBuscaVisivel ? '' : 'hidden'}><span aria-hidden="true">🔍</span><input type="search" id="info-pessoa-busca" placeholder="Buscar pelo nome" aria-label="Buscar pessoa" value="${esc(u.infoBusca || '')}"></label>`;
+  const cabeca = `<div class="grp-h"><h2><span aria-hidden="true">👤</span> Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>`;
+  if (!x) return `<div class="card pf-info-card">${cabeca}${escolha}<p class="muted" style="margin:0;font-size:.88rem">Escolha uma pessoa para ver as informações.</p></div>`;
+  return `<div class="card pf-info-card">${cabeca}${escolha}
+    <div class="pf-info-sec"><h3>${x.propria ? 'Seus dados' : 'Dados'}</h3><div class="pf-dados"><div class="pf-info pf-info-1">
+      ${campo('nome', 'Nome', 'type="text" maxlength="80" autocomplete="name"', x.nome, ' inteiro')}
+      ${x.parcial ? '' : campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" autocomplete="bday"', '31/10/1990')}
+      ${x.parcial ? '' : campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" autocomplete="tel"', '(11) 91234-5678')}
+    </div>${blocoFoto(x.pessoaId, x.nome, editando)}</div></div>
     <div class="pf-info-sec pf-info-contato"><h3><span aria-hidden="true">📞</span> Pessoa para contato</h3><div class="pf-info">
-      ${campo('contatoNome', 'Nome', 'type="text" maxlength="80" placeholder="Quem chamar"', I.contatoNome)}
-      ${campo('contatoTelefone', 'Telefone', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" placeholder="(11) 91234-5678"', telefoneBR(I.contatoTelefone))}
-    </div></div></div>`;
+      ${campo('contatoNome', 'Nome', 'type="text" maxlength="80"', 'Quem chamar')}
+      ${campo('contatoTelefone', 'Telefone', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel"', '(11) 91234-5678')}
+    </div>${!editando && !x.propria && numeroContato ? `<a class="btn small pf-ligar" href="tel:${numeroContato}"><span aria-hidden="true">📞</span> Ligar</a>` : ''}</div>
+    ${podeEditarInfo(x) ? `<div class="pf-bts">
+      <button class="btn" data-act="${editando ? 'pfinfocancelar' : 'pfinfoeditar'}"><span aria-hidden="true">${editando ? '✕' : '✏️'}</span> ${editando ? 'Cancelar' : 'Editar'}</button>
+      <button class="btn primary" data-act="pfinfosalvar" ${editando ? '' : 'disabled'}><span aria-hidden="true">💾</span> Salvar</button>
+    </div>` : ''}</div>`;
+}
+
+// Rascunho de Editar, pronto para gravar; avisa e devolve null se algum campo estiver inválido.
+function lerInfoRasc() {
+  const r = U().infoRasc || {};
+  const limpo = (k) => String(r[k] || '').replace(/\s+/g, ' ').trim();
+  const nascimento = limpo('nascimento') ? lerNascimento(limpo('nascimento')) : '';
+  if (limpo('nascimento') && !nascimento) { toast('Data de nascimento inválida. Use dia/mês/ano, por exemplo 31/10/1990.'); return null; }
+  const [celular, contatoTelefone] = [soNumeros(limpo('celular')), soNumeros(limpo('contatoTelefone'))];
+  if ((celular && celular.length < 10) || (contatoTelefone && contatoTelefone.length < 10)) { toast('Telefone incompleto: coloque o DDD e o número.'); return null; }
+  return { nome: limpo('nome'), nascimento, celular, contatoNome: limpo('contatoNome'), contatoTelefone };
+}
+const fecharEdicaoInfo = () => Object.assign(U(), { infoEdit: null, infoRasc: null, infoFoto: undefined, infoConf: false });
+
+function janelaInfo() {
+  if (!U().infoConf) return '';
+  const x = pessoaDoBloco(estado.perfil.eu);
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="pf-info-t"><div class="modal">
+    <h3 id="pf-info-t">Salvar as informações?</h3><p style="margin:0">${x?.propria ? 'Suas informações serão atualizadas.' : `As informações de <b>${esc(x?.nome || '')}</b> serão atualizadas.`}</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="pfinfoconfnao">Cancelar</button><button class="btn primary" data-act="pfinfoconfsim">Confirmar</button></div>
+  </div></div>`;
 }
 
 // Selo ao lado do título: "não preenchido" (amarelo) ou "preenchido" (verde).
@@ -227,10 +250,10 @@ function meusCards(eu) {
   // Orixás e guias (num bloco só) e outros guias começam minimizados (para todos); tocar no título expande.
   const padrao = false;
   // Curimba: só as informações pessoais (não cadastra orixás, guias nem guias de atendimento).
-  if (!cadastraEspiritual(eu.funcao)) return cardInfo(eu);
+  if (!cadastraEspiritual(eu.funcao)) return '';
   const nOutros = GUIAS.filter(([k]) => (P.outros || {})[k]).length;
   const okOutros = nOutros === GUIAS.length ? true : nOutros ? 'andamento' : false;
-  return cardInfo(eu) + cardsAfinidade(eu) + cardEspiritual(P)
+  return cardsAfinidade(eu) + cardEspiritual(P)
   + card('outros', 'Guias de atendimento', selo(okOutros), padrao, () => `
     <p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>
     ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">
@@ -414,7 +437,7 @@ export function render() {
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;
   if (estado.anamnese === null) { estado.anamnese = undefined; carregarAnamnese(); }
-  let h = cardInfoCorrente(estado.perfil.contatos || []);
+  let h = '';
   // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".
   if (admin()) {
     // Respostas e oferendas pendentes contam só quem cadastra orixás e guias (a curimba fica fora).
@@ -422,10 +445,11 @@ export function render() {
     h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
       ${cardOferendas(comOrixas)}${cardRespostas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
   }
+  h += cardInfo(eu);
   if (eu) h += meusCards(eu) + cardAnamnese();
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
   h += cardGuiasCorrente(estado.perfil.guias || []);
-  return `<section class="panel pf-tela">${h}${janelaAnamnese()}</section>`;
+  return `<section class="panel pf-tela">${h}${janelaAnamnese()}${janelaInfo()}</section>`;
 }
 
 export const cliques = {
@@ -501,9 +525,41 @@ export const cliques = {
     baixar(new Blob([txt], { type: 'text/plain' }), nome);
     toast('Arquivo baixado: anexe no WhatsApp.');
   },
-  async pftirafoto(el) {
-    if (!confirm('Remover a foto?')) return;
-    if (await salvarFoto(el.dataset.id, null)) toast('Foto removida.');
+  pfinfoeditar() {
+    const x = pessoaDoBloco(estado.perfil.eu);
+    if (!podeEditarInfo(x)) return;
+    const I = x.info;
+    Object.assign(U(), { infoEdit: x.pessoaId, infoFoto: undefined, infoRasc: { nome: I.nome || '', nascimento: nascimentoBR(I.nascimento) || '', celular: telefoneBR(I.celular) || '', contatoNome: I.contatoNome || '', contatoTelefone: telefoneBR(I.contatoTelefone) || '' } });
+    avisar();
+  },
+  pfinfocancelar() { fecharEdicaoInfo(); avisar(); },
+  pfinfosalvar() { if (lerInfoRasc()) { U().infoConf = true; avisar(); } },
+  pfinfoconfnao() { U().infoConf = false; avisar(); },
+  async pfinfoconfsim() {
+    const u = U();
+    u.infoConf = false;
+    const info = lerInfoRasc();
+    const id = u.infoEdit;
+    if (!info || !id) { avisar(); return; }
+    // Se algo falhar, continua editando para tentar de novo.
+    if (!(await salvarInfoDe(id, info))) return;
+    if (u.infoFoto && !(await salvarFoto(id, u.infoFoto.b64))) return;
+    fecharEdicaoInfo();
+    toast('Informações salvas.');
+    avisar();
+  },
+  pftirafoto() { U().infoFoto = { b64: null }; avisar(); },
+  infobusca() {
+    const busca = document.getElementById('info-pessoa-busca');
+    const caixa = document.getElementById('info-busca');
+    U().infoBuscaVisivel = !U().infoBuscaVisivel;
+    if (!U().infoBuscaVisivel) {
+      U().infoBusca = '';
+      busca.value = '';
+      buscarInfo(busca);
+    }
+    caixa.hidden = !U().infoBuscaVisivel;
+    if (U().infoBuscaVisivel) busca.focus();
   },
   pfdobra(el) {
     const k = el.dataset.k;
@@ -564,14 +620,10 @@ export function buscarInfo(el) {
 export function digitando(el) {
   if (el.dataset.act === 'anaresp') { mudancas.anaresp(el); return; }
   const k = el.dataset.k;
-  let v = el.value.replace(/\s+/g, ' ').trim();
-  if (el.dataset.act === 'pfnome') {
-    mudarPerfil((P) => { if (v) P.outros[k] = v; else delete P.outros[k]; }, { silencioso: true });
-    return;
-  }
-  if (k === 'nascimento' && v) { v = lerNascimento(v); if (!v) return; }
-  if ((k === 'celular' || k === 'contatoTelefone') && v) { v = soNumeros(v); if (v.length < 10) return; }
-  mudarPerfil((P) => { P.info = { ...(P.info || {}), [k]: v }; }, { silencioso: true });
+  // Bloco Informações: só guarda o rascunho, para um redesenho não apagar; grava em Salvar.
+  if (el.dataset.act === 'pfinfo') { if (U().infoRasc) U().infoRasc[k] = el.value; return; }
+  const v = el.value.replace(/\s+/g, ' ').trim();
+  mudarPerfil((P) => { if (v) P.outros[k] = v; else delete P.outros[k]; }, { silencioso: true });
 }
 
 export const mudancas = {
@@ -589,14 +641,15 @@ export const mudancas = {
     } else r[t.dataset.q] = t.value;
   },
   anapessoa(t) { U().anaPessoa = t.value; avisar(); },
-  // Foto: a escolhida no aparelho vira um quadrado pequeno e já é salva.
+  // Foto: a escolhida no aparelho vira um quadrado pequeno; é gravada no Salvar.
   async pffoto(t) {
     const arq = t.files && t.files[0];
     t.value = '';
     if (!arq) return;
     let b64;
     try { b64 = await reduzirFoto(arq); } catch { toast('Não consegui abrir essa imagem.'); return; }
-    if (await salvarFoto(t.dataset.id, b64)) toast('Foto salva.');
+    U().infoFoto = { b64 };
+    avisar();
   },
   afin(t) {
     const eu = estado.perfil.eu;
@@ -619,18 +672,6 @@ export const mudancas = {
     U().infoBuscaVisivel = false;
     avisar();
   },
-  infobusca() {
-    const busca = document.getElementById('info-pessoa-busca');
-    const caixa = document.getElementById('info-busca');
-    U().infoBuscaVisivel = !U().infoBuscaVisivel;
-    if (!U().infoBuscaVisivel) {
-      U().infoBusca = '';
-      busca.value = '';
-      buscarInfo(busca);
-    }
-    caixa.hidden = !U().infoBuscaVisivel;
-    if (U().infoBuscaVisivel) busca.focus();
-  },
   pfsel(el) {
     const { g, k } = el.dataset;
     const campo = g === 'orixas' ? 'nome' : 'linha';
@@ -639,21 +680,6 @@ export const mudancas = {
   pfof(el) {
     const { g, k } = el.dataset;
     mudarPerfil((P) => { P[g][k].oferenda = el.checked; });
-  },
-  pfinfo(el) {
-    const k = el.dataset.k;
-    let v = el.value.replace(/\s+/g, ' ').trim();
-    if (k === 'nascimento' && v) {
-      v = lerNascimento(v);
-      if (!v) { toast('Data de nascimento inválida. Use dia/mês/ano, por exemplo 31/10/1990.'); return; }
-    }
-    if ((k === 'celular' || k === 'contatoTelefone') && v) {
-      v = soNumeros(v);
-      if (v.length < 10) { toast('Telefone incompleto: coloque o DDD e o número.'); return; }
-    }
-    // Sem redesenhar a tela: no celular, redesenhar ao sair do campo tirava o foco do próximo
-    // campo tocado (o que se digitava nele se perdia).
-    mudarPerfil((P) => { P.info = { ...(P.info || {}), [k]: v }; }, { silencioso: true });
   },
   pfnome(el) {
     const v = el.value.replace(/\s+/g, ' ').trim();

@@ -678,7 +678,6 @@ export async function salvarAfinidade(tipo, linhas) {
   } catch (e) { toast(e.message); avisar(); return false; }
 }
 
-// Admin (bloco Ajustes da aba Perfil): informações de outra pessoa.
 // Foto da pessoa (aba Perfil): busca uma vez e guarda em estado.fotosPessoa.
 const dataUrl = (b64) => (b64 ? 'data:image/jpeg;base64,' + b64 : '');
 export async function carregarFoto(pessoaId) {
@@ -696,12 +695,15 @@ export async function salvarFoto(pessoaId, foto) {
   } catch (e) { toast(e.message); return false; }
 }
 
+// Bloco Informações da aba Perfil: as da própria pessoa ou, para o admin, as de qualquer outra.
 export async function salvarInfoDe(pessoaId, info) {
   try {
     const r = await api('POST', '/auth/perfil', { pessoaId, info });
     const x = (estado.perfil?.todos || []).find((t) => t.pessoaId === pessoaId);
     if (x) x.perfil = r.perfil;
     if (estado.perfil?.eu?.pessoaId === pessoaId) estado.perfil.eu.perfil = r.perfil;
+    const c = (estado.perfil?.contatos || []).find((t) => t.pessoaId === pessoaId);
+    if (c) Object.assign(c, { contatoNome: r.perfil.info.contatoNome || '', contatoTelefone: r.perfil.info.contatoTelefone || '' });
     avisar();
     return true;
   } catch (e) { toast(e.message); return false; }

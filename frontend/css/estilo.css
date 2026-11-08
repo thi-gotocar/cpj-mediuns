@@ -831,20 +831,13 @@ body.deslogado .rodape{display:none}
 .ev-mes-h.dobra{width:100%;background:none;border:0;font:inherit;color:inherit;cursor:pointer;text-align:left;padding:8px 0}
 .ev-mes-h .seta{color:var(--accent);margin-left:6px}
 .pf-salvo{font-size:.82rem;color:var(--muted)}.pf-salvo.salvo{color:#1d7a3c;font-weight:700}.pf-salvo.erro{color:var(--off);font-weight:700}
-.pf-info-escolha{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;margin-bottom:8px}
+.pf-info-escolha{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
 .pf-info-escolha .field{margin:0}
 .pf-info-busca-bt{min-height:42px;padding:8px 12px}
-.pf-info-busca{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.pf-info-busca{display:flex;align-items:center;gap:8px;margin:0;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
 .pf-info-busca input{width:100%;min-width:0;border:0;background:transparent;color:inherit;outline:none}
 .pf-info-busca[hidden]{display:none}
 .pf-cab-pct{display:inline-flex;align-items:center;margin-left:6px;padding:2px 8px;border-radius:20px;background:var(--ok-soft);color:var(--ok);font:700 .72rem var(--f-body);vertical-align:middle}
-.aj-contato{display:grid;grid-template-columns:96px minmax(0,1fr);align-items:center;gap:14px;padding:10px 0 2px}
-.aj-contato-dados{display:grid;gap:8px;min-width:0}
-.aj-contato-dados h3{margin:0;font:700 1rem var(--f-display)}
-.aj-contato-dados>div{display:grid;gap:2px;overflow-wrap:anywhere}
-.aj-contato-dados .muted{font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}
-.aj-contato-dados strong,.aj-contato-dados a{font-size:.95rem}
-.aj-contato-dados a{color:var(--accent);font-weight:700;text-decoration:none}
 .aj-ver{display:flex;flex-direction:column}
 .aj-v{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:7px 0;border-top:1px solid var(--line)}
 .aj-v:first-child{border-top:0}
@@ -860,7 +853,6 @@ body.deslogado .rodape{display:none}
 .pf-info .pf-info-c.inteiro{grid-column:1/-1}
 /* Informações: dica, seções "Seus dados" e "Pessoa para contato" (caixinha), rótulos pequenos e aviso de salvo em pílula */
 .pf-info-card .grp-h{align-items:center}
-.pf-info-dica{margin:-4px 0 0;font-size:.8rem;color:var(--muted)}
 .pf-info-sec{display:grid;gap:8px}
 .pf-info-sec h3{margin:0;font:800 .78rem var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 .pf-info-contato{padding:10px 12px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));background:color-mix(in srgb,var(--accent) 7%,transparent)}
@@ -1320,6 +1312,12 @@ section.panel.pf-tela{gap:14px}
 .pf-foto-img span{font:700 1.8rem var(--f-display, inherit);color:var(--accent)}
 .pf-foto-bt{cursor:pointer;white-space:nowrap}
 .pf-foto-tirar{font-size:.82rem;padding:0}
+.pf-info input:disabled{opacity:1;color:var(--ink);-webkit-text-fill-color:var(--ink);background:transparent;border-style:dashed;cursor:default}
+.pf-info input:disabled::placeholder{color:var(--ink);-webkit-text-fill-color:var(--ink);opacity:1}
+.pf-info-contato .pf-info{grid-template-columns:1fr}
+.pf-ligar{justify-self:start;text-decoration:none}
+.pf-bts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pf-bts .btn{width:100%;min-width:0;margin:0;height:46px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px}
 /* Aba Gira, "Você nesta gira": foto de com quem a pessoa trabalha */
 .eu-l.eu-pessoa{display:flex;align-items:center;gap:10px}
 .eu-av{flex:none;width:34px;height:34px;padding:0;border-radius:50%;overflow:hidden;border:2px solid var(--gold);background:var(--accent-soft);display:flex;align-items:center;justify-content:center}

@@ -79,9 +79,9 @@ const acoes = {
       if (!Array.isArray(b.linhas) || b.linhas.some((l) => !LINHA_KEYS.includes(l))) throw new HttpError(400, 'Entidade inválida.');
       return limpo(await db.rpc('afinidade_salvar', { pessoaId: eu.pessoaId, campo: bloco.campo, linhas: [...new Set(b.linhas)] }));
     }
-    // Admin (bloco Ajustes): muda as informações do perfil de outra pessoa (o resto do perfil fica igual).
-    if (b.pessoaId && b.pessoaId !== eu.pessoaId) {
-      if (!pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin altera o perfil de outra pessoa.');
+    // Bloco Informações: muda só as informações (o resto do perfil fica igual), da própria pessoa ou, para o admin, de qualquer outra.
+    if (b.pessoaId && (b.pessoaId !== eu.pessoaId || b.info)) {
+      if (b.pessoaId !== eu.pessoaId && !pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin altera o perfil de outra pessoa.');
       const atual = await db.rpc('perfil_ler', { pessoaId: validarId(b.pessoaId, 'Pessoa') });
       const info = b.info && typeof b.info === 'object' ? b.info : {};
       const p = normalizarPerfil(atual.perfil);
