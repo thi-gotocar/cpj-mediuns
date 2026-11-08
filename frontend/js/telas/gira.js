@@ -407,6 +407,7 @@ function renderGira() {
   const topo = cabecalhoGira(g) + seletorData(g);
   const informes = blocoBanho(g) + blocoAusencia(ps, g) + blocoFaltas(ps, g) + blocoLicenca(ps, g);
   const realizado = !g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala() : '';
+  const novos = existe ? blocoPedirErvas(g) + blocosOferenda(g) : '';
   setTimeout(atualizarJanela, 0);
 
   if (encerrada) {
@@ -417,7 +418,7 @@ function renderGira() {
     const botoes = admin
       ? ouro(`<div class="gira-bts">${resumo}<button class="btn" data-act="reabrir"><span aria-hidden="true">↺</span> Reabrir gira</button></div>${escalaWa ? `<div class="gira-bts">${escalaWa}</div>` : ''}${painel}`)
       : `${resumo || escalaWa ? `<div class="gira-bts">${escalaWa}${resumo}</div>` : ''}${painel}`;
-    return `<section class="panel"><div class="card card-gira">${topo}${botoes}${blocoEncerrada(ps, g)}${blocoRecado(g)}${informes}${realizado}</div>${rodape}</section>`;
+    return `<section class="panel"><div class="card card-gira">${topo}${botoes}${blocoEncerrada(ps, g)}${blocoRecado(g)}${informes}${realizado}${novos}</div>${rodape}</section>`;
   }
 
   const btEscala = whats ? botaoWhats(temDuplas, 'Escala de atendimentos') : '';
@@ -432,9 +433,8 @@ function renderGira() {
     ${avisoEntidade(ps, g, editar, admin)}
     ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g)}</label>` : ''}
     ${!g.evento && temLimpeza(g) ? `<label class="field">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}`);
-  const recado = editar ? ouro(blocoRecado(g, true)) : blocoRecado(g);
+  const recado = blocoRecado(g, editar);
   const atendimentos = !editar ? '' : ouro(`<div class="atend-sec">${g.evento ? campoParticipantes(g) : `<span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}`}</div>`);
-  const novos = existe ? blocoPedirErvas(g) + blocosOferenda(g) : '';
   return `<section class="panel"><div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${dadosGira}${blocoLimpeza(g)}${recado}${atendimentos}${escala}${informes}${realizado}${novos}</div>${rodape}</section>`;
 }
 
