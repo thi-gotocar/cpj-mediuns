@@ -51,11 +51,30 @@ export const GIRAS_JUNTAS = [['exus-pombagira', 'Exus & Pombagira', ['exu', 'pom
 const JUNTAS = Object.fromEntries(GIRAS_JUNTAS.map(([k, , ls]) => [k, ls]));
 // Nome do guia de atendimento da pessoa na linha desta gira (aba Perfil → Guias de atendimento).
 // Gira junta (Exus & Pombagira): os das linhas dela. Sem nome cadastrado: ''.
+// Se a pessoa escolheu a entidade da gira: "Exu : Tranca Rua", ou só "Exu" sem nome cadastrado nessa linha.
 export function guiaNaGira(p, g) {
   const l = linhaDaEntidade(g?.entidade);
   if (!l || !p) return '';
   const G = p.guiasAtendimento || {};
+  const escolhida = entidadeEscolhida(p, g);
+  if (escolhida) {
+    const nomeGuia = typeof G[escolhida] === 'string' ? G[escolhida].trim() : '';
+    return nomeGuia ? `${LINHA_LABEL[escolhida]} : ${nomeGuia}` : LINHA_LABEL[escolhida];
+  }
   return [l, ...(JUNTAS[l] || [])].map((k) => G[k]).filter((x) => typeof x === 'string' && x.trim()).join(' / ');
+}
+// Gira com mais de uma linha: as entidades que a pessoa pode escolher atender, como [chave, nome].
+// Encontro das Linhas: todas as linhas; gira junta: só as dela; as outras giras (e evento): nenhuma.
+export function linhasParaEscolher(g) {
+  const l = linhaDaEntidade(g?.entidade);
+  if (!l || g?.evento) return [];
+  if (l === 'mista') return LINHAS.flatMap((x) => x.itens).filter(([k]) => k !== 'mista');
+  return (JUNTAS[l] || []).map((k) => [k, LINHA_LABEL[k]]);
+}
+// Ignora escolha que deixou de valer (ex.: o admin trocou a entidade da gira).
+export function entidadeEscolhida(p, g) {
+  const k = (g?.atende || {})[p?.id];
+  return k && linhasParaEscolher(g).some(([x]) => x === k) ? k : '';
 }
 // Opções do seletor "Gira / entidade do dia": as linhas, as juntas (na Esquerda) e as especiais.
 export const OPCOES_GIRA = [
@@ -158,6 +177,9 @@ export const daGira = (pessoas, g) => pessoas.filter((p) => naCorrenteEm(p, g.da
 // estando Pendente, até o dia anterior ao evento (hoje = 'AAAA-MM-DD'), e enquanto ninguém marcou
 // a presença dela (o último status vale; depois que está na lista de presença, só o admin muda).
 export const statusMarcado = (p, g) => !!p && !!g && Object.prototype.hasOwnProperty.call(g.presenca || {}, p.id);
+// Quem atende nesta gira (Médium ou At. Extra, na função do dia) escolhe a entidade enquanto a gira estiver aberta.
+export const podeEscolherEntidade = (p, g) => !!p && !!g && !g.encerrada && linhasParaEscolher(g).length > 0
+  && naCorrenteEm(p, g.data) && presente(p, g) && ['medium', 'extra'].includes(funcaoNaGira(p, g));
 export const podeDeclararAusencia = (p, g, hoje) => !!p && !!g && !g.encerrada && !ehCurimba(p)
   && naCorrenteEm(p, g.data) && hoje < g.data && presencaDe(p, g) === 'pend' && !statusMarcado(p, g);
 

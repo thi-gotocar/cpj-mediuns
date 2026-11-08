@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 85;  // v85: registrar total de participantes em eventos
+export const VERSAO = 86;  // v86: entidade que a pessoa escolhe atender em gira com mais de uma linha
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2304,6 +2304,22 @@ export const MIGRACOES = [
      return gira_json(v_data);
    end;
    $$`,
+  // ================================================== v86: em gira com mais de uma linha, a entidade que cada pessoa vai atender
+  // { pessoaId: linha }. Não entra em gira_salvar: quem grava é a própria pessoa, pela acao 'minhaEntidade'.
+  `alter table giras add column if not exists atende jsonb not null default '{}'::jsonb`,
+  `create or replace function gira_atende(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_data date := (p ->> 'data')::date;
+   begin
+     update giras set
+       atende = case when coalesce(p ->> 'linha', '') = '' then atende - (p ->> 'pessoaId')
+                     else atende || jsonb_build_object(p ->> 'pessoaId', p ->> 'linha') end,
+       atualizado_em = now()
+     where data = v_data;
+     return gira_json(v_data);
+   end;
+   $$`,
+  // Igual à v85, com 'atende'.
   `create or replace function gira_json(d date)
    returns jsonb language sql stable as $$
      select jsonb_build_object(
@@ -2322,6 +2338,7 @@ export const MIGRACOES = [
        'travada', g.travada,
        'recado', g.recado,
        'papeis', g.papeis,
+       'atende', g.atende,
        'atualizadoEm', g.atualizado_em,
        'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
                              from presencas pr where pr.gira_data = g.data), '{}'::jsonb),

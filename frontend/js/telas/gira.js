@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -906,6 +906,7 @@ export const mudancas = {
     if (!confirm('Registrar ausência antecipada?\nSua presença será marcada como “Ausente” no cadastro desta gira. Depois disso, só a Michelle consegue alterar.')) { t.value = 'pend'; return; }
     await declararAusencia();
   },
+  minhaentidade(t) { t.blur(); escolherEntidade(t.value); },
   // Função na gira: a do cadastro (volta para Presente, ou Pendente antes do dia), Suporte ou Não atende.
   // Não mexe na presença.
   papel(t) {

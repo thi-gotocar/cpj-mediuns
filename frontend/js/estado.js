@@ -320,6 +320,7 @@ export async function mudarDataGira(para) {
 export const cancelarSorteio = () => situacaoDaGira('cancelarSorteio');
 // Acesso da corrente: a própria pessoa declara que não vai (Pendente → Ausente).
 export const declararAusencia = () => situacaoDaGira('ausencia');
+export const escolherEntidade = (linha) => situacaoDaGira('minhaEntidade', { linha });
 export const publicarEscala = (publicada = true) => situacaoDaGira('publicar', { publicada });
 export const travarEscala = (travada) => situacaoDaGira('travar', { travada });
 export const salvarRecado = (recado) => situacaoDaGira('recado', { recado });

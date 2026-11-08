@@ -6,6 +6,7 @@
 //                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } | participantes } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
+//                            { acao: 'minhaEntidade', linha }  gira com mais de uma linha: a própria pessoa escolhe a entidade que vai atender ('' = tira a escolha)
 //                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas), despublica e tira a trava: volta ao botão Sortear
 //                            { acao: 'travar', travada: true|false }  com a trava, marcar falta ou ausência não muda a escala (e não dá para remanejar)
 //                            { acao: 'recado', recado }  recado do admin: até 5 linhas, para todos verem no evento em andamento
@@ -18,7 +19,7 @@ import { exigir } from '../../_lib/sessao.js';
 import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
 import { db } from '../../_lib/db.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma, podeDeclararAusencia } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
 
 // Data de hoje no horário de Brasília (AAAA-MM-DD).
 const hojeBR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
@@ -106,6 +107,21 @@ async function declararAusencia(req) {
   return { gira, mensagem: 'Ausência registrada. Obrigado por avisar! #boa gira' };
 }
 
+async function escolherEntidade(req, linha) {
+  const eu = await exigir(req, 'giras:ler');
+  if (!eu.pessoaId) throw new HttpError(403, 'Só quem tem cadastro na corrente escolhe a entidade.');
+  const data = validarData(req.query.data);
+  const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
+  if (!atual) throw new HttpError(404, 'Esta gira ainda não foi criada.');
+  if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+  const p = pessoas.find((x) => x.id === eu.pessoaId);
+  if (!podeEscolherEntidade(p, atual)) throw new HttpError(400, 'Nesta gira você não escolhe a entidade.');
+  const escolha = typeof linha === 'string' ? linha : '';
+  if (escolha && !linhasParaEscolher(atual).some(([k]) => k === escolha)) throw new HttpError(400, 'Entidade inválida para esta gira.');
+  const gira = ocultarSorteio(eu, await db.rpc('gira_atende', { data, pessoaId: p.id, linha: escolha }));
+  return { gira, mensagem: escolha ? 'Entidade registrada.' : 'Escolha retirada.' };
+}
+
 export default rota({
   GET: async (req) => {
     const eu = await exigir(req, 'giras:ler');
@@ -165,6 +181,7 @@ export default rota({
   POST: async (req) => {
     const b = corpo(req);
     if (b.acao === 'ausencia') return declararAusencia(req);
+    if (b.acao === 'minhaEntidade') return escolherEntidade(req, b.linha);
     // Admin root (Histórico → estatísticas): corrige a presença de uma pessoa, mesmo em gira encerrada.
     if (b.acao === 'corrigirPresenca') {
       await exigir(req, 'usuarios:gerenciar');

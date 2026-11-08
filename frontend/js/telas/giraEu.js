@@ -1,6 +1,6 @@
 // Aba Gira: bloco "Você nesta gira" de quem está logado.
 
-import { nomeEntidadeGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naCorrenteEm, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira } from '/shared/regras.js';
+import { nomeEntidadeGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naCorrenteEm, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira, podeEscolherEntidade, linhasParaEscolher, entidadeEscolhida } from '/shared/regras.js';
 import { estado, pode, nome, girasLista, carregarFoto } from '../estado.js';
 import { esc, dDM, hoje, iniciais } from '../util.js';
 import { htmlStatus, caixaPendente } from './giraComum.js';
@@ -111,10 +111,17 @@ export function blocoEu(g) {
       L.push(`<div class="eu-limp">🧹 Hoje você ajuda essa turma, pois faltou na sua turma na gira passada.</div>`);
     }
   }
+  // Gira com mais de uma linha: com qual entidade a pessoa vai trabalhar (aparece na escala e no guia de atendimento).
+  const escolhida = entidadeEscolhida(p, g);
+  const comboEntidade = estado.giras[g.data] && podeEscolherEntidade(p, g)
+    ? `<label class="eu-aus eu-ent"><span class="muted">Qual entidade vai atender?</span>
+        <select id="eu-ent" data-act="minhaentidade" aria-label="Entidade que você vai atender nesta gira"><option value="">— escolha —</option>${linhasParaEscolher(g).map(([k, l]) => `<option value="${k}" ${k === escolhida ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
+    : '';
   const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
   const nomeDaGira = g.entidade ? `${nomeEntidadeGira(g)}${orixaDaGira(g) ? ` · ${orixaDaGira(g)}` : ''}` : '';
   return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span><span class="eu-h-info">${nomeDaGira ? `<span class="eu-gira">${esc(nomeDaGira)}</span>` : ''}<span class="eu-gira">${dDM(g.data)}</span></span></div>
     ${identidade(convertido, !sorteado && !['medium', 'cambone'].includes(p.funcao))}
+    ${comboEntidade}
     ${(funcao === 'medium' || funcao === 'extra') && st !== 'lic' && guiaNaGira(p, g) ? `<div class="eu-l eu-guia"><span class="muted">Guia de atendimento:</span> <b>${esc(guiaNaGira(p, g))}</b></div>` : ''}
     ${L.join('')}</div>`;
 }

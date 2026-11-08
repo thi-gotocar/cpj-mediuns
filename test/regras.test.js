@@ -378,6 +378,29 @@ test('função do dia: Extra como Passe (pas) e Passe como Cambone (na)', async 
   assert.equal(papelDe({ ...pa, funcao: 'medium' }, { ...g, papeis: { p: 'pas' } }), 'cad', "'pas' só vale para Extra");
 });
 
+test('entidade escolhida pela pessoa em gira com mais de uma linha', async () => {
+  const { guiaNaGira, linhasParaEscolher, entidadeEscolhida, podeEscolherEntidade } = await import('../shared/regras.js');
+  const chaves = (g) => linhasParaEscolher(g).map(([k]) => k);
+  assert.deepEqual(chaves({ entidade: 'Exus & Pombagira' }), ['exu', 'pomba-gira']);
+  assert.ok(chaves({ entidade: 'Encontro das Linhas' }).includes('caboclo'));
+  assert.ok(!chaves({ entidade: 'Encontro das Linhas' }).includes('mista'));
+  assert.deepEqual(chaves({ entidade: 'Caboclo' }), []);
+  assert.deepEqual(chaves({ entidade: 'Exus & Pombagira', evento: true }), []);
+
+  const p = { id: '1', funcao: 'medium', entrada: '2020-01-01', licencas: [], guiasAtendimento: { exu: 'Tranca Rua', 'pomba-gira': 'Maria Padilha' } };
+  const g = { data: '2030-01-02', entidade: 'Exus & Pombagira', presenca: {}, papeis: {}, atende: {} };
+  assert.equal(guiaNaGira(p, g), 'Tranca Rua / Maria Padilha', 'sem escolha: como antes');
+  assert.equal(guiaNaGira(p, { ...g, atende: { 1: 'exu' } }), 'Exu : Tranca Rua');
+  assert.equal(guiaNaGira(p, { ...g, entidade: 'Encontro das Linhas', atende: { 1: 'caboclo' } }), 'Caboclo', 'sem nome cadastrado: só a entidade');
+  assert.equal(entidadeEscolhida(p, { ...g, entidade: 'Caboclo', atende: { 1: 'exu' } }), '', 'a gira mudou: a escolha deixa de valer');
+
+  assert.equal(podeEscolherEntidade(p, g), true);
+  assert.equal(podeEscolherEntidade({ ...p, funcao: 'cambone' }, g), false);
+  assert.equal(podeEscolherEntidade(p, { ...g, encerrada: true }), false);
+  assert.equal(podeEscolherEntidade(p, { ...g, presenca: { 1: 'a' } }), false);
+  assert.equal(podeEscolherEntidade(p, { ...g, papeis: { 1: 'na' } }), false, 'nesta gira vai cambonar');
+});
+
 test('guia de atendimento na gira: pela linha da entidade (e gira junta)', async () => {
   const { guiaNaGira } = await import('../shared/regras.js');
   const p = { guiasAtendimento: { 'preto-velho': 'Pai Joaquim', exu: 'Tranca Rua', 'pomba-gira': 'Maria Padilha' } };

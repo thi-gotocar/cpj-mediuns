@@ -1156,6 +1156,23 @@ test('oferenda 100% há mais de um dia: só o responsável altera; o card mostra
   await of({ acao: 'excluir', id: o.id });
 });
 
+test('a própria pessoa escolhe a entidade que vai atender em gira com mais de uma linha', async () => {
+  const d = '2099-02-04';
+  const anaId = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Ana').id;
+  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  const escolher = (linha) => api('POST', '/api/giras/' + d, ana, { acao: 'minhaEntidade', linha });
+  assert.equal((await escolher('exu')).status, 404, 'gira ainda não criada');
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Exus & Pombagira' });
+  const r = await escolher('exu');
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.gira.atende[anaId], 'exu');
+  assert.equal((await escolher('caboclo')).status, 400, 'fora das linhas desta gira');
+  assert.equal((await escolher('')).json.gira.atende[anaId], undefined, 'pode tirar a escolha');
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Caboclo' });
+  assert.equal((await escolher('exu')).status, 400, 'gira de uma linha só não tem escolha');
+  await api('DELETE', '/api/giras/' + d, ADMIN);
+});
+
 test('acesso da corrente declara a própria ausência (Pendente → Ausente) até a véspera', async () => {
   const d = '2099-01-07';
   const ausencia = (tok, data = d) => api('POST', '/api/giras/' + data, tok, { acao: 'ausencia' });
