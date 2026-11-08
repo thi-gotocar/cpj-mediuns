@@ -205,6 +205,8 @@ export async function atualizarDoServidor() {
     if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {
       estado.oferendas = await api('GET', '/oferendas').catch(() => estado.oferendas);
     }
+    // Bloco "Pedir ervas" da aba Gira: mostra se o pedido ainda está aberto.
+    if (estado.ervas !== null && prefs.tab === 'agenda') estado.ervas = await api('GET', '/ervas').catch(() => estado.ervas);
     avisar();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
 }

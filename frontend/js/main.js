@@ -223,8 +223,8 @@ rodape.addEventListener('click', cliqueConta);
 
 main.addEventListener('click', async (e) => {
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }
-  // Calendário da aba Gira (quem não é admin): abre o seletor de data também no computador.
-  if ((e.target.id === 'f-data' && e.target.closest('.nav-cal')) || e.target.dataset.act === 'irdata') { try { e.target.showPicker(); } catch { /* o toque já abre */ } return; }
+  // Calendário da aba Gira: abre o seletor de data também no computador.
+  if (e.target.dataset.act === 'irdata') { try { e.target.showPicker(); } catch { /* o toque já abre */ } return; }
   if (e.target.closest('[data-conta="voltarlogin"]')) { pinLogin = null; erroLogin = ''; render(); return; }
   // Acesso da corrente: a pessoa confirma qual nome cadastrado é o dela.
   const eu = e.target.closest('[data-soueu]');
@@ -254,7 +254,6 @@ main.addEventListener('click', async (e) => {
 main.addEventListener('change', (e) => {
   const t = e.target;
   if (t.id === 'l-email') { login.ajustarCampoSenha(ehAcessoGrupo(t.value)); return; }
-  if (t.id === 'f-data') { gira.mudancas.data(t); return; }
   if (t.id === 'f-ent') { gira.mudancas.entidade(t); return; }
   if (t.id === 'f-import' && t.files && t.files[0]) { const f = t.files[0]; t.value = ''; historico.restaurar(f); return; }
   const tela = TELAS[prefs.tab];

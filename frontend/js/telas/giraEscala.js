@@ -12,11 +12,11 @@ export const botaoDobrar = (aberto) => `<button class="btn link small ver-mais" 
 
 // Depois do sorteio: Remanejar faltas e Ajuste manual, lado a lado, do mesmo tamanho (amarelos).
 // Remanejar pede confirmação antes.
-export function acoesSorteio(g, remanejarOk, manualOk, manual, refazerOk = false) {
+export function acoesSorteio(g, remanejarOk, manualOk, manual, cancelarOk = false) {
   const bts = [];
   if (remanejarOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="rem:${g.data}"><span aria-hidden="true">🔄</span> Remanejar faltas</button>`);
   if (manualOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="manual" aria-pressed="${manual}"><span aria-hidden="true">✋</span> ${manual ? 'Concluir ajuste' : 'Ajuste manual'}</button>`);
-  if (refazerOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="csort:${g.data}"><span aria-hidden="true">↻</span> Refazer sorteio</button>`);
+  if (cancelarOk) bts.push(`<button class="btn btn-grande bt-amarelo" data-act="askdel" data-k="csort:${g.data}"><span aria-hidden="true">✕</span> Cancelar sorteio</button>`);
   if (!bts.length) return '';
   return `<div class="sort-acoes n${bts.length}">${bts.join('')}</div>`;
 }

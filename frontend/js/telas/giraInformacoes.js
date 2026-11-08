@@ -1,9 +1,10 @@
 // Blocos informativos da gira: limpeza, recados, licenças e presença.
 
-import { estado, girasLista, carregarAusPrevias } from '../estado.js';
+import { estado, pode, girasLista, carregarAusPrevias, carregarErvas, carregarOferendas } from '../estado.js';
 import { esc, dDM } from '../util.js';
 import { status, nomeEntidadeGira, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, LINHA_LABEL, linhaDaEntidade, usaLinhas, funcaoNaGira, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
 import { banhosDaGira } from '/shared/banhos.js';
+import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM } from '/shared/oferendas.js';
 
 export function blocoLimpeza(g) {
   if (g.evento || !temLimpeza(g)) return '';
@@ -18,14 +19,14 @@ export function blocoLimpeza(g) {
   </div>`;
 }
 
-export function blocoRecado(g) {
+// Recado: o admin edita no próprio bloco (até 5 linhas, salva ao sair do campo); os outros só leem.
+export function blocoRecado(g, editar = false) {
+  if (editar) {
+    const r = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : g.recado || '';
+    return `<div class="limpeza recado"><b><span aria-hidden="true">📢</span> Recado</b><textarea id="ev-recado" data-act="recadogira" data-d="${esc(g.data)}" rows="5" maxlength="300" aria-label="Recado para a corrente" placeholder="Até 5 linhas. Aparece para todos no evento.">${esc(r)}</textarea></div>`;
+  }
   if (!g.recado) return '';
   return `<div class="limpeza recado"><b><span aria-hidden="true">📢</span> Recado</b><span class="recado-txt">${esc(g.recado)}</span></div>`;
-}
-
-export function campoRecado(g) {
-  const r = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : g.recado || '';
-  return `<label class="field">Recado para a corrente<textarea id="ev-recado" data-act="recadogira" data-d="${esc(g.data)}" rows="5" maxlength="300" placeholder="Até 5 linhas. Aparece para todos no evento.">${esc(r)}</textarea></label>`;
 }
 
 export function blocoLicenca(ps, g) {
@@ -105,4 +106,42 @@ export function contagemPresentes(ps, g, resumo) {
     <div class="enc-func-totais" aria-label="Pessoas por função">${Object.entries(conta).map(([t, n]) => `<span class="fn-${fn[t]}"><span class="muted">${t}</span><b>${n}</b></span>`).join('')}</div>
     <div class="enc-situacoes" aria-label="Percentuais de presença e situação">${situacoes.map(([k, t, cor]) => `<div class="enc-situacao ${cor}"><b>${base ? Math.round(qtd[k] / base * 100) : 0}%</b><span>${t}</span><small>${qtd[k]} de ${base}</small></div>`).join('')}</div>
   </div>`;
+}
+
+// Gira de Preto Velho ou Caboclo: atalho para a aba Ervas, com a situação real do pedido.
+const LINHAS_COM_ERVAS = ['preto-velho', 'caboclo'];
+let pedindoErvas = false;
+export function blocoPedirErvas(g) {
+  if (g.evento || !LINHAS_COM_ERVAS.includes(linhaDaEntidade(g.entidade)) || !pode('ervas:escolher')) return '';
+  if (estado.ervas === null && !pedindoErvas) { pedindoErvas = true; carregarErvas().finally(() => { pedindoErvas = false; }); }
+  const E = estado.ervas;
+  const selo = !E ? '<span class="pe-st muted">Carregando…</span>'
+    : E.aberta ? '<span class="pe-st aberto">Em andamento</span>' : '<span class="pe-st fechado">Pedido fechado</span>';
+  return `<button class="limpeza pedir-ervas" data-act="goto" data-tab="ervas"><b><span aria-hidden="true">🌿</span> Pedir ervas</b>${selo}<span class="seta" aria-hidden="true">›</span></button>`;
+}
+
+// Oferendas publicadas na mesma data da gira. Cada uma: nome, responsável, o que a pessoa assumiu e o que ainda falta doar.
+export function blocosOferenda(g) {
+  if (!pode('oferendas:doar')) return '';
+  if (estado.oferendas === null) { carregarOferendas(); return ''; }
+  const eu = estado.oferendas.eu || {};
+  return (estado.oferendas.oferendas || []).filter((of) => of.data === g.data && of.status === 'publicado').map((of) => blocoOferenda(of, eu)).join('');
+}
+
+function blocoOferenda(of, eu) {
+  const podeDoar = !!eu.chave && !travadaPara(of, eu.chave);
+  const minha = (i) => i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0;
+  const meus = eu.chave ? of.itens.filter(minha) : [];
+  const faltam = of.itens.filter((i) => !i.entregue && situacao(i).falta > 0);
+  const linhaMeu = (i) => `<div class="ofg-l"><span class="ofg-nome">${esc(i.nome)}<small class="muted">Entrega ${textoEntrega(i)}</small></span>
+    ${i.entregue ? '<span class="of-entregue">✓ Entregue</span>' : podeDoar ? `<span class="ofg-qtd"><button class="btn small" data-act="giraofmenos" data-id="${i.id}" aria-label="Menos ${esc(i.nome)}">−</button><b>${minha(i)}</b><button class="btn small" data-act="giraofmais" data-id="${i.id}" ${situacao(i).falta ? '' : 'disabled'} aria-label="Mais ${esc(i.nome)}">+</button></span>` : `<b>${minha(i)}</b>`}</div>`;
+  const linhaFalta = (i) => `<div class="ofg-l"><span class="ofg-nome">${esc(i.nome)}<small class="muted">Faltam ${situacao(i).falta} de ${i.quantidade}</small></span>
+    ${podeDoar ? `<button class="btn small primary" data-act="giraofmais" data-id="${i.id}" aria-label="Vou doar ${esc(i.nome)}">Vou doar</button>` : ''}</div>`;
+  const m = of.porMedium ? (of.mediuns || []).find((x) => 'p:' + x.pessoaId === eu.chave) : null;
+  return `<div class="limpeza oferenda"><b><span aria-hidden="true">🎁</span> Oferenda · ${esc(of.titulo)}</b>
+    ${of.responsavel ? `<span><span class="muted">Responsável:</span> ${esc(of.responsavel)}</span>` : ''}
+    ${m ? `<span class="ofg-med"><span><span class="muted">Pagamento:</span> <span class="st-med ${m.pagamento}">${ROTULO_MEDIUM[m.pagamento] || m.pagamento}</span></span><span><span class="muted">Entrega:</span> <span class="st-med ${m.entrega}">${ROTULO_MEDIUM[m.entrega] || m.entrega}</span></span></span>` : ''}
+    ${meus.length ? `<div class="ofg-sec"><span class="ofg-tit">Você vai levar</span>${meus.map(linhaMeu).join('')}</div>` : ''}
+    ${faltam.length ? `<div class="ofg-sec"><span class="ofg-tit">Faltam doações · ${faltam.length}</span><div class="ofg-lista">${faltam.map(linhaFalta).join('')}</div></div>` : ''}
+    ${eu.chave && !podeDoar ? '<span class="muted" style="font-size:.85rem">🔒 Completa há mais de um dia: as doações estão fechadas.</span>' : ''}</div>`;
 }

@@ -442,7 +442,6 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 /* Recado do admin: primeiro bloco do evento em andamento (mantém as quebras de linha) */
 .limpeza.recado{border-left-color:var(--accent)}
 .recado-txt{white-space:pre-line;overflow-wrap:anywhere}
-.adm-evento textarea{font-family:var(--f-body);min-height:0;height:calc(5lh + 20px);resize:none}
 /* Faltas: logo abaixo da Ausência, no mesmo padrão, em vermelho vivo */
 .limpeza.faltas{border-left-color:var(--falta);background:color-mix(in srgb,var(--falta) 10%,var(--bg))}
 .limpeza.faltas>b,.limpeza.faltas .aus-ico{color:var(--falta)}
@@ -491,7 +490,6 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .data-linha #f-data{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;width:100%;text-align:left}
 .data-linha #f-data::-webkit-date-and-time-value{text-align:left}
 .prox-campo{display:grid;gap:4px;font-size:.85rem;flex:0 0 auto}
-.prox-gira{width:100%;font-size:1rem;padding:0 14px;line-height:normal;height:44px;box-sizing:border-box}
 #f-data{height:44px}
 .card.eu{border-left:4px solid var(--accent);display:grid;gap:12px}
 .eu-identidade{display:flex;align-items:center;gap:12px;min-width:0}
@@ -534,10 +532,8 @@ button.eu-avatar{cursor:zoom-in}
 .enc-situacao>small{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .atend-sec{display:grid;gap:6px}
 .atend-tit{font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.atend-campos,.atend-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.atend-campos .field{min-width:0}
-.atend-campos input{width:100%;text-align:center;font-weight:700}
-.atend-nums > div{--fn:var(--accent);display:grid;justify-items:center;gap:3px;background:color-mix(in srgb,var(--fn) 7%,var(--surface));border:1px solid color-mix(in srgb,var(--fn) 30%,var(--line));border-top:3px solid var(--fn);border-radius:10px;padding:8px 4px}
+.atend-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.atend-nums > div,.atend-nums > label{--fn:var(--accent);display:grid;justify-items:center;gap:3px;background:color-mix(in srgb,var(--fn) 7%,var(--surface));border:1px solid color-mix(in srgb,var(--fn) 30%,var(--line));border-top:3px solid var(--fn);border-radius:10px;padding:8px 4px}
 .atend-nums .at-normal{--fn:var(--accent)}
 .atend-nums .at-passe{--fn:var(--ok)}
 .atend-nums .at-preferencial{--fn:var(--gold)}
@@ -570,7 +566,7 @@ button.eu-avatar{cursor:zoom-in}
 .btn.bt-ok{background:var(--ok);border-color:var(--ok);color:#fff;flex:none}
 .sup-bt{font:700 .75rem var(--f-body);border-radius:6px;padding:5px 8px;border:1px solid var(--line);background:var(--line);color:var(--muted);cursor:pointer}
 .sup-bt.on{background:var(--ok);border-color:var(--ok);color:#fff}
-.prox-gira.enc-bt{border-color:var(--warn);color:var(--warn)}
+.btn.enc-bt{border-color:var(--warn);color:var(--warn)}
 /* Reiniciar fica na mesma linha da data (sem abrir espaço no topo do card) */
 .dh-linha{display:flex;align-items:center;justify-content:space-between;gap:8px}
 /* Data da gira tocável (admin): abre a janela para alterar a data */
@@ -802,16 +798,10 @@ body.deslogado .rodape{display:none}
 .mp-st{flex:none;font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 9px;background:var(--off-soft);color:var(--off)}
 .mp-st.a{background:#fbefc4;color:#7a5600}
 /* aba Gira (quem não é admin): gira anterior, próxima e calendário */
-.nav-gira{display:flex;align-items:center;gap:6px;flex:1 1 100%;min-width:0}
-.nav-data{display:flex;align-items:center;gap:8px;flex:1;min-width:0;height:44px;color:var(--muted);font-weight:700;text-transform:capitalize}
-.nav-seta{flex:0 0 42px;height:44px;padding:0;font-size:1.25rem}
-.nav-seta:disabled,.ev-seta-adm:disabled{opacity:.4;cursor:default}
+.ev-seta-adm:disabled{opacity:.4;cursor:default}
 .nav-bt{flex:1 1 0;min-width:0;height:44px;padding:0 10px;font-size:.98rem;white-space:nowrap}
-.nav-cal{position:relative;flex:0 0 48px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem;overflow:hidden}
-.nav-cal input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0}
 .ev-wa{display:inline-flex;align-items:center;gap:6px;flex:none}
 .ev-wa .wa-ico svg{width:18px;height:18px}
-.enc-linha{flex:1 1 100%;display:flex;gap:8px}.enc-linha > .btn{flex:1}
 /* Sua presença: no máximo 5 faltas/ausências à vista; o resto rola */
 .mp-lista{max-height:12rem;overflow-y:auto;overscroll-behavior:contain;margin-right:-6px;padding-right:6px}
 .mp-l{min-height:2.4rem;box-sizing:border-box}
@@ -1215,7 +1205,7 @@ section.panel.pf-tela{gap:14px}
 /* Sorteio: Remanejar faltas e Ajuste manual do mesmo tamanho, em amarelo */
 .sort-acoes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .sort-acoes.n1{grid-template-columns:minmax(0,1fr)}
-/* Remanejar faltas, Ajuste manual e Refazer sorteio: os três do mesmo tamanho, na mesma linha */
+/* Remanejar faltas, Ajuste manual e Cancelar sorteio: os três do mesmo tamanho, na mesma linha */
 .sort-acoes.n3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .sort-acoes.n3 .bt-amarelo{font-size:.85rem;padding:6px 4px;flex-direction:column;gap:2px}
 .btn.bt-amarelo{background:var(--warn-soft);color:var(--warn);border:2px solid color-mix(in srgb,var(--warn) 45%,transparent);font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
@@ -1373,21 +1363,43 @@ button.eu-av{cursor:zoom-in}
 .esc-grande{margin:0 auto}   /* no tamanho em que a imagem foi desenhada (560 px, W em imagem.js): no celular rola um pouco para os lados */
 .esc-grande img{display:block;width:560px;max-width:none;height:auto;border-radius:8px}
 
-/* Aba Gira, admin: Presença, Sorteio de escala e Sugestão Mi/Mãe Vê num card só, separados por uma linha dourada */
-.card.adm-gira{gap:0}
+/* Aba Gira: um bloco só. O que é do admin ganha moldura dourada (.gira-adm) */
 .adm-sec{display:grid;gap:14px;min-width:0;padding:16px 0}
 .adm-sec:first-child{padding-top:0}
 .adm-sec:last-child{padding-bottom:0}
 .adm-sec + .adm-sec{border-top:1px dashed color-mix(in srgb,var(--gold) 55%,var(--line))}
-/* Parte "⚙️ Evento" (primeira do card do admin): entidade, orixá, turma da limpeza e, embaixo, os botões —
-   Compartilhar escala e Compartilhar turma da limpeza lado a lado (menores); Alterar data e Encerrar gira lado a lado */
-.adm-ev-wa{display:flex;gap:8px}
-.adm-ev-wa:empty{display:none}
-.adm-ev-wa .wa-bt{flex:1 1 0;min-width:0;width:auto;white-space:normal;min-height:40px;padding:4px 8px;font-size:.82rem;line-height:1.15;text-align:center;border-width:1px;gap:5px}
-.adm-ev-wa .wa-ico svg{width:18px;height:18px;flex:none}
-.adm-ev-wa a.wa-bt{text-decoration:none}
-.adm-ev-bts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.adm-ev-bts .btn{width:100%;min-width:0;margin:0;height:44px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;line-height:1.15;white-space:normal}
+.cab-gira{padding-bottom:12px;border-bottom:1px dashed color-mix(in srgb,var(--muted) 55%,var(--line))}
+.seletor-data{display:flex;width:100%;gap:6px}
+.seletor-data .ev-seta-adm{flex:0 0 44px;width:44px;height:44px}
+.seletor-data .ev-data-adm{flex:1 1 auto;min-width:0;justify-content:center;height:44px;box-sizing:border-box;font-size:.95rem}
+.gira-sec{display:grid;gap:14px;min-width:0}
+.gira-adm{display:grid;gap:10px;min-width:0;padding:10px;border:2px solid var(--gold);border-radius:12px;background:color-mix(in srgb,var(--gold) 5%,var(--surface))}
+.gira-adm>.row{margin:0}
+.gira-bts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.gira-bts:empty{display:none}
+.gira-bts>:only-child{grid-column:1/-1}
+.gira-bts>.btn{width:100%;min-width:0;margin:0;height:48px;padding:4px 8px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;font-size:.9rem;line-height:1.15;white-space:normal;border-radius:10px;text-decoration:none}
+.gira-bts .wa-bt{border-width:1px}
+.gira-bts .wa-ico svg{width:18px;height:18px;flex:none}
+.atend-editar input{width:100%;min-height:0;padding:2px;box-sizing:border-box;text-align:center;font:700 1.35rem var(--f-display);color:var(--fn);background:transparent;border:1px dashed color-mix(in srgb,var(--fn) 45%,var(--line));border-radius:6px;-moz-appearance:textfield;appearance:textfield}
+.atend-editar input::-webkit-outer-spin-button,.atend-editar input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.limpeza.recado textarea{font-family:var(--f-body);width:100%;box-sizing:border-box;min-height:0;height:calc(5lh + 20px);resize:none}
+.limpeza.pedir-ervas{flex-direction:row;align-items:center;gap:8px;width:100%;border:0;border-left:3px solid var(--ok);color:inherit;font:inherit;font-size:.92rem;text-align:left;cursor:pointer}
+.pedir-ervas>b{flex:1 1 auto}
+.pedir-ervas .seta{color:var(--accent);font-size:1.2rem;line-height:1}
+.pe-st{flex:none;padding:2px 10px;border-radius:20px;font-size:.78rem;font-weight:700;white-space:nowrap}
+.pe-st.aberto{color:var(--ok);background:var(--ok-soft)}
+.pe-st.fechado{color:var(--off);background:var(--off-soft)}
+.limpeza.oferenda{border-left-color:var(--accent);gap:8px}
+.ofg-med{display:flex;flex-wrap:wrap;gap:4px 14px}
+.ofg-sec{display:grid;gap:4px;min-width:0}
+.ofg-tit{font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.ofg-lista{display:grid;gap:4px;max-height:416px;overflow-y:auto;overscroll-behavior:contain}
+.ofg-l{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:38px;padding:2px 8px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.ofg-nome{display:grid;min-width:0;overflow-wrap:anywhere;line-height:1.2}
+.ofg-nome small{font-size:.75rem}
+.ofg-l>.btn,.ofg-qtd{flex:none}
+.ofg-qtd{display:flex;align-items:center;gap:8px}
 .ev-toggle{display:flex;align-items:center;align-self:end;gap:8px;min-height:42px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-weight:700;cursor:pointer}
 .ev-toggle input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
 /* Ausência antecipada (data ainda sem gira) */
@@ -1395,9 +1407,7 @@ button.eu-av{cursor:zoom-in}
 .aus-prev-l .lock-x{width:28px;height:28px;padding:0;flex:none}
 .aus-prev-add{display:flex;gap:6px;align-items:center;margin-top:4px}
 .aus-prev-add select{flex:1;min-width:0}
-.adm-evento .row{margin:0}
 /* Evento fechado: gira e orixá só informam */
-.adm-evento select:disabled{opacity:1;color:var(--ink);-webkit-text-fill-color:var(--ink);background:var(--bg);border-style:dashed;cursor:not-allowed;appearance:none;-webkit-appearance:none}
 
 /* Aba Perfil: Anamnese (pessoa: perguntas travadas até Editar; admin: perguntas, respostas e arquivo) */
 .ana-adm-blocos{display:grid;gap:12px}

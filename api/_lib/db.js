@@ -95,10 +95,8 @@ export const db = {
       return { query: `select ${funcao}($1::jsonb)`, params: [JSON.stringify(p)] };
     });
     const r = await enviar({ queries }, { 'Neon-Batch-Isolation-Level': 'Serializable' });
-    // Retorna o resultado do último select (última chamada RPC).
-    const ultimos = r?.rows?.slice(-1)?.[0];
-    if (!ultimos) return null;
-    const valor = ultimos[0];
+    // Em lote o Neon responde { results: [{ rows }, ...] }: vale o último select (última chamada RPC).
+    const valor = (r?.results ? r.results[r.results.length - 1] : r)?.rows?.[0]?.[0];
     return valor == null ? null : JSON.parse(valor);
   },
 };
