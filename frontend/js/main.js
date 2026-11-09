@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot, veErvas, veIemanja } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot, veErvas, veOferendas } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
 import { ehAcessoGrupo, PIN_VALIDO } from '/shared/permissoes.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
@@ -41,7 +41,7 @@ function renderConta() {
   if (!estado.me) { conta.innerHTML = ''; rodape.innerHTML = ''; rodape.hidden = true; saudNome.textContent = ''; saudExtra.innerHTML = ''; return; }
   saudNome.textContent = estado.me.nome;
   // Acesso da corrente sem senha: pode criar uma (depois disso o botão some).
-  saudExtra.innerHTML = estado.me.corrente && !estado.me.temSenha ? '<button class="btn small" data-conta="criarsenha">🔒 Criar senha</button>' : '';
+  saudExtra.innerHTML = (estado.me.corrente || estado.me.grupo === 'alunos') && !estado.me.temSenha ? '<button class="btn small" data-conta="criarsenha">🔒 Criar senha</button>' : '';
   // Root escolhe entre a visão administrativa e as visões dos acessos de grupo.
   const root = estado.me.papel === 'root';
   conta.innerHTML = `${pode('giras:editar') ? `<span class="sync" id="sync">${estado.salvando ? 'Salvando…' : ''}</span>` : ''}
@@ -73,9 +73,9 @@ function render() {
   }
   const visao = visaoAtiva();
   // Abas que o perfil pode ver.
-  let VE = { usuarios: pode('usuarios:gerenciar'), ervas: veErvas(), oferendas: pode('oferendas:doar') || veIemanja(),
+  let VE = { usuarios: pode('usuarios:gerenciar'), ervas: veErvas(), oferendas: veOferendas(),
     pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true, agenda: true };
-  if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: veIemanja(), pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
+  if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: veOferendas(), pessoas: false, hist: false, perfil: true, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
   if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, gira: true, agenda: false };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
@@ -206,7 +206,7 @@ async function cliqueConta(e) {
     try {
       await criarSenhaCorrente(s1.trim());
       estado.me = { ...estado.me, temSenha: true };
-      renderConta();
+      render();
       toast('Senha criada. Ela será pedida quando você entrar.');
     } catch (err) { toast(err.message); }
   }

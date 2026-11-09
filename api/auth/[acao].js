@@ -10,6 +10,7 @@
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
+//                           Aluno (depois de criar a senha): só os próprios dados, informações, orixás e guias.
 //   GET  /api/auth/foto?pessoaId=…  → { foto: base64 JPEG | null }  (qualquer um logado: a aba Gira mostra a foto de com quem você trabalha)
 //   POST /api/auth/foto     { pessoaId?, foto: base64 JPEG | null }  troca ou tira a foto (a própria, ou de qualquer um: admin)
 //   GET  /api/auth/anamnese → { perguntas: [{ id, texto, tipo }], minhas: { perguntaId: resposta } | null, todas?: [{ pessoaId, perguntaId, resposta }] (admin do perfil) }
@@ -20,6 +21,7 @@ import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
 import { abaIemanja } from '../_lib/iemanja.js';
+import { temAbaPublica } from '../../shared/oferendas.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, emitirTokenGrupo, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { permissoesDe, ehAcessoCorrente, grupoAcesso, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
@@ -39,6 +41,53 @@ function validarNovaSenha(s) {
   if (s.length > 200) throw new HttpError(400, 'Senha longa demais.');
 }
 
+// Aplica as informações do bloco Perfil; recusa data ou telefone inválidos.
+function comInfo(perfil, funcao, info) {
+  const p = normalizarPerfil(perfil);
+  ['nome', 'nascimento', 'celular', 'contatoNome', 'contatoTelefone'].forEach((k) => { if (k in info) p.info[k] = info[k] || ''; });
+  const novo = perfilDaFuncao(p, funcao);
+  if (info.nascimento && !novo.info.nascimento) throw new HttpError(400, 'Data de nascimento inválida.');
+  if (info.celular && !novo.info.celular) throw new HttpError(400, 'Celular incompleto: coloque o DDD e o número.');
+  if (info.contatoTelefone && !novo.info.contatoTelefone) throw new HttpError(400, 'Telefone para contato incompleto: coloque o DDD e o número.');
+  return novo;
+}
+
+function validarFoto(foto) {
+  if (!foto) return;
+  const buf = typeof foto === 'string' && foto.length <= 200000 ? Buffer.from(foto, 'base64') : null;
+  if (!buf || buf.length < 100 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) throw new HttpError(400, 'Foto inválida (envie uma imagem JPEG pequena).');
+}
+
+// O aluno só acessa o próprio registro: o id vem da sessão, nunca do pedido.
+const exigirSenhaAluno = (eu) => { if (!eu.temSenha) throw new HttpError(403, 'Crie a sua senha para abrir o Perfil.'); };
+
+async function perfilAluno(req, eu) {
+  exigirSenhaAluno(eu);
+  const alunoId = eu.alunoId;
+  const ver = (perfil) => ({ pessoaId: 'a:' + alunoId, nome: eu.nome, funcao: 'aluno', perfil: normalizarPerfil(perfil) });
+  const atual = await db.rpc('aluno_perfil_ler', { alunoId });
+  if (req.method === 'GET') return { eu: ver(atual) };
+  if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
+  const b = corpo(req);
+  const perfil = b.info && typeof b.info === 'object'
+    ? comInfo(atual, 'aluno', b.info)
+    : normalizarPerfil({ ...normalizarPerfil(atual), orixas: b.perfil?.orixas, guias: b.perfil?.guias });
+  return ver(await db.rpc('aluno_perfil_salvar', { alunoId, perfil }));
+}
+
+// Senha de quem tem uma; sem "pin" no pedido, devolve o pedido de senha para a tela.
+async function conferirPin(b, info, chaveFalha, nome) {
+  if (!info.pinHash) return null;
+  if (b.pin === undefined || b.pin === null || b.pin === '') return { precisaSenha: true, nome };
+  if (info.bloqueadoAte) throw new HttpError(429, 'Muitas tentativas erradas. Espere alguns minutos e tente de novo.');
+  if (!(await conferirSenha(String(b.pin), info.pinHash))) {
+    await db.rpc('login_falha', { email: chaveFalha });
+    throw new HttpError(401, 'Senha incorreta.');
+  }
+  await db.rpc('login_ok', { email: chaveFalha });
+  return null;
+}
+
 const acoes = {
   async me(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
@@ -48,15 +97,18 @@ const acoes = {
       console.error('[auth/me] aba Iemanjá', e);
       return { iemanjaAba: false, iemanjaPublica: false };
     });
+    // Sem nenhuma sub-aba visível, a aba Oferendas some para quem não administra.
+    const oferendasPublica = temAbaPublica(await db.rpc('oferenda_abas_listar'));
     // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
-    return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' ? { temSenha: !!u.temSenha } : {}),
-      videosPublicada: !!(await db.rpc('videos_publicada')), ervasPublicada: !!(await db.rpc('ervas_publicada')), ...iemanja };
+    return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' || u.grupo === 'alunos' ? { temSenha: !!u.temSenha } : {}),
+      videosPublicada: !!(await db.rpc('videos_publicada')), ervasPublicada: !!(await db.rpc('ervas_publicada')), oferendasPublica, ...iemanja };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).
   // A curimba só tem as informações pessoais (sem orixás, guias e guias de atendimento).
   async perfil(req) {
     const eu = await exigir(req);
+    if (eu.grupo === 'alunos') return perfilAluno(req, eu);
     if (eu.grupo) throw new HttpError(403, 'Este acesso não tem perfil pessoal.');
     const limpo = (r) => ({ ...r, perfil: perfilDaFuncao(r.perfil, r.funcao) });
     if (req.method === 'GET') {
@@ -89,14 +141,7 @@ const acoes = {
     if (b.pessoaId && (b.pessoaId !== eu.pessoaId || b.info)) {
       if (b.pessoaId !== eu.pessoaId && !pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin altera o perfil de outra pessoa.');
       const atual = await db.rpc('perfil_ler', { pessoaId: validarId(b.pessoaId, 'Pessoa') });
-      const info = b.info && typeof b.info === 'object' ? b.info : {};
-      const p = normalizarPerfil(atual.perfil);
-      const CAMPOS = ['nome', 'nascimento', 'celular', 'contatoNome', 'contatoTelefone'];
-      CAMPOS.forEach((k) => { if (k in info) p.info[k] = info[k] || ''; });
-      const novo = perfilDaFuncao(p, atual.funcao);
-      if (info.nascimento && !novo.info.nascimento) throw new HttpError(400, 'Data de nascimento inválida.');
-      if (info.celular && !novo.info.celular) throw new HttpError(400, 'Celular incompleto: coloque o DDD e o número.');
-      if (info.contatoTelefone && !novo.info.contatoTelefone) throw new HttpError(400, 'Telefone para contato incompleto: coloque o DDD e o número.');
+      const novo = comInfo(atual.perfil, atual.funcao, b.info && typeof b.info === 'object' ? b.info : {});
       return limpo(await db.rpc('perfil_salvar', { pessoaId: atual.pessoaId, perfil: novo }));
     }
     if (!eu.pessoaId) throw new HttpError(400, 'Seu usuário não está ligado a uma pessoa da corrente.');
@@ -108,16 +153,21 @@ const acoes = {
   // trocar ou tirar, só a própria pessoa ou quem vê o perfil de todos (admin).
   async foto(req) {
     const eu = await exigir(req);
+    if (eu.grupo === 'alunos') {
+      exigirSenhaAluno(eu);
+      if (req.method === 'GET') return { foto: await db.rpc('aluno_foto_ler', { alunoId: eu.alunoId }) };
+      if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
+      const { foto } = corpo(req);
+      validarFoto(foto);
+      return { foto: await db.rpc('aluno_foto_salvar', { alunoId: eu.alunoId, foto: foto || '' }) };
+    }
     if (eu.grupo) throw new HttpError(403, 'Este acesso não tem fotos de perfil.');
     const pessoaId = validarId(String((req.method === 'GET' ? req.query.pessoaId : corpo(req).pessoaId) || eu.pessoaId || ''), 'Pessoa');
     if (req.method === 'GET') return { foto: await db.rpc('pessoa_foto_ler', { pessoaId }) };
     if (pessoaId !== eu.pessoaId && !pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin mexe na foto de outra pessoa.');
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const { foto } = corpo(req);
-    if (foto) {
-      const buf = typeof foto === 'string' && foto.length <= 200000 ? Buffer.from(foto, 'base64') : null;
-      if (!buf || buf.length < 100 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) throw new HttpError(400, 'Foto inválida (envie uma imagem JPEG pequena).');
-    }
+    validarFoto(foto);
     return { foto: await db.rpc('pessoa_foto_salvar', { pessoaId, foto: foto || '' }) };
   },
 
@@ -230,11 +280,18 @@ const acoes = {
       if (digitado.length < 2 || digitado.length > 80) throw new HttpError(400, 'Digite o seu nome.');
       const pessoa = lista.find((x) => normalizarNome(x.nome) === normalizarNome(digitado));
       if (pessoa) {
+        let versao = 0;
+        if (grupo === 'alunos') {
+          const pin = await db.rpc('aluno_pin', { alunoId: pessoa.id });
+          const pedido = await conferirPin(b, pin, 'pina:' + pessoa.id, pessoa.nome);
+          if (pedido) return pedido;
+          versao = pin.pinVersao;
+        }
         const usuario = {
           id: null, nome: pessoa.nome, email: '', papel: grupo, papelNome: grupo === 'alunos' ? 'Aluno' : 'Curimba',
           grupo, pessoaId: null, permissoes: grupo === 'alunos' ? ['alunos:ver'] : [],
         };
-        return { token: await emitirTokenGrupo(grupo, pessoa.id, pessoa.nome), usuario: publico(usuario) };
+        return { token: await emitirTokenGrupo(grupo, pessoa.id, pessoa.nome, versao), usuario: publico(usuario) };
       }
       const candidatos = nomesParecidos(lista.map((x) => x.nome), digitado);
       if (candidatos.length) return { confirmar: true, candidatos };
@@ -250,15 +307,8 @@ const acoes = {
       if (exata) {
         // Quem criou senha (PIN) precisa digitá-la.
         const pin = await db.rpc('pessoa_pin', { pessoaId: exata.id });
-        if (pin.pinHash) {
-          if (b.pin === undefined || b.pin === null || b.pin === '') return { precisaSenha: true, nome: exata.nome };
-          if (pin.bloqueadoAte) throw new HttpError(429, 'Muitas tentativas erradas. Espere alguns minutos e tente de novo.');
-          if (!(await conferirSenha(String(b.pin), pin.pinHash))) {
-            await db.rpc('login_falha', { email: 'pin:' + exata.id });
-            throw new HttpError(401, 'Senha incorreta.');
-          }
-          await db.rpc('login_ok', { email: 'pin:' + exata.id });
-        }
+        const pedido = await conferirPin(b, pin, 'pin:' + exata.id, exata.nome);
+        if (pedido) return pedido;
         // Junta no cadastro da pessoa o que ela (ou o admin por ela) preencheu antes com o nome digitado.
         const antigas = [...new Set([exata.nome, digitado, String(b.digitado || '')].filter(Boolean).map((n) => 'n:' + normalizarNome(n)))];
         await db.rpc('corrente_vincular', { chave: 'p:' + exata.id, nome: exata.nome, antigas });
@@ -288,9 +338,13 @@ const acoes = {
   async criarSenha(req) {
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const eu = await exigir(req);
-    if (eu.papel !== 'corrente') throw new HttpError(400, 'Só o acesso da corrente cria senha aqui. Use Trocar senha.');
+    if (eu.papel !== 'corrente' && eu.grupo !== 'alunos') throw new HttpError(400, 'Só o acesso da corrente cria senha aqui. Use Trocar senha.');
     const senha = String(corpo(req).senha ?? '');
     if (!PIN_VALIDO.test(senha)) throw new HttpError(400, 'A senha precisa ter de 4 a 8 números.');
+    if (eu.grupo === 'alunos') {
+      const { pinVersao } = await db.rpc('aluno_pin_definir', { alunoId: eu.alunoId, pinHash: await gerarHash(senha), soSeVazio: true });
+      return { token: await emitirTokenGrupo('alunos', eu.alunoId, eu.nome, pinVersao) };
+    }
     const { pinVersao } = await db.rpc('pin_definir', { pessoaId: eu.pessoaId, pinHash: await gerarHash(senha), soSeVazio: true });
     return { token: await emitirTokenCorrente(eu.nome, eu.pessoaId, pinVersao) };
   },

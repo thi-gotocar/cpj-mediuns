@@ -63,6 +63,10 @@ export function estatisticasPorPessoa(oferendas) {
     });
 }
 
+// Sub-abas: a Iemanjá tem o próprio Visível para todos, por evento.
+export const abasOcultas = (abas) => new Set(abas.filter((a) => !a.iemanja && !a.visivel).map((a) => a.id));
+export const temAbaPublica = (abas) => abas.some((a) => !a.iemanja && a.visivel);
+
 // Cor do percentual: verde com 100%, amarelo de 50% a 99%, vermelho abaixo de 50%.
 export const faixaPct = (pct) => (pct >= 100 ? 'cheio' : pct >= 50 ? 'meio' : 'baixo');
 

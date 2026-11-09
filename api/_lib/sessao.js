@@ -19,12 +19,14 @@ export async function exigir(req, permissao) {
       ? await db.rpc('aluno_acesso', { id: sessao.registroId })
       : await db.rpc('curimba_aluno_acesso', { id: sessao.registroId });
     if (!aluno) throw new HttpError(401, 'Cadastro não encontrado. Entre de novo.');
+    if (sessao.grupo === 'alunos' && aluno.pinVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
     const permissoes = sessao.grupo === 'alunos' ? ['alunos:ver'] : [];
     const quem = {
       id: null, nome: aluno.nome, email: '', papel: sessao.grupo, papelNome: sessao.grupo === 'alunos' ? 'Aluno' : 'Curimba',
       grupo: sessao.grupo, alunoId: sessao.grupo === 'alunos' ? aluno.id : null,
       curimbaAlunoId: sessao.grupo === 'curimba' ? aluno.id : null,
       pessoaId: sessao.grupo === 'curimba' ? aluno.pessoaId || null : null,
+      temSenha: !!aluno.temSenha,
       permissoes,
     };
     if (permissao && !permissoes.includes(permissao)) throw new HttpError(403, 'Este acesso não tem permissão para isso.');

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sortearIemanja, pctItens, nomeGrupoValido, listasDoSorteio } from '../shared/iemanja.js';
+import { abasOcultas, temAbaPublica } from '../shared/oferendas.js';
 
 const NOMES = ['Iemanjá', 'Oxum', 'Ogum', 'Caboclo', 'Exu'];
 const grupos = (fixos = 0) => NOMES.map((nome, i) => ({ id: 'g' + i, nome, fixos }));
@@ -47,6 +48,15 @@ test('iemanjá: listas do sorteio partem de curimba, Turma 09 e Turma 10 e respe
   assert.deepEqual(listasDoSorteio(null, turmas), ['curimba', 't9', 't10']);
   assert.deepEqual(listasDoSorteio(['t11', 'apagada'], turmas), ['t11']);
   assert.deepEqual(listasDoSorteio([], turmas), []);
+});
+
+test('sub-abas: a Iemanjá não conta como oculta nem como pública', () => {
+  const iem = { id: 'i', iemanja: true, visivel: false };
+  const oculta = { id: 'o', iemanja: false, visivel: false };
+  assert.deepEqual([...abasOcultas([iem, oculta])], ['o']);
+  assert.equal(temAbaPublica([iem, oculta]), false);
+  assert.equal(temAbaPublica([{ id: 'v', iemanja: false, visivel: true }, oculta]), true);
+  assert.equal(temAbaPublica([{ ...iem, visivel: true }]), false);
 });
 
 test('iemanjá: percentual de itens com responsável e nomes aceitos', () => {

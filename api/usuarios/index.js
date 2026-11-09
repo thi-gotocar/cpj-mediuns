@@ -5,6 +5,7 @@
 //                      { acao: 'perfil', chave?, nome, abas }  cria ou edita um perfil → perfis
 //                      { acao: 'excluirPerfil', chave }        → perfis
 //                      { acao: 'pin', pessoaId, senha }        troca a senha (PIN) de uma pessoa → senhas
+//                      { acao: 'pinAluno', alunoId, senha }    troca a senha de um aluno
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -45,6 +46,11 @@ export default rota({
     await exigir(req, 'usuarios:gerenciar');
     const b = corpo(req);
     if (b.acao === 'perfil' || b.acao === 'excluirPerfil') return acaoPerfil(b);
+    if (b.acao === 'pinAluno') {
+      const senha = String(b.senha ?? '');
+      if (!PIN_VALIDO.test(senha)) throw new HttpError(400, 'A senha precisa ter de 4 a 8 números.');
+      return db.rpc('aluno_pin_definir', { alunoId: validarId(b.alunoId, 'Aluno'), pinHash: await gerarHash(senha) });
+    }
     if (b.acao === 'pin') {
       const senha = String(b.senha ?? '');
       if (!PIN_VALIDO.test(senha)) throw new HttpError(400, 'A senha precisa ter de 4 a 8 números.');

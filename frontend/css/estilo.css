@@ -249,7 +249,8 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .subaba{min-height:40px;padding:6px 14px;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:var(--muted);font:700 .92rem var(--f-body);cursor:pointer}
 .subaba[aria-selected="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .subaba.mais{min-width:44px;padding:6px 0;color:var(--accent);border-style:dashed}
-.subaba-adm{display:flex;justify-content:flex-end;gap:14px;margin-top:-4px}
+.subaba-adm{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 14px;margin-top:-4px}
+.subaba-bts{display:flex;gap:14px}
 .iem-ed{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
 .iem-ed select,.iem-ed input{width:100%;min-width:0;box-sizing:border-box}
 .iem-larga{grid-column:1/-1}
@@ -1341,6 +1342,16 @@ section.panel.pf-tela{gap:14px}
 .es-l{display:flex;gap:8px;padding:3px 0;border-top:1px solid var(--line)}
 .es-m{flex:0 0 42%;min-width:0;font-weight:700;overflow-wrap:anywhere}
 .limp-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.limp-bt{width:100%;min-height:36px;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.limp-bt .seta{color:var(--accent);font-size:1.1rem}
+.limp-turmas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:4px 0 6px}
+.limp-t{display:grid;gap:1px;justify-items:center;min-height:48px;margin:0;line-height:1.15}
+.limp-t small{font-size:.74rem;font-weight:500;color:var(--muted)}
+.limp-t.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.limp-t:last-child:nth-child(odd){grid-column:1/-1}
+.gira-campos{display:grid;gap:10px;min-width:0;padding-top:10px;border-top:1px dashed color-mix(in srgb,var(--gold) 55%,var(--line))}
+.sug-resumo{display:grid;gap:8px;cursor:pointer}
+.sugestao>.grp-h.dobra .count{margin-left:auto}
 .limp-nao{color:var(--off);text-decoration-thickness:2px}
 
 /* Perfil: foto da pessoa no canto do bloco Informações (e no "Informações da corrente" do admin) */

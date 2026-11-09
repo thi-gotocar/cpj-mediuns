@@ -84,6 +84,8 @@ export const pode = (perm) => {
   }
   return (estado.me.permissoes || []).includes(perm);
 };
+// Aba Oferendas: admins sempre; as pessoas, se houver sub-aba visível ou a Iemanjá.
+export const veOferendas = () => veIemanja() || (pode('oferendas:doar') && visaoAtiva() !== 'alunos' && (pode('oferendas:gerenciar') || !!(estado.oferendas?.publica ?? estado.me?.oferendasPublica)));
 export const pessoasOrd = () => ordenarPessoas(estado.pessoas);
 export const nome = (id) => estado.pessoas.find((p) => p.id === id)?.nome || '(removido)';
 export const girasLista = () => Object.values(estado.giras);
@@ -438,7 +440,7 @@ export async function carregarUsuarios() {
 export async function acaoUsuarios(acao, dados = {}) {
   try {
     const r = await api('POST', '/usuarios', { acao, ...dados });
-    if (acao === 'pin') estado.senhas = r; else estado.perfisCfg = r;
+    if (acao === 'pin') estado.senhas = r; else if (acao !== 'pinAluno') estado.perfisCfg = r;
     avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }

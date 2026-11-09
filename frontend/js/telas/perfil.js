@@ -4,13 +4,14 @@
 import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, blocosAfinidade, cadastraEspiritual,
   ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_TIPO_LABEL, anamnesePreenchida, respostasPorPessoa, textoAnamnese, valorAnamnese } from '/shared/perfil.js';
-import { estado, pode, avisar, carregarPerfil, mudarPerfil, salvarAfinidade, carregarFoto, salvarFoto, salvarInfoDe, carregarAnamnese, acaoAnamnese } from '../estado.js';
+import { estado, pode, visaoAtiva, avisar, carregarPerfil, mudarPerfil, salvarAfinidade, carregarFoto, salvarFoto, salvarInfoDe, carregarAnamnese, acaoAnamnese } from '../estado.js';
 import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
 const ROT_ORIXA = { frente: 'frente', ancestral: 'ancestral', adjunto: 'adjunto' };
 const U = () => estado.pfUi;
 const admin = () => pode('perfil:corrente') && Array.isArray(estado.perfil?.todos);
+const soAluno = () => visaoAtiva() === 'alunos';
 
 // Cabeçalho do card: toca para minimizar/expandir (os da corrente só para o admin; os meus, para todos).
 function cab(k, titulo, count, aberto, dobra) {
@@ -144,7 +145,7 @@ function cardInfo(eu) {
     <label class="pf-info-busca" id="info-busca" ${u.infoBuscaVisivel ? '' : 'hidden'}><span aria-hidden="true">🔍</span><input type="search" id="info-pessoa-busca" placeholder="Buscar pelo nome" aria-label="Buscar pessoa" value="${esc(u.infoBusca || '')}"></label>`;
   const cabeca = `<div class="grp-h"><h2><span aria-hidden="true">👤</span> Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>`;
   if (!x) return `<div class="card pf-info-card">${cabeca}${escolha}<p class="muted" style="margin:0;font-size:.88rem">Escolha uma pessoa para ver as informações.</p></div>`;
-  return `<div class="card pf-info-card">${cabeca}${escolha}
+  return `<div class="card pf-info-card">${cabeca}${soAluno() ? '' : escolha}
     <div class="pf-info-sec"><h3>${x.propria ? 'Seus dados' : 'Dados'}</h3><div class="pf-dados"><div class="pf-info pf-info-1">
       ${campo('nome', 'Nome', 'type="text" maxlength="80" autocomplete="name"', x.nome, ' inteiro')}
       ${x.parcial ? '' : campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" autocomplete="bday"', '31/10/1990')}
@@ -444,7 +445,20 @@ export function cardOferendasPendentes() {
   return `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>${cardOferendas(estado.perfil.todos.filter((x) => cadastraEspiritual(x.funcao)))}</div>`;
 }
 
+// Aluno: só o próprio bloco Informações e o de orixás, guias e oferendas, depois de criar a senha.
+function renderAluno() {
+  if (estado.me?.grupo === 'alunos' && !estado.me.temSenha) {
+    return `<section class="panel pf-tela"><div class="card"><div class="grp-h"><h2><span aria-hidden="true">🔒</span> Perfil</h2></div><p class="muted" style="margin:0">Para abrir o seu perfil, crie a sua senha no botão <b>🔒 Criar senha</b>, no topo da tela.</p></div></section>`;
+  }
+  if (estado.perfil === null) { carregarPerfil(); return `<div class="loading">Carregando perfil…</div>`; }
+  if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
+  const { eu } = estado.perfil;
+  if (!eu) return `<section class="panel pf-tela"><div class="card"><p class="muted" style="margin:0">Este usuário não tem perfil de aluno para mostrar nesta visão.</p></div></section>`;
+  return `<section class="panel pf-tela">${cardInfo(eu)}${cardEspiritual(eu.perfil)}${janelaInfo()}</section>`;
+}
+
 export function render() {
+  if (soAluno()) return renderAluno();
   if (estado.perfil === null) { carregarPerfil(); return `<div class="loading">Carregando perfil…</div>`; }
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;

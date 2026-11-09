@@ -2,16 +2,31 @@
 
 import { estado, pode, veErvas, girasLista, carregarAusPrevias, carregarErvas, carregarOferendas } from '../estado.js';
 import { esc, dDM } from '../util.js';
-import { status, nomeEntidadeGira, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, LINHA_LABEL, linhaDaEntidade, usaLinhas, funcaoNaGira, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
+import { abertos } from './giraComum.js';
+import { status, nomeEntidadeGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, LINHA_LABEL, linhaDaEntidade, usaLinhas, funcaoNaGira, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM } from '/shared/oferendas.js';
 
-export function blocoLimpeza(g) {
+// Admin: tocar na turma abre a escolha manual da turma da vez.
+function escolhaTurma(g) {
+  const atual = Number(g.limpeza) || 0;
+  const bt = (t, rotulo, sub) => `<button class="btn small limp-t${(t || 0) === atual ? ' on' : ''}" data-act="limpturma" data-v="${t || ''}" aria-pressed="${(t || 0) === atual}">${rotulo}${sub ? `<small>${sub}</small>` : ''}</button>`;
+  const qtd = (t) => { const n = estado.pessoas.filter((p) => Number(p.limpeza) === t).length; return `${n} ${n === 1 ? 'pessoa' : 'pessoas'}`; };
+  return `<div class="limp-turmas" role="group" aria-label="Escolher a turma da vez">${TURMAS_LIMPEZA.map((t) => bt(t, `Turma ${t}`, qtd(t))).join('')}${bt(0, 'Nenhuma')}</div>`;
+}
+
+export function blocoLimpeza(g, editar = false) {
   if (g.evento || !temLimpeza(g)) return '';
   const L = limpezaDaGira(estado.pessoas, g, girasLista());
-  if (!L) return '';
+  if (!L && !editar) return '';
+  const aberta = editar && abertos.has('limp:' + g.data);
+  const titulo = `🧹 Limpeza · ${L ? `Turma ${L.turma}` : 'escolher turma'}`;
+  const cab = editar
+    ? `<button class="limp-cab limp-bt" data-act="limpabrir" aria-expanded="${aberta}" title="Escolher a turma da vez"><b>${titulo}</b><span class="seta" aria-hidden="true">${aberta ? '▾' : '▸'}</span></button>${aberta ? escolhaTurma(g) : ''}`
+    : `<div class="limp-cab"><b>${titulo}</b></div>`;
+  if (!L) return `<div class="limpeza">${cab}</div>`;
   const nomes = (l) => l.map((p) => (['a', 'f'].includes(status(p, g)) ? `<s class="limp-nao">${esc(p.nome)}</s>` : esc(p.nome))).join(', ');
-  return `<div class="limpeza"><div class="limp-cab"><b>🧹 Limpeza · Turma ${L.turma}</b></div>
+  return `<div class="limpeza">${cab}
     <span>${L.membros.length ? nomes(L.membros) : '<span class="muted">Ninguém cadastrado nesta turma (cadastre na aba Pessoas).</span>'}</span>
     ${L.deLicenca.length ? `<span class="muted" style="font-size:.85rem">De licença: ${nomes(L.deLicenca)}</span>` : ''}
     ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeEntidadeGira(L.anterior))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`

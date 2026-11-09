@@ -27,7 +27,7 @@ const souRoot = () => estado.me?.papel === 'root' && estado.visaoRoot === 'root'
 const ABA_IEMANJA = { id: 'iemanja', nome: 'Iemanjá', iemanja: true };
 function subabas() {
   if (!veLista()) return veIemanja() ? [ABA_IEMANJA] : [];
-  return (estado.oferendas.abas || []).filter((a) => !a.iemanja || veIemanja());
+  return (estado.oferendas.abas || []).filter((a) => (a.iemanja ? veIemanja() : a.visivel || pode('oferendas:gerenciar')));
 }
 const abaAtiva = () => { const l = subabas(); return l.find((a) => a.id === U().aba) || l[0]; };
 const daAba = (aba) => estado.oferendas.oferendas.filter((o) => o.abaId === aba?.id);
@@ -268,10 +268,11 @@ function listaDaAba(aba) {
     // Começa minimizado; abre ao tocar no título (aberto já se a sub-aba ainda não tiver nenhuma oferenda).
     const novaAberta = U().novaAberta ?? !lista.length;
     h += `<div class="card adm"><button class="grp-h dobra" data-act="dobrarnova" aria-expanded="${novaAberta}"><h2>＋ Nova oferenda</h2><span class="count"><span class="seta" aria-hidden="true">${novaAberta ? '▾' : '▸'}</span></span></button>`;
+    const r = U().novaRascunho || {};
     if (novaAberta) h += `<form id="f-of" class="row" autocomplete="off">
-      <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá"></label>
-      <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required></label>
-      <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas('')}</select></label>
+      <label class="field grow">Título<input type="text" id="of-titulo" maxlength="120" required placeholder="Ex.: Oferenda de Iemanjá" value="${esc(r.titulo || '')}"></label>
+      <label class="field" style="flex:0 1 170px">Data<input type="date" id="of-data" required value="${esc(r.data || '')}"></label>
+      <label class="field grow">Responsável<select id="of-resp" required>${opcoesPessoas(r.responsavelId || '')}</select></label>
       <label class="check" style="flex-basis:100%;align-items:flex-start"><input type="checkbox" id="of-pormedium" data-act="pormedium" style="margin-top:3px" ${U().novaPorMedium ? 'checked' : ''}><span>Uma linha para cada pessoa<br><span class="muted" style="font-size:.85rem">Em cada linha o admin confere o pagamento (Pago / Não pago) e a entrega (Pendente / Entregue), e pode tirar quem não participa.</span></span></label>
       <div class="of-grupos" id="of-grupos" ${U().novaPorMedium ? '' : 'hidden'}><span class="muted" style="font-size:.85rem;flex-basis:100%">De quais grupos vêm as pessoas (Médiuns = médium, extra, passe, cambone, senha e curimba). Quem for cadastrado depois entra sozinho:</span>
         ${chipsGrupos('grupo', 'grupoof', U().novaGrupos || GRUPOS_CORRENTE)}</div>
@@ -293,8 +294,15 @@ function barraAbas(aba) {
   const l = subabas();
   const root = souRoot() && veLista();
   if (l.length < 2 && !root) return '';
-  return `<div class="subabas" role="tablist" aria-label="Sub-abas de oferendas">${l.map((a) => `<button class="subaba" role="tab" data-act="ofaba" data-id="${a.id}" aria-selected="${a.id === aba.id}">${esc(a.nome)}</button>`).join('')}${root ? '<button class="subaba mais" data-act="ofabanova" aria-label="Criar sub-aba" title="Criar sub-aba">＋</button>' : ''}</div>
-    ${root && !aba.iemanja ? '<div class="subaba-adm"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button><button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button></div>' : ''}`;
+  return `<div class="subabas" role="tablist" aria-label="Sub-abas de oferendas">${l.map((a) => `<button class="subaba" role="tab" data-act="ofaba" data-id="${a.id}" aria-selected="${a.id === aba.id}">${a.iemanja || a.visivel ? '' : '<span title="Só os admins veem" aria-label="Oculta">🔒</span> '}${esc(a.nome)}</button>`).join('')}${root ? '<button class="subaba mais" data-act="ofabanova" aria-label="Criar sub-aba" title="Criar sub-aba">＋</button>' : ''}</div>
+    ${root && !aba.iemanja ? `<div class="subaba-adm"><label class="of-sw"><input type="checkbox" role="switch" data-act="ofabavisivel" data-id="${aba.id}" ${aba.visivel ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label><span class="subaba-bts"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button><button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button></span></div>` : ''}`;
+}
+
+function janelaNova() {
+  const r = U().novaConfirma ? U().novaRascunho : null;
+  if (!r) return '';
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="nova-t"><div class="modal"><h3 id="nova-t">Criar esta oferenda?</h3><p style="margin:0"><b>${esc(r.titulo)}</b> em ${dataBR(r.data)}, na sub-aba <b>${esc(abaAtiva().nome)}</b>.</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="ofnovanao">Voltar</button><button class="btn primary" data-act="ofnovasim">Criar</button></div></div></div>`;
 }
 
 function janelaAba() {
@@ -313,7 +321,7 @@ export function render() {
   if (carregandoLista || carregandoIem) return `<div class="loading">Carregando oferendas…</div>`;
   const aba = abaAtiva();
   if (!aba) return `<section class="panel"><div class="card empty"><p class="muted">Nenhuma oferenda disponível.</p></div></section>`;
-  return `<section class="panel">${cardMeusCompromissos()}${veLista() ? cardPorPessoa() : ''}${barraAbas(aba)}${aba.iemanja ? iemanja.conteudo() : listaDaAba(aba)}${janelaEntregue()}${janelaAba()}</section>`;
+  return `<section class="panel">${cardMeusCompromissos()}${veLista() ? cardPorPessoa() : ''}${barraAbas(aba)}${aba.iemanja ? iemanja.conteudo() : listaDaAba(aba)}${janelaEntregue()}${janelaAba()}${janelaNova()}</section>`;
 }
 
 // Janela "Confirmar entrega" do "Ok, entregue" da linha do item.
@@ -342,7 +350,20 @@ const achar = (id) => {
 export const cliques = {
   ...iemanja.cliques,
   iemver(el) { U().aba = subabas().find((a) => a.iemanja)?.id; iemanja.cliques.iemver(el); },
-  ofaba(el) { U().aba = el.dataset.id; U().novaAberta = undefined; avisar(); },
+  ofaba(el) { U().aba = el.dataset.id; U().novaAberta = undefined; U().novaRascunho = null; avisar(); },
+  ofnovanao() { U().novaConfirma = false; avisar(); },
+  async ofnovasim() {
+    const { titulo, data, responsavelId, porMedium, grupos } = U().novaRascunho;
+    U().novaConfirma = false;
+    if (await acaoOferendas('salvar', { titulo, data, responsavelId, abaId: abaAtiva().id, porMedium, ...(porMedium ? { grupos } : {}) })) {
+      U().novaRascunho = null; U().novaPorMedium = false; U().novaGrupos = null;
+      toast(porMedium ? 'Oferenda criada com uma linha para cada pessoa. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
+      // A oferenda recém-criada já vem aberta (as outras continuam recolhidas).
+      const nova = estado.oferendas.oferendas.filter((o) => o.porMedium === porMedium && o.titulo === titulo.replace(/\s+/g, ' ').trim() && o.data === data).pop();
+      if (nova) U().abertas = [...new Set([...(U().abertas || []), nova.id])];
+    }
+    avisar();
+  },
   ofabanova() { U().abaJanela = { t: 'nova', nome: '' }; avisar(); },
   ofabaeditar() { const a = abaAtiva(); U().abaJanela = { t: 'renomear', id: a.id, nome: a.nome }; avisar(); },
   ofabaexcluir() {
@@ -360,7 +381,7 @@ export const cliques = {
       U().abaJanela = null;
       const nova = estado.oferendas.abas.find((a) => !antes.has(a.id));
       if (nova) U().aba = nova.id;
-      toast(j.id ? 'Sub-aba renomeada.' : 'Sub-aba criada.');
+      toast(j.id ? 'Sub-aba renomeada.' : 'Sub-aba criada. Ligue Visível para todos quando estiver pronta.');
       avisar();
     }
   },
@@ -503,6 +524,11 @@ async function porAlguem(el, delta) {
 
 export const mudancas = {
   ...iemanja.mudancas,
+  async ofabavisivel(t) {
+    const visivel = t.checked;
+    if (await acaoOferendas('abaVisivel', { id: t.dataset.id, visivel })) toast(visivel ? 'Sub-aba visível para todos.' : 'Sub-aba oculta: só os admins veem.');
+    else t.checked = !visivel;
+  },
   // "Exibir no resumo": a oferenda por pessoa entra (ou sai) da tabela do admin.
   // "Visível para todos": ligado publica (a corrente vê e doa); desligado, só os admins veem.
   async ofvisivel(t) {
@@ -539,13 +565,9 @@ export async function enviar(form) {
     if (!data) { toast('Escolha a data.'); return; }
     if (!responsavelId) { toast('Escolha o responsável.'); return; }
     if (porMedium && !grupos.length) { toast('Escolha pelo menos um grupo (corrente ou alunos).'); return; }
-    if (await acaoOferendas('salvar', { titulo, data, responsavelId, abaId: abaAtiva().id, porMedium, ...(porMedium ? { grupos } : {}) })) {
-      U().novaPorMedium = false; U().novaGrupos = null;
-      toast(porMedium ? 'Oferenda criada com uma linha para cada pessoa. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
-      // A oferenda recém-criada já vem aberta (as outras continuam recolhidas).
-      const nova = estado.oferendas.oferendas.filter((o) => o.porMedium === porMedium && o.titulo === titulo.replace(/\s+/g, ' ').trim() && o.data === data).pop();
-      if (nova) { U().abertas = [...new Set([...(U().abertas || []), nova.id])]; avisar(); }
-    }
+    U().novaRascunho = { titulo, data, responsavelId, porMedium, grupos };
+    U().novaConfirma = true;
+    avisar();
     return;
   }
   if (form.dataset.form === 'ofed') {

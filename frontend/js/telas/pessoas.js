@@ -1,8 +1,9 @@
 // Tela "Pessoas": cadastro da corrente e dos alunos da CPJ (por turma).
 
 import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, acaoUsuarios, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
+import { PIN_VALIDO } from '/shared/permissoes.js';
 import { cardOferendasPendentes, cliques as cliquesPerfil } from './perfil.js';
 
 // Ordem das funções exibidas nos totais da Corrente CPJ.
@@ -253,7 +254,7 @@ function linhaAluno(a, turmas, editar, podePromover) {
       <label class="al-turma">Turma <select id="al-turma" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label></form>`;
   }
   return `<div class="al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
-    <span class="pp-bts">${podePromover ? `<button class="btn small pp-bt al-promover" type="button" data-act="promoverAlunoCPJ" data-id="${a.id}" aria-label="Promover ${esc(a.nome)} para a Corrente CPJ">↑ UP CPJ</button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
+    <span class="pp-bts">${pode('usuarios:gerenciar') ? `<button class="btn small pp-bt pp-ico" type="button" data-act="senhaaluno" data-id="${a.id}" data-nome="${esc(a.nome)}" aria-label="Definir senha de ${esc(a.nome)}" title="Definir senha"><span aria-hidden="true">🔑</span></button>` : ''}${podePromover ? `<button class="btn small pp-bt al-promover" type="button" data-act="promoverAlunoCPJ" data-id="${a.id}" aria-label="Promover ${esc(a.nome)} para a Corrente CPJ">↑ UP CPJ</button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
 }
 
 function cardAlunos() {
@@ -474,6 +475,13 @@ export const cliques = {
   editturma(el) { estado.editTurma = el.dataset.id; estado.alunosTurmaAberta = el.dataset.id; avisar(); document.getElementById('turma-nome')?.select(); },
   cancelturma() { estado.editTurma = null; avisar(); },
   delaluno(el) { estado.confirm = null; acaoAlunos('excluirAluno', { id: el.dataset.id }); },
+  // Root: nova senha para o aluno que esqueceu; as sessões abertas dele são encerradas.
+  async senhaaluno(el) {
+    const senha = prompt(`Nova senha de ${el.dataset.nome}: de 4 a 8 números.`);
+    if (senha === null) return;
+    if (!PIN_VALIDO.test(senha.trim())) { toast('A senha precisa ter de 4 a 8 números.'); return; }
+    if (await acaoUsuarios('pinAluno', { alunoId: el.dataset.id, senha: senha.trim() })) toast('Senha do aluno alterada.');
+  },
 };
 
 // Salva o nome editado (Enter ou "Salvar").

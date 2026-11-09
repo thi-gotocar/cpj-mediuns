@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
@@ -401,7 +401,7 @@ function renderGira() {
     escala = secaoPresenca();
     // Escala publicada: a imagem está em "Sorteio realizado"; quem não edita a gira não vê os controles.
     if (!g.evento && !(temDuplas && g.publicada && !admin)) escala += secaoSorteio();
-    if (!g.evento && editar) escala += ouro(blocoSugestao(ps, g, temDuplas));
+    if (!g.evento && editar) escala += ouro(blocoSugestao(ps, g));
   }
 
   const topo = cabecalhoGira(g) + seletorData(g);
@@ -423,19 +423,17 @@ function renderGira() {
 
   const btEscala = whats ? botaoWhats(temDuplas, 'Escala de atendimentos') : '';
   const btEvento = g.evento ? botaoImagemEvento(g, ps) : '';
-  const botoes = editar
-    ? ouro(`<div class="gira-bts">${botaoWhatsLimpeza(g)}${botaoEncerrar(g)}</div>
+  // Admin: um bloco só com os botões, os dados da gira e os atendidos.
+  const painelAdm = !editar ? '' : ouro(`<div class="gira-bts">${botaoWhatsLimpeza(g)}${botaoEncerrar(g)}</div>
       ${estado.confirm === 'enc:' + g.data ? caixaEncerrar() : ''}
-      <div class="gira-bts">${btEscala}${btEvento}<button class="btn" data-act="mudardata" title="Alterar a data da gira (hoje: ${esc(dLong(g.data))})"><span aria-hidden="true">📅</span> Alterar data · ${esc(dDM(g.data))}</button></div>`)
-    : btEscala || btEvento ? `<div class="gira-bts">${btEscala}${btEvento}</div>` : '';
-  const dadosGira = !editar ? '' : ouro(`<div class="row"><label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade, g.entidadeNome || '')}</label>
-      <label class="ev-toggle"><input type="checkbox" data-act="evento" aria-label="Marcar esta atividade como evento" ${g.evento ? 'checked' : ''}><span>Evento</span></label></div>
-    ${avisoEntidade(ps, g, editar, admin)}
-    ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g)}</label>` : ''}
-    ${!g.evento && temLimpeza(g) ? `<label class="field">Turma da limpeza<select data-act="limpezagira"><option value="">— nenhuma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(g.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>` : ''}`);
-  const recado = blocoRecado(g, editar);
-  const atendimentos = !editar ? '' : ouro(`<div class="atend-sec">${g.evento ? campoParticipantes(g) : `<span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}`}</div>`);
-  return `<section class="panel"><div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${dadosGira}${blocoLimpeza(g)}${recado}${atendimentos}${escala}${informes}${realizado}${novos}</div>${rodape}</section>`;
+      <div class="gira-bts">${btEscala}${btEvento}<button class="btn" data-act="mudardata" title="Alterar a data da gira (hoje: ${esc(dLong(g.data))})"><span aria-hidden="true">📅</span> Alterar data · ${esc(dDM(g.data))}</button></div>
+      <div class="gira-campos"><div class="row"><label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade, g.entidadeNome || '')}</label>
+        <label class="ev-toggle"><input type="checkbox" data-act="evento" aria-label="Marcar esta atividade como evento" ${g.evento ? 'checked' : ''}><span>Evento</span></label></div>
+      ${avisoEntidade(ps, g, editar, admin)}
+      ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g)}</label>` : ''}</div>
+      <div class="atend-sec gira-campos">${g.evento ? campoParticipantes(g) : `<span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}`}</div>`);
+  const botoes = editar ? painelAdm : btEscala || btEvento ? `<div class="gira-bts">${btEscala}${btEvento}</div>` : '';
+  return `<section class="panel"><div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${blocoLimpeza(g, editar)}${blocoRecado(g, editar)}${escala}${informes}${realizado}${novos}</div>${rodape}</section>`;
 }
 
 // Botão do WhatsApp da escala: abre a janela para escolher texto ou imagem.
@@ -603,6 +601,17 @@ export const cliques = {
     if (await acaoAusPrevia(giraAtual().data, id, true)) toast(`Ausência de ${nome(id)} marcada.`);
   },
   async ausprevtira(el) { if (await acaoAusPrevia(giraAtual().data, el.dataset.id, false)) toast(`Ausência de ${nome(el.dataset.id)} retirada.`); },
+  // Limpeza: tocar na turma abre a escolha manual; escolher grava e fecha.
+  limpabrir() {
+    const k = 'limp:' + giraAtual().data;
+    if (abertos.has(k)) abertos.delete(k); else abertos.add(k);
+    avisar();
+  },
+  limpturma(el) {
+    abertos.delete('limp:' + giraAtual().data);
+    editarGira({ limpeza: el.dataset.v ? Number(el.dataset.v) : null });
+    avisar();
+  },
   dobrarsug() {
     const d = giraAtual().data;
     if (sugAbertas.has(d)) sugAbertas.delete(d); else sugAbertas.add(d);
@@ -931,7 +940,6 @@ export const mudancas = {
   },
   rapst(t) { if (estado.presRapida) estado.presRapida.st = t.value; },
   rappapel(t) { if (estado.presRapida) estado.presRapida.papel = t.value; },
-  limpezagira(t) { editarGira({ limpeza: t.value ? Number(t.value) : null }); avisar(); },
   evento(t) { editarGira({ evento: t.checked }); avisar(); },
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },
   entidade(t) { editarGira({ entidade: t.value, entidadeNome: t.selectedOptions[0]?.dataset.alias || '' }); avisar(); },

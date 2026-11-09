@@ -2,7 +2,7 @@
 //   GET  /api/oferendas   { oferendas: [...], eu: { chave, nome } }
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
-//        root:   abaSalvar { id?, nome } · abaExcluir { id }  (sub-abas)
+//        root:   abaSalvar { id?, nome } · abaVisivel { id, visivel } · abaExcluir { id }  (sub-abas)
 //        admin:  salvar { id?, titulo, data, responsavelId, abaId?, porMedium? (só ao criar) } · excluir { id }
 //                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? } · resumo { id, noResumo }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
@@ -15,7 +15,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
@@ -27,13 +27,17 @@ async function resposta(oferendas, eu) {
     itens: o.itens.filter((i) => i.doacoes.some((d) => d.chave === chave)).map((i) => ({ ...i, doacoes: i.doacoes.filter((d) => d.chave === chave) })),
     mediuns: (o.mediuns || []).filter((m) => 'p:' + m.pessoaId === chave),
   });
+  const abas = await db.rpc('oferenda_abas_listar');
+  const admin = pode(eu, 'oferendas:gerenciar');
+  const ocultas = abasOcultas(abas);
   return {
-    // Quem não administra: vê as publicadas e as bloqueadas (estas sem a lista de itens).
-    oferendas: pode(eu, 'oferendas:gerenciar') ? oferendas : oferendas
-      .filter((o) => o.status === 'publicado' || o.status === 'rascunho')
+    // Quem não administra: vê as publicadas e as bloqueadas (estas sem a lista de itens), só das sub-abas visíveis.
+    oferendas: admin ? oferendas : oferendas
+      .filter((o) => (o.status === 'publicado' || o.status === 'rascunho') && !ocultas.has(o.abaId))
       .map((o) => (o.status === 'rascunho' ? soMeus(o) : o)),
     eu: { chave, nome: eu.nome },
-    abas: await db.rpc('oferenda_abas_listar'),
+    abas: admin ? abas : abas.filter((a) => !ocultas.has(a.id)),
+    publica: temAbaPublica(abas),
   };
 }
 
@@ -64,6 +68,10 @@ export default rota({
     if (b.acao === 'iemanja') return acaoIemanja(await exigir(req), b);
     const eu = await exigir(req, 'oferendas:doar');
     if (b.acao === 'doar') {
+      if (!pode(eu, 'oferendas:gerenciar')) {
+        const ocultas = abasOcultas(await db.rpc('oferenda_abas_listar'));
+        if (ocultas.size && ocultas.has((await db.rpc('oferendas_estado')).find((o) => o.itens.some((i) => i.id === b.itemId))?.abaId)) throw new HttpError(403, 'Esta oferenda não está disponível.');
+      }
       const estado = await db.rpc('oferenda_doar', {
         itemId: validarId(b.itemId, 'Item'), chave: chavePessoa(eu), nome: eu.nome,
         quantidade: inteiro(b.quantidade, 'Quantidade', 0, 10000),
@@ -74,9 +82,11 @@ export default rota({
     let estado;
     switch (b.acao) {
       case 'abaSalvar':
+      case 'abaVisivel':
       case 'abaExcluir':
         if (!pode(eu, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root altera as sub-abas.');
-        if (b.acao === 'abaSalvar') await db.rpc('oferenda_aba_salvar', { id: b.id ? validarId(b.id, 'Sub-aba') : null, nome: texto(b.nome, 'o nome da sub-aba', 40) });
+        if (b.acao === 'abaVisivel') await db.rpc('oferenda_aba_visivel', { id: validarId(b.id, 'Sub-aba'), visivel: b.visivel === true });
+        else if (b.acao === 'abaSalvar') await db.rpc('oferenda_aba_salvar', { id: b.id ? validarId(b.id, 'Sub-aba') : null, nome: texto(b.nome, 'o nome da sub-aba', 40) });
         else await db.rpc('oferenda_aba_excluir', { id: validarId(b.id, 'Sub-aba') });
         estado = await db.rpc('oferendas_estado');
         break;

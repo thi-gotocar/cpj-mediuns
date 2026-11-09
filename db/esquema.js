@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 89;  // v89: sub-abas de Oferendas e Iemanjá com nome, listas do sorteio, grupos variáveis e itens completos
+export const VERSAO = 91;  // v91: perfil, foto e senha dos alunos
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2749,5 +2749,112 @@ export const MIGRACOES = [
                                 where d.item_id = i.id), '[]'::jsonb)
          ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
      ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  // ================================================== v90: sub-aba de Oferendas com Visível para todos
+  // As que já existem continuam visíveis; as criadas daqui em diante nascem ocultas.
+  `alter table oferenda_abas add column if not exists visivel boolean not null default true`,
+  `alter table oferenda_abas alter column visivel set default false`,
+  `create or replace function oferenda_abas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'iemanja', iemanja, 'visivel', visivel) order by ordem), '[]'::jsonb) from oferenda_abas
+   $$`,
+  `create or replace function oferenda_aba_visivel(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferenda_abas set visivel = (p ->> 'visivel')::boolean where id = (p ->> 'id')::uuid and not iemanja;
+     if not found then raise exception 'Sub-aba não encontrada.'; end if;
+     return oferenda_abas_listar();
+   end;
+   $$`,
+  // ================================================== v91: perfil, foto e senha dos alunos (cada aluno só vê os próprios dados)
+  `alter table alunos add column if not exists perfil jsonb not null default '{}'::jsonb`,
+  `alter table alunos add column if not exists foto text`,
+  `alter table alunos add column if not exists pin_hash text`,
+  `alter table alunos add column if not exists pin_versao int not null default 0`,
+  `create or replace function aluno_acesso(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id, 'temSenha', a.pin_hash is not null, 'pinVersao', a.pin_versao)
+     from alunos a where a.id = (p ->> 'id')::uuid
+   $$`,
+  `create or replace function aluno_pin(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('pinHash', a.pin_hash, 'pinVersao', a.pin_versao,
+                               'bloqueadoAte', (select bloqueado_ate from login_falhas where email = 'pina:' || a.id::text and bloqueado_ate > now()))
+     from alunos a where a.id = (p ->> 'alunoId')::uuid
+   $$`,
+  // p = { alunoId, pinHash, soSeVazio }: cria (só se ainda não tiver) ou troca a senha.
+  `create or replace function aluno_pin_definir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_versao int;
+   begin
+     if coalesce((p ->> 'soSeVazio')::boolean, false)
+        and exists (select 1 from alunos where id = (p ->> 'alunoId')::uuid and pin_hash is not null) then
+       raise exception 'Você já tem senha.';
+     end if;
+     update alunos set pin_hash = nullif(p ->> 'pinHash', ''), pin_versao = pin_versao + 1
+     where id = (p ->> 'alunoId')::uuid returning pin_versao into v_versao;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     delete from login_falhas where email = 'pina:' || (p ->> 'alunoId');
+     return jsonb_build_object('pinVersao', v_versao);
+   end;
+   $$`,
+  `create or replace function aluno_perfil_ler(p jsonb)
+   returns jsonb language sql stable as $$
+     select perfil from alunos where id = (p ->> 'alunoId')::uuid
+   $$`,
+  `create or replace function aluno_perfil_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update alunos set perfil = coalesce(p -> 'perfil', '{}'::jsonb) where id = (p ->> 'alunoId')::uuid;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     return aluno_perfil_ler(p);
+   end;
+   $$`,
+  `create or replace function aluno_foto_ler(p jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(foto) from alunos where id = (p ->> 'alunoId')::uuid
+   $$`,
+  `create or replace function aluno_foto_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update alunos set foto = nullif(p ->> 'foto', '') where id = (p ->> 'alunoId')::uuid;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     return aluno_foto_ler(p);
+   end;
+   $$`,
+  // Igual à v84, levando o perfil, a foto e a senha para o cadastro da corrente.
+  `create or replace function aluno_transferir_cambone(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_aluno alunos%rowtype;
+     v_pessoa_id uuid;
+   begin
+     select * into v_aluno from alunos where id = v_id for update;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_aluno.nome))) then
+       raise exception 'Já existe uma pessoa da corrente com esse nome.';
+     end if;
+
+     insert into pessoas (nome, funcao, perfil, pin_hash, pin_versao)
+       values (v_aluno.nome, 'cambone', v_aluno.perfil, v_aluno.pin_hash, v_aluno.pin_versao)
+       returning id into v_pessoa_id;
+     if v_aluno.foto is not null then
+       insert into pessoas_fotos (pessoa_id, foto) values (v_pessoa_id, v_aluno.foto);
+     end if;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
+       select oferenda_id, v_pessoa_id, pagamento, entrega, excluido, atualizado_em
+       from oferenda_alunos where aluno_id = v_id
+       on conflict (oferenda_id, pessoa_id) do update set
+         pagamento = excluded.pagamento, entrega = excluded.entrega,
+         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
+     update oferenda_doacoes set pessoa_chave = 'p:' || v_pessoa_id::text
+       where pessoa_chave = 'a:' || v_id::text;
+     delete from alunos where id = v_id;
+
+     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar());
+   exception when unique_violation then
+     raise exception 'Já existe uma pessoa da corrente com esse nome.';
+   end;
    $$`,
 ];

@@ -57,8 +57,9 @@ export async function emitirTokenCorrente(nome, pessoaId, versao = 0) {
   return corpo + '.' + assinar(corpo, await obterSegredo());
 }
 
-export async function emitirTokenGrupo(grupo, registroId, nome) {
-  const corpo = b64url(JSON.stringify({ g: grupo, a: registroId, n: nome, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
+// "v" é a versão da senha do aluno: criar ou trocar a senha encerra as outras sessões.
+export async function emitirTokenGrupo(grupo, registroId, nome, versao = 0) {
+  const corpo = b64url(JSON.stringify({ g: grupo, a: registroId, n: nome, v: versao, exp: Math.floor(Date.now() / 1000) + VALIDADE_SESSAO }));
   return corpo + '.' + assinar(corpo, await obterSegredo());
 }
 
@@ -74,7 +75,7 @@ export async function lerToken(token) {
     if (!d.exp || d.exp < Date.now() / 1000) return null;
     if (typeof d.c === 'string' && d.c.trim()) return { corrente: true, nome: d.c, pessoaId: typeof d.p === 'string' ? d.p : null, versao: Number(d.v) || 0 };
     if (['alunos', 'curimba'].includes(d.g) && typeof d.a === 'string' && typeof d.n === 'string') {
-      return { grupo: d.g, registroId: d.a, nome: d.n };
+      return { grupo: d.g, registroId: d.a, nome: d.n, versao: Number(d.v) || 0 };
     }
     if (!d.u) return null;
     return { id: d.u, versao: d.v };

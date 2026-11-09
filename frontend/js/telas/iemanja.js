@@ -127,7 +127,7 @@ function blocoEvento(ev) {
     <div class="cp-bts">${editando ? `<button class="btn" data-act="iemcancelar">${icone('✕', 'Cancelar')}</button><button class="btn primary" data-act="iemsalvar">${icone('✓', 'Salvar')}</button>` : `<button class="btn" data-act="iemeditar">${icone('✎', 'Editar')}</button>`}
       <button class="btn" data-act="iemjanela" data-t="encerrar">${icone('🔒', 'Encerrar')}</button></div>
     ${dados}
-    <div class="cp-bts"><button class="btn" data-act="iemgrupo">${icone('＋', 'Nova oferenda')}</button>${souRoot() ? `<button class="btn" data-act="iemnovoaviso">${icone('＋', 'Novo evento')}</button>` : ''}</div>
+    <div class="cp-bts"><button class="btn" data-act="iemjanela" data-t="novaOferenda">${icone('＋', 'Nova oferenda')}</button>${souRoot() ? `<button class="btn" data-act="iemnovoaviso">${icone('＋', 'Novo evento')}</button>` : ''}</div>
     <div class="of-sec"><h2><span aria-hidden="true">🕯️</span> Oferendas</h2><span class="of-sec-n">${ev.grupos.length}</span></div>
     ${grupos}</div>
     ${blocoSorteio(ev)}`;
@@ -144,6 +144,7 @@ const eventoAberto = () => estado.iemanja.eventos.find((e) => !e.encerradoEm);
 const itemDe = (id) => eventoAberto()?.grupos.flatMap((g) => g.itens).find((i) => i.id === id);
 
 const TEXTOS = {
+  novaOferenda: ['Criar nova oferenda?', 'Um novo grupo será criado neste evento.', 'Criar'],
   sortear: ['Sortear agora?', 'As pessoas das listas serão divididas nos grupos.', 'Sortear'],
   cancelar: ['Cancelar o sorteio?', 'As pessoas sorteadas saem dos grupos e os itens que elas assumiram ficam sem responsável. Quem foi adicionado direto a um grupo continua nele.', 'Cancelar sorteio'],
   encerrar: ['Encerrar o evento?', 'O evento vai para o Histórico e não poderá mais ser alterado.', 'Encerrar'],
@@ -203,7 +204,9 @@ export const cliques = {
   async iemjanelasim() {
     const { t, g, i } = ui.janela;
     ui.janela = null;
-    if (t === 'entregue') {
+    if (t === 'novaOferenda') {
+      if (await acaoIemanja('grupoNovo', { id: eventoAberto().id })) { sincronizarEdicao(); toast('Oferenda criada. Escolha o orixá ou a entidade em Editar.'); }
+    } else if (t === 'entregue') {
       if (await acaoIemanja('entregue', { itemId: i, entregue: true })) toast('Item marcado como entregue.');
     } else if (t === 'item') {
       if (await acaoIemanja('item', { grupoId: g, ...ui.rascunho[g] })) { delete ui.rascunho[g]; toast('Item adicionado.'); }
@@ -215,9 +218,6 @@ export const cliques = {
       if (await acaoIemanja(op, { id })) { if (t === 'encerrar') ui.edit = null; toast({ sortear: 'Sorteio realizado.', cancelar: 'Sorteio cancelado.', encerrar: 'Evento encerrado.' }[t]); }
     }
     avisar();
-  },
-  async iemgrupo() {
-    if (await acaoIemanja('grupoNovo', { id: eventoAberto().id })) { sincronizarEdicao(); toast('Oferenda criada. Escolha o orixá ou a entidade em Editar.'); avisar(); }
   },
   iemnovoaviso() { toast('Encerre o evento atual antes de criar outro.'); },
   async iemnovo() {
