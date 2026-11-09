@@ -132,19 +132,24 @@ function cardEventos(todas) {
 }
 
 function cardEstatisticas(todas, ps) {
-  const fechadas = todas.filter((g) => g.encerrada && !g.evento);
-  if (!fechadas.length) return '';
-  const anos = [...new Set(fechadas.map((g) => g.data.slice(0, 4)))].sort().reverse();
+  // Presença, falta e ausência contam giras e eventos; atendimentos e "giras que mais tivemos", só giras.
+  const encerradas = todas.filter((g) => g.encerrada);
+  if (!encerradas.length) return '';
+  const fechadas = encerradas.filter((g) => !g.evento);
+  const anos = [...new Set(encerradas.map((g) => g.data.slice(0, 4)))].sort().reverse();
   const anoAtual = hoje().slice(0, 4);
   let ano = estado.stAno || (anos.includes(anoAtual) ? anoAtual : anos[0]);
   if (ano !== 'todos' && !anos.includes(ano)) ano = anos[0];
-  const gs = ano === 'todos' ? fechadas : fechadas.filter((g) => g.data.startsWith(ano));
+  const doAno = (lista) => (ano === 'todos' ? lista : lista.filter((g) => g.data.startsWith(ano)));
+  const gs = doAno(fechadas);
+  const comEventos = doAno(encerradas);
+  const nEventos = comEventos.length - gs.length;
   const mais = estado.stMais || {};
 
   // Por pessoa: presenças, faltas, ausências e giras que contam (sem licença).
   const porPessoa = ps.map((p) => {
     let pres = 0, a = 0, f = 0, base = 0;
-    gs.forEach((g) => {
+    comEventos.forEach((g) => {
       if (!naCorrenteEm(p, g.data)) return;   // antes de entrar na corrente
       const st = presencaDe(p, g);
       if (st === 'lic' || st === 'pend') return;
@@ -158,15 +163,15 @@ function cardEstatisticas(todas, ps) {
   // Tocar no nome mostra gira a gira o que contou para a pessoa (para conferir uma falta, por exemplo).
   const ROT = { p: '✅ presente', na: '✅ presente', sup: '✅ presente (suporte)', f: '🚫 falta', a: '❌ ausente' };
   const detalhe = (p) => {
-    const linhas = gs.filter((g) => naCorrenteEm(p, g.data)).map((g) => [g, presencaDe(p, g)])
+    const linhas = comEventos.filter((g) => naCorrenteEm(p, g.data)).map((g) => [g, presencaDe(p, g)])
       .filter(([, st]) => st !== 'lic' && st !== 'pend')
       .sort(([a], [b]) => b.data.localeCompare(a.data));
-    const fora = gs.filter((g) => !naCorrenteEm(p, g.data)).length;
+    const fora = comEventos.filter((g) => !naCorrenteEm(p, g.data)).length;
     // Admin root: Editar em cada gira (Presente / Falta / Ausente).
     const root = pode('usuarios:gerenciar');
     const linhaDet = ([g, st]) => {
       const k = g.data + '|' + p.id;
-      const txt = `${dShort(g.data).slice(0, 5)} ${esc(nomeEntidadeGira(g) || 'Gira')}: `;
+      const txt = `${dShort(g.data).slice(0, 5)} ${g.evento ? 'Evento' : ''}${g.evento && nomeEntidadeGira(g) ? ' · ' : ''}${esc(nomeEntidadeGira(g) || (g.evento ? '' : 'Gira'))}: `;
       if (root && estado.stEdit === k) {
         const atual = ['p', 'f', 'a'].includes(st) ? st : 'p';
         return `<span class="st-ed">${txt}<select id="st-ed-sel" aria-label="Presença de ${esc(p.nome)} em ${dShort(g.data)}">${[['p', 'Presente'], ['f', 'Falta'], ['a', 'Ausente']].map(([v, l]) => `<option value="${v}" ${v === atual ? 'selected' : ''}>${l}</option>`).join('')}</select>
@@ -205,15 +210,15 @@ function cardEstatisticas(todas, ps) {
   gs.forEach((g) => { const n = nomeEntidadeGira(g); if (n) cont[n] = (cont[n] || 0) + 1; });
   const tipos = Object.entries(cont).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3);
   const maxTipo = gs.length;   // % sobre as giras do período
-  // Média de presença da corrente no período (giras com presença confirmada).
-  const pcts = gs.map((g) => presencaGira(ps, g).pct).filter((x) => x !== null);
+  // Média de presença da corrente no período (giras e eventos com presença confirmada).
+  const pcts = comEventos.map((g) => presencaGira(ps, g).pct).filter((x) => x !== null);
   const media = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
   const giraAt = gs.filter((g) => g.atendimentos).length;
 
   const totalAt = somaAt(totAt);
   return `<div class="card st"><div class="grp-h"><h2>Estatísticas</h2>
       <select data-act="stano" aria-label="Período das estatísticas">${anos.map((a) => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}<option value="todos" ${ano === 'todos' ? 'selected' : ''}>Todos os anos</option></select></div>
-    <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'} ${ano === 'todos' ? 'no total' : `em ${ano}`}.</p>
+    <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'}${nEventos ? ` e ${nEventos} evento${nEventos === 1 ? '' : 's'}` : ''} ${ano === 'todos' ? 'no total' : `em ${ano}`}.</p>
     <div class="st-resumo">
       <div class="st-resumo-at"><span class="muted">Total de atendimentos${giraAt ? ` · ${giraAt} gira${giraAt === 1 ? '' : 's'} com registro` : ''}</span>
         <div class="st-at-totais" aria-label="Total de atendimentos por tipo">
