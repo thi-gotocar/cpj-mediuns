@@ -471,5 +471,5 @@ window.addEventListener('pagehide', salvarPerfilAgora);
 window.addEventListener('focus', () => atualizarDoServidor());
 
 iniciar();
-iniciarAtualizacao(() => temPendencia() || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName));
+iniciarAtualizacao({ pendente: temPendencia, digitando: () => ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) });
 export { avisar };
