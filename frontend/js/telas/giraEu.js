@@ -1,14 +1,13 @@
 // Aba Gira: bloco "Você nesta gira" de quem está logado.
 
-import { nomeEntidadeGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naCorrenteEm, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira, podeEscolherEntidade, linhasParaEscolher, entidadeEscolhida } from '/shared/regras.js';
+import { tituloGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naCorrenteEm, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira, podeEscolherEntidade, linhasParaEscolher, entidadeEscolhida } from '/shared/regras.js';
 import { estado, pode, nome, girasLista, carregarFoto } from '../estado.js';
 import { config } from '/shared/config.js';
 import { esc, dDM, hoje, iniciais } from '../util.js';
-import { htmlStatus, caixaPendente } from './giraComum.js';
+import { htmlStatus } from './giraComum.js';
 
 const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone', passe: 'Médium de passe', senha: 'Senha', curimba: 'Curimba' };
 // Bloco de quem está logado: com quem trabalha nesta gira e se é da turma da limpeza.
-const ROTULO_PRESENCA = { pend: 'Pendente', p: 'Presente', f: 'Falta', a: 'Ausente', lic: 'Licença' };
 export function blocoEu(g) {
   const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p) return '';
@@ -23,7 +22,9 @@ export function blocoEu(g) {
     <div class="eu-nome"><b>${esc(p.nome)}</b></div>
     <div class="eu-tags">${possivel ? '<span class="muted eu-poss">Possivelmente:</span>' : ''}<span class="tag">${ROTULO_FUNCAO[p.funcao] || p.funcao}</span>${convertido}</div>
   </div></div>`;
-  if (!naCorrenteEm(p, g.data)) return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span><span class="eu-h-info"><span class="eu-gira">${dDM(g.data)}</span></span></div>
+  // Título do bloco: o nome da gira (igual ao da aba Gira) à esquerda e a data à direita.
+  const cabeca = `<div class="datehead eu-cab"><div class="grp-h eu-h"><span class="dia gira-nome">${esc(tituloGira(g))}</span><span class="eu-gira">${dDM(g.data)}</span></div>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>`;
+  if (!naCorrenteEm(p, g.data)) return `<div class="card eu">${cabeca}
     ${identidade()}<p class="eu-nota muted">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}. Esta gira ainda não conta para você.</p></div>`;
   const curimba = ehCurimba(p);
   const rootVinculado = estado.me?.papel === 'root' && p.id === estado.me.pessoaId;
@@ -52,8 +53,8 @@ export function blocoEu(g) {
   if (st === 'lic') {
     const l = licencaEm(p, g.data);
     fora(`📋 Você está <b>de licença</b>${l ? ` de ${dDM(l.inicio)} a ${dDM(l.fim)}` : ''}${l?.motivo ? ` · ${esc(l.motivo)}` : ''}.`);
-  } else if (st === 'a') fora('❌ Você está marcado como <b>ausente</b> nesta gira.');
-  else if (st === 'f') fora('🚫 Você está marcado com <b>falta</b> nesta gira.');
+  } else if (st === 'a') fora('❌ <b>Ausente</b> nesta gira.');
+  else if (st === 'f') fora('🚫 <b>Falta</b> nesta gira.');
   else if (st === 'sup') aviso('Hoje você está no <b>Suporte</b>.');
   else if (curimba) lin('Função', 'Curimba');
   else if (funcao === 'senha') lin('Função', 'Senha');
@@ -82,28 +83,29 @@ export function blocoEu(g) {
     });
   }
   // Gira em aberto ainda sem sorteio: o aviso "Sorteio de escala pendente" fica dentro deste bloco.
-  if (!g.evento && !sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push(caixaPendente(g));
+  if (!g.evento && !sorteado && !g.encerrada && !['lic', 'a', 'f'].includes(st)) L.push('<div class="eu-pend">⏳ Sorteio de escala pendente</div>');
   const pr = presencaDe(p, g);
+  // Quando a presença não muda aqui, ela vira um selo ao lado da função.
+  const SELO = { p: ['new', 'Presente'], pend: ['hot', 'Pendente'] };
+  let selo = '';
+  const selar = () => { if (SELO[pr]) selo = ` <span class="badge ${SELO[pr][0]}">${SELO[pr][1]}</span>`; };
   // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
   if (sorteado) { /* nada */ } else if (!curimba && (estado.me?.corrente || rootVinculado)) {
-    // O próprio usuário vê o controle de participação da corrente; para root, grava pela ação administrativa.
-    // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica bloqueado.
+    // O próprio usuário declara a ausência; para root, grava pela ação administrativa.
+    // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica só o selo.
     const gs = estado.giras[g.data];
-    const declara = podeDeclararAusencia(p, gs, hoje());
-    const opts = declara ? [['pend', 'Estarei presente 😊'], ['a', 'Não poderei ir (ausência antecipada)']] : [[pr, ROTULO_PRESENCA[pr] || pr]];
-    const motivo = declara ? '' : pr === 'pend' && !statusMarcado(p, gs) && gs && hoje() >= g.data
-      ? `No dia da gira, só a ${esc(config().responsavel)} altera.`
-      : gs?.encerrada ? 'Gira encerrada.' : 'Status definido na lista de presença.';
-    const act = rootVinculado ? `data-act="status" data-id="${p.id}"` : 'data-act="ausencia"';
-    L.push(`<div class="eu-aus-box">${declara ? '<p class="eu-aus-aviso">Não poderá comparecer? <br> Informe a ausência até a véspera.</p>' : ''}
-      <label class="eu-aus"><span class="muted">Sua participação:</span>
-        <select id="eu-aus" class="st-${pr}" ${act} aria-label="Sua participação nesta gira" ${declara ? '' : 'disabled'}>${opts.map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        ${declara ? '' : `<span class="muted eu-trava">🔒 ${motivo}</span>`}</label></div>`);
+    if (podeDeclararAusencia(p, gs, hoje())) {
+      const act = rootVinculado ? `data-act="status" data-id="${p.id}"` : 'data-act="ausencia"';
+      L.push(`<div class="eu-aus-box"><select id="eu-aus" class="st-${pr}" ${act} aria-label="Sua participação nesta gira">${[['pend', 'Estarei presente 😊'], ['a', 'Não poderei ir']].map(([k, l]) => `<option value="${k}" ${k === pr ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        <p class="muted eu-aus-aviso">Se não puder vir, avise até a véspera.</p></div>`);
+    } else {
+      selar();
+      if (pr === 'pend' && !statusMarcado(p, gs) && gs && hoje() >= g.data) L.push(`<p class="muted eu-trava">🔒 No dia da gira, só a ${esc(config().responsavel)} altera.</p>`);
+    }
   } else if (!curimba && pode('giras:editar') && estado.giras[g.data] && !g.encerrada && st !== 'lic') {
     // Admin ligado a uma pessoa: muda o próprio status aqui, com as mesmas opções da lista de presença.
-    L.push(`<label class="eu-aus"><span class="muted">Sua participação:</span>
-      <select id="eu-aus" class="st-${pr}" data-act="status" data-id="${p.id}" aria-label="Sua participação nesta gira">${htmlStatus(g, pr, st, g.pendentePadrao && g.data > hoje())}</select></label>`);
-  } else if (!curimba && pr === 'pend') aviso('Sua presença ainda não foi confirmada.');
+    L.push(`<div class="eu-aus"><select id="eu-aus" class="st-${pr}" data-act="status" data-id="${p.id}" aria-label="Sua participação nesta gira">${htmlStatus(g, pr, st, g.pendentePadrao && g.data > hoje())}</select></div>`);
+  } else if (!curimba && pr === 'pend') selar();
   // Turma da limpeza
   const Lp = g.evento ? null : limpezaDaGira(estado.pessoas, g, girasLista());
   if (Lp && st !== 'lic') {
@@ -119,9 +121,8 @@ export function blocoEu(g) {
         <select id="eu-ent" data-act="minhaentidade" aria-label="Entidade que você vai atender nesta gira"><option value="">— escolha —</option>${linhasParaEscolher(g).map(([k, l]) => `<option value="${k}" ${k === escolhida ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
     : '';
   const convertido = funcao !== p.funcao && st !== 'lic' ? ` <span class="badge rep">hoje: ${ROTULO_FUNCAO[funcao] || funcao}</span>` : '';
-  const nomeDaGira = g.entidade ? `${nomeEntidadeGira(g)}${orixaDaGira(g) ? ` · ${orixaDaGira(g)}` : ''}` : '';
-  return `<div class="card eu"><div class="grp-h eu-h"><span class="eyebrow">Você nesta gira</span><span class="eu-h-info">${nomeDaGira ? `<span class="eu-gira">${esc(nomeDaGira)}</span>` : ''}<span class="eu-gira">${dDM(g.data)}</span></span></div>
-    ${identidade(convertido, !sorteado && !['medium', 'cambone'].includes(p.funcao))}
+  return `<div class="card eu">${cabeca}
+    ${identidade(convertido + selo, !sorteado && !['medium', 'cambone'].includes(p.funcao))}
     ${comboEntidade}
     ${(funcao === 'medium' || funcao === 'extra') && st !== 'lic' && guiaNaGira(p, g) ? `<div class="eu-l eu-guia"><span class="muted">Guia de atendimento:</span> <b>${esc(guiaNaGira(p, g))}</b></div>` : ''}
     ${L.join('')}</div>`;

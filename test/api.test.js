@@ -887,6 +887,14 @@ test('apelidos de entidade: root configura e a gira preserva o nome ligado à li
   assert.equal(listada.entidade, 'Caboclo', 'as regras continuam usando a linha canônica');
   assert.equal(listada.entidadeNome, 'Caboclo de Pena');
   assert.deepEqual((await api('GET', '/api/giras?lista=entidades', USER)).json, apelidos);
+  // Nome da gira escrito pelo admin: todos veem; só quem edita a gira altera.
+  const comTitulo = await api('PUT', '/api/giras/' + data, ADMIN, { titulo: '  Festa   de Oxóssi ' });
+  assert.equal(comTitulo.status, 200, JSON.stringify(comTitulo.json));
+  assert.equal(comTitulo.json.titulo, 'Festa de Oxóssi');
+  assert.equal((await api('GET', '/api/giras', USER)).json.find((g) => g.data === data).titulo, 'Festa de Oxóssi');
+  assert.equal((await api('PUT', '/api/giras/' + data, USER, { titulo: 'x' })).status, 403);
+  assert.equal((await api('PUT', '/api/giras/' + data, ADMIN, { titulo: 'x'.repeat(121) })).status, 400);
+  assert.equal((await api('PUT', '/api/giras/' + data, ADMIN, { titulo: '' })).json.titulo, '');
 });
 
 test('oferendas: uma linha para cada médium, admin marca a situação', async () => {

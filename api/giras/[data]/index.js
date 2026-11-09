@@ -1,5 +1,5 @@
 // GET    /api/giras/:data
-// PUT    /api/giras/:data   { entidade?, presenca?, papeis?, pares?, passes?, atendimentos?, participantes?, encerrada?, limpeza?, orixa?, evento? } (só substitui o que vier)
+// PUT    /api/giras/:data   { entidade?, titulo?, presenca?, papeis?, pares?, passes?, atendimentos?, participantes?, encerrada?, limpeza?, orixa?, evento? } (só substitui o que vier)
 //                            (gira nova: quem tinha ausência antecipada na data já entra Ausente)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala: só o root)
 // POST   /api/giras/:data   { acao: 'publicar', publicada?: false } → a escala fica visível para todos (ou volta a ficar só para os admins)
@@ -58,6 +58,13 @@ function validarEntidade(v) {
   const e = String(v ?? '').trim();
   if (e.length > 120) throw new HttpError(400, 'Entidade muito longa.');
   return e;
+}
+
+// Nome da gira escrito pelo admin; vazio volta ao nome automático.
+function validarTitulo(v) {
+  const t = String(v ?? '').replace(/\s+/g, ' ').trim();
+  if (t.length > 120) throw new HttpError(400, 'O nome da gira pode ter até 120 letras.');
+  return t;
 }
 
 // Recado do admin: até 5 linhas (sem espaços nas pontas das linhas).
@@ -149,6 +156,7 @@ export default rota({
     const p = { data, usuario: perfil.id };
     if ('entidade' in b) p.entidade = validarEntidade(b.entidade);
     if ('entidade' in b || 'entidadeNome' in b) p.entidadeNome = validarEntidade(b.entidadeNome);
+    if ('titulo' in b) p.titulo = validarTitulo(b.titulo);
     if ('presenca' in b) p.presenca = validarPresenca(b.presenca);
     if ('papeis' in b) p.papeis = validarPapeis(b.papeis);
     if ('pares' in b) p.pares = validarDuplas(b.pares, 'cambones');
@@ -172,6 +180,7 @@ export default rota({
     if (previas.length) p.presenca = { ...Object.fromEntries(previas.map((id) => [id, 'a'])), ...(p.presenca || {}) };
     let gira = await db.rpc('gira_salvar', p);
     if ('entidadeNome' in p) gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
+    if ('titulo' in p) gira = await db.rpc('gira_titulo', { data, titulo: p.titulo });
     if (nova) await db.rpc('ausencias_previas_usar', { data });
     if (mudaEvento) gira = await db.rpc('gira_evento', { data, usuario: perfil.id, evento: b.evento });
     if (participantes !== undefined) gira = await db.rpc('gira_participantes', { data, usuario: perfil.id, participantes });

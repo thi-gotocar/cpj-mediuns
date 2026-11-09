@@ -35,6 +35,7 @@ export const estado = {
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
   iemanja: null,       // GET /api/oferendas?lista=iemanja: { eventos, root, candidatos? }
   recadoTxt: null,     // recado do admin ainda não salvo: { data, texto }
+  tituloTxt: null,     // nome da gira ainda não salvo: { data, texto }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
   anamnese: null,      // GET /api/auth/anamnese: { visivel, perguntas, minhas, todas? } (ou { erro })
   fotosPessoa: {},     // aba Perfil: pessoaId → foto (data URL; '' = sem foto; null = buscando)
@@ -591,7 +592,7 @@ export function montarBackup() {
     versao: 2,
     exportado: new Date().toISOString(),
     pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [], limpeza: p.limpeza || null, entrada: p.entrada || null, saida: p.saida || null }])),
-    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, entidadeNome: g.entidadeNome || '', encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, limpeza: g.limpeza || null, orixa: g.orixa || '', pendentePadrao: !!g.pendentePadrao, papeis: g.papeis || {}, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
+    giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, entidadeNome: g.entidadeNome || '', titulo: g.titulo || '', encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, limpeza: g.limpeza || null, orixa: g.orixa || '', pendentePadrao: !!g.pendentePadrao, papeis: g.papeis || {}, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
   };
 }
 export async function importarBackup(obj) {

@@ -88,6 +88,7 @@ export default rota({
           .filter(([velho, v]) => novoId[velho] && (v === 'sup' || v === 'na')).map(([velho, v]) => [novoId[velho], v])),
       });
       if (g.entidadeNome) await db.rpc('gira_entidade_nome', { data, nome: String(g.entidadeNome).slice(0, 120) });
+      if (g.titulo) await db.rpc('gira_titulo', { data, titulo: String(g.titulo).slice(0, 120) });
       giras++;
     }
     return { pessoasCriadas: criadas, pessoasNoArquivo: pessoasArq.length, giras };

@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
@@ -119,10 +119,13 @@ function caixaEncerrar() {
 
 // Cabeçalho da gira, igual para aberta e encerrada; a linha tracejada o separa do resto do bloco.
 function cabecalhoGira(g) {
-  const titulo = g.evento ? `Evento${g.entidade ? ` · ${esc(nomeEntidadeGira(g))}` : ''}`
-    : !g.entidade ? 'Gira'
-      : giraEspecial(g.entidade) ? esc(nomeEntidadeGira(g)) : `Gira de ${esc(nomeEntidadeGira(g))}`;
-  return `<div class="datehead cab-gira"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">${titulo}</span>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>`;
+  // Admin, com a gira em aberto: o nome é um campo; em branco volta ao nome automático.
+  const editavel = pode('giras:editar') && !g.encerrada && estado.giras[g.data];
+  const rascunho = estado.tituloTxt?.data === g.data ? estado.tituloTxt.texto : null;
+  const titulo = editavel
+    ? `<input type="text" id="gira-titulo" class="dia gira-nome gira-nome-ed" data-act="giratitulo" data-d="${esc(g.data)}" maxlength="120" enterkeyhint="done" aria-label="Nome da gira" placeholder="${esc(tituloAutomaticoGira(g))}" value="${esc(rascunho ?? tituloGira(g))}">`
+    : `<span class="dia gira-nome">${esc(tituloGira(g))}</span>`;
+  return `<div class="datehead cab-gira"><span class="eyebrow">${esc(dLong(g.data))}</span>${titulo}${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>`;
 }
 
 // Seta, data (abre o calendário) e seta: para todos, em qualquer estado da gira.
@@ -966,7 +969,16 @@ export const mudancas = {
   rappapel(t) { if (estado.presRapida) estado.presRapida.papel = t.value; },
   evento(t) { editarGira({ evento: t.checked }); avisar(); },
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },
-  entidade(t) { editarGira({ entidade: t.value, entidadeNome: t.selectedOptions[0]?.dataset.alias || '' }); avisar(); },
+  // Trocar a entidade volta o nome da gira ao automático, para não ficar o nome da entidade anterior.
+  entidade(t) { estado.tituloTxt = null; editarGira({ entidade: t.value, entidadeNome: t.selectedOptions[0]?.dataset.alias || '', ...(giraAtual().titulo ? { titulo: '' } : {}) }); avisar(); },
+  giratitulo(t) {
+    const g = giraAtual();
+    const texto = t.value.replace(/\s+/g, ' ').trim();
+    const titulo = texto === tituloAutomaticoGira(g) ? '' : texto;
+    estado.tituloTxt = null;
+    if (titulo !== (g.titulo || '')) editarGira({ titulo });
+    avisar();
+  },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
   // Seletor de data: vai para o dia escolhido.
   irdata(t) { mudancas.data(t); },

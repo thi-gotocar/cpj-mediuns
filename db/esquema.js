@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 93;  // v93: Configurações da casa
+export const VERSAO = 94;  // v94: nome da gira escrito pelo admin
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2913,5 +2913,49 @@ export const MIGRACOES = [
      if not found then raise exception 'Configurações da casa não encontradas.'; end if;
      return config_casa();
    end;
+   $$`,
+  // ================================================== v94: nome da gira escrito pelo admin (vazio = nome automático, ver tituloGira em shared/regras.js)
+  `alter table giras add column if not exists titulo text not null default '' check (length(titulo) <= 120)`,
+  `create or replace function gira_titulo(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update giras set titulo = coalesce(p ->> 'titulo', ''), atualizado_em = now()
+       where data = (p ->> 'data')::date;
+     if not found then raise exception 'Gira não encontrada.'; end if;
+     return gira_json((p ->> 'data')::date);
+   end;
+   $$`,
+  // Igual à versão anterior, com 'titulo'.
+  `create or replace function gira_json(d date)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'data', g.data,
+       'entidade', g.entidade,
+       'entidadeNome', g.entidade_nome,
+       'titulo', g.titulo,
+       'encerrada', g.encerrada,
+       'suporteAuto', g.suporte_auto,
+       'atendimentos', g.atendimentos,
+       'participantes', g.participantes,
+       'limpeza', g.limpeza,
+       'orixa', g.orixa,
+       'evento', g.evento,
+       'pendentePadrao', g.pendente_padrao,
+       'publicada', coalesce(g.publicada, false),
+       'travada', g.travada,
+       'recado', g.recado,
+       'papeis', g.papeis,
+       'atende', g.atende,
+       'atualizadoEm', g.atualizado_em,
+       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
+                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
+       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
+       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
+     )
+     from giras g where g.data = d;
    $$`,
 ];

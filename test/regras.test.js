@@ -1,7 +1,7 @@
 // Testes das regras puras (sem banco).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium, opcoesGira, apelidoEntidade, nomeEntidadeGira, naCorrenteEm } from '../shared/regras.js';
+import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium, opcoesGira, apelidoEntidade, nomeEntidadeGira, tituloGira, tituloAutomaticoGira, naCorrenteEm } from '../shared/regras.js';
 
 test('saída da corrente: conta nas giras anteriores e não da data em diante', () => {
   const p = { entrada: '2025-01-10', saida: '2026-06-01' };
@@ -40,6 +40,14 @@ test('apelidos de entidade mostram nome configurado e preservam a linha canônic
   assert.equal(linhaDaEntidade(opcao[0]), 'caboclo');
   assert.deepEqual(apelidoEntidade('caboclo DE pena', aliases), aliases[0]);
   assert.equal(nomeEntidadeGira({ entidade: 'Caboclo', entidadeNome: 'Caboclo de Pena' }), 'Caboclo de Pena');
+});
+
+test('nome da gira: o que o admin escreveu vale; sem isso, o automático', () => {
+  assert.equal(tituloGira({ entidade: 'Caboclo', entidadeNome: 'Caboclo de Pena' }), 'Gira de Caboclo de Pena');
+  assert.equal(tituloGira({ entidade: 'Caboclo', titulo: 'Festa de Oxóssi' }), 'Festa de Oxóssi');
+  assert.equal(tituloGira({ entidade: 'Caboclo', titulo: '' }), tituloAutomaticoGira({ entidade: 'Caboclo' }));
+  assert.equal(tituloGira({ evento: true, entidade: '' }), 'Evento');
+  assert.equal(tituloGira({ entidade: '' }), 'Gira');
 });
 
 test('extra e passe atuam só nas linhas marcadas; nas outras, cambonam', () => {

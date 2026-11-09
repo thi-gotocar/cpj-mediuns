@@ -141,6 +141,14 @@ export function nomeGira(entidade) {
   return e ? ESPECIAL_LABEL[e] : String(entidade || '');
 }
 export const nomeEntidadeGira = (g) => g?.entidadeNome || nomeGira(g?.entidade);
+// Nome da gira na aba Gira e em "Você nesta gira": o que o admin escreveu ou, sem isso, o automático.
+export function tituloAutomaticoGira(g) {
+  const nome = nomeEntidadeGira(g);
+  if (g?.evento) return `Evento${g.entidade ? ` · ${nome}` : ''}`;
+  if (!g?.entidade) return 'Gira';
+  return giraEspecial(g.entidade) ? nome : `Gira de ${nome}`;
+}
+export const tituloGira = (g) => g?.titulo || tituloAutomaticoGira(g);
 export const apelidoEntidade = (nome, aliases = []) => {
   const alvo = normalizar(nome);
   return aliases.find((x) => normalizar(x.nome) === alvo) || null;
