@@ -44,6 +44,8 @@ function abrirTela(tab) {
   const aviso = setTimeout(() => { if (prefs.tab === tab) main.innerHTML = '<div class="loading">Carregando…</div>'; }, 200);
   telaDe(tab).then(() => { clearTimeout(aviso); if (prefs.tab === tab) render(); }).catch(() => {
     clearTimeout(aviso);
+    // O app pode ter atualizado com esta página aberta: a aba nova não encaixa no código antigo.
+    if (navigator.onLine && !temPendencia()) { location.reload(); return; }
     if (prefs.tab === tab) main.innerHTML = '<div class="card"><p class="erro">Não foi possível abrir esta aba. Verifique a internet.</p><button class="btn" data-conta="recarregar-pagina">Tentar de novo</button></div>';
   });
 }

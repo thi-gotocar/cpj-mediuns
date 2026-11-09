@@ -1,18 +1,22 @@
 // Modelo do service worker: o build (scripts/build.js) preenche a versão e a lista e grava dist/sw.js.
 // Só guarda os arquivos do app. O que vem de /api nunca passa por aqui: dados pessoais não ficam no cache.
+// A versão nova assume assim que termina de baixar, sem fase de espera: quem decide quando a página recarrega
+// é frontend/js/atualizacao.js.
 
 const CACHE = 'sortmediuns-__VERSAO__';
 const ARQUIVOS = __ARQUIVOS__;
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS.map((u) => new Request(u, { cache: 'reload' })))));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((nomes) => Promise.all(nomes.filter((n) => n.startsWith('sortmediuns-') && n !== CACHE).map((n) => caches.delete(n)))));
+  e.waitUntil(caches.keys()
+    .then((nomes) => Promise.all(nomes.filter((n) => n.startsWith('sortmediuns-') && n !== CACHE).map((n) => caches.delete(n))))
+    .then(() => self.clients.claim()));
 });
 
-// A página avisa quando a versão nova pode entrar (frontend/js/atualizacao.js).
+// Páginas abertas de versões anteriores ainda pedem a troca por mensagem.
 self.addEventListener('message', (e) => { if (e.data === 'atualizar') self.skipWaiting(); });
 
 self.addEventListener('fetch', (e) => {

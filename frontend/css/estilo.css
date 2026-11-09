@@ -622,6 +622,8 @@ button.eu-avatar{cursor:zoom-in}
 .modal-fundo{position:fixed;inset:0;background:rgba(15,20,30,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:1000}
 .modal{background:var(--surface);color:var(--ink);border-radius:12px;padding:16px;max-width:360px;width:100%;display:flex;flex-direction:column;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
 .modal h3{margin:0;font-family:var(--f-display);font-size:1.2rem}
+.versao-app{display:block;margin-top:-10px;text-align:center;font-size:.72rem;color:var(--muted)}
+.versao-app[hidden]{display:none}
 .root-secao{margin:8px 0 -6px;font:700 .8rem var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .root-sub{margin:4px 0 0;font:700 1rem var(--f-body)}
 .cfg-form{display:grid;gap:12px}
