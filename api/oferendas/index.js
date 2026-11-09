@@ -2,7 +2,8 @@
 //   GET  /api/oferendas   { oferendas: [...], eu: { chave, nome } }
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
-//        admin:  salvar { id?, titulo, data, responsavelId, porMedium? (só ao criar) } · excluir { id }
+//        root:   abaSalvar { id?, nome } · abaExcluir { id }  (sub-abas)
+//        admin:  salvar { id?, titulo, data, responsavelId, abaId?, porMedium? (só ao criar) } · excluir { id }
 //                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? } · resumo { id, noResumo }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
@@ -18,7 +19,7 @@ import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido } from '../../shared/
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
-function resposta(oferendas, eu) {
+async function resposta(oferendas, eu) {
   const chave = chavePessoa(eu);
   // Bloqueada: só os itens em que a pessoa se comprometeu (para "Seus compromissos"), sem os outros doadores.
   const soMeus = (o) => ({
@@ -32,6 +33,7 @@ function resposta(oferendas, eu) {
       .filter((o) => o.status === 'publicado' || o.status === 'rascunho')
       .map((o) => (o.status === 'rascunho' ? soMeus(o) : o)),
     eu: { chave, nome: eu.nome },
+    abas: await db.rpc('oferenda_abas_listar'),
   };
 }
 
@@ -71,6 +73,13 @@ export default rota({
     if (!pode(eu, 'oferendas:gerenciar')) throw new HttpError(403, 'Só um admin pode alterar as oferendas.');
     let estado;
     switch (b.acao) {
+      case 'abaSalvar':
+      case 'abaExcluir':
+        if (!pode(eu, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root altera as sub-abas.');
+        if (b.acao === 'abaSalvar') await db.rpc('oferenda_aba_salvar', { id: b.id ? validarId(b.id, 'Sub-aba') : null, nome: texto(b.nome, 'o nome da sub-aba', 40) });
+        else await db.rpc('oferenda_aba_excluir', { id: validarId(b.id, 'Sub-aba') });
+        estado = await db.rpc('oferendas_estado');
+        break;
       case 'salvar': {
         // Responsável: uma pessoa da corrente (obrigatório).
         const resp = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável'));
@@ -78,7 +87,9 @@ export default rota({
         const porMedium = !b.id && b.porMedium === true;
         const grupos = porMedium && b.grupos !== undefined ? validarGrupos(b.grupos) : null;
         const antes = grupos ? new Set((await db.rpc('oferendas_estado')).map((o) => o.id)) : null;
-        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id, porMedium });
+        const abaId = b.abaId ? validarId(b.abaId, 'Sub-aba') : null;
+        if (abaId && !(await db.rpc('oferenda_abas_listar')).some((a) => a.id === abaId && !a.iemanja)) throw new HttpError(400, 'Sub-aba inválida.');
+        estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id, porMedium, abaId });
         // Uma linha por pessoa só dos grupos escolhidos (funções da corrente e/ou alunos).
         const nova = grupos && estado.find((o) => !antes.has(o.id));
         if (nova) estado = await db.rpc('oferenda_mediuns_atualizar', { id: nova.id, grupos });

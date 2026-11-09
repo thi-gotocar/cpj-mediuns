@@ -73,6 +73,8 @@ export const avisar = () => ouvinte();
 
 // ---------- leitura ----------
 export const visaoAtiva = () => estado.me?.papel === 'root' ? estado.visaoRoot : estado.me?.grupo || '';
+// Sub-aba Iemanjá: na visão CPJ/Alunos do root, vale o que a corrente vê.
+export const veIemanja = () => visaoAtiva() !== 'curimba' && !!(estado.me?.papel === 'root' && estado.visaoRoot !== 'root' ? estado.me.iemanjaPublica : estado.me?.iemanjaAba);
 export const pode = (perm) => {
   if (!estado.me) return false;
   if (estado.me.papel === 'root') {
@@ -208,7 +210,7 @@ export async function atualizarDoServidor() {
     }
     // Bloco "Pedir ervas" da aba Gira: mostra se o pedido ainda está aberto.
     if (estado.ervas !== null && prefs.tab === 'agenda') estado.ervas = await api('GET', '/ervas').catch(() => estado.ervas);
-    if (estado.iemanja !== null && prefs.tab === 'iemanja') estado.iemanja = await api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja);
+    if (estado.iemanja !== null && prefs.tab === 'oferendas') estado.iemanja = await api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja);
     avisar();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
 }

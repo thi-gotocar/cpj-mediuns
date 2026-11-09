@@ -1,12 +1,12 @@
 // Aba Iemanjá (rota: GET /api/oferendas?lista=iemanja · POST /api/oferendas { acao: 'iemanja', op, ... }).
-// Admin de cada evento: os roots e os responsáveis dos 5 grupos daquele evento.
+// Admin de cada evento: os roots e os responsáveis dos grupos daquele evento.
 
 import { db } from './db.js';
 import { HttpError, validarId, validarData } from './http.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 import { normalizarPerfil } from '../../shared/perfil.js';
-import { sortearIemanja, pctItens, nomeGrupoValido } from '../../shared/iemanja.js';
+import { sortearIemanja, pctItens, nomeGrupoValido, listasDoSorteio, LISTA_CURIMBA, NOME_EVENTO_PADRAO } from '../../shared/iemanja.js';
 
 const ehRoot = (eu) => pode(eu, 'usuarios:gerenciar');
 const chaveDe = (eu) => (eu.alunoId ? 'a:' + eu.alunoId : chavePessoa(eu));
@@ -22,7 +22,7 @@ function negarCurimba(eu) {
 function paraTela(ev, eu) {
   const admin = adminDe(eu, ev);
   const chave = chaveDe(eu);
-  return { ...ev, admin, fora: admin ? ev.fora : [], grupos: ev.grupos.map((g) => {
+  return { ...ev, admin, fora: admin ? ev.fora : [], listas: admin ? ev.listas : [], grupos: ev.grupos.map((g) => {
     const meu = g.membros.some((m) => m.chave === chave);
     const abre = admin || meu;
     return { ...g, meu, abre, pct: pctItens(g.itens), membros: abre ? g.membros : [], itens: abre ? g.itens : [] };
@@ -33,15 +33,22 @@ function paraTela(ev, eu) {
 async function candidatos() {
   const [pessoas, al] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('alunos_estado')]);
   const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
-  const daTurma = (n) => al.turmas.find((t) => new RegExp(`^turma\\s*0*${n}$`, 'i').test(t.nome.trim()))?.id;
-  const [t9, t10] = [daTurma(9), daTurma(10)];
   const aluno = (a) => ({ chave: 'a:' + a.id, nome: a.nome });
+  const daFuncao = (curimba) => pessoas.filter((p) => (p.funcao === 'curimba') === curimba)
+    .map((p) => ({ chave: 'p:' + p.id, nome: p.nome, pessoaId: p.id })).sort(porNome);
+  const idsTurmas = new Set(al.turmas.map((t) => t.id));
   return {
-    corrente: pessoas.map((p) => ({ chave: 'p:' + p.id, nome: p.nome, pessoaId: p.id })).sort(porNome),
-    turma09: t9 ? al.alunos.filter((a) => a.turmaId === t9).map(aluno).sort(porNome) : [],
-    turma10: t10 ? al.alunos.filter((a) => a.turmaId === t10).map(aluno).sort(porNome) : [],
-    outros: al.alunos.filter((a) => !t9 || a.turmaId !== t9).filter((a) => !t10 || a.turmaId !== t10).map(aluno).sort(porNome),
+    corrente: daFuncao(false),
+    curimba: daFuncao(true),
+    turmas: al.turmas.map((t) => ({ id: t.id, nome: t.nome, pessoas: al.alunos.filter((a) => a.turmaId === t.id).map(aluno).sort(porNome) })),
+    semTurma: al.alunos.filter((a) => !idsTurmas.has(a.turmaId)).map(aluno).sort(porNome),
   };
+}
+
+function nomeEvento(v) {
+  const nome = String(v ?? '').replace(/\s+/g, ' ').trim();
+  if (nome.length > 80) throw new HttpError(400, 'O nome do evento pode ter até 80 letras.');
+  return nome || NOME_EVENTO_PADRAO;
 }
 
 export async function respostaIemanja(eu, eventos = null) {
@@ -49,7 +56,10 @@ export async function respostaIemanja(eu, eventos = null) {
   const lista = eventos || await lerEventos();
   const visiveis = lista.filter((ev) => veEvento(eu, ev)).map((ev) => paraTela(ev, eu));
   const r = { eventos: visiveis, root: ehRoot(eu), eu: { chave: chaveDe(eu) }, publica: lista.some((ev) => ev.visivel) };
-  if (r.root || visiveis.some((ev) => ev.admin)) r.candidatos = await candidatos();
+  if (r.root || visiveis.some((ev) => ev.admin)) {
+    r.candidatos = await candidatos();
+    r.eventos = visiveis.map((ev) => ({ ...ev, listas: listasDoSorteio(ev.listas, r.candidatos.turmas) }));
+  }
   return r;
 }
 
@@ -73,7 +83,7 @@ export async function acaoIemanja(eu, b) {
 
   if (b.op === 'novo') {
     if (!ehRoot(eu)) throw new HttpError(403, 'Só o admin root cria um novo evento.');
-    return devolver(await db.rpc('iemanja_evento_novo', { data: validarData(String(b.data || '')) }));
+    return devolver(await db.rpc('iemanja_evento_novo', { data: validarData(String(b.data || '')), nome: nomeEvento(b.nome) }));
   }
 
   // Localiza o evento pelo id dele, de um grupo ou de um item.
@@ -88,6 +98,7 @@ export async function acaoIemanja(eu, b) {
   // Quem é do grupo assume itens; o resto é do admin do evento.
   if (b.op === 'assumir') {
     if (!item) throw new HttpError(404, 'Item não encontrado.');
+    if (item.entregue) throw new HttpError(409, 'Este item já foi entregue.');
     const dono = ev.grupos.find((g) => g.itens.some((i) => i.id === item.id));
     const chave = chaveDe(eu);
     if (!dono.membros.some((m) => m.chave === chave)) throw new HttpError(403, 'Só quem é do grupo assume este item.');
@@ -107,8 +118,22 @@ export async function acaoIemanja(eu, b) {
         // Só o root define os responsáveis.
         return { id: atual.id, nome, responsavelId: ehRoot(eu) ? (g.responsavelId ? validarId(g.responsavelId, 'Responsável') : null) : atual.responsavelId };
       }) : [];
-      return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, ...(b.data ? { data: validarData(String(b.data)) } : {}), grupos }));
+      return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, ...(b.nome !== undefined ? { nome: nomeEvento(b.nome) } : {}), ...(b.data ? { data: validarData(String(b.data)) } : {}), grupos }));
     }
+    case 'listas': {
+      if (ev.sorteado) throw new HttpError(409, 'Cancele o sorteio antes de mudar as listas.');
+      const c = await candidatos();
+      const validas = new Set([LISTA_CURIMBA, ...c.turmas.map((t) => t.id)]);
+      const listas = Array.isArray(b.listas) ? [...new Set(b.listas.map(String))] : [];
+      if (listas.some((k) => !validas.has(k))) throw new HttpError(400, 'Lista inválida.');
+      return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, listas }));
+    }
+    case 'grupoNovo':
+      return devolver(await db.rpc('iemanja_grupo_novo', { id: ev.id }));
+    case 'grupoExcluir':
+      if (!grupo) throw new HttpError(400, 'Grupo inválido.');
+      if (ev.grupos.length <= 1) throw new HttpError(409, 'O evento precisa de pelo menos um grupo.');
+      return devolver(await db.rpc('iemanja_grupo_excluir', { id: grupo.id }));
     case 'encerrar':
       return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, encerrar: true }));
     case 'fora': {
@@ -119,7 +144,7 @@ export async function acaoIemanja(eu, b) {
     case 'adicionar': {
       if (!grupo) throw new HttpError(400, 'Escolha o grupo.');
       const c = await candidatos();
-      const pessoa = [...c.corrente, ...c.turma09, ...c.turma10, ...c.outros].find((x) => x.chave === b.chave);
+      const pessoa = [...c.corrente, ...c.curimba, ...c.turmas.flatMap((t) => t.pessoas), ...c.semTurma].find((x) => x.chave === b.chave);
       if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada nos cadastros.');
       return devolver(await db.rpc('iemanja_membro', { grupoId: grupo.id, chave: pessoa.chave, nome: pessoa.nome, fixo: !ev.sorteado }));
     }
@@ -127,32 +152,42 @@ export async function acaoIemanja(eu, b) {
       if (!grupo) throw new HttpError(400, 'Grupo inválido.');
       return devolver(await db.rpc('iemanja_membro', { grupoId: grupo.id, chave: String(b.chave || ''), remover: true }));
     case 'item': {
-      if (!grupo) throw new HttpError(400, 'Grupo inválido.');
+      if (!item && !grupo) throw new HttpError(400, 'Grupo inválido.');
       const nome = String(b.nome ?? '').replace(/\s+/g, ' ').trim();
       if (!nome || nome.length > 80) throw new HttpError(400, 'Informe o item.');
-      return devolver(await db.rpc('iemanja_item_salvar', { grupoId: grupo.id, nome, quantidade: quantidade(b.quantidade, 1) }));
+      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, quantidade: quantidade(b.quantidade, 1), entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
+    }
+    case 'entregue':
+      if (!item) throw new HttpError(404, 'Item não encontrado.');
+      return devolver(await db.rpc('iemanja_item_entregue', { id: item.id, entregue: !!b.entregue }));
+    case 'assumirPor': {
+      if (!item) throw new HttpError(404, 'Item não encontrado.');
+      const membro = ev.grupos.find((g) => g.itens.some((i) => i.id === item.id)).membros.find((m) => m.chave === b.chave);
+      if (!membro) throw new HttpError(400, 'Só quem é do grupo assume este item.');
+      return devolver(await db.rpc('iemanja_assumir', { itemId: item.id, chave: membro.chave, nome: membro.nome, quantidade: quantidade(b.quantidade, 0) }));
     }
     case 'excluirItem':
       if (!item) throw new HttpError(404, 'Item não encontrado.');
       return devolver(await db.rpc('iemanja_item_excluir', { id: item.id }));
     case 'sortear': {
       if (ev.sorteado) throw new HttpError(409, 'O sorteio deste evento já foi feito.');
-      if (ev.grupos.some((g) => !g.nome)) throw new HttpError(400, 'Escolha o orixá ou a entidade dos 5 grupos antes de sortear.');
+      if (ev.grupos.some((g) => !g.nome)) throw new HttpError(400, 'Escolha o orixá ou a entidade de todos os grupos antes de sortear.');
       const [c, perfis] = await Promise.all([candidatos(), db.rpc('perfis_listar')]);
       const perfilDe = Object.fromEntries(perfis.map((x) => [x.pessoaId, normalizarPerfil(x.perfil)]));
       // O responsável fica no próprio grupo.
       const presos = new Set(ev.grupos.flatMap((g) => g.membros.map((m) => m.chave)));
       const fixosNovos = Object.fromEntries(ev.grupos.map((g) => {
-        const r = g.responsavelId && !presos.has('p:' + g.responsavelId) ? c.corrente.find((p) => p.pessoaId === g.responsavelId) : null;
+        const r = g.responsavelId && !presos.has('p:' + g.responsavelId) ? [...c.corrente, ...c.curimba].find((p) => p.pessoaId === g.responsavelId) : null;
         if (r) presos.add(r.chave);
         return [g.id, r ? [{ chave: r.chave, nome: r.nome, fixo: true }] : []];
       }));
       const fora = new Set(ev.fora);
       const entra = (p) => !fora.has(p.chave) && !presos.has(p.chave);
+      const listas = listasDoSorteio(ev.listas, c.turmas);
       const sorteados = sortearIemanja({
         grupos: ev.grupos.map((g) => ({ id: g.id, nome: g.nome, fixos: g.membros.length + fixosNovos[g.id].length })),
         corrente: c.corrente.filter(entra).map((p) => ({ ...p, perfil: perfilDe[p.pessoaId] })),
-        turmas: [c.turma09.filter(entra), c.turma10.filter(entra)],
+        turmas: [listas.includes(LISTA_CURIMBA) ? c.curimba : [], ...c.turmas.filter((t) => listas.includes(t.id)).map((t) => t.pessoas)].map((l) => l.filter(entra)),
       });
       return devolver(await db.rpc('iemanja_sorteio_gravar', { id: ev.id, grupos: ev.grupos.map((g) => ({ id: g.id, membros: [...fixosNovos[g.id], ...sorteados[g.id].map((p) => ({ ...p, fixo: false }))] })) }));
     }

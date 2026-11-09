@@ -1,19 +1,22 @@
-// Oferenda de Iemanjá: os nomes dos 5 grupos, o percentual de itens assumidos e o sorteio.
+// Oferenda de Iemanjá: os nomes dos grupos, as listas do sorteio, o percentual de itens assumidos e o sorteio.
 
 import { ORIXAS, linhaDaEntidade } from './regras.js';
 import { GUIAS } from './perfil.js';
+import { percentualDoado } from './oferendas.js';
 
-export const QTD_GRUPOS_IEMANJA = 5;
+export const NOME_EVENTO_PADRAO = 'Oferenda de Iemanjá';
+export const LISTA_CURIMBA = 'curimba';
 export const NOMES_ENTIDADES = GUIAS.map(([, nome]) => nome);
 export const nomeGrupoValido = (nome) => nome === '' || ORIXAS.includes(nome) || NOMES_ENTIDADES.includes(nome);
 
-// Quanto do que foi pedido já tem responsável (0 a 100); o que passa do pedido não conta.
-export function pctItens(itens) {
-  const total = (itens || []).reduce((s, i) => s + i.quantidade, 0);
-  if (!total) return 0;
-  const assumido = itens.reduce((s, i) => s + Math.min(i.quantidade, (i.doacoes || []).reduce((a, d) => a + d.quantidade, 0)), 0);
-  return Math.floor((assumido / total) * 100);
+// Além da corrente, quem entra no sorteio. Sem escolha salva: curimba, Turma 09 e Turma 10.
+export function listasDoSorteio(listas, turmas) {
+  if (!listas) return [LISTA_CURIMBA, ...turmas.filter((t) => /^turma\s*0*(9|10)$/i.test(t.nome.trim())).map((t) => t.id)];
+  const validas = new Set([LISTA_CURIMBA, ...turmas.map((t) => t.id)]);
+  return listas.filter((k) => validas.has(k));
 }
+
+export const pctItens = (itens) => percentualDoado({ itens });
 
 const casaOrixa = (nomeGrupo, orixa) => nomeGrupo === orixa;
 const casaGuia = (nomeGrupo, linha) => linhaDaEntidade(nomeGrupo) === linha;

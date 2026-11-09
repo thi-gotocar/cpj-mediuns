@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sortearIemanja, pctItens, nomeGrupoValido } from '../shared/iemanja.js';
+import { sortearIemanja, pctItens, nomeGrupoValido, listasDoSorteio } from '../shared/iemanja.js';
 
 const NOMES = ['Iemanjá', 'Oxum', 'Ogum', 'Caboclo', 'Exu'];
 const grupos = (fixos = 0) => NOMES.map((nome, i) => ({ id: 'g' + i, nome, fixos }));
@@ -40,6 +40,13 @@ test('iemanjá: quem já está fixo conta no tamanho do grupo', () => {
     turmas: [Array.from({ length: 7 }, (_, i) => ({ chave: 'a:' + i, nome: 'A' + i }))] });
   assert.equal(r.g0.length, 0, 'já tem mais que os outros');
   assert.deepEqual([r.g1.length, r.g2.length, r.g3.length, r.g4.length].sort(), [1, 2, 2, 2]);
+});
+
+test('iemanjá: listas do sorteio partem de curimba, Turma 09 e Turma 10 e respeitam a escolha salva', () => {
+  const turmas = [{ id: 't9', nome: 'Turma 09' }, { id: 't10', nome: 'turma 10' }, { id: 't11', nome: 'Turma 11' }];
+  assert.deepEqual(listasDoSorteio(null, turmas), ['curimba', 't9', 't10']);
+  assert.deepEqual(listasDoSorteio(['t11', 'apagada'], turmas), ['t11']);
+  assert.deepEqual(listasDoSorteio([], turmas), []);
 });
 
 test('iemanjá: percentual de itens com responsável e nomes aceitos', () => {

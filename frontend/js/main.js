@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot, veErvas } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot, veErvas, veIemanja } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
 import { ehAcessoGrupo, PIN_VALIDO } from '/shared/permissoes.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
@@ -11,7 +11,6 @@ import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
 import * as usuarios from './telas/usuarios.js';
 import * as ervas from './telas/ervas.js';
-import * as iemanja from './telas/iemanja.js';
 import * as oferendas from './telas/oferendas.js';
 import * as perfil from './telas/perfil.js';
 import * as eventos from './telas/eventos.js';
@@ -26,7 +25,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, agenda: gira, pessoas, hist: historico, ervas, iemanja, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
+const TELAS = { gira, agenda: gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -73,13 +72,11 @@ function render() {
     return;
   }
   const visao = visaoAtiva();
-  // Aba Iemanjá: na visão CPJ/Alunos do root, vale o que a corrente vê.
-  const iem = estado.me.papel === 'root' && estado.visaoRoot !== 'root' ? !!estado.me.iemanjaPublica : !!estado.me.iemanjaAba;
   // Abas que o perfil pode ver.
-  let VE = { usuarios: pode('usuarios:gerenciar'), ervas: veErvas(), iemanja: iem, oferendas: pode('oferendas:doar'),
+  let VE = { usuarios: pode('usuarios:gerenciar'), ervas: veErvas(), oferendas: pode('oferendas:doar') || veIemanja(),
     pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true, agenda: true };
-  if (visao === 'alunos') VE = { usuarios: false, ervas: false, iemanja: iem, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
-  if (visao === 'curimba') VE = { usuarios: false, ervas: false, iemanja: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, gira: true, agenda: false };
+  if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: veIemanja(), pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
+  if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, gira: true, agenda: false };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
@@ -168,7 +165,7 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'usuarios') { estado.usuarios = null; estado.senhasAberto = false; estado.senhaEdit = null; }
   if (b.dataset.tab === 'ervas') { estado.ervas = null; estado.ervasCompra = null; estado.ervasFechar = false; estado.ervasNova = null; estado.ervasHist = null; }
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
-  if (b.dataset.tab === 'oferendas') estado.oferendas = null;
+  if (b.dataset.tab === 'oferendas') { estado.oferendas = null; estado.iemanja = null; }
   if (b.dataset.tab === 'perfil') estado.perfil = null;
   // Curimba: busca de novo e fecha as janelas abertas.
   if (b.dataset.tab === 'curimba') { estado.curimba = null; if (estado.curUi) estado.curUi.confirmar = null; }

@@ -1,11 +1,12 @@
-// Tela "Oferendas": o admin monta a lista de itens; todos escolhem o que vão doar.
+// Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa } from '/shared/oferendas.js';
-import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar } from '../estado.js';
-import { esc, toast, baixar, hoje, dLong } from '../util.js';
+import { situacao, textoOferenda, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa } from '/shared/oferendas.js';
+import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva } from '../estado.js';
+import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
+import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar } from './oferendaComum.js';
+import * as iemanja from './iemanja.js';
 
-const U = () => estado.ofUi;
 const opcoesPessoas = (atual) => `<option value="">— escolha —</option>${pessoasOrd().map((p) => `<option value="${p.id}" ${p.id === atual ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}`;
 // "rascunho" aparece como Bloqueado (vermelho): a corrente não vê e os itens ficam ocultos.
 const SITUACAO = { rascunho: 'Bloqueado', aguardando: 'Aguardando publicação', publicado: 'Publicado', encerrado: 'Encerrado' };
@@ -20,90 +21,22 @@ document.addEventListener('toggle', (e) => {
     if (d.open) U().novoItem = id; else if (U().novoItem === id) U().novoItem = null;
   } else if (d.classList.contains('anteriores')) U().anteriores = d.open;
 }, true);
-const Dia = (s) => { const t = dLong(s); return t.charAt(0).toUpperCase() + t.slice(1); };
-
-function camposItem(i = {}) {
-  const porData = !!i.entrega;
-  return `<label class="field grow">Item<input type="text" name="nome" maxlength="80" required value="${esc(i.nome || '')}" placeholder="Ex.: Rosas brancas"></label>
-    <label class="field" style="flex:0 1 110px">Quantidade<input type="number" name="qtd" min="1" max="10000" step="1" required value="${i.quantidade || 1}" inputmode="numeric"></label>
-    <label class="field" style="flex:1 1 170px">Entrega<select name="modo" data-act="modoentrega"><option value="evento" ${porData ? '' : 'selected'}>No dia do evento</option><option value="data" ${porData ? 'selected' : ''}>Escolher data</option></select></label>
-    <label class="field" style="flex:1 1 150px" ${porData ? '' : 'hidden'}>Data da entrega<input type="date" name="entrega" value="${esc(i.entrega || '')}"></label>`;
+// Quem só tem a Iemanjá (alunos) não usa as listas de oferendas.
+const veLista = () => pode('oferendas:doar') && visaoAtiva() !== 'alunos';
+const souRoot = () => estado.me?.papel === 'root' && estado.visaoRoot === 'root';
+const ABA_IEMANJA = { id: 'iemanja', nome: 'Iemanjá', iemanja: true };
+function subabas() {
+  if (!veLista()) return veIemanja() ? [ABA_IEMANJA] : [];
+  return (estado.oferendas.abas || []).filter((a) => !a.iemanja || veIemanja());
 }
+const abaAtiva = () => { const l = subabas(); return l.find((a) => a.id === U().aba) || l[0]; };
+const daAba = (aba) => estado.oferendas.oferendas.filter((o) => o.abaId === aba?.id);
 
-// Admin: cada doador com − / + e excluir; e cadastrar a doação de alguém da corrente.
-function doadoresAdmin(i, s) {
-  const eu = estado.oferendas.eu;
-  let h = `<div class="of-doad-adm">`;
-  i.doacoes.forEach((d) => {
-    const conf = estado.confirm === 'od:' + i.id + ':' + d.chave;
-    h += `<div class="of-doador"><span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)}</span>
-      <button class="btn small" data-act="pormenos" data-item="${i.id}" data-chave="${esc(d.chave)}" aria-label="Menos para ${esc(d.nome)}">−</button>
-      <span class="n">${d.quantidade}</span>
-      <button class="btn small" data-act="pormais" data-item="${i.id}" data-chave="${esc(d.chave)}" ${s.falta ? '' : 'disabled'} aria-label="Mais para ${esc(d.nome)}">+</button>
-      ${conf ? `<button class="btn small danger" data-act="pordel" data-item="${i.id}" data-chave="${esc(d.chave)}">Confirmar</button>`
-        : `<button class="btn small" data-act="askdel" data-k="od:${i.id}:${esc(d.chave)}" aria-label="Excluir doação de ${esc(d.nome)}">✕</button>`}</div>`;
-  });
-  if (!i.doacoes.length) h += `<div class="muted of-sub">Ninguém se prontificou ainda.</div>`;
-  if (s.falta) {
-    const ja = new Set(i.doacoes.map((d) => d.chave));
-    // Qualquer pessoa cadastrada: a corrente (com a curimba) e os alunos.
-    const livres = pessoasOrd().filter((p) => !ja.has('p:' + p.id));
-    const alunosLivres = (estado.alunos?.alunos || []).filter((a) => !ja.has('a:' + a.id));
-    if (livres.length || alunosLivres.length) {
-      h += `<form class="of-por" data-form="porpessoa" data-item="${i.id}" autocomplete="off">
-        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>
-          ${livres.length ? `<optgroup label="Corrente">${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</optgroup>` : ''}
-          ${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}</select>
-        <input type="number" name="qtd" min="1" max="${s.falta}" value="1" inputmode="numeric" aria-label="Quantidade">
-        <button class="btn small primary" type="submit">Adicionar</button></form>`;
-    }
-  }
-  return h + `</div>`;
-}
-
-function linhaItem(of, i, admin) {
-  const s = situacao(i);
-  const eu = estado.oferendas.eu;
-  const minha = i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0;
-  const max = minha + s.falta;
-  if (admin && U().editarItem === i.id) {
-    return `<div class="of-item"><form class="row" data-form="itemed" data-id="${i.id}" autocomplete="off">${camposItem(i)}
-      <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelaritem">Cancelar</button></form></div>`;
-  }
-  const conf = estado.confirm === 'oi:' + i.id;
-  const libera = podeMarcarEntregue(i, of, hoje());
-  // Cada item começa recolhido numa linha: a cor da situação, o item, quem ficou responsável e,
-  // para o admin, "Ok, entregue" (liberado na data de entrega; pede confirmação numa janela).
-  // Tocar na linha mostra o resto e tocar de novo recolhe.
-  const aberto = (U().itensAbertos || []).includes(i.id);
-  const resp = i.doacoes.length ? i.doacoes.map((d) => esc(d.nome)).join(', ') : 'Ninguém ainda';
-  const ok = i.entregue ? '<span class="of-entregue">✓ Entregue</span>'
-    : admin ? `<button class="btn small of-ok" data-act="askentregue" data-id="${i.id}" ${libera ? '' : `disabled title="Libera em ${dataBR(dataEntrega(i, of))}"`}>Ok, entregue</button>` : '';
-  const cab = `<div class="of-top of-item-l"><button class="of-item-cab" data-act="dobraritem" data-id="${i.id}" aria-expanded="${aberto}">
-      <span class="dot ${s.completo ? 'ok' : 'pend'}" title="${s.completo ? 'Completo' : 'Faltam doadores'}"></span>
-      <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${i.doacoes.length ? '' : ' muted'}">${resp}</span></span>
-      <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>${ok}</div>`;
-  if (!aberto) return `<div class="of-item recolhido${s.completo ? ' completo' : ''}">${cab}</div>`;
-  const entregaTxt = `Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}`;
-  const doadores = i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === eu.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
-  let h = `<div class="of-item${s.completo ? ' completo' : ''}">${cab}
-    <div class="muted of-sub">${entregaTxt} · <b>${s.doado} de ${i.quantidade}</b>${s.completo ? '' : ` · faltam <b>${s.falta}</b>`}</div>
-    ${admin ? doadoresAdmin(i, s) : doadores}`;
-  if (!i.entregue && of.status === 'publicado' && (max > 0 || minha > 0) && !travadaPara(of, eu.chave)) {
-    h += `<div class="of-doar"><span class="muted">Vou doar:</span>
-      <button class="btn small" data-act="ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>
-      <span class="n">${minha}</span>
-      <button class="btn small ${minha ? '' : 'primary'}" data-act="ofmais" data-id="${i.id}" ${minha >= max ? 'disabled' : ''} aria-label="Mais ${esc(i.nome)}">+</button></div>`;
-  }
-  if (admin) {
-    // "Ok, entregue" fica na linha do item; aqui só o desfazer.
-    h += `<div class="row of-adm">
-      ${i.entregue ? `<button class="btn small" data-act="entregue" data-id="${i.id}" data-v="0">Desfazer entregue</button>` : ''}
-      <button class="btn small" data-act="editaritem" data-id="${i.id}">Editar</button>
-      ${conf ? `<button class="btn small danger" data-act="delitem" data-id="${i.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="oi:${i.id}">Excluir</button>`}
-      ${!libera && !i.entregue ? `<span class="muted" style="font-size:.82rem">“Ok, entregue” libera em ${dataBR(dataEntrega(i, of))}</span>` : ''}</div>`;
-  }
-  return h + `</div>`;
+// Doação por outra pessoa: qualquer cadastrado, da corrente (com a curimba) ou aluno.
+function opcoesDoador(ja) {
+  const livres = pessoasOrd().filter((p) => !ja.has('p:' + p.id));
+  const alunosLivres = (estado.alunos?.alunos || []).filter((a) => !ja.has('a:' + a.id));
+  return `${livres.length ? `<optgroup label="Corrente">${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</optgroup>` : ''}${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}`;
 }
 
 // Oferenda com uma linha por médium: a situação de cada um. O admin escolhe; a corrente só vê.
@@ -185,16 +118,18 @@ function cardPorPessoa() {
 // Topo da aba: tudo o que a pessoa se comprometeu a levar, por oferenda (data do evento, nome e o que levar).
 // Tocar no nome abre a oferenda lá embaixo.
 function cardMeusCompromissos() {
-  const eu = estado.oferendas.eu || {};
-  if (!eu.chave) return '';
-  const grupos = compromissosDe(estado.oferendas.oferendas, eu.chave, hoje());
-  let h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${grupos.length ? `<span class="count">${grupos.length}</span>` : ''}</div>`;
-  if (!grupos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
-  return h + grupos.map(({ of, itens, linha }) => `<div class="of-meus-g">
+  const eu = veLista() ? estado.oferendas.eu || {} : {};
+  const iem = veIemanja() ? iemanja.compromisso() : null;
+  if (!eu.chave && !iem) return '';
+  const grupos = eu.chave ? compromissosDe(estado.oferendas.oferendas, eu.chave, hoje()) : [];
+  const blocos = [...grupos.map(({ of, itens, linha }) => ({ data: of.data, html: `<div class="of-meus-g">
       <span class="of-meus-data"><span class="eyebrow">${dataBR(of.data)}</span><span class="ent">${esc(Dia(of.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="vercomp" data-id="${of.id}">${esc(of.titulo)} ›</button>
       ${linha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('') + '</div>';
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>` })), ...(iem ? [iem] : [])].sort((a, b) => a.data.localeCompare(b.data));
+  const h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${blocos.length ? `<span class="count">${blocos.length}</span>` : ''}</div>`;
+  if (!blocos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
+  return h + blocos.map((b) => b.html).join('') + '</div>';
 }
 
 // Percentual das doações e, quando completa, até quando dá para alterar.
@@ -269,6 +204,7 @@ function cardOferenda(of, admin) {
       <label class="field grow">Título<input type="text" name="titulo" maxlength="120" required value="${esc(of.titulo)}"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" name="data" required value="${of.data}"></label>
       <label class="field grow">Responsável<select name="resp" required>${opcoesPessoas(of.responsavelId)}</select></label>
+      <label class="field grow">Sub-aba<select name="aba">${estado.oferendas.abas.filter((a) => !a.iemanja).map((a) => `<option value="${a.id}" ${a.id === of.abaId ? 'selected' : ''}>${esc(a.nome)}</option>`).join('')}</select></label>
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelarof">Cancelar</button></form>`;
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
@@ -298,59 +234,38 @@ function cardOferenda(of, admin) {
   // No fim da oferenda aberta, "Recolher" (para não precisar voltar ao cabeçalho numa lista longa).
   const recolher = u.editar !== of.id ? `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="true">▴ Recolher</button>` : '';
   if (bloqueada) return h + recolher + `</div>`;
-  // Em aberto primeiro; os completos (verdes) no fim.
-  const ordem = [...of.itens].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
   if (of.porMedium) h += blocoMediuns(of, admin);
   // Cadastrar item fica no topo da lista (a oferenda com uma linha por pessoa não tem itens novos).
   if (admin && !of.porMedium) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
-  h += `${of.itens.length ? '<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>' : ''}
-    <div class="of-itens">${ordem.map((i) => linhaItem(of, i, admin)).join('')}</div>`;
+  const eu = estado.oferendas.eu;
+  h += listaItens(of.itens, { p: '', eu, admin, ref: of, podeDoar: of.status === 'publicado' && !travadaPara(of, eu.chave), opcoesDoador });
   return h + rodapeOferenda(of, admin) + recolher + `</div>`;
 }
 
 // Compartilhar, editar e excluir (aparece também com a oferenda minimizada).
 function rodapeOferenda(of, admin) {
+  if (!admin) return '';   // compartilhar, editar e excluir: só admin
   const u = U();
-  let h = '';
-  if (!admin) return h;   // compartilhar, editar e excluir: só admin
-  const aberto = u.compartilhar === of.id;
   // Os 4 botões lado a lado, do mesmo tamanho.
-  h += `<div class="of-rod"><button class="btn ${aberto ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${aberto}">Compartilhar lista</button>
-    <button class="btn" data-act="imgofdireto" data-id="${of.id}">Compartilhar imagem</button>
-    ${admin && u.editar !== of.id ? `<button class="btn" data-act="editarof" data-id="${of.id}">Editar</button>
-      ${estado.confirm === 'of:' + of.id ? `<button class="btn danger" data-act="delof" data-id="${of.id}">Confirmar exclusão</button>` : `<button class="btn" data-act="askdel" data-k="of:${of.id}">Excluir</button>`}` : ''}</div>`;
-  if (aberto) {
-    const txt = textoOferenda(of);
-    const img = u.img && u.img.id === of.id && u.img.chave === txt ? u.img : null;
-    h += `<div class="grp exp"><textarea id="of-txt-${of.id}" readonly aria-label="Lista para compartilhar">${esc(txt)}</textarea>
-      <div class="row"><button class="btn primary" data-act="copiarof" data-id="${of.id}">Copiar</button>
-        <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Abrir no WhatsApp</a>
-        <button class="btn" data-act="imgof" data-id="${of.id}">${img ? 'Atualizar imagem' : 'Gerar imagem'}</button></div>
-      ${img ? `<img class="prev" src="${img.url}" alt="Imagem da lista da oferenda">
-        <div class="row">${podeCompartilhar(img) ? `<button class="btn primary" data-act="shareimgof">Compartilhar imagem</button>` : ''}<button class="btn" data-act="saveimgof">Salvar imagem</button></div>` : ''}</div>`;
-  }
-  return h;
+  return `<div class="of-rod">${botoesCompartilhar(of)}
+    ${u.editar !== of.id ? `<button class="btn" data-act="editarof" data-id="${of.id}">Editar</button>
+      ${estado.confirm === 'of:' + of.id ? `<button class="btn danger" data-act="delof" data-id="${of.id}">Confirmar exclusão</button>` : `<button class="btn" data-act="askdel" data-k="of:${of.id}">Excluir</button>`}` : ''}</div>${painelCompartilhar(of)}`;
 }
 
-function podeCompartilhar(img) {
-  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([img.blob], img.nome, { type: 'image/png' })] })); } catch { return false; }
-}
-
-export function render() {
-  if (estado.oferendas === null) { carregarOferendas(); return `<div class="loading">Carregando oferendas…</div>`; }
+function listaDaAba(aba) {
   // Alunos (para "doação por alguém"): só quem administra e pode ver os alunos.
   if (pode('oferendas:gerenciar') && pode('alunos:ver') && estado.alunos === null) { estado.alunos = undefined; carregarAlunos(); }
   const admin = pode('oferendas:gerenciar');
-  const lista = estado.oferendas.oferendas;
+  const lista = daAba(aba);
   const hj = hoje();
   const proximas = lista.filter((o) => o.data >= hj);
   const anteriores = lista.filter((o) => o.data < hj).reverse();
-  let h = `<section class="panel">${cardMeusCompromissos()}${cardPorPessoa()}`;
+  let h = '';
   if (admin) {
-    // Começa minimizado; abre ao tocar no título (aberto já se ainda não houver nenhuma oferenda).
+    // Começa minimizado; abre ao tocar no título (aberto já se a sub-aba ainda não tiver nenhuma oferenda).
     const novaAberta = U().novaAberta ?? !lista.length;
     h += `<div class="card adm"><button class="grp-h dobra" data-act="dobrarnova" aria-expanded="${novaAberta}"><h2>＋ Nova oferenda</h2><span class="count"><span class="seta" aria-hidden="true">${novaAberta ? '▾' : '▸'}</span></span></button>`;
     if (novaAberta) h += `<form id="f-of" class="row" autocomplete="off">
@@ -363,14 +278,42 @@ export function render() {
       <button class="btn primary" type="submit">Criar</button></form>`;
     h += `</div>`;
   }
-  if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda ainda. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação no momento. Quando o admin publicar, ela aparece aqui.'}</p></div></section>`;
+  if (!lista.length) return h + `<div class="card empty"><p class="muted">${admin ? 'Nenhuma oferenda nesta sub-aba. Crie a primeira acima.' : 'Nenhuma oferenda aberta para doação nesta sub-aba.'}</p></div>`;
   h += `<div class="of-sec"><h2><span aria-hidden="true">🕯️</span> Próximas oferendas</h2><span class="of-sec-n">${proximas.length}</span></div>`;
   h += proximas.map((o) => cardOferenda(o, admin)).join('');
   if (!proximas.length) h += `<div class="card empty"><p class="muted">Nenhuma oferenda marcada para os próximos dias.</p></div>`;
   if (anteriores.length) {
     h += `<details class="anteriores"${U().anteriores ? ' open' : ''}><summary>Oferendas anteriores (${anteriores.length})</summary>${anteriores.map((o) => cardOferenda(o, admin)).join('')}</details>`;
   }
-  return h + janelaEntregue() + `</section>`;
+  return h;
+}
+
+// Sub-abas; o + e Renomear/Excluir são só do root.
+function barraAbas(aba) {
+  const l = subabas();
+  const root = souRoot() && veLista();
+  if (l.length < 2 && !root) return '';
+  return `<div class="subabas" role="tablist" aria-label="Sub-abas de oferendas">${l.map((a) => `<button class="subaba" role="tab" data-act="ofaba" data-id="${a.id}" aria-selected="${a.id === aba.id}">${esc(a.nome)}</button>`).join('')}${root ? '<button class="subaba mais" data-act="ofabanova" aria-label="Criar sub-aba" title="Criar sub-aba">＋</button>' : ''}</div>
+    ${root && !aba.iemanja ? '<div class="subaba-adm"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button><button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button></div>' : ''}`;
+}
+
+function janelaAba() {
+  const j = U().abaJanela;
+  if (!j) return '';
+  const rodape = (bt, act, cor) => `<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="ofabajanelanao">Voltar</button><button class="btn ${cor}" data-act="${act}">${bt}</button></div>`;
+  if (j.t === 'excluir') return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="aba-t"><div class="modal"><h3 id="aba-t">Excluir esta sub-aba?</h3><p style="margin:0"><b>${esc(j.nome)}</b> sai da aba Oferendas.</p>${rodape('Excluir', 'ofabaconfirma', 'danger')}</div></div>`;
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="aba-t"><div class="modal"><h3 id="aba-t">${j.t === 'nova' ? 'Nova sub-aba' : 'Renomear sub-aba'}</h3><label class="field">Nome<input type="text" id="ofaba-nome" maxlength="40" value="${esc(j.nome)}"></label>${rodape('Salvar', 'ofabasalvar', 'primary')}</div></div>`;
+}
+
+export function render() {
+  const carregandoLista = veLista() && estado.oferendas === null;
+  const carregandoIem = veIemanja() && estado.iemanja === null;
+  if (carregandoLista) carregarOferendas();
+  if (carregandoIem) carregarIemanja();
+  if (carregandoLista || carregandoIem) return `<div class="loading">Carregando oferendas…</div>`;
+  const aba = abaAtiva();
+  if (!aba) return `<section class="panel"><div class="card empty"><p class="muted">Nenhuma oferenda disponível.</p></div></section>`;
+  return `<section class="panel">${cardMeusCompromissos()}${veLista() ? cardPorPessoa() : ''}${barraAbas(aba)}${aba.iemanja ? iemanja.conteudo() : listaDaAba(aba)}${janelaEntregue()}${janelaAba()}</section>`;
 }
 
 // Janela "Confirmar entrega" do "Ok, entregue" da linha do item.
@@ -386,18 +329,50 @@ function janelaEntregue() {
 }
 
 const achar = (id) => {
-  for (const of of estado.oferendas.oferendas) {
+  for (const of of estado.oferendas?.oferendas || []) {
     if (of.id === id) return { of };
     const i = of.itens.find((x) => x.id === id);
     if (i) return { of, item: i };
   }
-  return {};
+  // Grupo da Iemanjá, para compartilhar com as mesmas ações.
+  const of = iemanja.comoOferenda(id);
+  return of ? { of } : {};
 };
 
 export const cliques = {
+  ...iemanja.cliques,
+  iemver(el) { U().aba = subabas().find((a) => a.iemanja)?.id; iemanja.cliques.iemver(el); },
+  ofaba(el) { U().aba = el.dataset.id; U().novaAberta = undefined; avisar(); },
+  ofabanova() { U().abaJanela = { t: 'nova', nome: '' }; avisar(); },
+  ofabaeditar() { const a = abaAtiva(); U().abaJanela = { t: 'renomear', id: a.id, nome: a.nome }; avisar(); },
+  ofabaexcluir() {
+    const a = abaAtiva();
+    if (daAba(a).length) { toast('Mova ou exclua as oferendas desta sub-aba antes.'); return; }
+    U().abaJanela = { t: 'excluir', id: a.id, nome: a.nome }; avisar();
+  },
+  ofabajanelanao() { U().abaJanela = null; avisar(); },
+  async ofabasalvar() {
+    const j = U().abaJanela;
+    const nome = document.getElementById('ofaba-nome').value.trim();
+    if (!nome) { toast('Escreva o nome da sub-aba.'); return; }
+    const antes = new Set(estado.oferendas.abas.map((a) => a.id));
+    if (await acaoOferendas('abaSalvar', { id: j.id, nome })) {
+      U().abaJanela = null;
+      const nova = estado.oferendas.abas.find((a) => !antes.has(a.id));
+      if (nova) U().aba = nova.id;
+      toast(j.id ? 'Sub-aba renomeada.' : 'Sub-aba criada.');
+      avisar();
+    }
+  },
+  async ofabaconfirma() {
+    const { id } = U().abaJanela;
+    U().abaJanela = null;
+    if (await acaoOferendas('abaExcluir', { id })) toast('Sub-aba excluída.');
+    avisar();
+  },
   // Ao abrir, recarrega as turmas (uma turma nova no cadastro já aparece nos grupos).
   dobrarnova() {
-    U().novaAberta = !(U().novaAberta ?? !estado.oferendas.oferendas.length); avisar();
+    U().novaAberta = !(U().novaAberta ?? !daAba(abaAtiva()).length); avisar();
     if (U().novaAberta && pode('alunos:ver')) carregarAlunos();
   },
   // Item da oferenda: abre (mostra entrega, doadores, Vou doar e os botões do admin) e recolhe.
@@ -443,6 +418,7 @@ export const cliques = {
   // Seus compromissos → abre a oferenda e rola até ela.
   vercomp(el) {
     const id = el.dataset.id;
+    U().aba = achar(id).of?.abaId;
     U().abertas = [...new Set([...(U().abertas || []), id])];
     avisar();
     setTimeout(() => document.getElementById('of-' + id)?.scrollIntoView({ block: 'start' }), 0);
@@ -526,6 +502,7 @@ async function porAlguem(el, delta) {
 }
 
 export const mudancas = {
+  ...iemanja.mudancas,
   // "Exibir no resumo": a oferenda por pessoa entra (ou sai) da tabela do admin.
   // "Visível para todos": ligado publica (a corrente vê e doa); desligado, só os admins veem.
   async ofvisivel(t) {
@@ -552,6 +529,7 @@ export const mudancas = {
 
 // Formulários (criar oferenda, editar, adicionar/editar item).
 export async function enviar(form) {
+  if (form.dataset.form?.startsWith('iem')) return iemanja.enviar(form);
   const v = (n) => form.elements[n]?.value ?? '';
   if (form.id === 'f-of') {
     const titulo = document.getElementById('of-titulo').value, data = document.getElementById('of-data').value;
@@ -561,7 +539,7 @@ export async function enviar(form) {
     if (!data) { toast('Escolha a data.'); return; }
     if (!responsavelId) { toast('Escolha o responsável.'); return; }
     if (porMedium && !grupos.length) { toast('Escolha pelo menos um grupo (corrente ou alunos).'); return; }
-    if (await acaoOferendas('salvar', { titulo, data, responsavelId, porMedium, ...(porMedium ? { grupos } : {}) })) {
+    if (await acaoOferendas('salvar', { titulo, data, responsavelId, abaId: abaAtiva().id, porMedium, ...(porMedium ? { grupos } : {}) })) {
       U().novaPorMedium = false; U().novaGrupos = null;
       toast(porMedium ? 'Oferenda criada com uma linha para cada pessoa. Toque em Publicar para a corrente ver.' : 'Oferenda criada. Adicione os itens e toque em Publicar para a corrente ver.');
       // A oferenda recém-criada já vem aberta (as outras continuam recolhidas).
@@ -572,7 +550,7 @@ export async function enviar(form) {
   }
   if (form.dataset.form === 'ofed') {
     if (!v('resp')) { toast('Escolha o responsável.'); return; }
-    if (await acaoOferendas('salvar', { id: form.dataset.id, titulo: v('titulo'), data: v('data'), responsavelId: v('resp') })) { U().editar = null; toast('Oferenda salva.'); avisar(); }
+    if (await acaoOferendas('salvar', { id: form.dataset.id, titulo: v('titulo'), data: v('data'), responsavelId: v('resp'), abaId: v('aba') })) { U().editar = null; toast('Oferenda salva.'); avisar(); }
     return;
   }
   // Pessoa da corrente (id) ou aluno ('a:' + id).
