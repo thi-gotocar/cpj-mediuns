@@ -67,6 +67,9 @@ export function validarData(s) {
   return s;
 }
 
+// Data de hoje no horário de Brasília (AAAA-MM-DD).
+export const hojeBR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function validarId(s, oque = 'Identificador') {
   if (typeof s !== 'string' || !UUID.test(s)) throw new HttpError(400, oque + ' inválido.');

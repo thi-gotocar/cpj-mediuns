@@ -1,7 +1,7 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
 import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, opcoesGira, nomeGira, nomeEntidadeGira, apelidoEntidade, LINHA_LABEL, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar, carregarStPerfis } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, pessoasComSaidas, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar, carregarStPerfis } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -269,13 +269,14 @@ export function render() {
   let h = `<section class="panel">`;
   if (!pode('historico:ver')) return h + '</section>';
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
-  const ps = pessoasOrd().filter(contaNaPresenca);   // curimba fica fora da presença
+  const ps = pessoasComSaidas().filter(contaNaPresenca);   // curimba fica fora da presença
   h += cardEstatisticas(gs, ps);
   h += cardEventos(gs);
   h += blocoGirasSalvas(gs, ps);
 
-  const meds = ps.filter(recebe).sort(ordRecebe);
-  const cams = ps.filter(ehCambone);
+  const ativas = ps.filter((p) => !p.saida);
+  const meds = ativas.filter(recebe).sort(ordRecebe);
+  const cams = ativas.filter(ehCambone);
   if (meds.length && cams.length && gs.some((g) => (g.pares || []).length)) {
     const cnt = {};
     gs.forEach((g) => (g.pares || []).forEach((p) => { const k = p.m + '|' + p.c; cnt[k] = (cnt[k] || 0) + 1; }));

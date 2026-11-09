@@ -171,7 +171,8 @@ export function funcaoNaGira(p, g) {
 
 // Lista de pessoas com a função que cada uma exerce nesta gira.
 // Entrada na corrente: antes dessa data a pessoa não conta na gira (nem presença, nem sorteio, nem limpeza).
-export const naCorrenteEm = (p, data) => !p?.entrada || !data || p.entrada <= data;
+// Saída: da data em diante também não; as giras anteriores continuam com ela.
+export const naCorrenteEm = (p, data) => !data || ((!p?.entrada || p.entrada <= data) && (!p?.saida || data < p.saida));
 export const daGira = (pessoas, g) => pessoas.filter((p) => naCorrenteEm(p, g.data));
 // Quem entra pelo acesso da corrente declara a própria ausência: só em gira já criada e em aberto,
 // estando Pendente, até o dia anterior ao evento (hoje = 'AAAA-MM-DD'), e enquanto ninguém marcou

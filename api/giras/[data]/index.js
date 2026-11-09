@@ -14,15 +14,12 @@
 //                            { acao: 'escala', entidade, orixa, papeis, pares, passes }  Histórico → Cadastrar escala (só o root): grava as duplas
 //                              numa gira que já existe, sem mexer na presença nem nos atendidos (sem gira na data, recusa) → { gira, mensagem }
 // DELETE /api/giras/:data
-import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA } from '../../_lib/http.js';
+import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA, hojeBR } from '../../_lib/http.js';
 import { exigir } from '../../_lib/sessao.js';
 import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
 import { db } from '../../_lib/db.js';
 import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
-
-// Data de hoje no horário de Brasília (AAAA-MM-DD).
-const hojeBR = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -268,7 +265,8 @@ export default rota({
       return { gira: await db.rpc('gira_recado', { data, recado }), mensagem: recado ? 'Recado salvo: todos veem no evento.' : 'Recado retirado.' };
     }
     if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
-    const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
+    // Todas: uma gira antiga pode ter quem já saiu da corrente (as regras filtram pela data).
+    const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar', { todas: true }), db.rpc('gira_obter', { data })]);
     if (acao === 'reiniciar') {
       if (atual?.encerrada) throw new HttpError(409, 'A gira está encerrada. Reabra antes de reiniciar.');
       // Volta com a próxima turma da limpeza do rodízio (como uma gira nova).

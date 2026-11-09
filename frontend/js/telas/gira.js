@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -214,7 +214,7 @@ export function render() {
 function renderGira() {
   const g = giraAtual();
   // Curimba fica fora da presença; quem entrou na corrente depois desta data também.
-  const ps = pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
+  const ps = pessoasComSaidas().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
   const admin = pode('giras:editar');
   const encerrada = !!g.encerrada;
   // Gira encerrada não muda até ser reaberta.
@@ -489,7 +489,7 @@ async function prepararImagemEvento(g, ps) {
   try {
     const blob = await gerarImagemEvento(evento);
     const atual = giraAtual();
-    const pessoasAtuais = pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, atual.data));
+    const pessoasAtuais = pessoasComSaidas().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, atual.data));
     if (chaveImagemEvento(atual, pessoasAtuais) !== key) return;
     if (estado.eventoImg) URL.revokeObjectURL(estado.eventoImg.url);
     estado.eventoImg = { url: URL.createObjectURL(blob), blob, key, nome: `evento-${g.data}.png` };
@@ -716,7 +716,7 @@ export const cliques = {
   eventoimagem() {
     const g = giraAtual();
     if (!g.evento || g.encerrada) return;
-    const ps = pessoasOrd().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
+    const ps = pessoasComSaidas().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
     if (!imagemEventoPronta(g, ps)) {
       estado.eventoImgErro = null;
       prepararImagemEvento(g, ps);

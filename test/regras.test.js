@@ -1,7 +1,16 @@
 // Testes das regras puras (sem banco).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium, opcoesGira, apelidoEntidade, nomeEntidadeGira } from '../shared/regras.js';
+import { linhaDaEntidade, funcaoNaGira, pessoasDaGira, sortear, paresPorMedium, opcoesGira, apelidoEntidade, nomeEntidadeGira, naCorrenteEm } from '../shared/regras.js';
+
+test('saída da corrente: conta nas giras anteriores e não da data em diante', () => {
+  const p = { entrada: '2025-01-10', saida: '2026-06-01' };
+  assert.equal(naCorrenteEm(p, '2025-01-09'), false, 'antes da entrada');
+  assert.equal(naCorrenteEm(p, '2026-05-31'), true, 'antes da saída');
+  assert.equal(naCorrenteEm(p, '2026-06-01'), false, 'no dia da saída');
+  assert.equal(naCorrenteEm(p, '2026-06-02'), false, 'depois da saída');
+  assert.equal(naCorrenteEm({ saida: null, entrada: null }, '2020-01-01'), true);
+});
 import { PERFIS_PADRAO, PERMISSOES_ROOT, permissoesDe, grupoAcesso } from '../shared/permissoes.js';
 
 test('palavras-passe de acesso reconhecem CPJ, Alunos e Curimba', () => {

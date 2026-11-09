@@ -86,7 +86,9 @@ export const pode = (perm) => {
 };
 // Aba Oferendas: admins sempre; as pessoas, se houver sub-aba visível ou a Iemanjá.
 export const veOferendas = () => veIemanja() || (pode('oferendas:doar') && visaoAtiva() !== 'alunos' && (pode('oferendas:gerenciar') || !!(estado.oferendas?.publica ?? estado.me?.oferendasPublica)));
-export const pessoasOrd = () => ordenarPessoas(estado.pessoas);
+export const pessoasOrd = () => ordenarPessoas(estado.pessoas.filter((p) => !p.saida));
+// Inclui quem já saiu: só para giras e estatísticas, sempre filtrando pela data da gira (naCorrenteEm).
+export const pessoasComSaidas = () => ordenarPessoas(estado.pessoas);
 export const nome = (id) => estado.pessoas.find((p) => p.id === id)?.nome || '(removido)';
 export const girasLista = () => Object.values(estado.giras);
 export const giraAtual = () => estado.giras[prefs.data] || giraVazia(prefs.data);
@@ -366,7 +368,7 @@ export async function excluirGira(data) {
 
 // ---------- pessoas ----------
 export async function adicionarPessoas(texto, funcao) {
-  const r = await api('POST', '/pessoas', { nome: texto, funcao });
+  const r = await api('POST', '/pessoas', { nome: texto, funcao, entradaHoje: true });
   estado.pessoas = r.pessoas;
   avisar();
   return r.criadas;
@@ -415,8 +417,9 @@ export async function removerLicenca(id) {
 export async function excluirPessoa(id) {
   try {
     await api('DELETE', '/pessoas/' + id);
-    estado.pessoas = estado.pessoas.filter((p) => p.id !== id);
-    definirGiras(await api('GET', '/giras'));
+    const [pessoas, giras] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras')]);
+    estado.pessoas = pessoas;
+    definirGiras(giras);
   } catch (e) { toast(e.message); }
   avisar();
 }
@@ -576,7 +579,7 @@ export function montarBackup() {
     app: 'sort-mediuns',
     versao: 2,
     exportado: new Date().toISOString(),
-    pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [], limpeza: p.limpeza || null, entrada: p.entrada || null }])),
+    pessoas: Object.fromEntries(estado.pessoas.map((p) => [p.id, { nome: p.nome, funcao: p.funcao, experiente: !!p.experiente, linhas: p.linhas || [], limpeza: p.limpeza || null, entrada: p.entrada || null, saida: p.saida || null }])),
     giras: Object.fromEntries(girasLista().map((g) => [g.data, { data: g.data, entidade: g.entidade, entidadeNome: g.entidadeNome || '', encerrada: !!g.encerrada, atendimentos: g.atendimentos || null, limpeza: g.limpeza || null, orixa: g.orixa || '', pendentePadrao: !!g.pendentePadrao, papeis: g.papeis || {}, presenca: g.presenca, pares: g.pares, passes: g.passes }])),
   };
 }

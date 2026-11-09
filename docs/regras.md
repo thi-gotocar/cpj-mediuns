@@ -12,6 +12,9 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Aba Pessoas: os blocos de Extra e Passe se chamam **Médiuns At. Extra** e **Médiuns de Passe**; nos quadradinhos da Corrente CPJ ficam os nomes curtos (At. Extra, Passe).
 - Aba Pessoas, logo depois da Corrente: **Oferendas pendentes** (moldura ADMIN, quem vê o perfil de todos), agrupadas pela função cadastrada.
 - Aba Pessoas: tudo só muda em **Editar** (nome, função, turma, + médium de passe, entidades) e grava no **Salvar**; Excluir abre janela de confirmação.
+- **Excluir pessoa ou aluno guarda a saída, não apaga o passado.** Some das listas, do login e do que ainda vai acontecer (giras em aberto, oferendas não encerradas com data de hoje em diante). Giras encerradas e oferendas passadas ou encerradas continuam com a pessoa. Perfil, foto, Anamnese e senha são apagados. Cadastrar de novo o mesmo nome faz a pessoa voltar com o mesmo registro.
+- Quem é cadastrado pela tela entra com **data de entrada = hoje** e não conta em giras anteriores (o root pode ajustar a data). Restaurar backup mantém as datas do arquivo.
+- Mexer em licença que alcança gira já encerrada pede confirmação, porque muda a presença mostrada nela.
 - Bloco Alunos: cada turma tem **Editar** ao lado do nome (quem edita os alunos) para renomear; o nome não repete. Oferendas por turma guardam a turma, não o nome, e continuam valendo.
 - Bloco Alunos: **Remover** uma turma pede confirmação; os alunos dela são mantidos e passam para **Sem turma**.
 - Login por grupo: `cpj` procura nomes na corrente; `alunos` procura no cadastro de alunos, limita a sessão ao registro escolhido e libera somente a aba Geral com os eventos; `curimba` procura em Alunos de curimba e libera só a aba Geral, com eventos (sem avisos) e presença individual nas aulas. A aba Curimba administrativa não fica visível nesses acessos.

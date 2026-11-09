@@ -35,7 +35,7 @@ export default rota({
     for (const [funcao, nomes] of Object.entries(porFuncao)) {
       criadas += (await db.rpc('pessoas_criar', { nomes, funcao })).criadas;
     }
-    const atuais = await db.rpc('pessoas_listar');
+    const atuais = await db.rpc('pessoas_listar', { todas: true });
     const porNome = new Map(atuais.map((p) => [p.nome.trim().toLowerCase(), p]));
     const novoId = {};
     for (const [velho, p] of pessoasArq) {
@@ -49,6 +49,10 @@ export default rota({
       if (/^\d{4}-\d{2}-\d{2}$/.test(String(p.entrada || '')) && !atual.entrada) {
         await db.rpc('pessoas_atualizar', { id: atual.id, entrada: p.entrada });
         atual.entrada = p.entrada;
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(p.saida || '')) && !atual.saida) {
+        await db.rpc('pessoas_atualizar', { id: atual.id, saida: p.saida });
+        atual.saida = p.saida;
       }
       if ([1, 2, 3, 4, 5, 6, 7].includes(p.limpeza) && !atual.limpeza) {
         await db.rpc('pessoas_atualizar', { id: atual.id, limpeza: p.limpeza });

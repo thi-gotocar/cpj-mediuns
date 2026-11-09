@@ -1,5 +1,5 @@
 // GET  /api/pessoas            lista a corrente
-// POST /api/pessoas            { nomes: [..] | nome: "A, B; C", funcao }
+// POST /api/pessoas            { nomes: [..] | nome: "A, B; C", funcao, entradaHoje? } (quem tinha saído e é cadastrado de novo volta)
 //                              { acao: 'licenca', pessoaId, inicio, fim, motivo? } · { acao: 'editarLicenca', id, inicio, fim, motivo? }
 //                              { acao: 'removerLicenca', id }  → lista da corrente
 // GET  /api/pessoas?lista=alunos  { turmas, alunos }  (alunos da CPJ: fora da corrente)
@@ -13,7 +13,7 @@
 // POST /api/pessoas            { acao: 'curimbaAluno', pessoaId? | nome } · { acao: 'curimbaExcluirAluno', id }
 //                              { acao: 'curimbaAula', id?, data, nome? } · { acao: 'curimbaExcluirAula', id }
 //                              { acao: 'curimbaPresenca', aulaId, alunoId, status: 'p'|'f'|'' }  → { alunos, aulas, presencas }
-import { rota, corpo, HttpError, validarData, validarId } from '../_lib/http.js';
+import { rota, corpo, HttpError, validarData, validarId, hojeBR } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { FUNCAO_KEYS } from '../../shared/regras.js';
@@ -90,7 +90,7 @@ export default rota({
       return contagemPerfis(await db.rpc('perfis_listar'));
     }
     await exigir(req, 'pessoas:ler');
-    return db.rpc('pessoas_listar');
+    return db.rpc('pessoas_listar', { todas: true });
   },
   POST: async (req) => {
     const b = corpo(req);
@@ -119,7 +119,8 @@ export default rota({
     if (!nomes.length) throw new HttpError(400, 'Digite pelo menos um nome.');
     if (nomes.length > 200) throw new HttpError(400, 'Máximo de 200 nomes por vez.');
     if (nomes.some((n) => n.length > 80)) throw new HttpError(400, 'Nome muito longo (máximo 80 letras).');
-    const { criadas } = await db.rpc('pessoas_criar', { nomes, funcao: b.funcao });
-    return { criadas, pessoas: await db.rpc('pessoas_listar') };
+    // Pela tela, quem é cadastrado hoje só conta nas giras de hoje em diante.
+    const { criadas } = await db.rpc('pessoas_criar', { nomes, funcao: b.funcao, reativar: true, ...(b.entradaHoje === true ? { entrada: hojeBR() } : {}) });
+    return { criadas, pessoas: await db.rpc('pessoas_listar', { todas: true }) };
   },
 });

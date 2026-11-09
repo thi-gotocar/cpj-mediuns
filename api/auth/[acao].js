@@ -123,7 +123,7 @@ async function listasIniciais(eu) {
   }
   if (!pode(eu, 'pessoas:ler') || !pode(eu, 'giras:ler')) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
   const [pessoas, giras, eventos, minhaCurimba, listaOracoes, entidadesApelidos] = await Promise.all([
-    db.rpc('pessoas_listar'),
+    db.rpc('pessoas_listar', { todas: true }),
     db.rpc('giras_listar'),
     opcional(db.rpc('eventos_listar')),
     eu.pessoaId ? opcional(db.rpc('curimba_minha', { pessoaId: eu.pessoaId })) : null,

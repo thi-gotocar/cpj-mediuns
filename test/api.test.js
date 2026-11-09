@@ -88,6 +88,27 @@ test('/api/auth/me mostra papel e permissões', async () => {
   assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver']);
 });
 
+test('excluir pessoa: sai das listas, o histórico fica e cadastrar de novo traz de volta', async () => {
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Pessoa Que Sai', funcao: 'cambone' });
+  const achar = async () => (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === 'Pessoa Que Sai');
+  const p = await achar();
+  const d = '2025-02-01';
+  await api('PUT', `/api/giras/${d}`, ADMIN, { presenca: { [p.id]: 'f' } });
+  assert.equal((await api('DELETE', '/api/pessoas/' + p.id, ADMIN)).status, 200);
+  assert.ok((await achar()).saida, 'continua na lista completa, com a data de saída');
+  assert.equal((await api('GET', `/api/giras/${d}`, ADMIN)).json.presenca[p.id], 'f', 'a presença antiga fica');
+  const login = await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Pessoa Que Sai' });
+  assert.equal(login.json.token, undefined, 'quem saiu não entra');
+  const volta = await api('POST', '/api/pessoas', ADMIN, { nome: 'Pessoa Que Sai', funcao: 'senha' });
+  assert.equal(volta.json.criadas, 1);
+  const depois = await achar();
+  assert.equal(depois.id, p.id);
+  assert.equal(depois.saida, null);
+  assert.equal(depois.funcao, 'senha');
+  await api('DELETE', `/api/giras/${d}`, ADMIN);
+  await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+});
+
 test('/api/auth/inicio traz a abertura do app em um pedido só', async () => {
   assert.equal((await api('GET', '/api/auth/inicio')).status, 401);
   const r = await api('GET', '/api/auth/inicio', USER);
