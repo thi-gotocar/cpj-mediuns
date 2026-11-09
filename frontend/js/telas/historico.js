@@ -95,7 +95,9 @@ function presencaGira(ps, g) {
   const pres = sts.filter((st) => st === 'p').length;
   return { pres, base: sts.length, pct: sts.length ? Math.round((pres / sts.length) * 100) : null };
 }
-const corPct = (pct) => (pct >= 80 ? 'new' : pct >= 60 ? 'hot' : 're');
+// Presença: só 100% é verde; o tom é próprio (.pleno), para se destacar.
+const corPct = (pct) => (pct === 100 ? 'pleno' : pct >= 80 ? 'rep' : pct >= 60 ? 'hot' : 're');
+const corBarraPresenca = (pct) => (pct === 100 ? 'pleno' : pct >= 80 ? 'acc' : pct >= 60 ? 'warn' : 'off');
 const seloPct = (pct, title) => `<span class="badge ${corPct(pct)}" style="text-transform:none" title="${title}">${pct}% de presença</span>`;
 
 // ---- Estatísticas (topo do Histórico): rankings de presença e faltas, atendimentos e giras.
@@ -103,11 +105,11 @@ const PRES = ['p', 'na', 'sup'];
 const pos = (i) => `<span class="st-pos">${i + 1}º</span>`;
 // Barra com a porcentagem escrita: v de "total" (ex.: 3 presenças em 4 giras = 75%).
 const pctDe = (v, total) => (total ? Math.round((v / total) * 100) : 0);
-// O número fica dentro da parte colorida (em branco) quando cabe; senão, logo depois dela.
-const barra = (v, total, cor) => {
+// A porcentagem fica sempre no centro da barra. cor: classe fixa ou função do percentual; comRotulo: false mostra só a barra.
+const barra = (v, total, cor, comRotulo = true) => {
   const pc = pctDe(v, total);
-  const dentro = pc >= 45;
-  return `<span class="st-bar" title="${pc}%"><i class="${cor}" style="width:${Math.max(pc, 2)}%"></i><em class="${dentro ? 'dentro' : ''}" style="${dentro ? `right:${100 - pc}%` : `left:${Math.max(pc, 2)}%`}">${pc}%</em></span>`;
+  const classe = typeof cor === 'function' ? cor(pc) : cor;
+  return `<span class="st-bar"${comRotulo ? ` title="${pc}%"` : ''}><i class="${classe}" style="width:${Math.max(pc, 2)}%"></i>${comRotulo ? `<em>${pc}%</em>` : ''}</span>`;
 };
 
 function cardEventos(todas) {
@@ -125,8 +127,8 @@ function cardEventos(todas) {
         ${ranking.length ? `<ol class="st-lista st-eventos-lista">${ranking.map((g, i) => `<li>${pos(i)}<span class="st-nome">${esc(nomeEntidadeGira(g) || 'Evento sem nome')}<span class="st-evento-data">${dShort(g.data)}</span></span><span class="st-num"><b>${numero(participantes(g))}</b> participantes</span></li>`).join('')}</ol>`
           : '<p class="muted" style="margin:0;font-size:.88rem">Ainda não há totais de participantes registrados.</p>'}
       </div>
-      <div class="st-bloco"><h3>Eventos realizados</h3>
-        <div class="hist st-eventos-hist" data-rolar="3">${eventos.map((g) => `<div class="hi"><div><div class="d">${esc(nomeEntidadeGira(g) || 'Evento sem nome')}</div><span class="muted">${dLong(g.data)}</span></div><span class="st-num">${participantes(g) === null ? 'Participantes não informados' : `<b>${numero(participantes(g))}</b> participantes`}</span></div>`).join('')}</div>
+      <div class="st-bloco"><button class="grp-h dobra" data-act="dobrareventos" aria-expanded="${!!estado.eventosAberto}"><h3>Eventos realizados</h3><span class="count"><span class="seta" aria-hidden="true">${estado.eventosAberto ? '▾' : '▸'}</span></span></button>
+        ${estado.eventosAberto ? `<div class="hist st-eventos-hist" data-rolar="3">${eventos.map((g) => `<div class="hi"><div><div class="d">${esc(nomeEntidadeGira(g) || 'Evento sem nome')}</div><span class="muted">${dLong(g.data)}</span></div><span class="st-num">${participantes(g) === null ? 'Participantes não informados' : `<b>${numero(participantes(g))}</b> participantes`}</span></div>`).join('')}</div>` : ''}
       </div>
     </div></div>`;
 }
@@ -200,9 +202,18 @@ function cardEstatisticas(todas, ps) {
   const faltas = porPessoa.filter((x) => x.f).sort((a, b) => b.f - a.f || a.p.nome.localeCompare(b.p.nome));
   const ausencias = porPessoa.filter((x) => x.a).sort((a, b) => b.a - a.a || a.p.nome.localeCompare(b.p.nome));
 
-  // Top 3 giras com mais atendidos.
-  const comAt = gs.filter((g) => g.atendimentos && somaAt(g.atendimentos) > 0)
-    .sort((a, b) => somaAt(b.atendimentos) - somaAt(a.atendimentos) || b.data.localeCompare(a.data)).slice(0, 3);
+  // Top 5 giras com mais atendidos.
+  const giraComAt = gs.filter((g) => g.atendimentos && somaAt(g.atendimentos) > 0);
+  const comAt = [...giraComAt]
+    .sort((a, b) => somaAt(b.atendimentos) - somaAt(a.atendimentos) || b.data.localeCompare(a.data)).slice(0, 5);
+  // Top 5 linhas/tipos com maior média por gira (gira sem atendidos registrados não entra na conta).
+  const grupos = {};
+  giraComAt.forEach((g) => { (grupos[nomeEntidadeGira(g) || 'Gira'] ||= []).push(g); });
+  const medias = Object.entries(grupos).map(([n, l]) => ({ n, qtd: l.length, media: l.reduce((s, g) => s + somaAt(g.atendimentos), 0) / l.length,
+    porTipo: ATEND.map(([k, t]) => `${t} ${Math.round(l.reduce((s, g) => s + (Number(g.atendimentos[k]) || 0), 0) / l.length)}`).join(' · ') }))
+    .sort((a, b) => b.media - a.media || b.qtd - a.qtd || a.n.localeCompare(b.n)).slice(0, 5);
+  const maiorMedia = medias[0]?.media || 0;   // a barra compara com a maior média da lista
+  const fmtMedia = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
   const totAt = Object.fromEntries(ATEND.map(([k]) => [k, gs.reduce((s, g) => s + (Number(g.atendimentos?.[k]) || 0), 0)]));
   const maxAt = somaAt(totAt);   // % de cada gira sobre o total de atendidos do período
   // Top 3 giras (linha/tipo) que mais tivemos.
@@ -225,20 +236,24 @@ function cardEstatisticas(todas, ps) {
           <div class="st-at-total fn-total"><b>${totalAt}</b><span>Total</span></div>
           ${ATEND.map(([k, t]) => `<div class="st-at-total fn-${k}"><b>${totAt[k]}</b><span>${t}</span></div>`).join('')}
         </div></div>
-      <div><span class="muted">Média de presença da corrente</span>${media !== null ? `<b class="st-grande">${media}%</b>${barra(media, 100, media >= 80 ? 'ok' : media >= 60 ? 'warn' : 'off')}` : '<b class="st-grande">—</b>'}</div>
+      <div><span class="muted">Média de presença da corrente</span>${media !== null ? `<b class="st-grande">${media}%</b>${barra(media, 100, corBarraPresenca)}` : '<b class="st-grande">—</b>'}</div>
     </div>
     <div class="st-grid">
-      ${ranking('pres', 'Mais presentes', 'ok', presentes, (x) => `<b>${x.pres}</b> de ${x.base}`)}
+      ${ranking('pres', 'Mais presentes', corBarraPresenca, presentes, (x) => `<b>${x.pres}</b> de ${x.base}`)}
       <div class="st-ausencias">
         ${ranking('f', 'Mais faltas', 'off', faltas, (x) => `<b>${x.f}</b>`)}
         ${ranking('a', 'Mais ausências', 'off', ausencias, (x) => `<b>${x.a}</b>`)}
       </div>
       <div class="st-bloco"><h3>Giras com mais atendimentos</h3>
-        ${comAt.length ? `<ol class="st-lista">${comAt.map((g, i) => `<li>${pos(i)}<span class="st-nome"><span class="hi-gira">${esc(nomeEntidadeGira(g) || 'Gira')}</span>${dShort(g.data)}</span>${barra(somaAt(g.atendimentos), maxAt, 'acc')}<span class="st-num"><b>${somaAt(g.atendimentos)}</b></span>
-          <span class="st-det">${ATEND.map(([k, t]) => `${t} ${Number(g.atendimentos[k]) || 0}`).join(' · ')}</span></li>`).join('')}</ol>`
+        ${comAt.length ? `<ol class="st-lista">${comAt.map((g, i) => `<li>${pos(i)}<span class="st-nome"><span class="hi-gira">${esc(nomeEntidadeGira(g) || 'Gira')}</span></span>${barra(somaAt(g.atendimentos), maxAt, 'acc')}<span class="st-num"><b>${somaAt(g.atendimentos)}</b></span>
+          <span class="st-det">${dShort(g.data)} · ${ATEND.map(([k, t]) => `${t} ${Number(g.atendimentos[k]) || 0}`).join(' · ')}</span></li>`).join('')}</ol>`
+          : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma gira com atendidos registrados.</p>'}</div>
+      <div class="st-bloco"><h3>Giras com maior média de atendimentos</h3>
+        ${medias.length ? `<ol class="st-lista">${medias.map((x, i) => `<li>${pos(i)}<span class="st-nome"><span class="hi-gira">${esc(x.n)}</span></span>${barra(x.media, maiorMedia, 'acc', false)}<span class="st-num"><b>${fmtMedia.format(x.media)}</b></span>
+          <span class="st-det">${x.qtd} gira${x.qtd > 1 ? 's' : ''} · ${x.porTipo}</span></li>`).join('')}</ol>`
           : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma gira com atendidos registrados.</p>'}</div>
       <div class="st-bloco"><h3>Giras que mais tivemos</h3>
-        ${tipos.length ? `<ol class="st-lista">${tipos.map(([n, q], i) => `<li>${pos(i)}<span class="st-nome">${esc(n)}</span>${barra(q, maxTipo, 'or')}<span class="st-num"><b>${q}</b> gira${q > 1 ? 's' : ''}</span></li>`).join('')}</ol>`
+        ${tipos.length ? `<ol class="st-lista">${tipos.map(([n, q], i) => `<li>${pos(i)}<span class="st-nome">${esc(n)}</span>${barra(q, maxTipo, 'or')}<span class="st-num"><b>${q}</b></span></li>`).join('')}</ol>`
           : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma gira com nome definido.</p>'}</div>
       ${blocosPerfis()}
     </div></div>`;
@@ -254,7 +269,7 @@ function blocosPerfis() {
   const bloco = (titulo, lista, cor, preencheram = lista.reduce((a, x) => a + x.qtd, 0), nota = '') => {
     const top = lista.slice(0, 3);
     return `<div class="st-bloco"><h3>${titulo}</h3>
-      ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b> pessoa${x.qtd > 1 ? 's' : ''}</span></li>`).join('')}</ol>`
+      ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b></span></li>`).join('')}</ol>`
         : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém preencheu ainda.</p>'}
       <p class="muted" style="margin:0;font-size:.8rem">${nota}Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
   };
@@ -348,6 +363,7 @@ export const cliques = {
   },
   dobrarcamb() { estado.cambAberto = !estado.cambAberto; avisar(); },
   dobrarsalvas() { estado.salvasAberto = !estado.salvasAberto; avisar(); },
+  dobrareventos() { estado.eventosAberto = !estado.eventosAberto; avisar(); },
   stpessoa(el) { estado.stPessoa = estado.stPessoa === el.dataset.k ? null : el.dataset.k; avisar(); },
   stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
   abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'agenda'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },
