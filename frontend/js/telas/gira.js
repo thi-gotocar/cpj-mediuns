@@ -441,10 +441,23 @@ function renderGira() {
 const botaoWhats = (ok, rotulo = 'WhatsApp') => (ok
   ? `<button class="btn btn-grande wa-bt" data-act="waabrir"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> ${rotulo}</button>`
   : `<button class="btn btn-grande wa-bt" disabled title="Faça o sorteio primeiro"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> ${rotulo}</button>`);
-// Admin: manda o aviso da turma da limpeza para o WhatsApp (abre o app já com a mensagem).
+// Admin: abre a prévia da gira, com o texto pronto para ajustar antes de mandar no WhatsApp.
 function botaoWhatsLimpeza(g) {
   if (g.evento || !temLimpeza(g) || !limpezaDaGira(estado.pessoas, g, girasLista())) return '';
-  return `<a class="btn btn-grande wa-bt" title="Mandar a turma da limpeza no WhatsApp" href="https://wa.me/?text=${encodeURIComponent(textoLimpeza(estado.pessoas, g, girasLista()))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Escala de limpeza</a>`;
+  return `<button class="btn btn-grande wa-bt" data-act="pvabrir" title="Ver e ajustar a prévia da gira"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Prévia Gira</button>`;
+}
+
+const linkWhats = (txt) => 'https://wa.me/?text=' + encodeURIComponent(txt);
+function janelaPrevia() {
+  if (!estado.previaGira) return '';
+  const { texto } = estado.previaGira;
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="pv-t"><div class="modal pv-modal">
+    <h3 id="pv-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Prévia da gira</h3>
+    <p class="muted" style="margin:0">Ajuste o texto, se precisar, antes de enviar.</p>
+    <textarea id="pv-texto" aria-label="Texto da prévia da gira">${esc(texto)}</textarea>
+    <div class="row pv-bts"><button class="btn" data-act="pvfechar">Cancelar</button>
+      <a class="btn wa-bt pv-enviar" id="pv-enviar" href="${linkWhats(texto)}" target="_blank" rel="noopener" data-act="pvenviar"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Enviar no WhatsApp</a></div>
+  </div></div>`;
 }
 
 // ---------- janela do WhatsApp: texto (abre o WhatsApp com a mensagem) ou imagem (compartilhar do aparelho) ----------
@@ -754,6 +767,10 @@ export const cliques = {
   // Janela do WhatsApp (texto ou imagem).
   waabrir() { estado.waJanela = true; atualizarJanela(); prepararImagem(); },
   wafechar() { estado.waJanela = null; atualizarJanela(); },
+  // Prévia da gira: abre com o texto pronto; o link do Enviar acompanha o que for escrito.
+  pvabrir() { estado.previaGira = { texto: textoLimpeza(estado.pessoas, giraAtual(), girasLista()) }; atualizarJanela(); },
+  pvfechar() { estado.previaGira = null; atualizarJanela(); },
+  pvenviar() { setTimeout(cliques.pvfechar, 0); },
   // O link já abre o WhatsApp; a janela fecha logo depois (sem atrapalhar o toque no link).
   watexto() { setTimeout(cliques.wafechar, 0); },
   waimagem() {
@@ -839,8 +856,10 @@ function gravarRapida(c) {
 // A janela fica direto no <body> (fora da tela que é redesenhada), por cima de tudo.
 let raizJanela = null;
 function atualizarJanela() {
+  // Prévia aberta: a atualização da tela não pode apagar o que a pessoa está escrevendo.
+  if (estado.previaGira && raizJanela?.querySelector('#pv-texto')) return;
   const html = prefs.tab === 'agenda'
-    ? janelaPresenca() || janelaData() || janelaWhats() || janelaFoto() || janelaEscala()
+    ? janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala()
     : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() : '';
   if (!raizJanela) {
     if (!html) return;
@@ -850,7 +869,11 @@ function atualizarJanela() {
     raizJanela.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
+      else if (estado.previaGira) return;   // tocar fora não fecha: perderia o texto ajustado
       else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : estado.escImgVer ? cliques.escimgfechar : estado.oraJanela && e.target.classList.contains('modal-fundo') ? cliques.orafechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
+    });
+    raizJanela.addEventListener('input', (e) => {
+      if (e.target.id === 'pv-texto') document.getElementById('pv-enviar').href = linkWhats(e.target.value);
     });
     // Data nova escolhida no calendário: salva e fecha.
     raizJanela.addEventListener('change', async (e) => {

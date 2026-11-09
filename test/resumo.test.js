@@ -208,17 +208,19 @@ test('curimba: entra na limpeza, mas não na presença', async () => {
   assert.match(textoResumo(pessoas, g, 'Terreiro', [ant]), /🥁 Caio - Curimba/);
 });
 
-test('aviso da limpeza para o WhatsApp: turma, ajudantes e licença, um nome por linha', async () => {
+test('prévia da gira para o WhatsApp: cabeçalho, turma, ajudantes e licença, um nome por linha', async () => {
   const { textoLimpeza } = await import('../shared/resumoGira.js');
   const P = (nome, limpeza, extra = {}) => ({ id: nome, nome, funcao: 'cambone', limpeza, linhas: [], licencas: [], ...extra });
-  const pessoas = [P('Ana T8', 3), P('Bruno T7', 3), P('Carla T6', 3, { licencas: [{ inicio: '2026-10-01', fim: '2026-12-01' }] }), P('Diego T5', 2), P('Eva T8', 2)];
+  const pessoas = [P('Ana T8', 3), P('Bruno T7', 3), P('Carla T6', 3, { licencas: [{ inicio: '2026-10-01', fim: '2026-12-01' }] }), P('Diego T5', 2), P('Eva T8', 2), P('Sara', null, { funcao: 'senha' }), P('Tita', null, { funcao: 'senha' })];
   const anterior = { data: '2026-10-24', limpeza: 2, entidade: 'Caboclo', presenca: { 'Diego T5': 'f' }, papeis: {}, pendentePadrao: false, encerrada: true };
-  const g = { data: '2026-10-31', limpeza: 3, entidade: 'Exu Mirim', presenca: {}, papeis: {}, pendentePadrao: true };
+  const g = { data: '2026-10-31', limpeza: 3, entidade: 'Caboclo', orixa: 'Oxóssi', presenca: { Tita: 'a' }, papeis: {}, pendentePadrao: true };
   const t = textoLimpeza(pessoas, g, [anterior, g]).split('\n');
-  assert.ok(t.includes('🗓️ *Sábado, 31/10/2026*'));
-  assert.ok(t.includes('🕯️ Gira de Exu Mirim'));
-  assert.ok(t.includes('👥 *Turma 3*'));
+  assert.deepEqual(t.slice(0, 10), ['*Bom dia corrente* ✨', '_Boa semana para nós_', '', '🕯️ *Gira:* Caboclo', '👑 *Orixá:* Oxóssi', '🗓️ *Data:* 31/10/2026', '🔑 *Senha:* Sara', '', '━━━━━━━━━━━━━━━', '🧹 *Turma da limpeza: 3*']);
   assert.deepEqual(t.filter((l) => l.startsWith('▫️')), ['▫️ Ana T8', '▫️ Bruno T7', '▫️ Diego T5', '▫️ Carla T6']);
   assert.ok(t.some((l) => l.includes('Da Turma 2, faltaram na gira de 24/10')));
+  assert.equal(t.at(-1), 'Contamos com vocês. Axé! 🙏');
+  // Sem senha presente e sem orixá, as linhas somem.
+  const sem = textoLimpeza(pessoas.filter((p) => p.funcao !== 'senha'), { ...g, orixa: '' }, [anterior, g]).split('\n');
+  assert.deepEqual(sem.slice(3, 7), ['🕯️ *Gira:* Caboclo', '🗓️ *Data:* 31/10/2026', '', '━━━━━━━━━━━━━━━']);
   assert.equal(textoLimpeza(pessoas, { ...g, limpeza: null }, []), '', 'sem turma, sem mensagem');
 });

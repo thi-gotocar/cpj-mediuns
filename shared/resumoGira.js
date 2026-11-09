@@ -4,9 +4,9 @@
 //   dadosResumo(pessoas, g) → { gira, data, presentes, ausentes, faltas, licenca, pct, atendimentos, total }
 //   textoResumo(pessoas, g, local?, giras?) → texto pronto para colar no WhatsApp
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
-//   textoLimpeza(pessoas, g, giras) → aviso da turma da limpeza para o grupo do WhatsApp (ou '')
+//   textoLimpeza(pessoas, g, giras) → prévia da gira com a turma da limpeza para o grupo do WhatsApp (ou '')
 
-import { status, presencaDe, daGira, naCorrenteEm, licencaEm, nomeGira, nomeEntidadeGira, giraEspecial, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { status, presencaDe, daGira, pessoasDaGira, presente, naCorrenteEm, licencaEm, nomeGira, nomeEntidadeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -106,23 +106,24 @@ export function limpezaResumo(pessoas, g, giras = []) {
   return { turma: L.turma, membros: turma, ajudantes: L.ajudantes.map(linha), anterior: L.anterior };
 }
 
-const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-const diaDaSemana = (iso) => DIAS[new Date(iso + 'T12:00:00Z').getUTCDay()];
-
-// Aviso da turma da limpeza (aba Gira, botão WhatsApp do bloco 🧹): um nome por linha, com *negrito* e _itálico_ do WhatsApp.
+// Prévia da gira (aba Gira, botão WhatsApp do bloco 🧹): saudação, dados da gira e a turma da limpeza, um nome por linha.
 export function textoLimpeza(pessoas, g, giras = []) {
   const L = limpezaDaGira(pessoas, g, giras);
   if (!L) return '';
   const lista = (ps) => ps.map((p) => `▫️ ${p.nome}`);
-  const gira = g.entidade ? (giraEspecial(g.entidade) ? nomeEntidadeGira(g) : `Gira de ${nomeEntidadeGira(g)}`) : 'Gira';
+  const senha = pessoasDaGira(pessoas, g).filter((p) => presente(p, g) && p.funcao === 'senha').map((p) => p.nome).sort((a, b) => a.localeCompare(b, 'pt-BR')).join(', ');
   const orixa = orixaDaGira(g);
   const T = [
-    '🧹 *LIMPEZA DO TERREIRO* ✨',
-    '━━━━━━━━━━━━━━━',
-    `🗓️ *${diaDaSemana(g.data)}, ${br(g.data)}*`,
-    `🕯️ ${gira}${orixa ? ` · Orixá ${orixa}` : ''}`,
+    '*Bom dia corrente* ✨',
+    '_Boa semana para nós_',
     '',
-    `👥 *Turma ${L.turma}*`,
+    `🕯️ *Gira:* ${g.entidade ? nomeEntidadeGira(g) : 'a definir'}`,
+    ...(orixa ? [`👑 *Orixá:* ${orixa}`] : []),
+    `🗓️ *Data:* ${br(g.data)}`,
+    ...(senha ? [`🔑 *Senha:* ${senha}`] : []),
+    '',
+    '━━━━━━━━━━━━━━━',
+    `🧹 *Turma da limpeza: ${L.turma}*`,
     ...(L.membros.length ? lista(L.membros) : ['_Ninguém cadastrado nesta turma._']),
   ];
   if (L.ajudantes.length) {
