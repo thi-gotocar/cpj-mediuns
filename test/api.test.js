@@ -88,6 +88,19 @@ test('/api/auth/me mostra papel e permissões', async () => {
   assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver']);
 });
 
+test('/api/auth/inicio traz a abertura do app em um pedido só', async () => {
+  assert.equal((await api('GET', '/api/auth/inicio')).status, 401);
+  const r = await api('GET', '/api/auth/inicio', USER);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(r.json.me, (await api('GET', '/api/auth/me', USER)).json);
+  assert.deepEqual(r.json.pessoas, (await api('GET', '/api/pessoas', USER)).json);
+  assert.deepEqual(r.json.giras, (await api('GET', '/api/giras', USER)).json);
+  assert.deepEqual(r.json.eventos, (await api('GET', '/api/giras?lista=eventos', USER)).json);
+  const atualizar = await api('GET', '/api/auth/inicio?atualizar=1', USER);
+  assert.equal(atualizar.json.me, undefined, 'ao voltar para o app, só as listas');
+  assert.deepEqual(atualizar.json.pessoas, r.json.pessoas);
+});
+
 test('perfil: cada um vê e salva só o seu; root sem cadastro não tem', async () => {
   const root = (await api('GET', '/api/auth/perfil', ADMIN)).json;
   assert.equal(root.eu, null, 'root sem pessoa não tem perfil próprio');

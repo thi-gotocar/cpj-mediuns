@@ -53,6 +53,7 @@ async function enviar(corpo, extras = {}) {
 }
 
 let esquemaPronto = null;
+const JA_MIGRADO = 'SM001'; // SQLSTATE nosso: outro acesso terminou a migração enquanto este esperava a trava
 
 async function garantirEsquema() {
   esquemaPronto ||= (async () => {
@@ -63,16 +64,32 @@ async function garantirEsquema() {
       if (e.code !== '42P01') throw e; // 42P01 = tabela ainda não existe
     }
     // Uma transação só, com trava para dois acessos simultâneos não migrarem juntos.
-    await enviar({
-      queries: [
-        { query: 'select pg_advisory_xact_lock(7230416)', params: [] },
-        ...MIGRACOES.map((q) => ({ query: q, params: [] })),
-        {
-          query: "insert into sistema (chave, valor) values ('versao_esquema', $1) on conflict (chave) do update set valor = excluded.valor",
-          params: [String(VERSAO)],
-        },
-      ],
-    }, { 'Neon-Batch-Isolation-Level': 'ReadCommitted' });
+    // Quem estava na fila confere a versão depois da trava e desiste, em vez de repetir tudo:
+    // o erro desfaz a transação (que não fez nada) e solta a trava para o próximo.
+    try {
+      await enviar({
+        queries: [
+          { query: 'select pg_advisory_xact_lock(7230416)', params: [] },
+          {
+            query: `do $$ begin
+              if to_regclass('sistema') is not null then
+                if (select valor::int from sistema where chave = 'versao_esquema') >= ${VERSAO} then
+                  raise exception using errcode = '${JA_MIGRADO}', message = 'Esquema já migrado.';
+                end if;
+              end if;
+            end $$`,
+            params: [],
+          },
+          ...MIGRACOES.map((q) => ({ query: q, params: [] })),
+          {
+            query: "insert into sistema (chave, valor) values ('versao_esquema', $1) on conflict (chave) do update set valor = excluded.valor",
+            params: [String(VERSAO)],
+          },
+        ],
+      }, { 'Neon-Batch-Isolation-Level': 'ReadCommitted' });
+    } catch (e) {
+      if (e.code !== JA_MIGRADO) throw e;
+    }
   })().catch((e) => { esquemaPronto = null; throw e; });
   return esquemaPronto;
 }

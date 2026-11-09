@@ -8,6 +8,8 @@
 //   POST /api/auth/senha    { atual, nova }   → { token }  (logado)
 //   POST /api/auth/criarSenha { senha }  acesso da corrente: cria a senha (4 a 8 números) → { token }
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
+//   GET  /api/auth/inicio   a abertura do app em um pedido só → { me, pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos }
+//                           ?atualizar=1 (voltar ao app): só as listas, sem "me". Alunos recebem { eventos }; curimba, { eventos, minhaCurimba }.
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
 //                           Aluno (depois de criar a senha): só os próprios dados, informações, orixás e guias.
@@ -21,11 +23,13 @@ import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
 import { abaIemanja } from '../_lib/iemanja.js';
+import { ocultarSorteios } from '../_lib/escala.js';
+import { oracoes } from '../_lib/oracoes.js';
 import { temAbaPublica } from '../../shared/oferendas.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, emitirTokenGrupo, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { permissoesDe, ehAcessoCorrente, grupoAcesso, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
-import { normalizarPerfil, perfilDaFuncao, blocosAfinidade, ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_SIMNAO, ANAMNESE_OPCOES_MAX, ANAMNESE_OPCAO_MAX, limparRespostaTexto, limparRespostaData } from '../../shared/perfil.js';
+import { normalizarPerfil, perfilDaFuncao, blocosAfinidade, ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_OPCOES_MAX, ANAMNESE_OPCAO_MAX, limparRespostaTexto, limparRespostaData } from '../../shared/perfil.js';
 import { LINHA_KEYS } from '../../shared/regras.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,20 +92,59 @@ async function conferirPin(b, info, chaveFalha, nome) {
   return null;
 }
 
+async function dadosDoMe(u) {
+  const [iemanja, abasOferendas, videosPublicada, ervasPublicada] = await Promise.all([
+    // Falha na aba Iemanjá só esconde a aba: não pode impedir o app de abrir.
+    abaIemanja(u).catch((e) => {
+      console.error('[auth/me] aba Iemanjá', e);
+      return { iemanjaAba: false, iemanjaPublica: false };
+    }),
+    db.rpc('oferenda_abas_listar'),
+    db.rpc('videos_publicada'),
+    db.rpc('ervas_publicada'),
+  ]);
+  // Sem nenhuma sub-aba visível, a aba Oferendas some para quem não administra.
+  // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
+  return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' || u.grupo === 'alunos' ? { temSenha: !!u.temSenha } : {}),
+    videosPublicada: !!videosPublicada, ervasPublicada: !!ervasPublicada, oferendasPublica: temAbaPublica(abasOferendas), ...iemanja };
+}
+
+// Lista que não pode impedir o app de abrir: se falhar, a chave não vem e a tela usa o que já tem.
+const opcional = (promessa) => promessa.catch((e) => {
+  console.error('[auth/inicio]', e);
+  return undefined;
+});
+
+async function listasIniciais(eu) {
+  if (eu.grupo === 'alunos') return { eventos: await db.rpc('eventos_listar') };
+  if (eu.grupo === 'curimba') {
+    const [eventos, minhaCurimba] = await Promise.all([db.rpc('eventos_listar'), db.rpc('curimba_minha', { alunoId: eu.curimbaAlunoId })]);
+    return { eventos: eventos.filter((x) => x.tipo !== 'aviso'), minhaCurimba };
+  }
+  if (!pode(eu, 'pessoas:ler') || !pode(eu, 'giras:ler')) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
+  const [pessoas, giras, eventos, minhaCurimba, listaOracoes, entidadesApelidos] = await Promise.all([
+    db.rpc('pessoas_listar'),
+    db.rpc('giras_listar'),
+    opcional(db.rpc('eventos_listar')),
+    eu.pessoaId ? opcional(db.rpc('curimba_minha', { pessoaId: eu.pessoaId })) : null,
+    opcional(oracoes(eu)),
+    opcional(db.rpc('entidades_apelidos_listar')),
+  ]);
+  return { pessoas, giras: ocultarSorteios(eu, giras), eventos, minhaCurimba, oracoes: listaOracoes, entidadesApelidos };
+}
+
 const acoes = {
   async me(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
+    return dadosDoMe(await exigir(req));
+  },
+
+  async inicio(req) {
+    if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
-    // Falha na aba Iemanjá só esconde a aba: não pode impedir o app de abrir.
-    const iemanja = await abaIemanja(u).catch((e) => {
-      console.error('[auth/me] aba Iemanjá', e);
-      return { iemanjaAba: false, iemanjaPublica: false };
-    });
-    // Sem nenhuma sub-aba visível, a aba Oferendas some para quem não administra.
-    const oferendasPublica = temAbaPublica(await db.rpc('oferenda_abas_listar'));
-    // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
-    return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' || u.grupo === 'alunos' ? { temSenha: !!u.temSenha } : {}),
-      videosPublicada: !!(await db.rpc('videos_publicada')), ervasPublicada: !!(await db.rpc('ervas_publicada')), oferendasPublica, ...iemanja };
+    if (req.query.atualizar) return listasIniciais(u);
+    const [me, listas] = await Promise.all([dadosDoMe(u), listasIniciais(u)]);
+    return { me, ...listas };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).

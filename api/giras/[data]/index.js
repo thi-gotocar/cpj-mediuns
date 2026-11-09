@@ -271,10 +271,14 @@ export default rota({
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
     if (acao === 'reiniciar') {
       if (atual?.encerrada) throw new HttpError(409, 'A gira está encerrada. Reabra antes de reiniciar.');
-      await db.rpc('gira_excluir', { data });
       // Volta com a próxima turma da limpeza do rodízio (como uma gira nova).
       const turma = proximaTurma(pessoas, await db.rpc('giras_listar'), data);
-      const gira = await db.rpc('gira_salvar', { data, usuario: perfil.id, ...(turma ? { limpeza: turma } : {}) });
+      // Excluir e recriar em uma transação, para uma falha no meio não perder a gira.
+      // gira_salvar deve ser a última chamada porque db.tx() retorna o resultado do último RPC.
+      const gira = await db.tx([
+        { funcao: 'gira_excluir', p: { data } },
+        { funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...(turma ? { limpeza: turma } : {}) } },
+      ]);
       return { gira, mensagem: `Gira reiniciada: todos voltaram para Pendente.${turma ? ` Turma da limpeza: Turma ${turma}.` : ''}` };
     }
     if (acao === 'reabrir') {

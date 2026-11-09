@@ -47,4 +47,13 @@ export function usarBancoLocal() {
     const out = psql(`select ${funcao}(${lit(JSON.stringify(p))}::jsonb);`).trim();
     return out ? JSON.parse(out) : null;
   };
+  // Como no db.js: tudo em uma transação, e vale o resultado da última chamada (uma linha por select).
+  db.tx = async (chamadas) => {
+    const selects = chamadas.map(({ funcao, p = {} }) => {
+      if (!/^[a-z_]+$/.test(funcao)) throw new Error('função inválida');
+      return `select ${funcao}(${lit(JSON.stringify(p))}::jsonb);`;
+    });
+    const ultima = psql(`begin isolation level serializable;\n${selects.join('\n')}\ncommit;`).split('\n').at(-2);
+    return ultima ? JSON.parse(ultima) : null;
+  };
 }

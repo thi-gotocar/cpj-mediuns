@@ -102,11 +102,12 @@ function definirGiras(lista) {
 }
 
 export async function carregarTudo() {
-  const me = await api('GET', '/auth/me');
+  const r = await api('GET', '/auth/inicio');
+  const { me } = r;
   estado.me = me;
   estado.visaoRoot = 'root';
   if (me.grupo === 'alunos') {
-    estado.eventos = await api('GET', '/giras?lista=eventos');
+    estado.eventos = r.eventos;
     estado.pessoas = [];
     estado.giras = {};
     estado.minhaCurimba = null;
@@ -120,14 +121,10 @@ export async function carregarTudo() {
     return;
   }
   if (me.grupo === 'curimba') {
-    const [eventos, minhaCurimba] = await Promise.all([
-      api('GET', '/giras?lista=eventos'),
-      api('GET', '/pessoas?lista=minhaCurimba'),
-    ]);
     estado.pessoas = [];
     estado.giras = {};
-    estado.eventos = eventos;
-    estado.minhaCurimba = minhaCurimba;
+    estado.eventos = r.eventos;
+    estado.minhaCurimba = r.minhaCurimba;
     estado.curimba = null;
     estado.alunos = null;
     estado.oracoes = [];
@@ -137,15 +134,12 @@ export async function carregarTudo() {
     avisar();
     return;
   }
-  const [pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'),
-    api('GET', '/giras?lista=eventos').catch(() => []), api('GET', '/pessoas?lista=minhaCurimba').catch(() => null), api('GET', '/giras?lista=oracoes').catch(() => []),
-    api('GET', '/giras?lista=entidades').catch(() => [])]);
-  estado.oracoes = oracoes || [];
-  estado.eventos = eventos;
-  estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
-  estado.pessoas = pessoas;
-  estado.entidadesApelidos = entidadesApelidos || [];
-  definirGiras(giras);
+  estado.oracoes = r.oracoes || [];
+  estado.eventos = r.eventos || [];
+  estado.minhaCurimba = r.minhaCurimba?.aulas ? r.minhaCurimba : null;
+  estado.pessoas = r.pessoas;
+  estado.entidadesApelidos = r.entidadesApelidos || [];
+  definirGiras(r.giras);
   estado.pronto = true;
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
   // Abre sempre na próxima gira (ou na mais recente).
@@ -189,22 +183,21 @@ export async function atualizarDoServidor() {
       avisar();
       return;
     }
+    const r = await api('GET', '/auth/inicio?atualizar=1');
     if (estado.me?.grupo === 'curimba') {
-      const [eventos, minhaCurimba] = await Promise.all([api('GET', '/giras?lista=eventos'), api('GET', '/pessoas?lista=minhaCurimba')]);
-      estado.eventos = eventos;
-      estado.minhaCurimba = minhaCurimba;
+      estado.eventos = r.eventos;
+      estado.minhaCurimba = r.minhaCurimba;
       avisar();
       return;
     }
-    const [pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras'), api('GET', '/giras?lista=eventos').catch(() => estado.eventos),
-      api('GET', '/pessoas?lista=minhaCurimba').catch(() => estado.minhaCurimba), api('GET', '/giras?lista=oracoes').catch(() => estado.oracoes),
-      api('GET', '/giras?lista=entidades').catch(() => estado.entidadesApelidos)]);
-    estado.oracoes = oracoes || [];
-    estado.pessoas = pessoas;
-    estado.eventos = eventos || [];
+    // Lista que falhou no servidor não vem: fica a que já está na tela.
+    const minhaCurimba = r.minhaCurimba === undefined ? estado.minhaCurimba : r.minhaCurimba;
+    estado.oracoes = r.oracoes || estado.oracoes;
+    estado.pessoas = r.pessoas;
+    estado.eventos = r.eventos || estado.eventos;
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
-    estado.entidadesApelidos = entidadesApelidos || [];
-    definirGiras(giras);
+    estado.entidadesApelidos = r.entidadesApelidos || estado.entidadesApelidos;
+    definirGiras(r.giras);
     // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
     // Geral e Gira mostram os compromissos das oferendas; atualizar quando qualquer uma estiver aberta.
     if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {

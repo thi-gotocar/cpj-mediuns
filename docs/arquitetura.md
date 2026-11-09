@@ -53,6 +53,8 @@ flowchart LR
     VF -->|JSON| AP
 ```
 
+A abertura do app e a atualização ao voltar para ele usam um pedido só (`/api/auth/inicio`): uma conferência de sessão e as consultas em paralelo, em vez de um pedido por lista. As rotas de cada lista continuam para recarregar só uma parte.
+
 ## Entidades
 
 Só as relações. Colunas: `db/esquema.js`. O significado dos campos de negócio (`linhas`, `experiente`, `papeis`, status de presença) está em [regras.md](regras.md).
