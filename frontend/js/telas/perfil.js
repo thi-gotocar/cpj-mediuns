@@ -432,6 +432,18 @@ function cardOferendas(todos) {
     </div>` : total ? '' : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}`, true, true);
 }
 
+// Aba Pessoas, depois da Corrente: só para quem recebe o perfil de todos.
+let pedindoPerfil = false;
+export function cardOferendasPendentes() {
+  if (!pode('perfil:corrente')) return '';
+  if (estado.perfil === null) {
+    if (!pedindoPerfil) { pedindoPerfil = true; carregarPerfil().finally(() => { pedindoPerfil = false; }); }
+    return '';
+  }
+  if (!admin()) return '';
+  return `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>${cardOferendas(estado.perfil.todos.filter((x) => cadastraEspiritual(x.funcao)))}</div>`;
+}
+
 export function render() {
   if (estado.perfil === null) { carregarPerfil(); return `<div class="loading">Carregando perfil…</div>`; }
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
@@ -440,10 +452,13 @@ export function render() {
   let h = '';
   // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".
   if (admin()) {
-    // Respostas e oferendas pendentes contam só quem cadastra orixás e guias (a curimba fica fora).
+    // Respostas contam só quem cadastra orixás e guias (a curimba fica fora).
     const comOrixas = todos.filter((x) => cadastraEspiritual(x.funcao));
+    // Começa minimizada; tocar no título expande e recolhe.
+    const abertaAdm = !!U().abertos['adm-area'];
     h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>
-      ${cardOferendas(comOrixas)}${cardRespostas(comOrixas)}${cardAnamneseAdmin(todos)}</div>`;
+      <button class="grp-h dobra" data-act="pfdobra" data-k="adm-area" aria-expanded="${abertaAdm}"><h2>Administração</h2><span class="count"><span class="seta" aria-hidden="true">${abertaAdm ? '▾' : '▸'}</span></span></button>
+      ${abertaAdm ? cardRespostas(comOrixas) + cardAnamneseAdmin(todos) : ''}</div>`;
   }
   h += cardInfo(eu);
   if (eu) h += meusCards(eu) + cardAnamnese();

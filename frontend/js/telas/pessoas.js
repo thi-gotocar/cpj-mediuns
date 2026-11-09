@@ -3,6 +3,7 @@
 import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
+import { cardOferendasPendentes, cliques as cliquesPerfil } from './perfil.js';
 
 // Ordem das funções exibidas nos totais da Corrente CPJ.
 const ORDEM_FUNCOES = ['medium', 'extra', 'passe', 'cambone', 'senha'].map((k) => FUNCOES.find((f) => f.k === k)).filter(Boolean);
@@ -339,7 +340,7 @@ function renderPessoas() {
   const funcaoCorrenteAberta = estado.correnteFuncaoAberta;
   const pessoasPorFuncao = Object.fromEntries(ORDEM_FUNCOES.map((f) => [f.k, ps.filter((p) => p.funcao === f.k)]));
   const correnteListaAberta = pessoasPorFuncao[funcaoCorrenteAberta]?.length ? funcaoCorrenteAberta : null;
-  // Ordem: Adicionar, Corrente (com as licenças), Turmas da limpeza (com Curimba), Alunos.
+  // Ordem: Adicionar, Corrente (com as licenças), Oferendas pendentes, Turmas da limpeza (com Curimba), Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="presentes">${ORDEM_FUNCOES.map((f) => {
       const abertas = pessoasPorFuncao[f.k];
@@ -348,12 +349,15 @@ function renderPessoas() {
     }).join('')}</div>
     ${correnteListaAberta ? `<div class="corrente-pessoas"><div class="ppl">${pessoasPorFuncao[correnteListaAberta].map((p) => linhaPessoa(p)).join('')}</div></div>` : ''}
     ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
-  h += cardTurmas(todas, editar);
+  h += cardOferendasPendentes() + cardTurmas(todas, editar);
   if (verAlunos) h += cardAlunos();
   return h + '</section>';
 }
 
 export const cliques = {
+  // Bloco Oferendas pendentes (vem da aba Perfil).
+  pfdobra: (el) => cliquesPerfil.pfdobra(el),
+  pfofertas: (el) => cliquesPerfil.pfofertas(el),
   dobraradd() { estado.addAberto = !(estado.addAberto ?? !pessoasOrd().some((p) => !ehCurimba(p))); avisar(); },
   dobrarcurimba() {
     estado.curimbaAberta = !estado.curimbaAberta;
