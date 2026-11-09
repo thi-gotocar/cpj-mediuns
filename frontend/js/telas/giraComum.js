@@ -1,6 +1,7 @@
 // Peças da aba Gira usadas por mais de um arquivo (gira.js, giraEu.js, giraTopo.js).
 
 import { STATUS } from '/shared/regras.js';
+import { config } from '/shared/config.js';
 import { esc, dLong, dDM } from '../util.js';
 
 // 1º combo da presença: Pendente, Presente, Falta, Ausente. Antes do dia da gira: só Pendente ou Ausente (Presente e Falta, só no dia).
@@ -20,7 +21,7 @@ export const cabDobra = (k, titulo, extra = '') => {
 };
 
 // Aviso de sorteio pendente (só para gira em aberto).
-export const caixaPendente = (g) => `<div class="sorteio-pend"><span class="sp-icone" aria-hidden="true">⚠️</span><b class="sp-tit">Sorteio de escala pendente da Michelle</b>
+export const caixaPendente = (g) => `<div class="sorteio-pend"><span class="sp-icone" aria-hidden="true">⚠️</span><b class="sp-tit">Sorteio de escala pendente da ${esc(config().responsavel)}</b>
   <span class="muted sp-prev">Previsão: <b>${esc(dLong(g.data))}</b> (${esc(dDM(g.data))})</span></div>`;
 
 // Ícone do WhatsApp (balão com o telefone).

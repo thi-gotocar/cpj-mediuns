@@ -5,6 +5,7 @@ import { api } from './api.js';
 import { token } from './auth.js';
 import { giraVazia, ordenarPessoas } from '/shared/regras.js';
 import { permissoesDe, PERFIS_PADRAO } from '/shared/permissoes.js';
+import { definirConfig } from '/shared/config.js';
 import { hoje, toast } from './util.js';
 
 export const estado = {
@@ -106,6 +107,7 @@ function definirGiras(lista) {
 export async function carregarTudo() {
   const r = await api('GET', '/auth/inicio');
   const { me } = r;
+  definirConfig(r.config);
   estado.me = me;
   estado.visaoRoot = 'root';
   if (me.grupo === 'alunos') {
@@ -186,6 +188,7 @@ export async function atualizarDoServidor() {
       return;
     }
     const r = await api('GET', '/auth/inicio?atualizar=1');
+    if (r.config) definirConfig(r.config);
     if (estado.me?.grupo === 'curimba') {
       estado.eventos = r.eventos;
       estado.minhaCurimba = r.minhaCurimba;
@@ -440,6 +443,14 @@ export async function acaoUsuarios(acao, dados = {}) {
     avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }
+}
+
+export async function salvarConfigCasa(dados) {
+  try {
+    definirConfig(await api('POST', '/usuarios', { acao: 'config', config: dados }));
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
 }
 
 // ---------- eventos da casa ----------

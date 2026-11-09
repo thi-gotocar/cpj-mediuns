@@ -1,6 +1,7 @@
 // Tela "Pessoas": cadastro da corrente e dos alunos da CPJ (por turma).
 
 import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
+import { config } from '/shared/config.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, acaoUsuarios, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 import { PIN_VALIDO } from '/shared/permissoes.js';
@@ -133,7 +134,7 @@ function editorLinhas(p, c) {
     : (ls.length ? `Confiante como ${NOME_CAMPO[c]} em: ${rotLinhas(ls)}` : `Como ${NOME_CAMPO[c]}: nenhuma marcada (não apto) · escolher`);
   const texto = c === 'linhas'
     ? `Marque as linhas em que atua como ${nomeFuncao(p)}. Nas giras das outras linhas, entra no sorteio como cambone. Marque “Todas” para atuar em todas as giras. Sem nenhuma marcada, não está apto a nenhuma: cambona em todas.`
-    : `Marque as entidades em que tem 100% de afinidade e segurança como ${NOME_CAMPO[c]} (o mesmo que a pessoa marca no Perfil). Vale para a Sugestão Mi/Mãe Vê.`;
+    : `Marque as entidades em que tem 100% de afinidade e segurança como ${NOME_CAMPO[c]} (o mesmo que a pessoa marca no Perfil). Vale para a Sugestão ${esc(config().sugestao)}.`;
   return `<details class="linhas"${estadoAberto.has(chave) ? ' open' : ''} data-id="${chave}">
     <summary>${resumo}</summary>
     <p class="muted" style="margin:6px 0;font-size:.82rem">${texto}</p>

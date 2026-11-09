@@ -35,25 +35,27 @@ function blocoMes(chave, lista, editar) {
 
 // Blocos de eventos (ficam na aba Admin root): 1) cadastrar evento (admin); 2) eventos cadastrados, por mês.
 // Os dois começam minimizados. Na lista aparecem até 3 meses; o resto rola dentro do bloco.
-export function blocosEventos() {
+// embutido: dentro de um bloco que já abre e fecha (aba Admin root), os dois vêm abertos, sem card próprio.
+export function blocosEventos(embutido = false) {
   const editar = pode('usuarios:gerenciar');   // só o admin root (o servidor confere)
   const evs = estado.eventos || [];
   const u = U();
+  const fim = embutido ? '' : '</div>';
   let h = '';
   if (editar) {
-    const aberto = !!u.novo;
-    h += `<div class="card adm"><button class="grp-h dobra" data-act="evnovo" aria-expanded="${aberto}"><h2>＋ Cadastrar evento</h2><span class="count"><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>
+    const aberto = embutido || !!u.novo;
+    h += `${embutido ? '<h3 class="root-sub">＋ Cadastrar evento</h3>' : `<div class="card adm"><button class="grp-h dobra" data-act="evnovo" aria-expanded="${aberto}"><h2>＋ Cadastrar evento</h2><span class="count"><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`}
       ${aberto ? `<form id="f-evento" class="ev-form" autocomplete="off">
         <label class="field ev-data">Data<input type="text" id="ev-data" name="data" inputmode="numeric" maxlength="10" data-mascara="data" required placeholder="31/10"></label>
         ${seletorTipo(estado.evUi?.ultimoTipo)}
         <label class="field grow">Nome<input type="text" id="ev-nome" name="nome" maxlength="120" required placeholder="Ex.: Festa de Iemanjá"></label>
         <span class="row ev-bts"><button class="btn primary" type="submit">Cadastrar</button></span></form>
-        <p class="muted" style="margin:0;font-size:.82rem">Digite só dia e mês (3110 vira 31/10). Se a data deste ano já passou há mais de 2 meses, fica para o ano que vem; para outro ano, continue digitando o ano (31/10/2027).</p>` : ''}</div>`;
+        <p class="muted" style="margin:0;font-size:.82rem">Digite só dia e mês (3110 vira 31/10). Se a data deste ano já passou há mais de 2 meses, fica para o ano que vem; para outro ano, continue digitando o ano (31/10/2027).</p>` : ''}${fim}`;
   }
-  const aberto = !!u.lista;
-  h += `<div class="card"><button class="grp-h dobra" data-act="evlista" aria-expanded="${aberto}"><h2>📅 Eventos cadastrados</h2><span class="count">${evs.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
-  if (!aberto) return h + '</div>';
-  if (!evs.length) return h + '<p class="muted" style="margin:0">Nenhum evento cadastrado.</p></div>';
+  const aberto = embutido || !!u.lista;
+  h += embutido ? '<h3 class="root-sub">📅 Eventos cadastrados</h3>' : `<div class="card"><button class="grp-h dobra" data-act="evlista" aria-expanded="${aberto}"><h2>📅 Eventos cadastrados</h2><span class="count">${evs.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  if (!aberto) return h + fim;
+  if (!evs.length) return h + '<p class="muted" style="margin:0">Nenhum evento cadastrado.</p>' + fim;
   // O mês atual e os próximos em cima; os que já passaram, no fim (escondidos).
   const mesAtual = hoje().slice(0, 7);
   const porMes = {};
@@ -64,7 +66,7 @@ export function blocosEventos() {
   h += `<div class="rolar3" data-rolar="3">${futuros.map((k) => blocoMes(k, porMes[k], editar)).join('')}${u.passados ? passados.map((k) => blocoMes(k, porMes[k], editar)).join('') : ''}</div>`;
   if (!futuros.length && !u.passados) h += '<p class="muted" style="margin:0">Nenhum evento daqui para frente.</p>';
   if (passados.length) h += `<button class="btn link small" data-act="evpassados">${u.passados ? '▾ Esconder meses anteriores' : `▸ Meses anteriores (${passados.length})`}</button>`;
-  return h + '</div>';
+  return h + fim;
 }
 
 export function render() {

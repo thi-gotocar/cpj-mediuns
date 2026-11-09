@@ -3,6 +3,7 @@
 
 import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, historicoAtendimentos, historicoFrequencia, LOCAL_PADRAO } from '/shared/resumoGira.js';
 import { giraEspecial } from '/shared/regras.js';
+import { config } from '/shared/config.js';
 import { compartilharImagem } from './imagemLista.js';
 import { gerarImagemResumo, COR_RESUMO } from './imagemResumo.js';
 import { estado, avisar, girasLista } from './estado.js';
@@ -68,7 +69,7 @@ function dadosImagem(g) {
     });
   }
   const nomeDaGira = d.gira ? (giraEspecial(g.entidade) ? d.gira : `Gira de ${d.gira}`) : 'Gira';
-  return { rotulo: 'RESUMO DO EVENTO - DIRIGENTE Mãe Vê', titulo: nomeDaGira, subtitulo: `${d.orixa ? `Orixá ${d.orixa} · ` : ''}${dShort(g.data)}`, cartoes };
+  return { rotulo: `RESUMO DO EVENTO - DIRIGENTE ${config().dirigente}`, titulo: nomeDaGira, subtitulo: `${d.orixa ? `Orixá ${d.orixa} · ` : ''}${dShort(g.data)}`, cartoes };
 }
 
 // Botão que abre o painel (só para gira encerrada).

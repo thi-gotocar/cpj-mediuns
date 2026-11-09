@@ -7,6 +7,7 @@
 //   textoLimpeza(pessoas, g, giras) → prévia da gira com a turma da limpeza para o grupo do WhatsApp (ou '')
 
 import { status, presencaDe, daGira, pessoasDaGira, presente, naCorrenteEm, licencaEm, nomeGira, nomeEntidadeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { config } from './config.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -114,8 +115,8 @@ export function textoLimpeza(pessoas, g, giras = []) {
   const senha = pessoasDaGira(pessoas, g).filter((p) => presente(p, g) && p.funcao === 'senha').map((p) => p.nome).sort((a, b) => a.localeCompare(b, 'pt-BR')).join(', ');
   const orixa = orixaDaGira(g);
   const T = [
-    '*Bom dia corrente* ✨',
-    '_Boa semana para nós_',
+    config().saudacao,
+    config().saudacao2,
     '',
     `🕯️ *Gira:* ${g.entidade ? nomeEntidadeGira(g) : 'a definir'}`,
     ...(orixa ? [`👑 *Orixá:* ${orixa}`] : []),
@@ -130,7 +131,7 @@ export function textoLimpeza(pessoas, g, giras = []) {
     T.push('', '🤝 *Ajudam nesta limpeza*', `_Da Turma ${L.anterior.limpeza}, faltaram na gira de ${br(L.anterior.data).slice(0, 5)}_`, ...lista(L.ajudantes));
   }
   if (L.deLicenca.length) T.push('', '🩺 *De licença* _(não entram nesta limpeza)_', ...lista(L.deLicenca));
-  T.push('', '━━━━━━━━━━━━━━━', 'Contamos com vocês. Axé! 🙏');
+  T.push('', '━━━━━━━━━━━━━━━', config().encerramento);
   return T.join('\n');
 }
 

@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 92;  // v92: quem sai da corrente some das listas, mas o histórico fica
+export const VERSAO = 93;  // v93: Configurações da casa
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2898,6 +2898,20 @@ export const MIGRACOES = [
      update oferenda_alunos oa set excluido = true from oferendas o
      where oa.aluno_id = v_id and o.id = oa.oferenda_id and o.status <> 'encerrado' and o.data >= v_hoje;
      return alunos_estado();
+   end;
+   $$`,
+  // ================================================== v93: Configurações da casa (aba Admin root); o padrão de cada campo fica em shared/config.js
+  `insert into sistema (chave, valor) values ('config_casa', '{}') on conflict (chave) do nothing`,
+  `create or replace function config_casa(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce((select valor::jsonb from sistema where chave = 'config_casa'), '{}'::jsonb);
+   $$`,
+  `create or replace function config_casa_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update sistema set valor = coalesce(p -> 'config', '{}'::jsonb)::text where chave = 'config_casa';
+     if not found then raise exception 'Configurações da casa não encontradas.'; end if;
+     return config_casa();
    end;
    $$`,
 ];

@@ -208,6 +208,26 @@ test('curimba: entra na limpeza, mas não na presença', async () => {
   assert.match(textoResumo(pessoas, g, 'Terreiro', [ant]), /🥁 Caio - Curimba/);
 });
 
+test('configurações da casa: padrão, campo vazio e textos da prévia', async () => {
+  const { CONFIG_PADRAO, configCasa, definirConfig } = await import('../shared/config.js');
+  const { textoLimpeza } = await import('../shared/resumoGira.js');
+  const { ehDirigente } = await import('../shared/regras.js');
+  assert.deepEqual(configCasa(null), CONFIG_PADRAO);
+  assert.equal(configCasa({ responsavel: '  ' }).responsavel, CONFIG_PADRAO.responsavel, 'vazio usa o padrão');
+  assert.equal(configCasa({ desconhecido: 'x' }).desconhecido, undefined);
+  assert.equal(ehDirigente({ nome: 'Mae Ve' }), true, 'acento e maiúscula não importam');
+  const g = { data: '2026-10-31', limpeza: 3, entidade: 'Caboclo', presenca: {}, papeis: {}, pendentePadrao: true };
+  const pessoas = [{ id: 'a', nome: 'Ana', funcao: 'cambone', limpeza: 3, linhas: [], licencas: [] }];
+  try {
+    definirConfig({ saudacao: 'Olá, casa', encerramento: 'Até breve', dirigente: 'Ana' });
+    const t = textoLimpeza(pessoas, g, [g]).split('\n');
+    assert.equal(t[0], 'Olá, casa');
+    assert.equal(t[1], CONFIG_PADRAO.saudacao2);
+    assert.equal(t.at(-1), 'Até breve');
+    assert.equal(ehDirigente(pessoas[0]), true);
+  } finally { definirConfig(null); }
+});
+
 test('prévia da gira para o WhatsApp: cabeçalho, turma, ajudantes e licença, um nome por linha', async () => {
   const { textoLimpeza } = await import('../shared/resumoGira.js');
   const P = (nome, limpeza, extra = {}) => ({ id: nome, nome, funcao: 'cambone', limpeza, linhas: [], licencas: [], ...extra });

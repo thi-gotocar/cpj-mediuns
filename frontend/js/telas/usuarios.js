@@ -2,13 +2,18 @@
 // Cadastrar gira antiga e Cadastrar escala, e os eventos da casa (cadastrar e eventos cadastrados).
 
 import { SEM_CADASTRO, ABAS, PERFIS_SISTEMA, PIN_VALIDO, normalizarAbas } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, avisar } from '../estado.js';
+import { estado, pessoasOrd, carregarUsuarios, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, adicionarPessoas, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, avisar } from '../estado.js';
 import { esc, toast, ajustarRolagem } from '../util.js';
-import { renderAjustesPerfil } from './perfil.js';
+import { renderAjustesPerfil, formSenha } from './perfil.js';
 import { blocosEventos, cliques as cliquesEventos } from './eventos.js';
-import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, cardBackup, cliquesBackup } from './historico.js';
+import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, corpoBackup, cliquesBackup } from './historico.js';
 import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
-import { contaNaPresenca, LINHA_LABEL } from '/shared/regras.js';
+import { contaNaPresenca, LINHA_LABEL, FUNCOES, CURIMBA } from '/shared/regras.js';
+import { CAMPOS_CONFIG, config } from '/shared/config.js';
+
+const PESSOA_NOVA = '__nova';
+const secao = (titulo) => `<h3 class="root-secao">${titulo}</h3>`;
+const paraBusca = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR');
 
 
 // Perfis que podem ser dados a um usuário com e-mail (o "Corrente" é só do acesso pelo nome).
@@ -34,6 +39,7 @@ function cardPerfis() {
   if (estado.novoPerfil) {
     h += `<form id="f-perfilnovo" class="row" autocomplete="off" style="gap:6px;align-items:flex-end">
       <label class="field grow">Nome do novo perfil<input type="text" id="pn-nome" maxlength="40" required placeholder="Ex.: Admin giras"></label>
+      <label class="field grow">Copiar acessos de<select id="pn-base"><option value="">— nenhum —</option>${lista.filter((f) => f.chave !== 'root').map((f) => `<option value="${esc(f.chave)}">${esc(f.nome)}</option>`).join('')}</select></label>
       <button class="btn small primary" type="submit">Criar</button><button class="btn small" type="button" data-act="cancelanovoperfil">Cancelar</button></form>`;
   }
   if (!sel) return h + '</div>';
@@ -47,8 +53,8 @@ function cardPerfis() {
       <div class="pa-th" role="row"><span>Aba</span><span>Ver</span><span>Editar</span></div>
       ${ABAS.map((x) => `<div class="pa-tr" role="row">
         <span class="pa-aba"><b>${x.nome}</b><small class="muted">Ver: ${x.ver}<br>Editar: ${x.editar}</small></span>
-        <label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(sel.chave)}" data-k="${x.k}" data-t="ver" ${a[x.k].ver ? 'checked' : ''} aria-label="${sel.nome}: ver ${x.nome}"></label>
-        <label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(sel.chave)}" data-k="${x.k}" data-t="editar" ${a[x.k].editar ? 'checked' : ''} aria-label="${sel.nome}: editar ${x.nome}"></label>
+        <label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(sel.chave)}" data-k="${x.k}" data-t="ver" ${a[x.k].ver ? 'checked' : ''} aria-label="${esc(sel.nome)}: ver ${x.nome}"></label>
+        <label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(sel.chave)}" data-k="${x.k}" data-t="editar" ${a[x.k].editar ? 'checked' : ''} aria-label="${esc(sel.nome)}: editar ${x.nome}"></label>
       </div>`).join('')}
     </div>`;
   if (!PERFIS_SISTEMA.includes(sel.chave)) {
@@ -71,20 +77,27 @@ export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   if (abertosRoot.has('ajperfil') && estado.perfil === null) { estado.perfil = undefined; carregarPerfil(); }
   const livres = pessoasLivres();
-  let h = `<section class="panel">
+  const semLigacao = estado.usuarios.filter((u) => !u.pessoaId && !semCadastro(u.papel)).length;
+  const termo = paraBusca(estado.usBusca).trim();
+  const achados = estado.usuarios.filter((u) => !termo || paraBusca(nomeDe(u) + ' ' + u.email).includes(termo));
+  let h = `<section class="panel">${secao('Acessos')}
   <div class="card adm root">${cabRoot('novo', 'Novo usuário')}${!abertosRoot.has('novo') ? '' : `
     <form id="f-user" class="row" autocomplete="off">
       <label class="field" style="flex:0 1 170px">Perfil<select id="u-papel" data-act="papelnovo">${opcoesPapel('usuario')}</select></label>
-      <label class="field grow" id="u-pessoa-campo"><span id="u-pessoa-rotulo">Pessoa da corrente</span><select id="u-pessoa"><option value="">— escolha a pessoa —</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <label class="field grow" id="u-pessoa-campo"><span id="u-pessoa-rotulo">Pessoa da corrente</span><select id="u-pessoa" data-act="pessoanova"><option value="">— escolha a pessoa —</option><option value="${PESSOA_NOVA}">＋ Cadastrar pessoa nova</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+      <label class="field grow" id="u-nova-nome" hidden>Nome da pessoa<input type="text" id="u-nova-n" maxlength="80"></label>
+      <label class="field" id="u-nova-funcao" hidden style="flex:0 1 150px">Função<select id="u-nova-f">${FUNCOES.map((f) => `<option value="${f.k}">${f.label}</option>`).join('')}<option value="${CURIMBA}">Curimba</option></select></label>
       <label class="field grow" id="u-nome-campo" hidden>Nome<input type="text" id="u-nome" maxlength="80"></label>
       <label class="field grow">E-mail<input type="email" id="u-email" required></label>
       <label class="field" style="flex:1 1 140px">Senha inicial<input type="password" id="u-senha" required minlength="8" autocomplete="new-password"></label>
       <button class="btn primary" type="submit">Criar</button>
     </form>
-    <p class="muted" style="margin:0;font-size:.85rem">O usuário é uma pessoa da corrente: o nome vem do cadastro em Pessoas (quem não está lá, cadastre antes). No <b>Admin root</b> a pessoa é opcional: sem ela, vale o nome digitado. Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>`}
+    <p class="muted" style="margin:0;font-size:.85rem">O usuário é uma pessoa da corrente: o nome vem do cadastro em Pessoas (quem não está lá pode ser cadastrado aqui mesmo). No <b>Admin root</b> a pessoa é opcional: sem ela, vale o nome digitado. Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>`}
   </div>
-  <div class="card adm root">${cabRoot('acesso', 'Quem tem acesso', estado.usuarios.length)}<div>`;
-  if (abertosRoot.has('acesso')) estado.usuarios.forEach((u) => {
+  <div class="card adm root">${cabRoot('acesso', 'Quem tem acesso', `${estado.usuarios.length}${semLigacao ? ` <span class="badge lic">${semLigacao} sem cadastro</span>` : ''}`)}
+  ${abertosRoot.has('acesso') ? `<input type="text" id="us-busca" value="${esc(estado.usBusca || '')}" placeholder="Buscar por nome ou e-mail" aria-label="Buscar usuário" autocomplete="off">
+    ${termo && !achados.length ? '<p class="muted" style="margin:0">Ninguém encontrado.</p>' : ''}` : ''}<div>`;
+  if (abertosRoot.has('acesso')) achados.forEach((u) => {
     const eu = u.id === estado.me.id;
     const conf = estado.confirm === 'u:' + u.id;
     const nome = nomeDe(u);
@@ -109,11 +122,34 @@ export function render() {
     }
     h += `<div class="us"><div style="min-width:0">${nomeHtml}<div class="em">${esc(u.email)}</div></div>
       <select data-act="papel" data-id="${u.id}" aria-label="Perfil de ${esc(nome)}" ${eu ? 'disabled title="Você não pode mudar o seu próprio perfil"' : ''}>${opcoesPapel(u.papel)}</select>
-      <div class="acts" style="display:contents"><button class="btn small" data-act="novasenha" data-id="${u.id}">Nova senha</button>
-      ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div></div>`;
+      <div class="acts" style="display:contents"><button class="btn small" data-act="snabrir" data-tipo="email" data-id="${u.id}">Nova senha</button>
+      ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div>
+      ${estado.senhaEdit?.tipo === 'email' && estado.senhaEdit.id === u.id ? formSenha('email', u.id, nome) : ''}</div>`;
   });
-  h += `</div></div>${cardPerfis()}${cardEntidades()}${cardAjustesPerfil()}${cardEventos()}${cardRegistros()}${cardBackup()}</section>`;
+  h += `</div></div>${cardPerfis()}
+    ${secao('Configurações da casa')}${cardConfig()}${cardEntidades()}${cardEventos()}
+    ${secao('Pessoas e histórico')}${cardAjustesPerfil()}${cardRegistros()}${cardBackup()}</section>`;
   return h;
+}
+
+// Nomes e textos da casa que antes ficavam fixos no app (shared/config.js).
+function cardConfig() {
+  const c = config();
+  return `<div class="card adm root">${cabRoot('config', '🏠 Nomes e textos')}${!abertosRoot.has('config') ? '' : `
+    <p class="muted" style="margin:0;font-size:.85rem">Campo em branco volta ao texto padrão.</p>
+    <form id="f-config" class="cfg-form" autocomplete="off">
+      ${CAMPOS_CONFIG.map(([k, rotulo, max, dica]) => `<label class="field">${rotulo}<input type="text" name="${k}" maxlength="${max}" value="${esc(c[k])}">${dica ? `<small class="muted">${dica}</small>` : ''}</label>`).join('')}
+      <div class="row" style="justify-content:flex-end"><button class="btn primary" type="submit">Salvar</button></div>
+    </form>`}</div>`;
+}
+
+export async function salvarConfig(form) {
+  const dados = Object.fromEntries(CAMPOS_CONFIG.map(([k]) => [k, form.elements[k].value]));
+  if (await salvarConfigCasa(dados)) toast('Configurações salvas.');
+}
+
+function cardBackup() {
+  return `<div class="card adm root">${cabRoot('backup', '💾 Backup')}${abertosRoot.has('backup') ? corpoBackup() : ''}</div>`;
 }
 
 function cardAjustesPerfil() {
@@ -153,7 +189,7 @@ function cardEntidades() {
 function cardEventos() {
   setTimeout(ajustarRolagem, 0);
   const ab = abertosRoot.has('eventos');
-  return `<div class="card adm root ev-grupo">${cabRoot('eventos', '<span aria-hidden="true">🗓️</span> Eventos', (estado.eventos || []).length)}${ab ? blocosEventos() : ''}</div>`;
+  return `<div class="card adm root ev-grupo">${cabRoot('eventos', '<span aria-hidden="true">🗓️</span> Eventos', (estado.eventos || []).length)}${ab ? blocosEventos(true) : ''}</div>`;
 }
 
 // Do Histórico: cadastrar gira antiga (já encerrada, só para o histórico) e cadastrar a escala de uma gira salva.
@@ -165,7 +201,7 @@ function cardRegistros() {
   if (!estado.giraAntiga && !estado.escalaTxt) {
     h += '<div class="row"><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button><button class="btn small" data-act="esabrir">＋ Cadastrar escala</button></div>';
   }
-  if (estado.giraAntiga) h += cardGiraAntiga(pessoasOrd().filter(contaNaPresenca)).replace('<div class="card adm" id="card-ga">', '<div class="ga-box" id="card-ga">');
+  if (estado.giraAntiga) h += cardGiraAntiga(pessoasOrd().filter(contaNaPresenca));
   if (estado.escalaTxt) h += cardEscala();
   return h + '</div>';
 }
@@ -175,13 +211,6 @@ export const cliques = {
   ...cliquesGiraAntiga,
   ...cliquesEscala,
   ...cliquesBackup,
-  novasenha(el) {
-    const u = estado.usuarios.find((x) => x.id === el.dataset.id);
-    const s = prompt(`Nova senha para ${u?.nome || 'o usuário'} (mínimo 8 caracteres):`);
-    if (s === null) return;
-    if (s.length < 8) { toast('A senha precisa ter pelo menos 8 caracteres.'); return; }
-    atualizarUsuario(el.dataset.id, { senha: s });
-  },
   deluser(el) { estado.confirm = null; excluirUsuario(el.dataset.id); },
   uren(el) {
     estado.renomearUsuario = el.dataset.id;
@@ -228,10 +257,11 @@ export async function criarPerfil() {
   const nome = document.getElementById('pn-nome').value.replace(/\s+/g, ' ').trim();
   if (!nome) { toast('Digite o nome do perfil.'); return; }
   const antes = new Set((estado.perfisCfg || []).map((f) => f.chave));
-  if (await acaoUsuarios('perfil', { nome, abas: {} })) {
+  const base = (estado.perfisCfg || []).find((f) => f.chave === document.getElementById('pn-base').value);
+  if (await acaoUsuarios('perfil', { nome, abas: base?.abas || {} })) {
     estado.novoPerfil = false;
     estado.perfilSel = (estado.perfisCfg.find((f) => !antes.has(f.chave)) || {}).chave || estado.perfilSel;
-    toast(`Perfil ${nome} criado. Marque as abas que ele pode ver e editar.`);
+    toast(base ? `Perfil ${nome} criado com os acessos de ${base.nome}.` : `Perfil ${nome} criado. Marque as abas que ele pode ver e editar.`);
     avisar();
   }
 }
@@ -292,8 +322,14 @@ export const mudancas = {
   ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
   ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
   entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
+  pessoanova(t) {
+    const nova = t.value === PESSOA_NOVA;
+    document.getElementById('u-nova-nome').hidden = !nova;
+    document.getElementById('u-nova-funcao').hidden = !nova;
+    if (nova) document.getElementById('u-nova-n').focus();
+  },
   // Novo usuário: root pode ter só um nome; os outros escolhem a pessoa da corrente.
-    papelnovo(t) {
+  papelnovo(t) {
     const root = semCadastro(t.value);
     document.getElementById('u-nome-campo').hidden = !root;
     document.getElementById('u-pessoa-rotulo').textContent = root ? 'Pessoa da corrente (opcional)' : 'Pessoa da corrente';
@@ -321,13 +357,25 @@ export async function enviarFormulario() {
   const val = (id) => document.getElementById(id).value;
   const papel = val('u-papel');
   const root = semCadastro(papel);
-  const pessoaId = val('u-pessoa');
+  let pessoaId = val('u-pessoa');
+  const nova = pessoaId === PESSOA_NOVA;
   if (!root && !pessoaId) { toast('Escolha a pessoa da corrente.'); return; }
-  const nome = pessoaId ? estado.pessoas.find((p) => p.id === pessoaId)?.nome : val('u-nome').trim();
+  const nomeNovo = nova ? val('u-nova-n').replace(/\s+/g, ' ').trim() : '';
+  if (nova && (!nomeNovo || /[,;]/.test(nomeNovo))) { toast('Digite o nome da pessoa nova (um nome só, sem vírgula).'); return; }
+  const funcaoNova = val('u-nova-f');
+  const email = val('u-email').trim();
+  const senha = val('u-senha');
+  const nome = nova ? nomeNovo : pessoaId ? estado.pessoas.find((p) => p.id === pessoaId)?.nome : val('u-nome').trim();
   if (!nome) { toast('Digite o nome ou escolha a pessoa da corrente.'); return; }
-  const dados = { email: val('u-email').trim(), senha: val('u-senha'), papel, ...(pessoaId ? { pessoaId } : { nome }) };
+  if (nova) {
+    // Cadastrar redesenha a tela: e-mail e senha já foram lidos acima.
+    try {
+      if (!(await adicionarPessoas(nomeNovo, funcaoNova))) { toast('Essa pessoa já está cadastrada: escolha o nome na lista.'); return; }
+    } catch (e) { toast(e.message); avisar(); return; }
+    pessoaId = pessoasOrd().find((p) => p.nome.toLowerCase() === nomeNovo.toLowerCase())?.id;
+  }
   try {
-    await criarUsuario(dados);
+    await criarUsuario({ email, senha, papel, ...(pessoaId ? { pessoaId } : { nome }) });
     toast(`Usuário ${nome} criado.`);
-  } catch (e) { toast(e.message); avisar(); }
+  } catch (e) { toast(nova ? `${nome} foi cadastrada em Pessoas, mas o usuário não foi criado: ${e.message}` : e.message); avisar(); }
 }

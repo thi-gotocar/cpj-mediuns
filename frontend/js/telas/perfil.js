@@ -58,21 +58,22 @@ export function renderAjustesPerfil(todos) {
         <div class="aj-form"><label class="field">Entrada na corrente<input type="date" id="ent-${p.id}" data-act="entrada" data-id="${p.id}" value="${p.entrada || ''}"></label>
         ${p.entrada ? `<button class="btn" data-act="limparentrada" data-id="${p.id}" aria-label="Tirar a data de entrada">✕ Tirar a data</button>` : ''}</div>` : '';
   } else if (A.campo === 'senha') {
-      // Igual era no bloco Senhas da aba Usuários: define uma nova senha, depois de confirmar.
-      if (!estado.senhas || !Array.isArray(estado.usuarios)) return h + '<div class="loading">Carregando…</div>';
+      // Senha de quem entra com a palavra-chave e o nome; a do e-mail fica em "Quem tem acesso".
+      if (!estado.senhas) return h + '<div class="loading">Carregando…</div>';
       const s = estado.senhas.find((y) => y.pessoaId === x.pessoaId);
-      const u = estado.usuarios.find((y) => y.pessoaId === x.pessoaId);
       const ed = estado.senhaEdit;
-      const form = (tipo, id) => `<form id="f-sn" class="sn-form" data-tipo="${tipo}" data-id="${id}" autocomplete="off">
-        <input type="password" id="sn-in" ${tipo === 'pin' ? 'inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Nova senha (4 a 8 números)"' : 'minlength="8" placeholder="Nova senha do e-mail (mín. 8)"'} autocomplete="new-password" required aria-label="Nova senha de ${esc(x.nome)}">
-        <button class="btn small danger" type="submit">Confirmar alteração</button><button class="btn small" type="button" data-act="snfechar">Cancelar</button></form>`;
-      h += `<div class="sn-l"><div class="sn-nome"><b>${esc(x.nome)}</b> <span class="badge ${s?.temSenha ? 'sn-com' : 'sn-sem'}">${s?.temSenha ? 'com senha' : 'sem senha'}</span>${u ? ` <span class="muted" style="font-size:.8rem">· ${esc(u.email)}</span>` : ''}</div>
-        <div class="sn-bts"><button class="btn small" data-act="snabrir" data-tipo="pin" data-id="${x.pessoaId}">Senha da corrente</button>${u ? `<button class="btn small" data-act="snabrir" data-tipo="email" data-id="${u.id}">Senha do e-mail</button>` : ''}</div>
-        ${ed && ((ed.tipo === 'pin' && ed.id === x.pessoaId) || (ed.tipo === 'email' && u && ed.id === u.id)) ? form(ed.tipo, ed.id) : ''}</div>
-        <p class="muted" style="margin:0;font-size:.82rem">As senhas ficam guardadas embaralhadas: nem o app consegue mostrá-las. <b>Senha da corrente</b>: a de quem entra com a palavra-chave e o nome. <b>Senha do e-mail</b>: a de quem tem usuário.</p>`;
+      h += `<div class="sn-l"><div class="sn-nome"><b>${esc(x.nome)}</b> <span class="badge ${s?.temSenha ? 'sn-com' : 'sn-sem'}">${s?.temSenha ? 'com senha' : 'sem senha'}</span></div>
+        <div class="sn-bts"><button class="btn small" data-act="snabrir" data-tipo="pin" data-id="${x.pessoaId}">Senha da corrente</button></div>
+        ${ed?.tipo === 'pin' && ed.id === x.pessoaId ? formSenha('pin', x.pessoaId, x.nome) : ''}</div>
+        <p class="muted" style="margin:0;font-size:.82rem">As senhas ficam guardadas embaralhadas: nem o app consegue mostrá-las. Esta é a senha de quem entra com a palavra-chave e o nome. A senha do e-mail se troca em <b>Quem tem acesso</b>.</p>`;
   }
   return h;
 }
+
+// Formulário de nova senha da aba Admin root; quem grava é confirmarSenha, em usuarios.js.
+export const formSenha = (tipo, id, nome) => `<form id="f-sn" class="sn-form" data-tipo="${tipo}" data-id="${id}" autocomplete="off">
+  <input type="password" id="sn-in" ${tipo === 'pin' ? 'inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="Nova senha (4 a 8 números)"' : 'minlength="8" placeholder="Nova senha do e-mail (mín. 8)"'} autocomplete="new-password" required aria-label="Nova senha de ${esc(nome)}">
+  <button class="btn small danger" type="submit">Confirmar alteração</button><button class="btn small" type="button" data-act="snfechar">Cancelar</button></form>`;
 
 // Foto da pessoa no canto do bloco Informações: a própria pessoa troca ou tira; o admin, de qualquer um.
 // Editando: mostra a foto escolhida, que só é gravada no Salvar.

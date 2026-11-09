@@ -8,6 +8,8 @@
 //     passes: [{ m: mediumId, c: passeId,   fixo, remanejado }] }
 // Status: p = Presente (padrão), na = Não atende, sup = Suporte, f = Falta, a = Ausente.
 
+import { config } from './config.js';
+
 export const FUNCOES = [
   { k: 'medium', label: 'Médium', pl: 'Médiuns' },
   { k: 'cambone', label: 'Cambone', pl: 'Cambones' },
@@ -283,10 +285,10 @@ export const cambonaHoje = (p, g) => {
 };
 export const recebe = (p) => p.funcao === 'medium' || p.funcao === 'extra';
 export const ehCambone = (p) => p.funcao === 'cambone';
-// A Mãe Vê (dirigente da casa) vem sempre primeiro na lista de médiuns.
-export const ehMaeVe = (p) => normalizar(p?.nome) === 'mae ve';
+// A dirigente da casa (Configurações da casa) vem sempre primeiro na lista de médiuns.
+export const ehDirigente = (p) => normalizar(p?.nome) === normalizar(config().dirigente);
 export function ordRecebe(a, b) {
-  return (a.funcao === b.funcao ? 0 : a.funcao === 'medium' ? -1 : 1) || ehMaeVe(b) - ehMaeVe(a) || a.nome.localeCompare(b.nome, 'pt-BR');
+  return (a.funcao === b.funcao ? 0 : a.funcao === 'medium' ? -1 : 1) || ehDirigente(b) - ehDirigente(a) || a.nome.localeCompare(b.nome, 'pt-BR');
 }
 
 function shuffle(a) {

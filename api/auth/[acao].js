@@ -142,9 +142,13 @@ const acoes = {
   async inicio(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
-    if (req.query.atualizar) return listasIniciais(u);
-    const [me, listas] = await Promise.all([dadosDoMe(u), listasIniciais(u)]);
-    return { me, ...listas };
+    const lendoConfig = opcional(db.rpc('config_casa'));
+    if (req.query.atualizar) {
+      const [listas, config] = await Promise.all([listasIniciais(u), lendoConfig]);
+      return { ...listas, config };
+    }
+    const [me, listas, config] = await Promise.all([dadosDoMe(u), listasIniciais(u), lendoConfig]);
+    return { me, ...listas, config };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).

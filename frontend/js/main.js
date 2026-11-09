@@ -343,6 +343,7 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoGrupo(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
+  if (e.target.id === 'us-busca') { estado.usBusca = e.target.value; render(); }
   if (e.target.id === 'info-pessoa-busca') { const t = e.target; telaDe('perfil').then((m) => m.buscarInfo(t)); }
   if (e.target.id === 'vid-busca') { const t = e.target; telaDe('videos').then((m) => m.buscar(t)); }
   // Pedido de oração: até 3 linhas (não deixa passar da 3ª) e guardado para um redesenho não apagar.
@@ -455,6 +456,8 @@ main.addEventListener('submit', async (e) => {
     await (await telaDe('usuarios')).confirmarSenha(e.target);
   } else if (id === 'f-user') {
     await (await telaDe('usuarios')).enviarFormulario();
+  } else if (id === 'f-config') {
+    await (await telaDe('usuarios')).salvarConfig(e.target);
   } else if (id === 'f-entidade-alias') {
     await (await telaDe('usuarios')).salvarApelidoEntidade(e.target);
   } else if (id === 'f-of' || e.target.dataset.form) {

@@ -1,6 +1,7 @@
 // Aba Gira: bloco "Sugestão Mi/Mãe Vê" do card do admin.
 
 import { LINHA_LABEL, sugestoesDaGira } from '/shared/regras.js';
+import { config } from '/shared/config.js';
 import { estado, pode, girasLista, carregarPerfil } from '../estado.js';
 import { esc } from '../util.js';
 
@@ -42,7 +43,7 @@ export function blocoSugestao(ps, g) {
   const sug = sugestoesDaGira(ps, g, girasLista(), perfisDaCorrente());
   const linha = sug ? LINHA_LABEL[sug.linha] || '' : '';
   const ab = sugAbertas.has(g.data);
-  const cabSug = `<button class="grp-h dobra" data-act="dobrarsug" aria-expanded="${ab}"><h2><span aria-hidden="true">💡</span> Sugestão Mi/Mãe Vê</h2><span class="count">${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}<span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
+  const cabSug = `<button class="grp-h dobra" data-act="dobrarsug" aria-expanded="${ab}"><h2><span aria-hidden="true">💡</span> Sugestão ${esc(config().sugestao)}</h2><span class="count">${sug ? `<span class="sug-linha">${esc(linha)}</span>` : ''}<span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
   if (!ab) return `<div class="adm-sec sugestao">${cabSug}${sug ? `<div class="sug-resumo" data-act="dobrarsug">${subtitulo('Passe', 'passe', sug.passe.length)}${subtitulo('Atendimento extra', 'extra', sug.extra.length)}</div>` : ''}</div>`;
   const comOf = !!sug && [...sug.passe, ...sug.extra].some((x) => x.oferendas);
   const cabGiras = `<span class="sug-cab-g${linha.length > 14 ? ' mlongo' : linha.length > 9 ? ' longo' : ''}">Giras de ${esc(linha)}</span>`;

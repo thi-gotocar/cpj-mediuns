@@ -9,6 +9,7 @@ import { gerarImagem } from '../imagem.js';
 import { gerarImagemEvento } from '../imagemEvento.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
+import { config } from '/shared/config.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { htmlStatus, abertos, cabDobra, caixaPendente, ICONE_WHATS } from './giraComum.js';
 import { blocoEu } from './giraEu.js';
@@ -935,7 +936,7 @@ export const mudancas = {
   // A própria pessoa só pode declarar até a véspera.
   async ausencia(t) {
     if (t.value !== 'a') return;
-    if (!confirm('Registrar ausência antecipada?\nSua presença será marcada como “Ausente” no cadastro desta gira. Depois disso, só a Michelle consegue alterar.')) { t.value = 'pend'; return; }
+    if (!confirm('Registrar ausência antecipada?\nSua presença será marcada como “Ausente” no cadastro desta gira. Depois disso, só a ' + config().responsavel + ' consegue alterar.')) { t.value = 'pend'; return; }
     await declararAusencia();
   },
   minhaentidade(t) { t.blur(); escolherEntidade(t.value); },

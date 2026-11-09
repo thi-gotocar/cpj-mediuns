@@ -6,14 +6,28 @@
 //                      { acao: 'excluirPerfil', chave }        → perfis
 //                      { acao: 'pin', pessoaId, senha }        troca a senha (PIN) de uma pessoa → senhas
 //                      { acao: 'pinAluno', alunoId, senha }    troca a senha de um aluno
+//                      { acao: 'config', config }              Configurações da casa (shared/config.js) → config completa
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { gerarHash, SENHA_MINIMA } from '../_lib/senhas.js';
 import { papelValido } from '../_lib/perfis.js';
 import { SEM_CADASTRO, PERFIS_SISTEMA, PIN_VALIDO, normalizarAbas } from '../../shared/permissoes.js';
+import { CAMPOS_CONFIG, configCasa } from '../../shared/config.js';
 
 const semVersao = (lista) => lista.map(({ sessaoVersao, abas, ...u }) => u);
+
+// Só os campos conhecidos; vazio não é guardado (vale o padrão).
+function validarConfig(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) throw new HttpError(400, 'Configurações inválidas.');
+  const r = {};
+  for (const [k, rotulo, max] of CAMPOS_CONFIG) {
+    const v = String(c[k] ?? '').replace(/\s+/g, ' ').trim();
+    if (v.length > max) throw new HttpError(400, `${rotulo}: até ${max} letras.`);
+    if (v) r[k] = v;
+  }
+  return r;
+}
 
 async function acaoPerfil(b) {
   if (b.acao === 'excluirPerfil') {
@@ -46,6 +60,7 @@ export default rota({
     await exigir(req, 'usuarios:gerenciar');
     const b = corpo(req);
     if (b.acao === 'perfil' || b.acao === 'excluirPerfil') return acaoPerfil(b);
+    if (b.acao === 'config') return configCasa(await db.rpc('config_casa_salvar', { config: validarConfig(b.config) }));
     if (b.acao === 'pinAluno') {
       const senha = String(b.senha ?? '');
       if (!PIN_VALIDO.test(senha)) throw new HttpError(400, 'A senha precisa ter de 4 a 8 números.');

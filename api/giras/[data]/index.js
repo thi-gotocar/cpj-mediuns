@@ -18,6 +18,7 @@ import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA, hojeBR }
 import { exigir } from '../../_lib/sessao.js';
 import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
+import { configCasa } from '../../../shared/config.js';
 import { db } from '../../_lib/db.js';
 import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, pendentesDaGira, proximaTurma, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
 
@@ -98,8 +99,9 @@ async function declararAusencia(req) {
   const p = pessoas.find((x) => x.id === eu.pessoaId);
   if (!atual) throw new HttpError(404, 'Esta gira ainda não foi criada.');
   if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
-  if (hojeBR() >= data) throw new HttpError(400, 'A ausência só pode ser declarada até o dia anterior à gira. Fale com a Michelle.');
-  if (!podeDeclararAusencia(p, atual, hojeBR())) throw new HttpError(400, 'Sua presença nesta gira já foi definida. Fale com a Michelle.');
+  const faleCom = async () => `Fale com a ${configCasa(await db.rpc('config_casa')).responsavel}.`;
+  if (hojeBR() >= data) throw new HttpError(400, `A ausência só pode ser declarada até o dia anterior à gira. ${await faleCom()}`);
+  if (!podeDeclararAusencia(p, atual, hojeBR())) throw new HttpError(400, `Sua presença nesta gira já foi definida. ${await faleCom()}`);
   const gira = ocultarSorteio(eu, await db.rpc('presenca_marcar', { data, pessoaId: p.id, status: 'a' }));
   return { gira, mensagem: 'Ausência registrada. Obrigado por avisar! #boa gira' };
 }

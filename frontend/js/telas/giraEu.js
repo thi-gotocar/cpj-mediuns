@@ -2,6 +2,7 @@
 
 import { nomeEntidadeGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naCorrenteEm, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira, podeEscolherEntidade, linhasParaEscolher, entidadeEscolhida } from '/shared/regras.js';
 import { estado, pode, nome, girasLista, carregarFoto } from '../estado.js';
+import { config } from '/shared/config.js';
 import { esc, dDM, hoje, iniciais } from '../util.js';
 import { htmlStatus, caixaPendente } from './giraComum.js';
 
@@ -91,7 +92,7 @@ export function blocoEu(g) {
     const declara = podeDeclararAusencia(p, gs, hoje());
     const opts = declara ? [['pend', 'Estarei presente 😊'], ['a', 'Não poderei ir (ausência antecipada)']] : [[pr, ROTULO_PRESENCA[pr] || pr]];
     const motivo = declara ? '' : pr === 'pend' && !statusMarcado(p, gs) && gs && hoje() >= g.data
-      ? 'No dia da gira, só a Michelle altera.'
+      ? `No dia da gira, só a ${esc(config().responsavel)} altera.`
       : gs?.encerrada ? 'Gira encerrada.' : 'Status definido na lista de presença.';
     const act = rootVinculado ? `data-act="status" data-id="${p.id}"` : 'data-act="ausencia"';
     L.push(`<div class="eu-aus-box">${declara ? '<p class="eu-aus-aviso">Não poderá comparecer? <br> Informe a ausência até a véspera.</p>' : ''}
