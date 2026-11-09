@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 87;  // v87: aba Ervas visível para todos ou só para quem administra
+export const VERSAO = 88;  // v88: aba Iemanjá
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2363,6 +2363,182 @@ export const MIGRACOES = [
      insert into sistema (chave, valor) values ('ervas_publicada', case when (p ->> 'publicada')::boolean then 'true' else 'false' end)
      on conflict (chave) do update set valor = excluded.valor;
      return ervas_publicada();
+   end;
+   $$`,
+  // ================================================== v88: aba Iemanjá — evento com 5 grupos, sorteio das pessoas e itens assumidos
+  // Não mexe no cadastro de ninguém: chave 'p:<pessoa>' ou 'a:<aluno>', como nas oferendas.
+  `create table if not exists iemanja_eventos (
+     id           uuid primary key default gen_random_uuid(),
+     data         date not null,
+     visivel      boolean not null default false,
+     sorteado     boolean not null default false,
+     fora         text[] not null default '{}',
+     encerrado_em timestamptz,
+     criado_em    timestamptz not null default now()
+   )`,
+  `create unique index if not exists iemanja_um_aberto on iemanja_eventos ((true)) where encerrado_em is null`,
+  `create table if not exists iemanja_grupos (
+     id             uuid primary key default gen_random_uuid(),
+     evento_id      uuid not null references iemanja_eventos (id) on delete cascade,
+     ordem          int not null check (ordem between 1 and 5),
+     nome           text not null default '',
+     responsavel_id uuid references pessoas (id) on delete set null,
+     unique (evento_id, ordem)
+   )`,
+  `create table if not exists iemanja_membros (
+     grupo_id uuid not null references iemanja_grupos (id) on delete cascade,
+     chave    text not null,
+     nome     text not null,
+     fixo     boolean not null default false,
+     primary key (grupo_id, chave)
+   )`,
+  `create table if not exists iemanja_itens (
+     id         uuid primary key default gen_random_uuid(),
+     grupo_id   uuid not null references iemanja_grupos (id) on delete cascade,
+     nome       text not null check (length(btrim(nome)) between 1 and 80),
+     quantidade int not null check (quantidade between 1 and 9999),
+     criado_em  timestamptz not null default now()
+   )`,
+  `create table if not exists iemanja_doacoes (
+     item_id    uuid not null references iemanja_itens (id) on delete cascade,
+     chave      text not null,
+     nome       text not null,
+     quantidade int not null check (quantidade > 0),
+     primary key (item_id, chave)
+   )`,
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora),
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', (select pe.nome from pessoas pe where pe.id = g.responsavel_id),
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'quantidade', i.quantidade,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
+   $$`,
+  `create or replace function iemanja_evento_novo(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid;
+   begin
+     if exists (select 1 from iemanja_eventos where encerrado_em is null) then
+       raise exception 'Já existe um evento em andamento. Encerre antes de criar outro.';
+     end if;
+     insert into iemanja_eventos (data) values ((p ->> 'data')::date) returning id into v_id;
+     insert into iemanja_grupos (evento_id, ordem) select v_id, n from generate_series(1, 5) n;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_evento_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := (p ->> 'id')::uuid;
+   begin
+     update iemanja_eventos set
+       data = case when p ? 'data' then (p ->> 'data')::date else data end,
+       visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end,
+       fora = case when p ? 'fora' then array(select jsonb_array_elements_text(p -> 'fora')) else fora end,
+       encerrado_em = case when (p ->> 'encerrar')::boolean then now() else encerrado_em end
+     where id = v_id;
+     update iemanja_grupos g set nome = x ->> 'nome', responsavel_id = nullif(x ->> 'responsavelId', '')::uuid
+       from jsonb_array_elements(coalesce(p -> 'grupos', '[]'::jsonb)) x
+      where g.id = (x ->> 'id')::uuid and g.evento_id = v_id;
+     return iemanja_estado();
+   end;
+   $$`,
+  // Cada pessoa fica em um grupo só por evento; quem sai de um grupo deixa os itens que tinha assumido nele.
+  `create or replace function iemanja_membro(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_grupo uuid := (p ->> 'grupoId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_evento uuid := (select evento_id from iemanja_grupos where id = v_grupo);
+   begin
+     delete from iemanja_doacoes d using iemanja_itens i, iemanja_grupos g
+      where d.item_id = i.id and i.grupo_id = g.id and g.evento_id = v_evento and d.chave = v_chave
+        and (coalesce((p ->> 'remover')::boolean, false) or g.id <> v_grupo);
+     delete from iemanja_membros m using iemanja_grupos g
+      where m.grupo_id = g.id and g.evento_id = v_evento and m.chave = v_chave
+        and (coalesce((p ->> 'remover')::boolean, false) or g.id <> v_grupo);
+     if not coalesce((p ->> 'remover')::boolean, false) then
+       insert into iemanja_membros (grupo_id, chave, nome, fixo) values (v_grupo, v_chave, p ->> 'nome', coalesce((p ->> 'fixo')::boolean, false))
+       on conflict (grupo_id, chave) do update set fixo = excluded.fixo;
+       update iemanja_eventos set fora = array_remove(fora, v_chave) where id = v_evento;
+     end if;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into iemanja_itens (grupo_id, nome, quantidade) values ((p ->> 'grupoId')::uuid, p ->> 'nome', (p ->> 'quantidade')::int);
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_item_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from iemanja_itens where id = (p ->> 'id')::uuid;
+     return iemanja_estado();
+   end;
+   $$`,
+  // A trava da linha do item impede duas pessoas de passarem da quantidade pedida.
+  `create or replace function iemanja_assumir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_item uuid := (p ->> 'itemId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_qtd int := (p ->> 'quantidade')::int;
+     v_pedido int;
+   begin
+     select quantidade into v_pedido from iemanja_itens where id = v_item for update;
+     if v_qtd = 0 then
+       delete from iemanja_doacoes where item_id = v_item and chave = v_chave;
+     else
+       if v_qtd + (select coalesce(sum(quantidade), 0) from iemanja_doacoes where item_id = v_item and chave <> v_chave) > v_pedido then
+         raise exception 'Este item já tem responsável para toda a quantidade.';
+       end if;
+       insert into iemanja_doacoes (item_id, chave, nome, quantidade) values (v_item, v_chave, p ->> 'nome', v_qtd)
+       on conflict (item_id, chave) do update set quantidade = excluded.quantidade;
+     end if;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_sorteio_gravar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into iemanja_membros (grupo_id, chave, nome, fixo)
+       select (g ->> 'id')::uuid, m ->> 'chave', m ->> 'nome', coalesce((m ->> 'fixo')::boolean, false)
+       from jsonb_array_elements(p -> 'grupos') g, jsonb_array_elements(g -> 'membros') m
+     on conflict (grupo_id, chave) do nothing;
+     update iemanja_eventos set sorteado = true where id = (p ->> 'id')::uuid;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_sorteio_cancelar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := (p ->> 'id')::uuid;
+   begin
+     delete from iemanja_doacoes d using iemanja_itens i, iemanja_grupos g, iemanja_membros m
+      where d.item_id = i.id and i.grupo_id = g.id and g.evento_id = v_id
+        and m.grupo_id = g.id and m.chave = d.chave and not m.fixo;
+     delete from iemanja_membros m using iemanja_grupos g where m.grupo_id = g.id and g.evento_id = v_id and not m.fixo;
+     update iemanja_eventos set sorteado = false where id = v_id;
+     return iemanja_estado();
+   end;
+   $$`,
+  // O primeiro evento já vem criado (oculto), só uma vez.
+  `do $$
+   begin
+     if not exists (select 1 from sistema where chave = 'v88_iemanja') then
+       perform iemanja_evento_novo('{"data": "2026-12-12"}'::jsonb);
+       insert into sistema (chave, valor) values ('v88_iemanja', 'ok');
+     end if;
    end;
    $$`,
 ];

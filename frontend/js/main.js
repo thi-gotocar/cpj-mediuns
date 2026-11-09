@@ -11,6 +11,7 @@ import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
 import * as usuarios from './telas/usuarios.js';
 import * as ervas from './telas/ervas.js';
+import * as iemanja from './telas/iemanja.js';
 import * as oferendas from './telas/oferendas.js';
 import * as perfil from './telas/perfil.js';
 import * as eventos from './telas/eventos.js';
@@ -25,7 +26,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, agenda: gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
+const TELAS = { gira, agenda: gira, pessoas, hist: historico, ervas, iemanja, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -72,11 +73,13 @@ function render() {
     return;
   }
   const visao = visaoAtiva();
+  // Aba Iemanjá: na visão CPJ/Alunos do root, vale o que a corrente vê.
+  const iem = estado.me.papel === 'root' && estado.visaoRoot !== 'root' ? !!estado.me.iemanjaPublica : !!estado.me.iemanjaAba;
   // Abas que o perfil pode ver.
-  let VE = { usuarios: pode('usuarios:gerenciar'), ervas: veErvas(), oferendas: pode('oferendas:doar'),
+  let VE = { usuarios: pode('usuarios:gerenciar'), ervas: veErvas(), iemanja: iem, oferendas: pode('oferendas:doar'),
     pessoas: pode('pessoas:ver') || pode('alunos:ver'), hist: pode('historico:ver'), perfil: pode('perfil:ver'), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), gira: true, agenda: true };
-  if (visao === 'alunos') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
-  if (visao === 'curimba') VE = { usuarios: false, ervas: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, gira: true, agenda: false };
+  if (visao === 'alunos') VE = { usuarios: false, ervas: false, iemanja: iem, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, gira: true, agenda: false };
+  if (visao === 'curimba') VE = { usuarios: false, ervas: false, iemanja: false, oferendas: false, pessoas: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, gira: true, agenda: false };
   if (!VE[prefs.tab]) prefs.tab = 'gira';
   tabs.hidden = false;
   Object.entries(VE).forEach(([k, v]) => { tabs.querySelector(`[data-tab="${k}"]`).hidden = !v; });
@@ -186,7 +189,7 @@ async function cliqueConta(e) {
   if (!b) return;
   if (b.dataset.conta === 'sair') {
     sair();
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, infoPessoa: null, pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' }, recadoTxt: null, usuarios: null, ervas: null, ervasPara: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, infoPessoa: null, pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' }, recadoTxt: null, usuarios: null, ervas: null, iemanja: null, ervasPara: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {
@@ -224,7 +227,7 @@ rodape.addEventListener('click', cliqueConta);
 main.addEventListener('click', async (e) => {
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }
   // Calendário da aba Gira: abre o seletor de data também no computador.
-  if (e.target.dataset.act === 'irdata') { try { e.target.showPicker(); } catch { /* o toque já abre */ } return; }
+  if (e.target.dataset.act === 'irdata' || e.target.dataset.act === 'iemdata') { try { e.target.showPicker(); } catch { /* o toque já abre */ } return; }
   if (e.target.closest('[data-conta="voltarlogin"]')) { pinLogin = null; erroLogin = ''; render(); return; }
   // Acesso da corrente: a pessoa confirma qual nome cadastrado é o dela.
   const eu = e.target.closest('[data-soueu]');

@@ -148,6 +148,14 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **Aba Ervas, admin**: interruptor **Visível para todos** no topo (ligado, todos com a aba no perfil veem; desligado, só quem administra as ervas, e o bloco Pedir ervas da aba Gira some junto; o servidor também recusa). Onde aparece o nome de quem está logado, o admin tem o combo da corrente: escolhe a pessoa, vê o pedido dela e ajusta com − / +, gravando sozinho (quem pediu fora da corrente aparece no fim da lista). O bloco **Compra** concentra o cadastro: **＋ Adicionar erva** e o **✎** de cada erva (nome, porção serve, preço estimado, Excluir).
 - Login: e-mail+senha; acessos por palavra-passe `cpj`, `alunos` ou `curimba` pedem o nome cadastrado no grupo correspondente (`cpj` mantém o PIN opcional de 4–8 dígitos); instalação com `CODIGO_INSTALACAO`. O root seleciona a visão Root, CPJ, Alunos ou Curimba no topo, sem alterar as permissões do backend.
 
+## Iemanjá (aba própria)
+
+- Cada evento tem data, **5 grupos** e um interruptor **Visível para todos** (ligado: CPJ, admins e alunos; desligado: só os admins do evento). Há um evento em andamento por vez; **Encerrar** manda para o **Histórico** (só leitura) e **Novo evento** é do root. O primeiro veio criado, oculto, em 12/12/2026.
+- **Admins do evento**: os roots e os **responsáveis** dos 5 grupos daquele evento (só o root define os responsáveis, em Editar). O perfil Admin comum não tem poder especial aqui.
+- **Grupos**: minimizados, com o orixá/entidade, o responsável e o % de itens com responsável. Só expande quem é do grupo e os admins. Dentro: itens (o admin cria; quem é do grupo assume, como na oferenda) e as pessoas do grupo. O nome vem da lista de orixás e entidades, para o sorteio comparar com o Perfil sem depender de digitação.
+- **Sorteio** (admins): listas minimizadas da corrente inteira, Turma 09 e Turma 10, com ✕ para tirar alguém só deste sorteio (o cadastro não muda). **Adicionar** põe qualquer pessoa dos cadastros direto num grupo: antes do sorteio ela fica fixa. O responsável também fica fixo no próprio grupo. Exige os 5 nomes escolhidos.
+- **Regra do sorteio** (`shared/iemanja.js`): os grupos terminam do mesmo tamanho (diferença de 1, salvo fixados). A corrente vai primeiro, por afinidade com o nome do grupo: orixá de frente, adjunto, ancestral, guia chefe e guia de frente, até o limite de cada grupo; depois Turma 09 e 10 ao acaso, sempre no grupo menor. **Cancelar sorteio** tira os sorteados e os itens que eles assumiram; quem foi fixado continua.
+
 ## Jornada (fluxo de uso)
 
 ```mermaid

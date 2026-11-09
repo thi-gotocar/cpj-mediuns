@@ -19,6 +19,7 @@
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
 import { exigir } from '../_lib/sessao.js';
+import { abaIemanja } from '../_lib/iemanja.js';
 import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, emitirTokenGrupo, iguaisSeguro, SENHA_MINIMA } from '../_lib/senhas.js';
 import { permissoesDe, ehAcessoCorrente, grupoAcesso, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
@@ -42,9 +43,14 @@ const acoes = {
   async me(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
+    // Falha na aba Iemanjá só esconde a aba: não pode impedir o app de abrir.
+    const iemanja = await abaIemanja(u).catch((e) => {
+      console.error('[auth/me] aba Iemanjá', e);
+      return { iemanjaAba: false, iemanjaPublica: false };
+    });
     // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
     return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' ? { temSenha: !!u.temSenha } : {}),
-      videosPublicada: !!(await db.rpc('videos_publicada')), ervasPublicada: !!(await db.rpc('ervas_publicada')) };
+      videosPublicada: !!(await db.rpc('videos_publicada')), ervasPublicada: !!(await db.rpc('ervas_publicada')), ...iemanja };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).

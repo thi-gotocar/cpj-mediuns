@@ -15,6 +15,7 @@ import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido } from '../../shared/oferendas.js';
+import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 function resposta(oferendas, eu) {
@@ -51,13 +52,15 @@ function validarGrupos(v) {
 
 export default rota({
   GET: async (req) => {
+    if (req.query.lista === 'iemanja') return respostaIemanja(await exigir(req));
     const eu = await exigir(req, 'oferendas:doar');
     // Já inclui os novos cadastrados nas listas por pessoa.
     return resposta(await db.rpc('oferendas_sincronizar'), eu);
   },
   POST: async (req) => {
-    const eu = await exigir(req, 'oferendas:doar');
     const b = corpo(req);
+    if (b.acao === 'iemanja') return acaoIemanja(await exigir(req), b);
+    const eu = await exigir(req, 'oferendas:doar');
     if (b.acao === 'doar') {
       const estado = await db.rpc('oferenda_doar', {
         itemId: validarId(b.itemId, 'Item'), chave: chavePessoa(eu), nome: eu.nome,

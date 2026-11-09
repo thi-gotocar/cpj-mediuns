@@ -32,6 +32,7 @@ export const estado = {
   renomearUsuario: null, // id do usuário com o nome em edição (aba Admin root)
   giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu }
+  iemanja: null,       // GET /api/oferendas?lista=iemanja: { eventos, root, candidatos? }
   recadoTxt: null,     // recado do admin ainda não salvo: { data, texto }
   perfil: null,        // GET /api/auth/perfil: { eu, todos? } (ou { erro })
   anamnese: null,      // GET /api/auth/anamnese: { visivel, perguntas, minhas, todas? } (ou { erro })
@@ -207,6 +208,7 @@ export async function atualizarDoServidor() {
     }
     // Bloco "Pedir ervas" da aba Gira: mostra se o pedido ainda está aberto.
     if (estado.ervas !== null && prefs.tab === 'agenda') estado.ervas = await api('GET', '/ervas').catch(() => estado.ervas);
+    if (estado.iemanja !== null && prefs.tab === 'iemanja') estado.iemanja = await api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja);
     avisar();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
 }
@@ -792,6 +794,24 @@ export function carregarOferendas() {
     avisar();
   })();
   return carregandoOferendas;
+}
+
+// ---------- aba Iemanjá ----------
+let carregandoIemanja = false;
+export async function carregarIemanja() {
+  if (carregandoIemanja) return;
+  carregandoIemanja = true;
+  try { estado.iemanja = await api('GET', '/oferendas?lista=iemanja'); } catch (e) { estado.iemanja = { erro: e.message }; }
+  carregandoIemanja = false;
+  avisar();
+}
+export async function acaoIemanja(op, dados = {}) {
+  try {
+    estado.iemanja = await api('POST', '/oferendas', { acao: 'iemanja', op, ...dados });
+    estado.me = { ...estado.me, iemanjaPublica: estado.iemanja.publica };
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
 }
 
 export async function acaoOferendas(acao, dados = {}) {
