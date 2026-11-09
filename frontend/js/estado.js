@@ -776,6 +776,9 @@ export function salvarPerfilAgora() {
   } catch { /* sem conexão */ }
 }
 
+// Há algo ainda por salvar? A atualização do app espera.
+export const temPendencia = () => estado.salvando > 0 || Object.keys(pendente).length > 0 || !!perfilPendente || Object.values(timersDoacao).some(Boolean);
+
 // ---------- oferendas ----------
 // Pode ser chamada a cada desenho enquanto não há dados: só faz um pedido por vez.
 // A resposta de quem já saiu da conta é ignorada (senão a próxima pessoa veria os compromissos da anterior).

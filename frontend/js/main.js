@@ -2,21 +2,14 @@
 
 import { estadoDoApp, logado, entrar, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar } from './api.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot, veErvas, veOferendas } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, salvarPerfilAgora, mudarVisaoRoot, veErvas, veOferendas, temPendencia } from './estado.js';
 import { esc, toast, mascaraTel } from './util.js';
+import { iniciarAtualizacao } from './atualizacao.js';
 import { ehAcessoGrupo, PIN_VALIDO } from '/shared/permissoes.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
 import * as gira from './telas/gira.js';
-import * as pessoas from './telas/pessoas.js';
-import * as historico from './telas/historico.js';
-import * as usuarios from './telas/usuarios.js';
-import * as ervas from './telas/ervas.js';
-import * as oferendas from './telas/oferendas.js';
-import * as perfil from './telas/perfil.js';
 import * as eventos from './telas/eventos.js';
 import * as curimba from './telas/curimba.js';
-import * as videos from './telas/videos.js';
-import * as fotos from './telas/fotos.js';
 import * as login from './telas/login.js';
 
 const main = document.getElementById('main');
@@ -25,7 +18,35 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, agenda: gira, pessoas, hist: historico, ervas, oferendas, eventos, perfil, curimba, videos, fotos, usuarios };
+const TELAS = { gira, agenda: gira, eventos, curimba };
+// As outras abas só são baixadas quando alguém abre.
+const SOB_DEMANDA = {
+  pessoas: () => import('./telas/pessoas.js'),
+  hist: () => import('./telas/historico.js'),
+  ervas: () => import('./telas/ervas.js'),
+  oferendas: () => import('./telas/oferendas.js'),
+  perfil: () => import('./telas/perfil.js'),
+  videos: () => import('./telas/videos.js'),
+  fotos: () => import('./telas/fotos.js'),
+  usuarios: () => import('./telas/usuarios.js'),
+};
+const baixando = {};
+function telaDe(tab) {
+  if (TELAS[tab]) return Promise.resolve(TELAS[tab]);
+  baixando[tab] ||= SOB_DEMANDA[tab]()
+    .then((m) => { TELAS[tab] = m; return m; })
+    .finally(() => { delete baixando[tab]; });
+  return baixando[tab];
+}
+// Aba ainda não baixada: o aviso só aparece se demorar, para não piscar.
+function abrirTela(tab) {
+  if (baixando[tab]) return;
+  const aviso = setTimeout(() => { if (prefs.tab === tab) main.innerHTML = '<div class="loading">Carregando…</div>'; }, 200);
+  telaDe(tab).then(() => { clearTimeout(aviso); if (prefs.tab === tab) render(); }).catch(() => {
+    clearTimeout(aviso);
+    if (prefs.tab === tab) main.innerHTML = '<div class="card"><p class="erro">Não foi possível abrir esta aba. Verifique a internet.</p><button class="btn" data-conta="recarregar-pagina">Tentar de novo</button></div>';
+  });
+}
 let erroLogin = '';
 let emailLogin = '';
 let candidatosLogin = null;   // acesso da corrente: nomes parecidos para a pessoa confirmar
@@ -89,7 +110,9 @@ function render() {
   tabs.querySelectorAll('button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === prefs.tab)));
   renderConta();
 
-  const html = TELAS[prefs.tab].render();
+  const tela = TELAS[prefs.tab];
+  if (!tela) { abrirTela(prefs.tab); return; }
+  const html = tela.render();
   // Aba Vídeos: redesenhar recarrega o vídeo que está tocando; se nada mudou na tela, deixa como está.
   const desenho = prefs.tab + '|' + html;
   if (prefs.tab === 'videos' && desenho === ultimoDesenho) return;
@@ -223,6 +246,7 @@ rodape.addEventListener('click', cliqueConta);
 
 main.addEventListener('click', async (e) => {
   if (e.target.closest('[data-conta="recarregar"]')) { iniciar(); return; }
+  if (e.target.closest('[data-conta="recarregar-pagina"]')) { location.reload(); return; }
   // Calendário da aba Gira: abre o seletor de data também no computador.
   if (e.target.dataset.act === 'irdata' || e.target.dataset.act === 'iemdata') { try { e.target.showPicker(); } catch { /* o toque já abre */ } return; }
   if (e.target.closest('[data-conta="voltarlogin"]')) { pinLogin = null; erroLogin = ''; render(); return; }
@@ -247,7 +271,7 @@ main.addEventListener('click', async (e) => {
   estado.confirm = null;
   if (a === 'goto') { prefs.tab = el.dataset.tab; salvarPrefs(); render(); window.scrollTo(0, 0); return; }
   const tela = TELAS[prefs.tab];
-  if (tela.cliques && tela.cliques[a]) tela.cliques[a](el, e);
+  if (tela?.cliques && tela.cliques[a]) tela.cliques[a](el, e);
   else render();
 });
 
@@ -255,9 +279,9 @@ main.addEventListener('change', (e) => {
   const t = e.target;
   if (t.id === 'l-email') { login.ajustarCampoSenha(ehAcessoGrupo(t.value)); return; }
   if (t.id === 'f-ent') { gira.mudancas.entidade(t); return; }
-  if (t.id === 'f-import' && t.files && t.files[0]) { const f = t.files[0]; t.value = ''; historico.restaurar(f); return; }
+  if (t.id === 'f-import' && t.files && t.files[0]) { const f = t.files[0]; t.value = ''; telaDe('hist').then((m) => m.restaurar(f)); return; }
   const tela = TELAS[prefs.tab];
-  const fn = t.dataset.act && tela.mudancas && tela.mudancas[t.dataset.act];
+  const fn = t.dataset.act && tela?.mudancas && tela.mudancas[t.dataset.act];
   if (fn) fn(t);
 });
 
@@ -309,7 +333,7 @@ function terminarArrastoAnamnese(e, cancelar = false) {
     return;
   }
   const ids = [...d.lista.querySelectorAll(':scope > [data-pergunta-id]')].map((x) => x.dataset.perguntaId);
-  if (d.iniciou && ids.some((id, i) => id !== d.idsIniciais[i])) perfil.salvarOrdemAnamnese(ids);
+  if (d.iniciou && ids.some((id, i) => id !== d.idsIniciais[i])) telaDe('perfil').then((m) => m.salvarOrdemAnamnese(ids));
 }
 main.addEventListener('pointerup', (e) => terminarArrastoAnamnese(e));
 main.addEventListener('pointercancel', (e) => terminarArrastoAnamnese(e, true));
@@ -319,8 +343,8 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'l-email') login.ajustarCampoSenha(ehAcessoGrupo(e.target.value));
   if (e.target.id === 'ent-busca') { estado.entradaBusca = e.target.value; render(); }
   if (e.target.id === 'sn-busca') { estado.senhaBusca = e.target.value; render(); }
-  if (e.target.id === 'info-pessoa-busca') perfil.buscarInfo(e.target);
-  if (e.target.id === 'vid-busca') videos.buscar(e.target);
+  if (e.target.id === 'info-pessoa-busca') { const t = e.target; telaDe('perfil').then((m) => m.buscarInfo(t)); }
+  if (e.target.id === 'vid-busca') { const t = e.target; telaDe('videos').then((m) => m.buscar(t)); }
   // Pedido de oração: até 3 linhas (não deixa passar da 3ª) e guardado para um redesenho não apagar.
   if (e.target.id === 'or-texto') {
     const linhas = e.target.value.split('\n');
@@ -337,9 +361,9 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'es-msg' && estado.escalaTxt) estado.escalaTxt.msg = e.target.value;
   if (e.target.dataset.mascara === 'data') eventos.mascaraData(e.target, String(e.inputType || '').startsWith('delete'));
   if (e.target.dataset.mascara === 'tel' && !String(e.inputType || '').startsWith('delete')) mascaraTel(e.target);
-  if (prefs.tab === 'fotos' && (e.target.id === 'ft-data' || e.target.id === 'ft-nome')) fotos.digitando(e.target);
-  if (prefs.tab === 'perfil' && (e.target.dataset.act === 'pfinfo' || e.target.dataset.act === 'pfnome' || e.target.dataset.act === 'anaresp')) perfil.digitando(e.target);
-  if (prefs.tab === 'ervas' && e.target.dataset.compra) ervas.digitando(e.target);
+  if (prefs.tab === 'fotos' && (e.target.id === 'ft-data' || e.target.id === 'ft-nome')) TELAS.fotos.digitando(e.target);
+  if (prefs.tab === 'perfil' && (e.target.dataset.act === 'pfinfo' || e.target.dataset.act === 'pfnome' || e.target.dataset.act === 'anaresp')) TELAS.perfil.digitando(e.target);
+  if (prefs.tab === 'ervas' && e.target.dataset.compra) TELAS.ervas.digitando(e.target);
 });
 
 main.addEventListener('submit', async (e) => {
@@ -390,27 +414,27 @@ main.addEventListener('submit', async (e) => {
       render();
     }
   } else if (id === 'f-erva') {
-    await ervas.enviarFormulario();
+    await (await telaDe('ervas')).enviarFormulario();
   } else if (id === 'f-ren') {
-    await pessoas.renomear(e.target);
+    await (await telaDe('pessoas')).renomear(e.target);
   } else if (id === 'f-aluno') {
-    await pessoas.salvarAluno(e.target);
+    await (await telaDe('pessoas')).salvarAluno(e.target);
   } else if (id === 'f-alunos-turma') {
-    await pessoas.salvarAlunosTurma(e.target);
+    await (await telaDe('pessoas')).salvarAlunosTurma(e.target);
   } else if (id === 'f-turma-ed') {
-    await pessoas.salvarTurma(e.target);
+    await (await telaDe('pessoas')).salvarTurma(e.target);
   } else if (id === 'f-lic') {
-    await pessoas.enviarLicenca();
+    await (await telaDe('pessoas')).enviarLicenca();
   } else if (id === 'f-add') {
-    await pessoas.enviarFormulario();
+    await (await telaDe('pessoas')).enviarFormulario();
   } else if (id === 'f-curimba') {
-    await pessoas.enviarCurimba();
+    await (await telaDe('pessoas')).enviarCurimba();
   } else if (id === 'f-limpeza-atribuir') {
-    await pessoas.cliques.atribuirLimpeza(e.target);
+    await (await telaDe('pessoas')).cliques.atribuirLimpeza(e.target);
   } else if (id === 'f-limpeza-pessoa-ed') {
-    await pessoas.salvarTurmaLimpeza(e.target);
+    await (await telaDe('pessoas')).salvarTurmaLimpeza(e.target);
   } else if (id === 'f-uren') {
-    await usuarios.renomear(e.target);
+    await (await telaDe('usuarios')).renomear(e.target);
   } else if (id === 'f-evento' || id === 'f-evento-ed') {
     await eventos.enviar(e.target);
   } else if (id === 'f-cur-aluno') {
@@ -420,21 +444,21 @@ main.addEventListener('submit', async (e) => {
   } else if (id === 'f-oracao') {
     await gira.enviarOracao(e.target);
   } else if (id === 'f-ft-album') {
-    await fotos.enviarAlbum(e.target);
+    await (await telaDe('fotos')).enviarAlbum(e.target);
   } else if (id === 'f-video' || id === 'f-video-ed') {
-    await videos.enviar(e.target);
+    await (await telaDe('videos')).enviar(e.target);
   } else if (id === 'f-perfilnovo') {
-    await usuarios.criarPerfil();
+    await (await telaDe('usuarios')).criarPerfil();
   } else if (id === 'f-perfilnome') {
-    await usuarios.renomearPerfil(e.target);
+    await (await telaDe('usuarios')).renomearPerfil(e.target);
   } else if (id === 'f-sn') {
-    await usuarios.confirmarSenha(e.target);
+    await (await telaDe('usuarios')).confirmarSenha(e.target);
   } else if (id === 'f-user') {
-    await usuarios.enviarFormulario();
+    await (await telaDe('usuarios')).enviarFormulario();
   } else if (id === 'f-entidade-alias') {
-    await usuarios.salvarApelidoEntidade(e.target);
+    await (await telaDe('usuarios')).salvarApelidoEntidade(e.target);
   } else if (id === 'f-of' || e.target.dataset.form) {
-    await oferendas.enviar(e.target);
+    await (await telaDe('oferendas')).enviar(e.target);
   }
 });
 
@@ -447,4 +471,5 @@ window.addEventListener('pagehide', salvarPerfilAgora);
 window.addEventListener('focus', () => atualizarDoServidor());
 
 iniciar();
+iniciarAtualizacao(() => temPendencia() || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName));
 export { avisar };

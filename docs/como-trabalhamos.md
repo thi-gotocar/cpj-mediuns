@@ -93,6 +93,7 @@ As ~30 migrações não testadas (v56-v85, veja `db/ESTRUTURA-ESQUEMA.md`) agora
 ### Frontend
 
 - Cada tela exporta `render()` (string HTML), `cliques` (por `data-act`), `mudancas` (evento change por `data-act`) e handlers de submit roteados por `id` do form em `main.js`.
+- Aba nova entra em `SOB_DEMANDA` no `main.js`. Formulário de aba sob demanda é roteado com `await telaDe('aba')`.
 - Redesenho: `avisar()`. Para não perder foco/rascunho, guardar valores em `estado` antes de redesenhar ou atualizar em silêncio.
 - `.card.adm` (borda dourada) = bloco só de admin. Na aba Perfil, os blocos de admin ficam dentro da moldura `.pf-adm-area` com o rótulo **ADMIN**.
 - Confirmação de exclusão: janela `.modal-fundo/.modal` (Pessoas) ou caixa inline (`estado.confirm = 'chave'`).

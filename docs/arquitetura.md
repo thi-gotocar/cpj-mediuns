@@ -53,6 +53,8 @@ flowchart LR
     VF -->|JSON| AP
 ```
 
+O app abre só com o código da aba Geral; as outras abas são baixadas ao abrir (`SOB_DEMANDA` em `main.js`). O build pré-carrega os módulos da abertura e gera o `sw.js`, que guarda no aparelho os arquivos do app (nunca o que vem de `/api`). Sem rede, a estrutura do app abre, mas os dados continuam dependendo da conexão. Uma versão nova baixa em segundo plano e só entra ao abrir o app ou ao voltar depois de pelo menos 5 minutos fora, sem nada por salvar: entrar recarrega a página. Por isso um aparelho pode ficar uma versão atrás: a API precisa continuar aceitando o frontend anterior.
+
 A abertura do app e a atualização ao voltar para ele usam um pedido só (`/api/auth/inicio`): uma conferência de sessão e as consultas em paralelo, em vez de um pedido por lista. As rotas de cada lista continuam para recarregar só uma parte.
 
 ## Entidades
