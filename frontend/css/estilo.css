@@ -203,28 +203,16 @@ table.pedidos td.rh{text-align:left;color:var(--muted)}
 table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--bg)}
 /* Cadastro de ervas: nova erva numa caixa tracejada; cada erva num cartão com nome, campos com rótulo e ações. */
 .ec-nova{display:grid;gap:10px;padding:12px;border:1.5px dashed var(--gold);border-radius:10px}
-.ec-nova .btn{justify-self:start}
-.ec-tit{font-size:1rem}
 .ec-campos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .ec-campos .field{font-size:.82rem}
 .ec-un{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.88rem;white-space:nowrap}
 .ec-un input{width:100%;min-width:0}
-.ec-lista{display:grid;gap:8px}
 .ec-linha{display:grid;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
-.ec-linha .ec-nome{font-weight:700}
-.ec-ler{gap:2px}
-.ec-pe{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.ec-real{font-size:.85rem}
-.ec-acts{display:flex;gap:6px}
-.ec-dicas{margin:0;padding-left:18px;font-size:.84rem;display:grid;gap:4px}
 /* Bloco Compra: nome da gira e data lado a lado também no celular; campos travados até "Editar". */
 .row.compra-ev{flex-wrap:nowrap}
 .row.compra-ev>label.field:first-child{flex:1 1 0}
 .row.compra-ev>label.field:last-child{flex:0 0 150px}
 #card-compra input:disabled{color:var(--ink);background:transparent;border-style:dashed;opacity:1;-webkit-text-fill-color:var(--ink)}
-.preco-compra{display:flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);font-weight:700}
-.preco-compra input{width:100px;padding:5px 8px}
-.preco-compra input.falta{border-color:var(--warn);background:var(--warn-soft)}
 /* Nova compra (opções no pop-up) e Histórico de compras. */
 .nova-ops{display:grid;gap:8px}
 .nova-ops .btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;white-space:normal;gap:2px}
@@ -244,6 +232,27 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .hc-p:last-child{border-bottom:0}
 .hc-p>b{white-space:nowrap;font-variant-numeric:tabular-nums}
 /* Botões do mesmo tamanho, lado a lado (Editar/Salvar/Fechar lista; Pedido ao fornecedor/Cobrança). */
+.cp-bts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.cp-bts>.btn{width:100%;min-width:0;margin:0;min-height:46px;padding:4px 8px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;line-height:1.15;white-space:normal;text-decoration:none}
+.cp-bts>:last-child:nth-child(odd){grid-column:1/-1}
+.cp-nova{padding-top:12px;border-top:1px solid var(--line)}
+.cp-lista{display:grid;gap:4px}
+.cp-l{display:grid;grid-template-columns:minmax(0,1fr) 68px 92px 32px;align-items:center;gap:6px;min-height:44px;padding:3px 6px 3px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.cp-l.sel{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.cp-cab{min-height:0;padding-block:0;border:0;background:none;font-size:.7rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}
+.cp-qtd-t{text-align:center}
+.cp-nome{display:grid;min-width:0;line-height:1.2;overflow-wrap:anywhere}
+.cp-nome small{font-size:.72rem}
+.cp-preco{text-align:right;font-size:.85rem;font-variant-numeric:tabular-nums}
+.cp-preco input{width:100%;min-height:32px;padding:3px 5px;box-sizing:border-box;text-align:right;font-size:.85rem}
+.cp-preco input.falta{border-color:var(--warn);background:var(--warn-soft)}
+.cp-qtd{gap:2px;justify-content:space-between}
+.cp-qtd .btn{min-width:30px;width:30px;height:30px;padding:0;font-size:1rem}
+.cp-qtd .n{min-width:1.5em;font-size:.9rem}
+.cp-ed{width:30px;height:30px;min-width:0;padding:0}
+.ervas-pub{margin-top:10px}
+.ervas-pessoa-sel select{flex:1 1 auto;min-width:0;max-width:100%;min-height:0;padding:0 2px;border:0;background:transparent;color:inherit;font:inherit;font-weight:700}
+.ervas-pessoa-sel select option,.ervas-pessoa-sel select optgroup{color:var(--ink);background:var(--surface)}
 .bt-iguais{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;align-items:stretch}
 .bt-iguais .btn{display:flex;align-items:center;justify-content:center;gap:6px;white-space:normal;text-align:center;padding:10px 8px;line-height:1.2}
 .compra-tab td,.compra-tab th{font-variant-numeric:tabular-nums}

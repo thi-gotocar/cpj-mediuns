@@ -44,7 +44,7 @@ const acoes = {
     const u = await exigir(req);
     // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
     return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' ? { temSenha: !!u.temSenha } : {}),
-      videosPublicada: !!(await db.rpc('videos_publicada')) };
+      videosPublicada: !!(await db.rpc('videos_publicada')), ervasPublicada: !!(await db.rpc('ervas_publicada')) };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).

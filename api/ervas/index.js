@@ -5,6 +5,7 @@
 //   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
 //                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
 //   POST /api/ervas   { acao, ... }  — só admin (com a lista fechada, só config { aberta }, novaCompra e encerrarCompra):
+//        publicar { publicada }  → { publicada }  — aba visível para todos ou só para quem administra (vale com a lista fechada)
 //        salvarErva { id?, nome, precoEstimado?, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém)
 //                   precoEstimado = preço de referência do cadastro; preco = o real, que o bloco Compra preenche · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
 //        salvarCompra { gira, data, frete, itens: [{ id, quantidade, preco }] }  — bloco Compra (preço da porção; vazio = a definir)
@@ -58,6 +59,13 @@ function retrato(estado) {
 
 const FECHADA = 'A lista de ervas está fechada. Reabra a lista para alterar.';
 
+// Aba desligada: só quem administra as ervas entra.
+async function exigirAba(req) {
+  const eu = await exigir(req, 'ervas:escolher');
+  if (!pode(eu, 'ervas:gerenciar') && !(await db.rpc('ervas_publicada'))) throw new HttpError(403, 'A aba Ervas não está disponível no momento.');
+  return eu;
+}
+
 const precoOuNulo = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : valor(v, 'Preço'));
 
 // Nome da gira e data do evento do pedido.
@@ -73,12 +81,12 @@ export default rota({
       await exigir(req, 'ervas:gerenciar');
       return db.rpc('ervas_historico');
     }
-    const eu = await exigir(req, 'ervas:escolher');
+    const eu = await exigirAba(req);
     return resposta(await db.rpc('ervas_estado'), eu);
   },
 
   PUT: async (req) => {
-    const eu = await exigir(req, 'ervas:escolher');
+    const eu = await exigirAba(req);
     const b = corpo(req);
     if (!Array.isArray(b.itens) || b.itens.length > 200) throw new HttpError(400, 'Lista de ervas inválida.');
     const itens = b.itens.map((i) => {
@@ -111,6 +119,10 @@ export default rota({
   POST: async (req) => {
     const eu = await exigir(req, 'ervas:gerenciar');
     const b = corpo(req);
+    if (b.acao === 'publicar') {
+      if (typeof b.publicada !== 'boolean') throw new HttpError(400, 'Informe se a aba fica visível.');
+      return { publicada: await db.rpc('ervas_publicar', { publicada: b.publicada }) };
+    }
     // Lista fechada: ninguém altera nada (pedidos, Compra, cadastro); só reabrir ou começar nova compra.
     const soAbrir = (b.acao === 'config' && !['frete', 'gira', 'data'].some((k) => k in b)) || ['novaCompra', 'encerrarCompra'].includes(b.acao);
     if (!soAbrir && (await db.rpc('ervas_estado')).aberta === false) throw new HttpError(400, FECHADA);

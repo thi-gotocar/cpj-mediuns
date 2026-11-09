@@ -1,6 +1,6 @@
 // Blocos informativos da gira: limpeza, recados, licenças e presença.
 
-import { estado, pode, girasLista, carregarAusPrevias, carregarErvas, carregarOferendas } from '../estado.js';
+import { estado, pode, veErvas, girasLista, carregarAusPrevias, carregarErvas, carregarOferendas } from '../estado.js';
 import { esc, dDM } from '../util.js';
 import { status, nomeEntidadeGira, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, LINHA_LABEL, linhaDaEntidade, usaLinhas, funcaoNaGira, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
 import { banhosDaGira } from '/shared/banhos.js';
@@ -112,7 +112,7 @@ export function contagemPresentes(ps, g, resumo) {
 const LINHAS_COM_ERVAS = ['preto-velho', 'caboclo'];
 let pedindoErvas = false;
 export function blocoPedirErvas(g) {
-  if (g.evento || !LINHAS_COM_ERVAS.includes(linhaDaEntidade(g.entidade)) || !pode('ervas:escolher')) return '';
+  if (g.evento || !LINHAS_COM_ERVAS.includes(linhaDaEntidade(g.entidade)) || !veErvas()) return '';
   if (estado.ervas === null && !pedindoErvas) { pedindoErvas = true; carregarErvas().finally(() => { pedindoErvas = false; }); }
   const E = estado.ervas;
   const selo = !E ? '<span class="pe-st muted">Carregando…</span>'

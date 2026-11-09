@@ -624,6 +624,17 @@ export function escolherErva(ervaId, quantidade) {
 }
 
 // Admin: salva o pedido de outra pessoa (sem itens = apaga o pedido).
+// Aba Ervas: ligada, todos com a aba no perfil veem; desligada, só quem administra as ervas.
+export const veErvas = () => pode('ervas:gerenciar') || (pode('ervas:escolher') && estado.me?.ervasPublicada !== false);
+export async function publicarErvas(publicada) {
+  try {
+    const r = await api('POST', '/ervas', { acao: 'publicar', publicada });
+    estado.me = { ...estado.me, ervasPublicada: r.publicada };
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+
 export async function salvarPedidoDe(para, itens) {
   try {
     estado.ervas = await api('PUT', '/ervas', { para, itens });

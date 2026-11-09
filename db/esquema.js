@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 86;  // v86: entidade que a pessoa escolhe atender em gira com mais de uma linha
+export const VERSAO = 87;  // v87: aba Ervas visível para todos ou só para quem administra
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2350,5 +2350,19 @@ export const MIGRACOES = [
                            from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
      )
      from giras g where g.data = d;
+   $$`,
+  // ================================================== v87: aba Ervas visível para todos ou só para quem administra (começa visível)
+  `insert into sistema (chave, valor) values ('ervas_publicada', 'true') on conflict (chave) do nothing`,
+  `create or replace function ervas_publicada(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(coalesce((select valor = 'true' from sistema where chave = 'ervas_publicada'), true))
+   $$`,
+  `create or replace function ervas_publicar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('ervas_publicada', case when (p ->> 'publicada')::boolean then 'true' else 'false' end)
+     on conflict (chave) do update set valor = excluded.valor;
+     return ervas_publicada();
+   end;
    $$`,
 ];

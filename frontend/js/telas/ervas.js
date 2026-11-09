@@ -1,7 +1,7 @@
 // Tela "Ervas": escolher as ervas da compra coletiva; o admin cadastra, define o frete e exporta.
 
 import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornecedor, csvFornecedor, textoCobranca, csvCobranca, normalizarNome, linhaEvento, itensCompra, porcoesErva, pedidosPorErva } from '/shared/ervas.js';
-import { estado, pode, pessoasOrd, carregarErvas, carregarHistoricoErvas, escolherErva, acaoErvas, salvarPedidoDe, avisar } from '../estado.js';
+import { estado, pode, pessoasOrd, carregarErvas, carregarHistoricoErvas, escolherErva, acaoErvas, salvarPedidoDe, publicarErvas, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
 
@@ -19,7 +19,18 @@ function dadosImagem(E, r, vista) {
     rodape: `Total a receber: ${reais(r.totalGeral)}` };
 }
 
-const qtdDe = (ervaId) => (estado.ervas.minhas || []).find((m) => m.ervaId === ervaId)?.quantidade || 0;
+// Compra: nova erva aberta (null = só quando não há nenhuma) e a erva com o ✎ aberto.
+let novaAberta = null;
+let ervaAberta = null;
+
+// De quem é o pedido na tela: o da pessoa escolhida no combo (admin) ou o da própria pessoa.
+const paraOutro = () => (pode('ervas:gerenciar') ? estado.ervasPara : null);
+function alvo(E) {
+  const P = paraOutro();
+  if (!P) return { chave: E.eu.chave, nome: E.eu.nome, itens: E.minhas || [] };
+  return { chave: P.chave || 'p:' + P.pessoaId, nome: P.nome, outro: true, itens: Object.entries(P.itens).map(([ervaId, quantidade]) => ({ ervaId, quantidade })) };
+}
+const qtdDe = (ervaId) => alvo(estado.ervas).itens.find((m) => m.ervaId === ervaId)?.quantidade || 0;
 const serveTxt = (e) => (Number(e.pessoasPorcao) ? ` (serve ${e.pessoasPorcao})` : '');
 const precoTxt = (v) => (v === null || v === undefined ? 'preço a definir' : reais(centavos(v)));
 const precoCampo = (v) => (v === null || v === undefined ? '' : Number(v).toFixed(2).replace('.', ','));
@@ -29,15 +40,15 @@ const temEstimado = (e) => e.precoEstimado !== null && e.precoEstimado !== undef
 // Recalcula os pedidos com as minhas escolhas da tela (antes de salvar), para mostrar
 // a minha parte de cada erva e do frete já com quem mais pediu.
 function simular(E) {
-  const eu = E.eu.chave;
-  const outros = (E.pedidos?.pessoas || []).filter((p) => p.chave !== eu)
+  const a = alvo(E);
+  const outros = (E.pedidos?.pessoas || []).filter((p) => p.chave !== a.chave)
     .flatMap((p) => p.itens.map((i) => ({ chave: p.chave, nome: p.nome, ervaId: i.ervaId, quantidade: i.quantidade })));
-  const minhas = (E.minhas || []).map((m) => ({ chave: eu, nome: E.eu.nome, ervaId: m.ervaId, quantidade: m.quantidade }));
+  const minhas = a.itens.map((m) => ({ chave: a.chave, nome: a.nome, ervaId: m.ervaId, quantidade: m.quantidade }));
   return calcularPedidos(E.ervas, [...outros, ...minhas], E.frete);
 }
 
 function meuPedido(E, r) {
-  const p = r.pessoas.find((x) => x.chave === E.eu.chave);
+  const p = r.pessoas.find((x) => x.chave === alvo(E).chave);
   if (!p) return { itens: [], subtotal: 0, frete: 0, total: 0, pessoas: r.pessoas.length + 1, pendente: false, porErva: {} };
   return { itens: p.itens, subtotal: p.subtotal, frete: p.frete, total: p.total, pessoas: r.pessoas.length, pendente: !!p.semPreco,
     porErva: Object.fromEntries(p.itens.map((i) => [i.ervaId, i])) };
@@ -50,15 +61,30 @@ function pessoasPorErva(r) {
   return m;
 }
 
+// Onde aparece o nome de quem está logado: para o admin, a lista da corrente, para pedir por outra pessoa.
+function seletorPessoa(E) {
+  if (!pode('ervas:gerenciar')) return `<span class="ervas-pedido-pessoa"><span aria-hidden="true">👤</span>${esc(E.eu.nome)}</span>`;
+  const lista = E.pedidos?.pessoas || [];
+  const comPedido = new Set(lista.map((p) => p.chave));
+  const P = paraOutro();
+  const sel = !P ? '' : P.pessoaId ? 'p:' + P.pessoaId : P.chave;
+  const op = (v, t) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(t)}</option>`;
+  const fora = lista.filter((p) => !p.chave.startsWith('p:') && p.chave !== E.eu.chave);
+  return `<label class="ervas-pedido-pessoa ervas-pessoa-sel"><span aria-hidden="true">👤</span><select id="er-pessoa" data-act="erpessoa" aria-label="De quem é o pedido">${op('', E.eu.nome)}
+    ${pessoasOrd().filter((p) => 'p:' + p.id !== E.eu.chave).map((p) => op('p:' + p.id, p.nome + (comPedido.has('p:' + p.id) ? ' · já tem pedido' : ''))).join('')}
+    ${fora.length ? `<optgroup label="Fora da corrente">${fora.map((p) => op(p.chave, p.nome)).join('')}</optgroup>` : ''}</select></label>`;
+}
+
 function cardEscolha(E) {
   const aberta = E.aberta;
-  let h = `<div class="card ervas-pedido"><div class="grp-h ervas-pedido-cab"><div><span class="ervas-pedido-etq">🌿 Compra coletiva</span><h2>Escolher ervas</h2></div><span class="ervas-pedido-pessoa"><span aria-hidden="true">👤</span>${esc(E.eu.nome)}</span></div>`;
+  const a = alvo(E);
+  let h = `<div class="card ervas-pedido"><div class="grp-h ervas-pedido-cab"><div><span class="ervas-pedido-etq">🌿 Compra coletiva</span><h2>Escolher ervas</h2></div>${seletorPessoa(E)}</div>`;
   if (!aberta) h += `<div class="warnbox">A lista está fechada. Seu pedido não pode mais ser alterado.</div>`;
-  if (!E.ervas.length) return h + `<p class="muted" style="margin:0">Nenhuma erva cadastrada ainda.${pode('ervas:gerenciar') ? ' Cadastre abaixo.' : ''}</p></div>`;
+  if (!E.ervas.length) return h + `<p class="muted" style="margin:0">Nenhuma erva cadastrada ainda.${pode('ervas:gerenciar') ? ' Adicione na Compra.' : ''}</p></div>`;
   const r = simular(E);
   const m = meuPedido(E, r);
   const nPor = pessoasPorErva(r);
-  h += `<p class="ervas-pedido-dica">${aberta ? 'Toque em − ou + para ajustar as porções do seu pedido.' : 'Seu pedido foi salvo e a lista está fechada.'}</p>`;
+  h += `<p class="ervas-pedido-dica">${aberta ? `Toque em − ou + para ajustar as porções ${a.outro ? 'do pedido de ' + esc(a.nome) : 'do seu pedido'}.` : a.outro ? 'A lista está fechada.' : 'Seu pedido foi salvo e a lista está fechada.'}</p>`;
   h += `<div class="ervas">`;
   E.ervas.forEach((e) => {
     const q = qtdDe(e.id);
@@ -82,38 +108,6 @@ function cardEscolha(E) {
   </div>
   ${m.pendente ? '<p class="muted" style="margin:0;font-size:.85rem">Algumas ervas ainda estão sem preço. O valor final sai quando o admin fechar os preços.</p>' : ''}
   <details class="ervas-pedido-explica"><summary>Como o valor é calculado?</summary><p>O custo de cada erva (preço da porção × porções compradas) é dividido entre quem escolheu aquela erva, na proporção da quantidade. O frete de ${precoTxt(E.frete)} é dividido entre todos que pedirem. Os valores podem mudar conforme mais pessoas fazem o pedido.</p></details></div>`;
-  return h;
-}
-
-// Admin: pedido de outra pessoa (quem não tem acesso ao app, ou para corrigir um pedido).
-function cardPedidoDe(E) {
-  const P = estado.ervasPara;
-  let h = `<div class="card adm" id="card-para"><div class="grp-h"><h2>Pedido para outra pessoa</h2></div>`;
-  if (!E.aberta) return h + `<p class="muted" style="margin:0">A lista está fechada. Reabra a lista para fazer ou mudar pedidos.</p></div>`;
-  if (!P) {
-    const comPedido = new Set((E.pedidos?.pessoas || []).map((p) => p.chave));
-    return h + `<form id="f-para" class="row" autocomplete="off">
-      <label class="field grow">Pessoa da corrente<select id="pa-pessoa"><option value="">— escolha quem está pedindo —</option>
-        ${pessoasOrd().map((p) => `<option value="${p.id}">${esc(p.nome)}${comPedido.has('p:' + p.id) ? ' · já tem pedido' : ''}</option>`).join('')}</select></label>
-      <button class="btn primary" type="submit">Montar pedido</button></form>
-      <p class="muted" style="margin:0;font-size:.85rem">Escolha a pessoa cadastrada que está fazendo o pedido. Se ela já tiver pedido, o pedido dela abre para editar. Também dá para editar pela tabela de pedidos. Funciona com a lista fechada.</p></div>`;
-  }
-  const total = Object.values(P.itens).reduce((a, q) => a + q, 0);
-  h += `<p style="margin:0"><b>${esc(P.nome)}</b>${P.chave ? ' <span class="badge rep">editando pedido</span>' : ' <span class="badge new">pedido novo</span>'}</p><div class="ervas">`;
-  E.ervas.forEach((e) => {
-    const q = P.itens[e.id] || 0;
-    h += `<div class="erva ${q ? 'sel' : ''}">
-      <span class="nmcell"><span class="nm">${esc(e.nome)}</span><span class="muted" style="font-size:.85rem">${precoTxt(e.preco)}</span></span>
-      <span class="qtd">
-        <button class="btn small" data-act="pamenos" data-id="${e.id}" ${!q ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
-        <span class="n">${q}</span>
-        <button class="btn small ${q ? '' : 'primary'}" data-act="pamais" data-id="${e.id}" ${q >= 99 ? 'disabled' : ''} aria-label="Mais ${esc(e.nome)}">+</button>
-      </span></div>`;
-  });
-  h += `</div><div class="row">
-      <button class="btn primary" data-act="pasalvar">${total ? 'Salvar pedido' : P.chave ? 'Apagar pedido' : 'Salvar pedido'}</button>
-      <button class="btn" data-act="pacancelar">Cancelar</button></div>
-    ${!total && P.chave ? '<p class="muted" style="margin:0;font-size:.85rem">Sem nenhuma erva, o pedido desta pessoa é apagado.</p>' : ''}</div>`;
   return h;
 }
 
@@ -193,54 +187,82 @@ function tabelaCompra(E, r) {
     </tbody><tfoot><tr><th class="rh">Total</th><td>${linhas.reduce((a, l) => a + l.n, 0)}</td><td>${linhas.reduce((a, l) => a + l.qtd, 0)}</td><td></td><td><b>${reais(soma)}${falta ? ' + a definir' : ''}</b></td></tr></tfoot></table></div>`;
 }
 
+// Linha de uma erva na Compra: nome, preço da porção e porções, sem perder o que a corrente pediu e o mínimo.
+function linhaCompra(E, e, it, C, nPed) {
+  const { qtd, minimo, n } = porcoes(e, it.qtd, nPed);
+  const serve = Number(e.pessoasPorcao);
+  const info = [n ? `${n} ${n === 1 ? 'pediu' : 'pediram'}` : 'ninguém pediu', serve ? `serve ${serve} · mín. ${minimo}` : ''].filter(Boolean).join(' · ');
+  const preco = C
+    ? `<input type="text" inputmode="decimal" id="cp-p-${e.id}" data-compra="preco" data-id="${e.id}" value="${esc(it.preco)}" placeholder="${temEstimado(e) ? '≈ ' + precoCampo(e.precoEstimado) : 'a definir'}" aria-label="Preço da porção de ${esc(e.nome)}" class="${it.preco.trim() ? '' : 'falta'}">`
+    : temPreco(e) ? reais(centavos(e.preco)) : `<span class="muted">${temEstimado(e) ? '≈ ' + reais(centavos(e.precoEstimado)) : 'a definir'}</span>`;
+  const aberta = E.aberta && ervaAberta === e.id;
+  return `<div class="cp-l ${qtd ? 'sel' : ''}">
+      <span class="cp-nome"><b>${esc(e.nome)}</b><small class="muted">${info}</small></span>
+      <span class="cp-preco">${preco}</span>
+      <span class="qtd cp-qtd">
+        <button class="btn small" data-act="cpmenos" data-id="${e.id}" ${!C || qtd <= minimo ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
+        <span class="n">${qtd}</span>
+        <button class="btn small ${C && !qtd ? 'primary' : ''}" data-act="cpmais" data-id="${e.id}" ${!C || qtd >= 999 ? 'disabled' : ''} aria-label="Mais ${esc(e.nome)}">+</button>
+      </span>
+      ${E.aberta ? `<button class="btn small cp-ed" data-act="cperva" data-id="${e.id}" aria-expanded="${aberta}" aria-label="Editar o cadastro de ${esc(e.nome)}">✎</button>` : '<span></span>'}
+    </div>${aberta ? painelErva(e) : ''}`;
+}
+
+// Campos do cadastro de uma erva: quantas pessoas uma porção serve e o preço estimado (só referência).
+const camposErva = (idServe, idEstimado, e = {}) => `<div class="ec-campos">
+    <label class="field">Porção serve<span class="ec-un"><input type="number" inputmode="numeric" id="${idServe}" min="1" max="999" value="${Number(e.pessoasPorcao) || ''}" placeholder="todos"> pessoas</span></label>
+    <label class="field">Preço estimado<span class="ec-un">R$ <input type="text" inputmode="decimal" id="${idEstimado}" maxlength="10" value="${precoCampo(e.precoEstimado)}" placeholder="0,00"></span></label>
+  </div>`;
+
+function painelErva(e) {
+  const conf = estado.confirm === 'e:' + e.id;
+  return `<div class="ec-linha">
+    <label class="field">Nome<input type="text" id="ev-n-${e.id}" value="${esc(e.nome)}" maxlength="60"></label>
+    ${camposErva('ev-s-' + e.id, 'ev-e-' + e.id, e)}
+    <div class="cp-bts">
+      ${conf ? `<button class="btn danger" data-act="delerva" data-id="${e.id}"><span aria-hidden="true">🗑️</span> Confirmar</button>` : `<button class="btn" data-act="askdel" data-k="e:${e.id}"><span aria-hidden="true">🗑️</span> Excluir</button>`}
+      <button class="btn primary" data-act="salvarerva" data-id="${e.id}"><span aria-hidden="true">✓</span> Salvar</button>
+    </div></div>`;
+}
+
+function formNovaErva() {
+  return `<form id="f-erva" class="ec-nova" autocomplete="off">
+    <label class="field">Nome<input type="text" id="ev-nome" maxlength="60" required placeholder="Ex.: Arruda"></label>
+    ${camposErva('ev-serve', 'ev-estimado')}
+    <div class="cp-bts">
+      <button class="btn" type="button" data-act="cpnovaerva"><span aria-hidden="true">✕</span> Cancelar</button>
+      <button class="btn primary" type="submit"><span aria-hidden="true">＋</span> Adicionar</button>
+    </div></form>`;
+}
+
 function cardCompra(E, r) {
   const C = rascunho(E);
   const v = C || compraSalva(E);
   const trava = C ? '' : 'disabled';
   const nPed = pedidosPorErva(r);
   const nItens = E.ervas.filter((e) => porcoes(e, v.itens[e.id].qtd, nPed).qtd > 0).length;
-  let h = `<div class="card adm" id="card-compra"><div class="grp-h"><h2>Compra</h2><span class="count">${nItens} erva${nItens === 1 ? '' : 's'} no pedido</span></div>
+  const nova = E.aberta && (novaAberta ?? !E.ervas.length);
+  let h = `<div class="card adm" id="card-compra"><div class="grp-h"><h2>Compra</h2><span class="count">${nItens} erva${nItens === 1 ? '' : 's'} · lista ${E.aberta ? 'aberta' : 'fechada'}</span></div>
     <div class="row compra-ev">
       <label class="field">Nome da gira<input type="text" id="ev-gira" data-compra="gira" maxlength="80" value="${esc(v.gira)}" placeholder="Ex.: Gira de Caboclo" ${trava}></label>
       <label class="field">Data do evento<input type="date" id="ev-data" data-compra="data" value="${esc(v.data)}" ${trava}></label>
-    </div>`;
-  if (!E.ervas.length) h += `<p class="muted" style="margin:0">Nenhuma erva cadastrada ainda. Cadastre abaixo.</p>`;
-  h += `<div class="ervas">`;
-  E.ervas.forEach((e) => {
-    const it = v.itens[e.id];
-    const { qtd, minimo, n } = porcoes(e, it.qtd, nPed);
-    const serve = Number(e.pessoasPorcao);
-    const info = [n ? `corrente pediu ${n}` : 'ninguém pediu', serve ? `serve ${serve} → mínimo ${minimo}` : ''].filter(Boolean).join(' · ');
-    h += `<div class="erva ${qtd ? 'sel' : ''}">
-      <span class="nmcell"><span class="nm">${esc(e.nome)}</span>${C
-        ? `<label class="preco-compra">R$/porção<input type="text" inputmode="decimal" id="cp-p-${e.id}" data-compra="preco" data-id="${e.id}" value="${esc(it.preco)}" placeholder="${temEstimado(e) ? '≈ ' + precoCampo(e.precoEstimado) : 'a definir'}" aria-label="Preço da porção de ${esc(e.nome)}" class="${it.preco.trim() ? '' : 'falta'}"></label>`
-        : `<span class="muted" style="font-size:.85rem">${temPreco(e) ? precoTxt(e.preco) + ' a porção' : 'preço a definir'}${temEstimado(e) && !temPreco(e) ? ` · estimado ${reais(centavos(e.precoEstimado))}` : ''}</span>`}<span class="muted" style="font-size:.85rem">${info}</span></span>
-      <span class="qtd">
-        <button class="btn small" data-act="cpmenos" data-id="${e.id}" ${!C || qtd <= minimo ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
-        <span class="n">${qtd}</span>
-        <button class="btn small ${C && !qtd ? 'primary' : ''}" data-act="cpmais" data-id="${e.id}" ${!C || qtd >= 999 ? 'disabled' : ''} aria-label="Mais ${esc(e.nome)}">+</button>
-      </span></div>`;
-  });
-  // Frete logo abaixo da última erva: o valor, ou o campo durante a edição.
-  h += `<div class="erva frete-linha">
-      <span class="nmcell"><span class="nm">Frete</span><span class="muted" style="font-size:.85rem">dividido entre todos que pedirem</span></span>
-      ${C ? `<label class="preco-compra">R$<input type="text" inputmode="decimal" id="ev-frete" data-compra="frete" value="${esc(v.frete)}" aria-label="Valor do frete"></label>`
-        : `<b>${reais(campoCentavos(v.frete) || 0)}</b>`}
-    </div></div>
+    </div>
+    ${nova ? formNovaErva() : E.aberta ? '<div class="cp-bts"><button class="btn" data-act="cpnovaerva"><span aria-hidden="true">＋</span> Adicionar erva</button></div>' : ''}
+    <div class="cp-lista">
+      ${E.ervas.length ? '<div class="cp-l cp-cab" aria-hidden="true"><span>Erva</span><span class="cp-preco">R$/porção</span><span class="cp-qtd-t">Porções</span><span></span></div>' : ''}
+      ${E.ervas.map((e) => linhaCompra(E, e, v.itens[e.id], C, nPed)).join('')}
+      <div class="cp-l cp-frete"><span class="cp-nome"><b>Frete</b></span><span class="cp-preco">${C ? `<input type="text" inputmode="decimal" id="ev-frete" data-compra="frete" value="${esc(v.frete)}" aria-label="Valor do frete">` : reais(campoCentavos(v.frete) || 0)}</span><span></span><span></span></div>
+    </div>
     <div class="grp"><h3>Pedido</h3><div id="cp-tabela">${tabelaCompra(E, r)}</div></div>
-    <div class="bt-iguais">${E.aberta ? `
-      ${C && E.ervas.some((e) => !v.itens[e.id].preco.trim() && temEstimado(e)) ? '<button class="btn" data-act="cpestimados" title="Preenche as ervas sem preço com o preço estimado do cadastro">≈ Usar estimados</button>' : ''}
+    <div class="cp-bts">${E.aberta ? `
       ${C ? '<button class="btn" data-act="cpcancelar"><span aria-hidden="true">✕</span> Cancelar</button>'
         : '<button class="btn" data-act="cpeditar"><span aria-hidden="true">✎</span> Editar</button>'}
       <button class="btn ${C ? 'primary' : ''}" data-act="cpsalvar" ${C ? '' : 'disabled'}><span aria-hidden="true">✓</span> Salvar</button>
+      ${C && E.ervas.some((e) => !v.itens[e.id].preco.trim() && temEstimado(e)) ? '<button class="btn" data-act="cpestimados" title="Preenche as ervas sem preço com o preço estimado"><span aria-hidden="true">≈</span> Usar estimados</button>' : ''}
       <button class="btn" data-act="pedirfechar"><span aria-hidden="true">🔒</span> Fechar lista</button>`
       : '<button class="btn primary" data-act="abrir"><span aria-hidden="true">🔓</span> Reabrir lista</button>'}
-    </div>
-    <p class="muted" style="margin:0;font-size:.85rem">${C ? 'Editando: altere o que precisar e toque em Salvar. ' : ''}${E.aberta ? 'Lista aberta: todos podem escolher e mudar o pedido.' : 'Lista fechada: ninguém altera os pedidos nem a Compra até você reabrir.'}</p>`;
-  return h + exportacao(E, r) + `<div class="grp" style="border-top:1px solid var(--line);padding-top:12px">
-      <p class="muted" style="margin:0;font-size:.85rem">Depois de cobrar, comece uma nova compra: a atual pode ser encerrada (fica guardada no Histórico de compras) ou descartada. Os pedidos e as quantidades são apagados e a lista reabre; as ervas, os preços e o frete ficam.</p>
-      <button class="btn" data-act="novaini"><span aria-hidden="true">🆕</span> Nova compra</button>
-    </div></div>`;
+    </div>`;
+  return h + exportacao(E, r) + `<div class="cp-bts cp-nova"><button class="btn" data-act="novaini"><span aria-hidden="true">🆕</span> Nova compra</button></div></div>`;
 }
 
 // Pedido ao fornecedor (quantidades da Compra) e Cobrança (pedidos da corrente).
@@ -249,79 +271,28 @@ function exportacao(E, r) {
   const faltam = r.faltamPrecos.length;
   const semCompra = !itensCompra(E.ervas, r).length;
   const semPedidos = !r.pessoas.length;
-  let h = `<div class="bt-iguais">
-      <button class="btn ${vista === 'fornecedor' ? 'primary' : ''}" data-act="vista" data-v="fornecedor" aria-pressed="${vista === 'fornecedor'}" ${semCompra ? 'disabled' : ''}><span aria-hidden="true">🛒</span> Pedido ao fornecedor</button>
-      <button class="btn ${vista === 'cobranca' ? 'primary' : ''}" data-act="vista" data-v="cobranca" aria-pressed="${vista === 'cobranca'}" ${faltam || semPedidos ? 'disabled' : ''}><span aria-hidden="true">💰</span> Cobrança</button>
-    </div>
-    ${semCompra ? '<p class="muted" style="margin:0;font-size:.85rem">O pedido ao fornecedor libera quando alguma erva for pedida ou tiver quantidade na Compra.</p>' : ''}
-    ${faltam ? `<p class="muted" style="margin:0;font-size:.85rem">A cobrança libera quando todas as ervas pedidas tiverem preço. Faltam: ${r.faltamPrecos.map(esc).join(', ')}.</p>` : ''}`;
+  const motivoCobranca = faltam ? `Falta o preço de: ${r.faltamPrecos.join(', ')}` : semPedidos ? 'Ninguém pediu ervas ainda' : '';
+  let h = `<div class="cp-bts">
+      <button class="btn ${vista === 'fornecedor' ? 'primary' : ''}" data-act="vista" data-v="fornecedor" aria-pressed="${vista === 'fornecedor'}" ${semCompra ? 'disabled title="Nenhuma erva pedida ou com quantidade na Compra"' : ''}><span aria-hidden="true">🛒</span> Pedido ao fornecedor</button>
+      <button class="btn ${vista === 'cobranca' ? 'primary' : ''}" data-act="vista" data-v="cobranca" aria-pressed="${vista === 'cobranca'}" ${motivoCobranca ? `disabled title="${esc(motivoCobranca)}"` : ''}><span aria-hidden="true">💰</span> Cobrança</button>
+    </div>`;
   if ((vista === 'fornecedor' && !semCompra) || (vista === 'cobranca' && !faltam && !semPedidos)) {
     const ev = { gira: E.gira, data: E.data };
     const txt = vista === 'fornecedor' ? textoFornecedor(E.ervas, r, new Date(), ev) : textoCobranca(r, new Date(), ev);
     const titulo = vista === 'fornecedor' ? 'Pedido ao fornecedor' : 'Cobrança';
-    const dica = vista === 'fornecedor'
-      ? 'As ervas e as porções da Compra. Envie ao fornecedor.'
-      : 'Quanto cada pessoa paga: ervas + parte do frete.';
-    h += `<div class="grp exp"><h3>${titulo}</h3><p class="muted" style="margin:0;font-size:.85rem">${dica}</p>
+    h += `<div class="grp exp"><h3>${titulo}</h3>
       <textarea id="ev-txt" readonly aria-label="${titulo}">${esc(txt)}</textarea>
-      <div class="row">
-        <button class="btn primary" data-act="copiarervas">Copiar</button>
-        <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Abrir no WhatsApp</a>
-        <button class="btn" data-act="csvervas">Baixar planilha</button>
-        <button class="btn" data-act="imgervas">${estado.ervasImg && estado.ervasImg.chave === vista + txt ? 'Atualizar imagem' : 'Imagem'}</button>
+      <div class="cp-bts">
+        <button class="btn primary" data-act="copiarervas"><span aria-hidden="true">📋</span> Copiar</button>
+        <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener"><span aria-hidden="true">💬</span> WhatsApp</a>
+        <button class="btn" data-act="csvervas"><span aria-hidden="true">📄</span> Planilha</button>
+        <button class="btn" data-act="imgervas"><span aria-hidden="true">🖼️</span> ${estado.ervasImg && estado.ervasImg.chave === vista + txt ? 'Atualizar imagem' : 'Imagem'}</button>
       </div>
       ${estado.ervasImg && estado.ervasImg.chave === vista + txt ? `<img class="prev" src="${estado.ervasImg.url}" alt="Imagem: ${titulo}">
-        <div class="row"><button class="btn primary" data-act="shareimgervas">Compartilhar imagem</button><button class="btn" data-act="saveimgervas">Salvar imagem</button></div>` : ''}
+        <div class="cp-bts"><button class="btn primary" data-act="shareimgervas"><span aria-hidden="true">📤</span> Compartilhar</button><button class="btn" data-act="saveimgervas"><span aria-hidden="true">💾</span> Salvar imagem</button></div>` : ''}
       </div>`;
   }
   return h;
-}
-
-// Começa minimizado a cada vez que o app abre; tocar no título expande.
-// Sem nenhuma erva cadastrada, já abre para cadastrar (e fica aberto enquanto cadastra).
-let precosAberto = null;
-function cardCatalogo(E) {
-  if (precosAberto === null) precosAberto = !E.ervas.length;
-  const aberto = precosAberto;
-  let h = `<div class="card adm"><button class="grp-h dobra" data-act="dobrarprecos" aria-expanded="${aberto}" aria-label="${aberto ? 'Minimizar' : 'Expandir'} Cadastro de ervas">
-      <h2>Cadastro de ervas</h2><span class="count">${E.ervas.length} erva${E.ervas.length === 1 ? '' : 's'} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
-  if (!aberto) return h + `</div>`;
-  if (!E.aberta) {
-    return h + `<p class="muted" style="margin:0">A lista está fechada. Reabra a lista para cadastrar ou mudar ervas.</p>
-      <div class="ec-lista">${E.ervas.map((e) => `<div class="ec-linha ec-ler"><b>${esc(e.nome)}</b>
-        <span class="muted">${Number(e.pessoasPorcao) ? `serve ${e.pessoasPorcao}` : 'serve todos'} · ${temEstimado(e) ? `estimado ${reais(centavos(e.precoEstimado))}` : 'sem estimativa'}</span></div>`).join('')}</div></div>`;
-  }
-  // Erva nova: nome, quantas pessoas uma porção serve e o preço estimado (de referência).
-  h += `<form id="f-erva" class="ec-nova" autocomplete="off">
-      <b class="ec-tit">＋ Nova erva</b>
-      <label class="field">Nome<input type="text" id="ev-nome" maxlength="60" required placeholder="Ex.: Arruda"></label>
-      <div class="ec-campos">
-        <label class="field">Porção serve<span class="ec-un"><input type="number" inputmode="numeric" id="ev-serve" min="1" max="999" placeholder="todos"> pessoas</span></label>
-        <label class="field">Preço estimado<span class="ec-un">R$ <input type="text" inputmode="decimal" id="ev-estimado" maxlength="10" placeholder="0,00"></span></label>
-      </div>
-      <button class="btn primary" type="submit">Adicionar erva</button>
-    </form>`;
-  if (E.ervas.length) {
-    h += `<div class="ec-lista">`;
-    E.ervas.forEach((e) => {
-      const conf = estado.confirm === 'e:' + e.id;
-      // Preço real (do bloco Compra), só para conferir ao lado da estimativa.
-      const real = temPreco(e) ? `Compra: ${reais(centavos(e.preco))}` : 'Compra: a definir';
-      h += `<div class="ec-linha">
-        <input type="text" class="ec-nome" id="ev-n-${e.id}" value="${esc(e.nome)}" maxlength="60" aria-label="Nome da erva">
-        <div class="ec-campos">
-          <label class="field">Porção serve<span class="ec-un"><input type="number" inputmode="numeric" id="ev-s-${e.id}" min="1" max="999" value="${Number(e.pessoasPorcao) || ''}" placeholder="todos" aria-label="Quantas pessoas uma porção de ${esc(e.nome)} serve"> pessoas</span></label>
-          <label class="field">Preço estimado<span class="ec-un">R$ <input type="text" inputmode="decimal" id="ev-e-${e.id}" maxlength="10" value="${precoCampo(e.precoEstimado)}" placeholder="0,00" aria-label="Preço estimado da porção de ${esc(e.nome)}"></span></label>
-        </div>
-        <div class="ec-pe"><span class="muted ec-real">${real}</span><span class="ec-acts"><button class="btn small" data-act="salvarerva" data-id="${e.id}">Salvar</button>
-        ${conf ? `<button class="btn small danger" data-act="delerva" data-id="${e.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="e:${e.id}">Excluir</button>`}</span></div></div>`;
-    });
-    h += `</div><ul class="ec-dicas muted">
-      <li><b>Porção serve:</b> quantas pessoas uma porção atende. Com mais pedidos que isso, a Compra pede mais porções. Em branco, uma porção atende todos.</li>
-      <li><b>Preço estimado:</b> só uma referência. O preço real (que vale na cobrança) vai no bloco Compra, onde também ficam as quantidades.</li>
-      <li>Excluir uma erva tira ela dos pedidos de quem a escolheu.</li></ul>`;
-  }
-  return h + `</div>`;
 }
 
 function cardPedidos(E, r) {
@@ -345,11 +316,12 @@ function cabecalho(E) {
   const ev = linhaEvento({ gira: E.gira, data: E.data });
   const [y, m, d] = (E.data || '').split('-');
   const meu = E.ervas.length ? meuPedido(E, simular(E)) : { itens: [] };
+  const a = alvo(E);
   const resumo = meu.itens.length
-    ? `<div class="meu-ped"><span class="eyebrow">Seu pedido</span>
-        <ul>${meu.itens.map((i) => `<li><span>${i.quantidade > 1 ? `${i.quantidade}× ` : ''}${esc(i.nome)}</span><b>${i.semPreco ? 'a definir' : '≈ ' + reais(i.valor)}</b></li>`).join('')}${meu.frete ? `<li class="muted"><span>Frete (sua parte)</span><span>≈ ${reais(meu.frete)}</span></li>` : ''}</ul>
+    ? `<div class="meu-ped"><span class="eyebrow">${a.outro ? 'Pedido de ' + esc(a.nome) : 'Seu pedido'}</span>
+        <ul>${meu.itens.map((i) => `<li><span>${i.quantidade > 1 ? `${i.quantidade}× ` : ''}${esc(i.nome)}</span><b>${i.semPreco ? 'a definir' : '≈ ' + reais(i.valor)}</b></li>`).join('')}${meu.frete ? `<li class="muted"><span>Frete (${a.outro ? 'parte da pessoa' : 'sua parte'})</span><span>≈ ${reais(meu.frete)}</span></li>` : ''}</ul>
         <div class="meu-tot"><span>Valor total</span><b>≈ ${reais(meu.total)}${meu.pendente ? ' + a definir' : ''}</b></div></div>`
-    : `<p class="muted" style="margin:0;font-size:.9rem">Você ainda não escolheu nenhuma erva.</p>`;
+    : `<p class="muted" style="margin:0;font-size:.9rem">${a.outro ? esc(a.nome) + ' ainda não escolheu' : 'Você ainda não escolheu'} nenhuma erva.</p>`;
   return `<div class="card">${ev ? `<div class="datehead"><span class="eyebrow">Pedido de ervas</span>
     ${E.data ? `<span class="dia">${d}/${m}/${y}</span>` : ''}${E.gira ? `<span class="ent">${esc(E.gira)}</span>` : ''}</div>` : '<h2>Pedido de ervas</h2>'}
     ${resumo}</div>`;
@@ -358,10 +330,13 @@ function cabecalho(E) {
 export function render() {
   if (estado.ervas === null) { carregarErvas(); return `<div class="loading">Carregando ervas…</div>`; }
   const E = estado.ervas;
-  let h = `<section class="panel">${cabecalho(E)}${cardEscolha(E)}`;
-  if (pode('ervas:gerenciar')) {
+  const admin = pode('ervas:gerenciar');
+  const pub = estado.me?.ervasPublicada !== false;
+  const topo = admin ? `<div class="card adm ervas-pub"><label class="of-sw"><input type="checkbox" role="switch" data-act="ervaspub" ${pub ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label></div>` : '';
+  let h = `<section class="panel">${topo}${cabecalho(E)}${cardEscolha(E)}`;
+  if (admin) {
     const r = E.pedidos || calcularPedidos(E.ervas, [], E.frete);
-    h += (E.ervas.length ? cardPedidoDe(E) : '') + cardCompra(E, r) + cardCatalogo(E) + cardPedidos(E, r) + cardHistorico();
+    h += cardCompra(E, r) + cardPedidos(E, r) + cardHistorico();
   }
   else h += cardStatus(E);
   return h + janelaFechar() + janelaNova() + `</section>`;
@@ -444,9 +419,10 @@ function janelaFechar() {
 const val = (id) => document.getElementById(id)?.value ?? '';
 
 export const cliques = {
-  dobrarprecos() { precosAberto = !precosAberto; avisar(); },
-  mais(el) { escolherErva(el.dataset.id, Math.min(99, qtdDe(el.dataset.id) + 1)); },
-  menos(el) { escolherErva(el.dataset.id, Math.max(0, qtdDe(el.dataset.id) - 1)); },
+  mais(el) { ajustarPedido(el.dataset.id, 1); },
+  menos(el) { ajustarPedido(el.dataset.id, -1); },
+  cpnovaerva() { novaAberta = !(novaAberta ?? !estado.ervas.ervas.length); avisar(); if (novaAberta) document.getElementById('ev-nome')?.focus(); },
+  cperva(el) { ervaAberta = ervaAberta === el.dataset.id ? null : el.dataset.id; avisar(); },
   // Bloco Compra: Editar libera os campos; Salvar grava tudo (se algo mudou) e trava de novo.
   // Ervas ainda sem preço na Compra recebem o preço estimado do cadastro (dá para mudar antes de salvar).
   cpestimados() {
@@ -482,13 +458,15 @@ export const cliques = {
   fecharcancel() { estado.ervasFechar = false; avisar(); },
   async fecharok() {
     estado.ervasFechar = false;
-    // Fechar descarta a edição da Compra e o pedido de outra pessoa que estiverem abertos.
+    gravarPara();
+    await filaPara;
+    // Fechar descarta a edição da Compra e volta para o pedido de quem está logado.
     if (await acaoErvas('config', { aberta: false })) { estado.ervasCompra = null; estado.ervasPara = null; estado.ervasHist = null; toast('Lista fechada e guardada no Histórico de compras.'); avisar(); }
     else avisar();
   },
   async salvarerva(el) {
     const id = el.dataset.id;
-    if (await acaoErvas('salvarErva', { id, nome: val('ev-n-' + id), pessoasPorcao: val('ev-s-' + id), precoEstimado: val('ev-e-' + id) })) toast('Erva salva.');
+    if (await acaoErvas('salvarErva', { id, nome: val('ev-n-' + id), pessoasPorcao: val('ev-s-' + id), precoEstimado: val('ev-e-' + id) })) { ervaAberta = null; toast('Erva salva.'); avisar(); }
   },
   async delerva(el) { estado.confirm = null; if (await acaoErvas('excluirErva', { id: el.dataset.id })) toast('Erva excluída.'); },
   novaini() { estado.ervasNova = { passo: 'aviso' }; avisar(); },
@@ -506,31 +484,17 @@ export const cliques = {
   },
   dobrarhist() { histAberto = !histAberto; avisar(); },
   dobrarcompra(el) { const id = el.dataset.id; if (histAbertas.has(id)) histAbertas.delete(id); else histAbertas.add(id); avisar(); },
-  // ---- pedido de outra pessoa (admin)
+  // Tabela de pedidos: ✎ abre o pedido da pessoa no bloco de escolher.
   editarpedido(el) {
-    const p = (estado.ervas.pedidos?.pessoas || []).find((x) => x.chave === el.dataset.chave);
-    if (!p) return;
-    abrirPara({ chave: p.chave, nome: p.nome, itens: Object.fromEntries(p.itens.map((i) => [i.ervaId, i.quantidade])) });
+    abrirPedido(el.dataset.chave);
+    document.querySelector('.ervas-pedido')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
-  pamais(el) { const P = estado.ervasPara; P.itens[el.dataset.id] = Math.min(99, (P.itens[el.dataset.id] || 0) + 1); avisar(); },
-  pamenos(el) { const P = estado.ervasPara; const q = (P.itens[el.dataset.id] || 0) - 1; if (q > 0) P.itens[el.dataset.id] = q; else delete P.itens[el.dataset.id]; avisar(); },
   async delpedido(el) {
     estado.confirm = null;
     const p = (estado.ervas.pedidos?.pessoas || []).find((x) => x.chave === el.dataset.chave);
     if (!p) return;
     if (await salvarPedidoDe({ chave: p.chave }, [])) toast(`Pedido de ${p.nome} excluído.`);
     if (estado.ervasPara?.chave === p.chave) { estado.ervasPara = null; avisar(); }
-  },
-  pacancelar() { estado.ervasPara = null; avisar(); },
-  async pasalvar() {
-    const P = estado.ervasPara;
-    const itens = Object.entries(P.itens).filter(([, q]) => q > 0).map(([ervaId, quantidade]) => ({ ervaId, quantidade }));
-    if (!itens.length && !P.chave) { toast('Escolha pelo menos uma erva.'); return; }
-    if (await salvarPedidoDe({ chave: P.chave, pessoaId: P.pessoaId, nome: P.nome }, itens)) {
-      toast(itens.length ? `Pedido de ${P.nome} salvo.` : `Pedido de ${P.nome} apagado.`);
-      estado.ervasPara = null;
-      avisar();
-    }
   },
   async imgervas() {
     const E = estado.ervas;
@@ -567,11 +531,51 @@ export const cliques = {
   },
 };
 
-function abrirPara(P) {
-  estado.ervasPara = P;
-  avisar();
-  document.getElementById('card-para')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+// Admin pedindo por outra pessoa: muda na tela na hora e grava logo depois, como no próprio pedido.
+let timerPara = null;
+let filaPara = Promise.resolve();
+function gravarPara() {
+  clearTimeout(timerPara);
+  const P = estado.ervasPara;
+  if (!P?.sujo) return;
+  P.sujo = false;
+  const para = { chave: P.chave, pessoaId: P.pessoaId, nome: P.nome };
+  const itens = Object.entries(P.itens).map(([ervaId, quantidade]) => ({ ervaId, quantidade }));
+  filaPara = filaPara.then(() => salvarPedidoDe(para, itens));
 }
+function ajustarPedido(id, delta) {
+  const nova = Math.min(99, Math.max(0, qtdDe(id) + delta));
+  const P = paraOutro();
+  if (!P) { escolherErva(id, nova); return; }
+  if (nova) P.itens[id] = nova; else delete P.itens[id];
+  P.sujo = true;
+  avisar();
+  clearTimeout(timerPara);
+  timerPara = setTimeout(gravarPara, 500);
+}
+// v: 'p:<id da pessoa>', a chave de um pedido fora da corrente ou '' (quem está logado).
+function abrirPedido(v) {
+  gravarPara();
+  if (!v || v === estado.ervas.eu.chave) { estado.ervasPara = null; avisar(); return; }
+  const lista = estado.ervas.pedidos?.pessoas || [];
+  const pessoaId = v.startsWith('p:') ? v.slice(2) : undefined;
+  const pessoa = pessoaId && estado.pessoas.find((x) => x.id === pessoaId);
+  const p = lista.find((x) => x.chave === v) || (pessoa && lista.find((x) => normalizarNome(x.nome) === normalizarNome(pessoa.nome)));
+  if (!p && !pessoa) return;
+  estado.ervasPara = p
+    ? { chave: p.chave, pessoaId, nome: p.nome, itens: Object.fromEntries(p.itens.map((i) => [i.ervaId, i.quantidade])) }
+    : { pessoaId, nome: pessoa.nome, itens: {} };
+  avisar();
+}
+
+export const mudancas = {
+  erpessoa(t) { abrirPedido(t.value); },
+  async ervaspub(t) {
+    const pub = t.checked;
+    if (!(await publicarErvas(pub))) { t.checked = !pub; return; }
+    toast(pub ? 'Aba Ervas visível para todos.' : 'Aba Ervas visível só para os admins.');
+  },
+};
 
 // +/− nas porções da Compra (a partir do que aparece na tela, já com o mínimo dos pedidos).
 function mudarPorcoes(id, delta) {
@@ -597,18 +601,6 @@ export function digitando(el) {
   } else C[el.dataset.compra] = el.value;
   const tab = document.getElementById('cp-tabela');
   if (tab) tab.innerHTML = tabelaCompra(E, E.pedidos || calcularPedidos(E.ervas, [], E.frete));
-}
-
-// "Montar pedido": se o nome já tem pedido, abre o pedido dele para editar.
-export function enviarPara() {
-  const id = val('pa-pessoa');
-  const pessoa = estado.pessoas.find((p) => p.id === id);
-  if (!pessoa) { toast('Escolha a pessoa que está pedindo.'); return; }
-  const lista = estado.ervas.pedidos?.pessoas || [];
-  const p = lista.find((x) => x.chave === 'p:' + id) || lista.find((x) => normalizarNome(x.nome) === normalizarNome(pessoa.nome));
-  abrirPara(p
-    ? { chave: p.chave, nome: p.nome, itens: Object.fromEntries(p.itens.map((i) => [i.ervaId, i.quantidade])) }
-    : { pessoaId: id, nome: pessoa.nome, itens: {} });
 }
 
 export async function enviarFormulario() {

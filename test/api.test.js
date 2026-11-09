@@ -1156,6 +1156,16 @@ test('oferenda 100% há mais de um dia: só o responsável altera; o card mostra
   await of({ acao: 'excluir', id: o.id });
 });
 
+test('ervas: com a aba desligada, só quem administra entra', async () => {
+  const publicar = (publicada, tok = ADMIN) => api('POST', '/api/ervas', tok, { acao: 'publicar', publicada });
+  assert.equal((await publicar(false, USER)).status, 403);
+  assert.equal((await publicar(false)).json.publicada, false);
+  assert.equal((await api('GET', '/api/ervas', USER)).status, 403);
+  assert.equal((await api('GET', '/api/ervas', ADMIN)).status, 200);
+  assert.equal((await publicar(true)).json.publicada, true);
+  assert.equal((await api('GET', '/api/ervas', USER)).status, 200);
+});
+
 test('a própria pessoa escolhe a entidade que vai atender em gira com mais de uma linha', async () => {
   const d = '2099-02-04';
   const anaId = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Ana').id;
