@@ -17,7 +17,8 @@ import { rota, corpo, HttpError, validarData, validarId, hojeBR } from '../_lib/
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { FUNCAO_KEYS } from '../../shared/regras.js';
-import { contagemPerfis } from '../../shared/perfil.js';
+import { contagemPerfis, pessoasPorOrixaCabeca } from '../../shared/perfil.js';
+import { pode } from '../../shared/permissoes.js';
 
 const ACOES_ALUNOS = ['alunos', 'aluno', 'excluirAluno', 'turma', 'excluirTurma', 'promoverAlunoCPJ'];
 const ACOES_CURIMBA = ['curimbaAluno', 'curimbaExcluirAluno', 'curimbaAula', 'curimbaExcluirAula', 'curimbaPresenca'];
@@ -86,8 +87,10 @@ export default rota({
       return eu.pessoaId ? db.rpc('curimba_minha', { pessoaId: eu.pessoaId }) : null;
     }
     if (req.query.lista === 'perfis') {
-      await exigir(req, 'historico:ver');
-      return contagemPerfis(await db.rpc('perfis_listar'));
+      const eu = await exigir(req, 'historico:ver');
+      const todos = await db.rpc('perfis_listar');
+      // Só quem administra o Perfil (já vê o orixá de cada um) recebe também os nomes por orixá de cabeça.
+      return { ...contagemPerfis(todos), ...(pode(eu, 'perfil:corrente') ? { cabecaNomes: pessoasPorOrixaCabeca(todos) } : {}) };
     }
     await exigir(req, 'pessoas:ler');
     return db.rpc('pessoas_listar', { todas: true });

@@ -11,13 +11,13 @@ import { abertos, cabDobra, ICONE_WHATS } from './giraComum.js';
 export function cardSemana({ ocultarAvisos = false } = {}) {
   const hj = hoje();
   const eventos = ocultarAvisos ? estado.eventos.filter((e) => e.tipo !== 'aviso') : estado.eventos;
-  // Aniversariantes da semana (domingo a sábado): dia/mês do Perfil, com 🎈🎂 antes do nome.
-  // Orixás: só no próprio dia (DIAS_ORIXAS). No mesmo dia: eventos, depois orixás, depois aniversários.
+  // Aniversariantes e orixás (DIAS_ORIXAS): só no próprio dia. Aniversário: dia/mês do Perfil, com 🎈🎂 antes do nome.
+  // No mesmo dia: eventos, depois orixás, depois aniversários.
   const ordem = (e) => (e.niver ? 2 : e.orixa ? 1 : 0);
   const prox = proximosEventos(eventos, hj);
   const evs = ocultarAvisos
     ? [...new Set([...eventosDoTopo(eventos, hj), ...prox])].sort((a, b) => a.data.localeCompare(b.data))
-    : [...new Set([...eventosDoTopo(eventos, hj), ...prox]), ...orixasDoDia(hj), ...aniversariosDaSemana(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
+    : [...new Set([...eventosDoTopo(eventos, hj), ...prox]), ...orixasDoDia(hj), ...aniversariosDoDia(hj)].sort((a, b) => a.data.localeCompare(b.data) || ordem(a) - ordem(b));
   // Cada evento: "folhinha" com o dia da semana (ou HOJE) e a data, o nome e o tipo num selo à direita.
   const semana = (d) => (d === hj ? 'Hoje' : pd(d).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, (c) => c.toUpperCase()));
   const tipo = (e) => (e.niver ? ['niver', 'Aniversário'] : e.orixa ? ['orixa', 'Orixá'] : [e.tipo || 'evento', TIPO_EVENTO_LABEL[e.tipo] || 'Evento']);
@@ -71,12 +71,10 @@ export async function enviarOracao(form) {
   if (await acaoOracoes('oracao', { texto: texto.join('\n') })) { estado.oraNova = false; estado.oraTexto = ''; toast('Pedido de oração publicado.'); avisar(); }
 }
 
-function aniversariosDaSemana(hj) {
-  const d0 = pd(hj); d0.setDate(d0.getDate() - d0.getDay());
-  const dias = Array.from({ length: 7 }, (_, i) => { const d = new Date(d0); d.setDate(d0.getDate() + i); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
-  const out = [];
-  dias.forEach((d) => estado.pessoas.filter((p) => p.aniversario === d.slice(5)).forEach((p) => out.push({ data: d, nome: p.nome, niver: true })));
-  return out.sort((a, b) => a.data.localeCompare(b.data) || a.nome.localeCompare(b.nome, 'pt-BR'));
+function aniversariosDoDia(hj) {
+  return estado.pessoas.filter((p) => p.aniversario === hj.slice(5))
+    .map((p) => ({ data: hj, nome: p.nome, niver: true }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 // Aula de curimba (só para quem está nos alunos da aba Curimba): presença e faltas nas aulas até hoje.

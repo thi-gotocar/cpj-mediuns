@@ -266,16 +266,19 @@ function blocosPerfis() {
   if (S === null) carregarStPerfis();
   if (!S || S.erro) return S?.erro ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(S.erro)}</p>` : '';
   // preencheram: quem escolheu algo (no orixá de cabeça a pessoa pode estar em até 3 linhas, por isso vem do servidor).
-  const bloco = (titulo, lista, cor, preencheram = lista.reduce((a, x) => a + x.qtd, 0), nota = '') => {
-    const top = lista.slice(0, 3);
+  // nomes (só para quem administra o Perfil): "Ver mais" abre todos os itens com as pessoas de cada um.
+  const bloco = (titulo, lista, cor, preencheram = lista.reduce((a, x) => a + x.qtd, 0), nota = '', nomes = null) => {
+    const aberto = !!nomes && !!estado.stCabecaMais;
+    const top = aberto ? lista : lista.slice(0, 3);
     return `<div class="st-bloco"><h3>${titulo}</h3>
-      ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b></span></li>`).join('')}</ol>`
+      ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b></span>${aberto && nomes[x.nome] ? `<span class="st-det st-pessoas">${nomes[x.nome].map(esc).join(', ')}</span>` : ''}</li>`).join('')}</ol>
+        ${nomes ? `<button class="btn link small" data-act="stcabeca" aria-expanded="${aberto}">${aberto ? 'Ver menos' : 'Ver mais'}</button>` : ''}`
         : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém preencheu ainda.</p>'}
       <p class="muted" style="margin:0;font-size:.8rem">${nota}Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
   };
   return bloco('Guia chefe com mais pessoas', S.chefe, 'acc') + bloco('Guia de frente com mais pessoas', S.frente, 'acc')
     + bloco('Orixá de frente com mais pessoas', S.orixa, 'or')
-    + (S.cabeca ? bloco('Orixá de cabeça com mais pessoas', S.cabeca, 'or', S.cabecaPessoas, 'Frente, ancestral ou adjunto (cada pessoa conta uma vez por orixá) · ') : '');
+    + (S.cabeca ? bloco('Orixá de cabeça com mais pessoas', S.cabeca, 'or', S.cabecaPessoas, 'Frente, ancestral ou adjunto (cada pessoa conta uma vez por orixá) · ', S.cabecaNomes || null) : '');
 }
 
 export function render() {
@@ -364,6 +367,7 @@ export const cliques = {
   dobrarcamb() { estado.cambAberto = !estado.cambAberto; avisar(); },
   dobrarsalvas() { estado.salvasAberto = !estado.salvasAberto; avisar(); },
   dobrareventos() { estado.eventosAberto = !estado.eventosAberto; avisar(); },
+  stcabeca() { estado.stCabecaMais = !estado.stCabecaMais; avisar(); },
   stpessoa(el) { estado.stPessoa = estado.stPessoa === el.dataset.k ? null : el.dataset.k; avisar(); },
   stmais(el) { estado.stMais = { ...(estado.stMais || {}), [el.dataset.k]: !(estado.stMais || {})[el.dataset.k] }; avisar(); },
   abrir(el) { prefs.data = el.dataset.d; prefs.tab = 'agenda'; salvarPrefs(); avisar(); window.scrollTo(0, 0); },

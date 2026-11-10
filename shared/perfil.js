@@ -84,6 +84,18 @@ export function contagemPerfis(todos) {
   };
 }
 
+// Nomes de quem tem cada orixá de cabeça (Histórico → Ver mais): só para quem administra o Perfil.
+// → { orixá: [nomes em ordem alfabética] }; a curimba não entra.
+export function pessoasPorOrixaCabeca(todos) {
+  const m = {};
+  todos.filter((x) => cadastraEspiritual(x.funcao)).forEach((x) => {
+    const pf = normalizarPerfil(x.perfil);
+    new Set(POSICOES_ORIXA.map(([k]) => pf.orixas[k].nome).filter(Boolean)).forEach((o) => (m[o] ||= []).push(x.nome));
+  });
+  Object.values(m).forEach((l) => l.sort((a, b) => a.localeCompare(b, 'pt-BR')));
+  return m;
+}
+
 const txt = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // Limpa o que veio da tela (ou do banco): só campos conhecidos e valores válidos.

@@ -291,6 +291,13 @@ test('perfil: só orixás e guias válidos; oferenda só com algo escolhido', as
   ]);
   assert.equal(e.total, 1);
   assert.deepEqual(e.orixa, [{ nome: 'Oxum', qtd: 1 }]);
+  // Nomes por orixá de cabeça (Ver mais, só para quem administra o Perfil): uma vez por orixá, em ordem, sem a curimba.
+  const { pessoasPorOrixaCabeca } = await import('../shared/perfil.js');
+  assert.deepEqual(pessoasPorOrixaCabeca([
+    { nome: 'Zé', funcao: 'medium', perfil: { orixas: { frente: { nome: 'Oxum' }, adjunto: { nome: 'Oxum' } } } },
+    { nome: 'Ana', funcao: 'cambone', perfil: { orixas: { ancestral: { nome: 'Oxum' }, adjunto: { nome: 'Ogum' } } } },
+    { nome: 'Bia', funcao: 'curimba', perfil: { orixas: { frente: { nome: 'Oxum' } } } },
+  ]), { Oxum: ['Ana', 'Zé'], Ogum: ['Ana'] });
 });
 
 test('banhos da gira: ervas do orixá do dia e da linha da gira', async () => {

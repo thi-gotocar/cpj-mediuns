@@ -214,21 +214,22 @@ function cardsAfinidade(eu) {
 }
 
 // Uma posição (caixinha): rótulo, combo e "Oferenda realizada" ao lado (verde com ✓ quando marcada).
-function linhaEscolha({ grupo, k, rotulo, valor, opcoes, oferenda }) {
+// ver: só visualização (admin olhando outra pessoa): campos travados e sem ação.
+function linhaEscolha({ grupo, k, rotulo, valor, opcoes, oferenda, ver }) {
   return `<div class="pf-linha pf-pos${valor && oferenda ? ' feita' : ''}">
     <label class="pf-rot" for="pf-${grupo}-${k}">${rotulo}</label>
     <div class="pf-campos">
-      <select id="pf-${grupo}-${k}" data-act="pfsel" data-g="${grupo}" data-k="${k}">
-        <option value="">Selecione…</option>
+      <select id="pf-${grupo}-${k}" ${ver ? 'disabled' : `data-act="pfsel" data-g="${grupo}" data-k="${k}"`}>
+        <option value="">${ver ? '—' : 'Selecione…'}</option>
         ${opcoes.map(([v, l]) => `<option value="${esc(v)}" ${v === valor ? 'selected' : ''}>${esc(l)}</option>`).join('')}
       </select>
-      <label class="chip pf-of${valor ? '' : ' off'}"><input type="checkbox" id="pf-of-${grupo}-${k}" data-act="pfof" data-g="${grupo}" data-k="${k}" ${oferenda ? 'checked' : ''} ${valor ? '' : 'disabled'}> Oferenda realizada</label>
+      <label class="chip pf-of${valor ? '' : ' off'}"><input type="checkbox" id="pf-of-${grupo}-${k}" ${ver ? '' : `data-act="pfof" data-g="${grupo}" data-k="${k}"`} ${oferenda ? 'checked' : ''} ${valor && !ver ? '' : 'disabled'}> Oferenda realizada</label>
     </div>
   </div>`;
 }
 
 // Bloco "Orixás, guias e oferendas": resumo das oferendas no topo e as seções Orixás e Guias dentro.
-function cardEspiritual(P) {
+function cardEspiritual(P, ver = false) {
   const orixas = POSICOES_ORIXA.map(([k]) => P.orixas[k]);
   const guias = POSICOES_GUIA.map(([k]) => P.guias[k]);
   const okOrixas = situacaoOferendas(orixas, 'nome');
@@ -242,26 +243,34 @@ function cardEspiritual(P) {
   return card('espiritual', '<span aria-hidden="true">🕯️</span> Orixás, guias e oferendas', selo(okTudo), false, () => `
     <div class="pf-of-resumo"><div class="pf-of-resumo-h"><span>Oferendas realizadas</span><b>${feitas} de ${todas.length}</b></div>
       <div class="pf-barra${feitas === todas.length ? ' cheia' : ''}" role="img" aria-label="${feitas} de ${todas.length} oferendas realizadas"><span style="width:${pct}%"></span></div></div>
-    ${secao('Orixás', okOrixas, POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: ORIXAS.map((o) => [o, o]), oferenda: P.orixas[k].oferenda })).join(''))}
-    ${secao('Guias', okGuias, POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda })).join(''))}`, true);
+    ${secao('Orixás', okOrixas, POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: ORIXAS.map((o) => [o, o]), oferenda: P.orixas[k].oferenda, ver })).join(''))}
+    ${secao('Guias', okGuias, POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda, ver })).join(''))}`, true);
+}
+
+// Guias de atendimento (nome do guia em cada linha). ver: só visualização.
+function cardOutros(P, ver = false) {
+  const nOutros = GUIAS.filter(([k]) => (P.outros || {})[k]).length;
+  const okOutros = nOutros === GUIAS.length ? true : nOutros ? 'andamento' : false;
+  return card('outros', 'Guias de atendimento', selo(okOutros), false, () => `
+    ${ver ? '' : '<p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>'}
+    ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">
+      <label class="pf-rot" for="pf-outro-${k}">${esc(label)}</label>
+      <input id="pf-outro-${k}" type="text" maxlength="${NOME_GUIA_MAX}" placeholder="${ver ? '—' : 'Nome do guia'}" autocomplete="off" ${ver ? 'disabled' : `data-act="pfnome" data-k="${k}"`} value="${esc(P.outros[k] || '')}">
+    </div>`).join('')}`, true);
 }
 
 // ---------- meu perfil ----------
 function meusCards(eu) {
-  const P = eu.perfil;
   // Orixás e guias (num bloco só) e outros guias começam minimizados (para todos); tocar no título expande.
-  const padrao = false;
   // Curimba: só as informações pessoais (não cadastra orixás, guias nem guias de atendimento).
   if (!cadastraEspiritual(eu.funcao)) return '';
-  const nOutros = GUIAS.filter(([k]) => (P.outros || {})[k]).length;
-  const okOutros = nOutros === GUIAS.length ? true : nOutros ? 'andamento' : false;
-  return cardsAfinidade(eu) + cardEspiritual(P)
-  + card('outros', 'Guias de atendimento', selo(okOutros), padrao, () => `
-    <p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>
-    ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">
-      <label class="pf-rot" for="pf-outro-${k}">${esc(label)}</label>
-      <input id="pf-outro-${k}" type="text" maxlength="${NOME_GUIA_MAX}" placeholder="Nome do guia" autocomplete="off" data-act="pfnome" data-k="${k}" value="${esc(P.outros[k] || '')}">
-    </div>`).join('')}`, true);
+  return cardsAfinidade(eu) + cardEspiritual(eu.perfil) + cardOutros(eu.perfil);
+}
+
+// Admin com outra pessoa no combo de Informações: as respostas dela, só para ver.
+function cardsDeOutra(x) {
+  const espiritual = cadastraEspiritual(x.funcao) ? cardEspiritual(x.perfil, true) + cardOutros(x.perfil, true) : '';
+  return `<p class="pf-vendo"><span aria-hidden="true">👁️</span> Respostas de <b>${esc(x.nome)}</b> · só visualização</p>${espiritual}${cardAnamneseDe(x)}`;
 }
 
 // ---------- Anamnese ----------
@@ -296,6 +305,15 @@ function cardAnamnese() {
       <div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, vals[q.id] || '', ed)).join('')}</div>
       <div class="row ana-bts">${ed ? '<button class="btn primary" data-act="anasalvar">Salvar</button><button class="btn" data-act="anacancelar">Cancelar</button>'
         : '<button class="btn" data-act="anaeditar">Editar</button>'}</div>`), true);
+}
+// Anamnese de outra pessoa (admin): as respostas dela, travadas, sem Editar.
+function cardAnamneseDe(x) {
+  const A = estado.anamnese;
+  if (!A || A.erro) return card('anamnese', 'Anamnese', '', false, () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>`, true);
+  const R = respostasPorPessoa(A.todas)[x.pessoaId] || {};
+  return card('anamnese', 'Anamnese', A.perguntas.length ? selo(anamnesePreenchida(A.perguntas, R) ? true : 'apreencher') : '', false, () => (!A.perguntas.length
+    ? '<p class="muted" style="margin:0">Nenhuma pergunta cadastrada ainda.</p>'
+    : `<div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, R[q.id] || '', false)).join('')}</div>`), true);
 }
 // Os valores que estão na tela (antes de abrir a janela de Salvar).
 function lerAnamneseTela() {
@@ -476,7 +494,9 @@ export function render() {
       ${abertaAdm ? cardRespostas(comOrixas) + cardAnamneseAdmin(todos) : ''}</div>`;
   }
   h += cardInfo(eu);
-  if (eu) h += meusCards(eu) + cardAnamnese();
+  const outra = admin() && estado.infoPessoa && estado.infoPessoa !== eu?.pessoaId ? todos.find((x) => x.pessoaId === estado.infoPessoa) : null;
+  if (outra) h += cardsDeOutra(outra);
+  else if (eu) h += meusCards(eu) + cardAnamnese();
   else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
   h += cardGuiasCorrente(estado.perfil.guias || []);
   return `<section class="panel pf-tela">${h}${janelaAnamnese()}${janelaInfo()}</section>`;

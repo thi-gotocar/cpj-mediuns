@@ -1155,16 +1155,14 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-alunos{--fn:#a78bfa}
 .pessoas-tela .pp-card > h2,.pessoas-tela .pp-card .turmas-d > summary h2{color:var(--fn)}
 .pessoas-tela .corrente-card{border-top:4px solid var(--gold)}
-/* Os quadradinhos das funções numa linha só (as licenças ficam embaixo) */
-.pessoas-tela .corrente-card .presentes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-flow:row;gap:5px}
+/* Os quadradinhos das funções da corrente usam o .pf-of-total (o mesmo de Oferendas pendentes); as licenças ficam embaixo */
 .pessoas-tela .contagem-quadrados{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:6px}
-.pessoas-tela .corrente-card .presentes > span,.pessoas-tela .contagem-quadrados > button{display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;padding:7px 3px 6px;border-radius:9px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--fn);min-width:0;text-align:center}
-.pessoas-tela .corrente-card .presentes > button,.pessoas-tela .contagem-quadrados > button{color:inherit;font:inherit;cursor:pointer}
-.pessoas-tela .corrente-card .presentes > button.selecionado,.pessoas-tela .contagem-quadrados > button.selecionado{background:color-mix(in srgb,var(--fn) 12%,var(--surface));border-color:var(--fn)}
-.pessoas-tela .corrente-card .presentes > button:focus-visible,.pessoas-tela .contagem-quadrados > button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.pessoas-tela .corrente-card .presentes b,.pessoas-tela .contagem-quadrados b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
-.pessoas-tela .corrente-card .presentes .muted,.pessoas-tela .contagem-quadrados .muted{font-size:.62rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere}
-.pessoas-tela .corrente-card .presentes .muted{white-space:nowrap;overflow-wrap:normal;word-break:normal;hyphens:none;text-wrap:nowrap}
+.pessoas-tela .contagem-quadrados > button{display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;padding:7px 3px 6px;border-radius:9px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--fn);min-width:0;text-align:center}
+.pessoas-tela .contagem-quadrados > button{color:inherit;font:inherit;cursor:pointer}
+.pessoas-tela .contagem-quadrados > button.selecionado{background:color-mix(in srgb,var(--fn) 12%,var(--surface));border-color:var(--fn)}
+.pessoas-tela .contagem-quadrados > button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pessoas-tela .contagem-quadrados b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
+.pessoas-tela .contagem-quadrados .muted{font-size:.62rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere}
 .pessoas-tela .corrente-pessoas{margin-top:8px}
 .pessoas-tela .corrente-pessoas .pp{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg)}
 .pessoas-tela .corrente-pessoas .pp2{display:grid;gap:4px}
@@ -1480,6 +1478,8 @@ button.eu-av{cursor:zoom-in}
 .ana-instr{margin:0 0 2px;font-size:.86rem;color:var(--muted)}
 .ana-obrig{color:var(--off)}
 .ana-lista{display:grid;gap:14px}
+/* Perfil: admin vendo as respostas de outra pessoa */
+.pf-vendo{margin:0;padding:8px 12px;border-radius:10px;background:var(--accent-soft);color:var(--ink);font-size:.9rem;overflow-wrap:anywhere}
 .ana-item{display:grid;gap:6px;border:0;margin:0;padding:0;min-width:0}
 .ana-item legend{padding:0;margin-bottom:6px}
 .ana-q{font-weight:600;font-size:.92rem}
