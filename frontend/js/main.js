@@ -281,6 +281,7 @@ main.addEventListener('change', (e) => {
   const t = e.target;
   if (t.id === 'l-email') { login.ajustarCampoSenha(ehAcessoGrupo(t.value)); return; }
   if (t.id === 'f-ent') { gira.mudancas.entidade(t); return; }
+  if (t.classList?.contains('cd-resp-txt')) { gira.mudancas.cdresp(t); return; }
   if (t.id === 'f-import' && t.files && t.files[0]) { const f = t.files[0]; t.value = ''; telaDe('hist').then((m) => m.restaurar(f)); return; }
   const tela = TELAS[prefs.tab];
   const fn = t.dataset.act && tela?.mudancas && tela.mudancas[t.dataset.act];
@@ -348,6 +349,8 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'us-busca') { estado.usBusca = e.target.value; render(); }
   if (e.target.id === 'info-pessoa-busca') { const t = e.target; telaDe('perfil').then((m) => m.buscarInfo(t)); }
   if (e.target.id === 'vid-busca') { const t = e.target; telaDe('videos').then((m) => m.buscar(t)); }
+  // Relato e resposta da Gestão de Conduta e Risco: até 10 linhas, guardados para um redesenho não apagar.
+  if (gira.digitarConduta(e.target)) return;
   // Pedido de oração: até 3 linhas (não deixa passar da 3ª) e guardado para um redesenho não apagar.
   if (e.target.id === 'or-texto') {
     const linhas = e.target.value.split('\n');
@@ -447,6 +450,8 @@ main.addEventListener('submit', async (e) => {
     await curimba.enviarAula(e.target);
   } else if (id === 'f-oracao') {
     await gira.enviarOracao(e.target);
+  } else if (id === 'f-conduta') {
+    await gira.enviarConduta(e.target);
   } else if (id === 'f-ft-album') {
     await (await telaDe('fotos')).enviarAlbum(e.target);
   } else if (id === 'f-video' || id === 'f-video-ed') {

@@ -1418,6 +1418,37 @@ button.eu-av{cursor:zoom-in}
 .or-form textarea{resize:none}
 .or-nova{justify-self:start}
 
+/* Aba Geral: Gestão de Conduta e Risco (último bloco) */
+.cd-card{gap:10px;border-top:4px solid #64748b}
+.cd-card .grp-h h2{margin:0}
+.cd-intro,.cd-sigilo{margin:0;font-size:.92rem}
+.cd-sigilo{background:var(--accent-soft);color:var(--accent);border-radius:8px;padding:8px 12px;font-weight:600}
+.cd-novo{justify-self:start}
+.cd-form{display:grid;gap:8px}
+.cd-form textarea,.cd-resp-txt{font-family:var(--f-body);font-size:1rem;line-height:1.4;min-height:0;resize:none}
+.cd-lista{display:grid;gap:10px}
+.cd-sub{margin:4px 0 0;font-size:.95rem}
+.cd-item{display:grid;gap:6px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg)}
+.cd-item.novo{border-color:var(--warn);background:var(--warn-soft)}
+.cd-topo{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cd-nome{font-size:1rem}
+.cd-quando{font-size:.82rem}
+.cd-topo .cd-st,.cd-topo .cd-editar{margin-left:auto}
+.cd-topo .cd-st + .cd-editar{margin-left:0}
+.cd-txt{margin:0;white-space:pre-line;overflow-wrap:anywhere}
+.cd-st{display:inline-block;font-size:.75rem;font-weight:700;border-radius:20px;padding:2px 9px;white-space:nowrap;border:1px solid transparent}
+.cd-st.aguarda{background:var(--warn-soft);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
+.cd-st.lido{background:var(--accent-soft);color:var(--accent)}
+.cd-st.resp{background:var(--ok-soft);color:var(--ok)}
+.cd-st.rasc{background:var(--off-soft);color:var(--off)}
+.btn.cd-ler,.btn.cd-editar{min-height:0;line-height:inherit}
+.cd-resp{display:grid;gap:6px;border-left:3px solid var(--ok);padding:4px 0 4px 10px}
+.cd-resp-ed{border-left-color:var(--off)}
+.cd-resp-t{font-size:.8rem;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cd-pub{justify-self:start}
+.gira-adm.cd-sw{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cd-sw .muted{font-size:.85rem}
+
 
 /* Card da gira, abaixo da Licença: "Sorteio realizado!" com a imagem da escala (a mesma do WhatsApp); tocar amplia */
 .esc-img-sec{display:grid;gap:8px}

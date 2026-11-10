@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 94;  // v94: nome da gira escrito pelo admin
+export const VERSAO = 96;  // v96: Gestão de Conduta e Risco: interruptor Visível para todos
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -2957,5 +2957,77 @@ export const MIGRACOES = [
                            from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
      )
      from giras g where g.data = d;
+   $$`,
+  // ================================================== v95: Gestão de Conduta e Risco (aba Geral, último bloco)
+  // Qualquer pessoa logada abre relatos; só o admin root lê todos (com o nome). Quem abriu edita enquanto não foi lido.
+  // O root marca como lido e escreve a resposta: fica como rascunho até publicar; publicada, só quem abriu vê e não muda mais.
+  // autor = 'p:<pessoa>' ou 'u:<usuário>', como nas orações.
+  `create table if not exists condutas (
+     id            uuid primary key default gen_random_uuid(),
+     texto         text not null check (length(btrim(texto)) between 1 and 1500),
+     autor         text not null,
+     autor_nome    text not null default '',
+     criado_em     timestamptz not null default now(),
+     editado_em    timestamptz,
+     lido_em       timestamptz,
+     resposta      text not null default '' check (length(resposta) <= 1500),
+     publicada_em  timestamptz
+   )`,
+  `create or replace function condutas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'texto', c.texto, 'autor', c.autor, 'autorNome', c.autor_nome,
+                                                  'criadoEm', c.criado_em, 'editadoEm', c.editado_em, 'lidoEm', c.lido_em,
+                                                  'resposta', c.resposta, 'publicadaEm', c.publicada_em)
+                               order by c.criado_em desc), '[]'::jsonb)
+     from condutas c;
+   $$`,
+  // p = { id?, texto, autor, autorNome } — sem id abre um relato; com id, só quem abriu edita, e só antes de ser lido.
+  `create or replace function conduta_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if coalesce(p ->> 'id', '') = '' then
+       insert into condutas (texto, autor, autor_nome) values (btrim(p ->> 'texto'), p ->> 'autor', coalesce(p ->> 'autorNome', ''));
+     else
+       update condutas set texto = btrim(p ->> 'texto'), editado_em = now()
+         where id = (p ->> 'id')::uuid and autor = p ->> 'autor' and lido_em is null;
+       if not found then raise exception 'Este relato já foi lido pela direção e não pode mais ser editado.'; end if;
+     end if;
+     return condutas_listar();
+   end;
+   $$`,
+  // p = { id } — o root marca como lido (não volta a não lido).
+  `create or replace function conduta_ler(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update condutas set lido_em = coalesce(lido_em, now()) where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Relato não encontrado.'; end if;
+     return condutas_listar();
+   end;
+   $$`,
+  // p = { id, resposta, publicar } — rascunho (publicar false) ou publicada; só depois de lido e antes de publicar.
+  `create or replace function conduta_responder(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update condutas set resposta = btrim(coalesce(p ->> 'resposta', '')),
+                         publicada_em = case when coalesce((p ->> 'publicar')::boolean, false) then now() end
+       where id = (p ->> 'id')::uuid and lido_em is not null and publicada_em is null;
+     if not found then raise exception 'Marque o relato como lido antes de responder (resposta publicada não muda mais).'; end if;
+     return condutas_listar();
+   end;
+   $$`,
+  // ================================================== v96: Gestão de Conduta e Risco: interruptor "Visível para todos"
+  // Começa desligado: só o admin root vê o bloco até ligar. Desligar esconde de novo (os relatos ficam guardados).
+  `insert into sistema (chave, valor) values ('conduta_ativa', 'false') on conflict (chave) do nothing`,
+  `create or replace function conduta_ativa(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(coalesce((select valor = 'true' from sistema where chave = 'conduta_ativa'), false))
+   $$`,
+  `create or replace function conduta_ativar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('conduta_ativa', case when (p ->> 'ativa')::boolean then 'true' else 'false' end)
+     on conflict (chave) do update set valor = excluded.valor;
+     return conduta_ativa();
+   end;
    $$`,
 ];

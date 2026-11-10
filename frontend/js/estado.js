@@ -49,6 +49,7 @@ export const estado = {
   eventos: [],         // eventos da casa (aba Eventos e "Eventos da semana")
   entidadesApelidos: [], // apelidos opcionais das entidades, configurados pelo Admin root
   oracoes: [],         // aba Gira: orações dos últimos 7 dias
+  conduta: null,       // aba Geral: Gestão de Conduta e Risco { ativa, relatos } (root: todos; os outros: os próprios)
   ausPrevias: null,    // aba Gira (admin): ausências antecipadas, de datas ainda sem gira — [{ data, pessoaId }]
   curimba: null,       // aba Curimba: { alunos, aulas, presencas }
   minhaCurimba: null,  // aba Gira: { aulas } de quem está logado, se for aluno da curimba
@@ -110,6 +111,7 @@ export async function carregarTudo() {
   const { me } = r;
   definirConfig(r.config);
   estado.me = me;
+  estado.conduta = null;   // relatos são de quem está logado: busca de novo
   estado.visaoRoot = 'root';
   if (me.grupo === 'alunos') {
     estado.eventos = r.eventos;
@@ -199,6 +201,7 @@ export async function atualizarDoServidor() {
     // Lista que falhou no servidor não vem: fica a que já está na tela.
     const minhaCurimba = r.minhaCurimba === undefined ? estado.minhaCurimba : r.minhaCurimba;
     estado.oracoes = r.oracoes || estado.oracoes;
+    if (estado.conduta !== null && prefs.tab === 'gira') estado.conduta = await api('GET', '/giras?lista=conduta').catch(() => estado.conduta);
     estado.pessoas = r.pessoas;
     estado.eventos = r.eventos || estado.eventos;
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
@@ -473,6 +476,33 @@ export async function acaoOracoes(acao, dados = {}) {
   try {
     estado.oracoes = await api('POST', '/giras', { acao, ...dados });
     avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
+
+// ---------- Gestão de Conduta e Risco (aba Geral) ----------
+// Pode ser chamada a cada desenho enquanto não há dados: só um pedido por vez; ignora a resposta de quem já saiu.
+let carregandoConduta = null;
+export function carregarConduta() {
+  if (carregandoConduta) return carregandoConduta;
+  const sessao = token();
+  carregandoConduta = (async () => {
+    try {
+      const r = await api('GET', '/giras?lista=conduta');
+      if (token() === sessao) estado.conduta = r;
+    } catch (e) {
+      if (token() === sessao) { toast(e.message); estado.conduta = estado.conduta || { ativa: false, relatos: [] }; }
+    }
+    carregandoConduta = null;
+    avisar();
+  })();
+  return carregandoConduta;
+}
+// redesenhar: false no rascunho da resposta (sair do campo): redesenhar ali trocaria o botão no meio do toque em Publicar.
+export async function acaoConduta(acao, dados = {}, { redesenhar = true } = {}) {
+  try {
+    estado.conduta = await api('POST', '/giras', { acao, ...dados });
+    if (redesenhar) avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }
 }

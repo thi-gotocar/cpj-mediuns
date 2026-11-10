@@ -1567,3 +1567,50 @@ test('trava da escala: só quem edita liga; com ela não dá para remanejar; can
   assert.equal((await api('POST', '/api/giras/' + d, ADMIN, { acao: 'cancelarSorteio' })).json.gira.travada, false);
   await api('DELETE', '/api/giras/' + d, ADMIN);
 });
+
+test('gestão de conduta e risco: interruptor do root; só o root lê; quem abriu edita até ser lido e vê só a resposta publicada', async () => {
+  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  const lista = async (t) => (await api('GET', '/api/giras?lista=conduta', t)).json.relatos;
+  const relato = (t, dados) => api('POST', '/api/giras', t, { acao: 'conduta', ...dados });
+  const ativar = (t, ativa) => api('POST', '/api/giras', t, { acao: 'condutaAtivar', ativa });
+  // Começa desligado: a corrente não vê nem abre relato; só o root liga.
+  assert.deepEqual((await api('GET', '/api/giras?lista=conduta', USER)).json, { ativa: false, relatos: [] });
+  assert.equal((await relato(USER, { texto: 'antes de ativar' })).status, 403);
+  assert.equal((await ativar(USER, true)).status, 403);
+  assert.equal((await ativar(ADMIN, 'sim')).status, 400);
+  assert.equal((await ativar(ADMIN, true)).json.ativa, true);
+  assert.equal((await relato(USER, { texto: '   ' })).status, 400, 'vazio');
+  assert.equal((await relato(USER, { texto: Array(11).fill('x').join('\n') })).status, 400, '11 linhas');
+  const meus = (await relato(USER, { texto: '  Vi algo errado \n na gira ' })).json.relatos;
+  assert.equal(meus.length, 1);
+  assert.equal(meus[0].texto, 'Vi algo errado\nna gira');
+  assert.equal(meus[0].autorNome, undefined, 'quem abriu não recebe o nome nem o autor');
+  await relato(ana, { texto: 'Relato da Ana' });
+  assert.deepEqual((await lista(USER)).map((c) => c.texto), ['Vi algo errado\nna gira'], 'cada um vê só os próprios');
+  const id = meus[0].id;
+  // Só quem abriu edita.
+  assert.equal((await relato(ana, { id, texto: 'trocado' })).status, 400);
+  assert.notEqual((await relato(USER, { id, texto: 'Vi algo errado na gira de ontem' })).json.relatos[0].editadoEm, null);
+  // Root vê todos, com o nome; os outros não leem nem respondem.
+  const doRoot = await lista(ADMIN);
+  assert.equal(doRoot.length, 2);
+  assert.ok(doRoot.find((c) => c.id === id).autorNome, 'root vê o nome');
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'condutaLer', id })).status, 403);
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'condutaResponder', id, resposta: 'x' })).status, 403);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'condutaResponder', id, resposta: 'antes de ler' })).status, 400, 'responder só depois de lido');
+  assert.ok((await api('POST', '/api/giras', ADMIN, { acao: 'condutaLer', id })).json.relatos.find((c) => c.id === id).lidoEm);
+  assert.equal((await relato(USER, { id, texto: 'depois de lido' })).status, 400, 'lido: não edita mais');
+  // Rascunho: a pessoa não vê; publicada: vê e não muda mais.
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'condutaResponder', id, resposta: '', publicar: true })).status, 400);
+  await api('POST', '/api/giras', ADMIN, { acao: 'condutaResponder', id, resposta: 'Rascunho' });
+  const semResposta = (await lista(USER))[0];
+  assert.equal(semResposta.resposta, undefined);
+  assert.ok(semResposta.lidoEm);
+  await api('POST', '/api/giras', ADMIN, { acao: 'condutaResponder', id, resposta: 'Obrigado, vamos conversar.', publicar: true });
+  assert.equal((await lista(USER))[0].resposta, 'Obrigado, vamos conversar.');
+  assert.equal((await lista(ana))[0].resposta, undefined, 'a resposta é só de quem abriu');
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'condutaResponder', id, resposta: 'outra' })).status, 400, 'publicada não muda');
+  // Desligar esconde de novo da corrente; o root continua vendo tudo.
+  assert.equal((await ativar(ADMIN, false)).json.relatos.length, 2);
+  assert.deepEqual((await api('GET', '/api/giras?lista=conduta', USER)).json, { ativa: false, relatos: [] });
+});

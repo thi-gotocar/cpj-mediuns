@@ -11,6 +11,10 @@
 // GET  /api/giras?lista=oracoes — orações dos últimos 7 dias (todos logados)  → [{ id, texto, criadoEm, expiraEm, apagar, reacoes, reagi }]
 // POST /api/giras  { acao: 'oracao', texto } (qualquer um logado) · { acao: 'excluirOracao', id } (quem pediu ou admin)
 //                  { acao: 'reagirOracao', id } (qualquer um logado; liga/desliga a 🕯️)  → orações
+// GET  /api/giras?lista=conduta — Gestão de Conduta e Risco: o root vê todos os relatos; os outros, só os próprios (e nada com o bloco desligado)
+// POST /api/giras  { acao: 'conduta', id?, texto } (qualquer um logado, com o bloco ligado; editar só o próprio e antes de lido)
+//                  { acao: 'condutaLer', id } · { acao: 'condutaResponder', id, resposta, publicar? } · { acao: 'condutaAtivar', ativa } (só o root)
+//                  → { ativa, relatos }
 // GET  /api/giras?lista=fotos — álbuns e fotos (aba Fotos), com links assinados do R2  → { albuns, fotos, usado, limite, configurado }
 // POST /api/giras  { acao: 'fotoAlbum', id?, data, nome }  → { ...fotos, albumId } (com id = editar: só admin)
 //                  { acao: 'fotoEnviar', albumId, foto, miniatura (JPEG em base64), largura, altura }  → { ok }
@@ -22,6 +26,7 @@ import { TIPO_EVENTO_KEYS } from '../../shared/eventos.js';
 import { ocultarSorteios } from '../_lib/escala.js';
 import { acaoVideo } from '../_lib/videos.js';
 import { ACOES_ORACOES, oracoes, acaoOracao } from '../_lib/oracoes.js';
+import { ACOES_CONDUTA, condutas, acaoConduta } from '../_lib/conduta.js';
 import { ACOES_FOTOS, exigirFotosAtiva, fotosEstado, acaoFoto } from '../_lib/fotos.js';
 import { pode } from '../../shared/permissoes.js';
 import { OPCOES_GIRA, LINHA_LABEL } from '../../shared/regras.js';
@@ -66,6 +71,11 @@ export default rota({
       if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para ver as orações.');
       return oracoes(eu);
     }
+    if (req.query.lista === 'conduta') {
+      const eu = await exigir(req);
+      if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para ver os relatos.');
+      return condutas(eu);
+    }
     if (req.query.lista === 'ausencias') {
       await exigir(req, 'giras:editar');
       return db.rpc('ausencias_previas_listar');
@@ -103,6 +113,11 @@ export default rota({
       const eu = await exigir(req);
       if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para alterar as orações.');
       return acaoOracao(eu, b);
+    }
+    if (ACOES_CONDUTA.includes(b.acao)) {
+      const eu = await exigir(req);
+      if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para abrir relatos.');
+      return acaoConduta(eu, b);
     }
     if (ACOES_FOTOS.includes(b.acao)) {
       exigirFotosAtiva();

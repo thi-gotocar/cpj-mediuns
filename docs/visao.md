@@ -32,6 +32,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 
 - **Ação `reiniciar` sem botão.** O Reiniciar saiu do card da gira (refazer o sorteio do zero é pelo ↻); a ação continua em `api/giras/[data]` e nos testes. Remover?
 - **Mudar a data da gira não foi testado no banco.** A migração v56 (`gira_mudar_data`) e os testes novos de `test/api.test.js` não rodaram (sem Postgres local).
+- **Gestão de Conduta e Risco não foi testada no banco nem na tela.** A tabela `condutas` e suas funções não rodaram no Postgres local; o teste novo em `test/api.test.js` roda no CI. Conferir o bloco no app publicado (corrente e root).
 - **Aba Curimba não foi testada no banco.** A migração v57 e o teste de `test/api.test.js` não rodaram (sem Postgres local); conferir no app publicado.
 - **Aba Fotos está desligada no código** (`FOTOS_ATIVA = false` em `shared/fotos.js`). Para ligar: criar o bucket no Cloudflare R2 e pôr as 4 variáveis `R2_*` na Vercel (ver `.env.example`) e trocar para `true`. A migração v59 não rodou no Postgres e o R2 de verdade não foi usado: os testes foram com banco e R2 falsos (a assinatura confere com os exemplos da AWS). O Guia da Corrente (PDF) ainda não fala da aba.
 - **Preço estimado das ervas não foi testado no banco.** A migração v61 (`preco_estimado`, copiada uma vez do preço atual) não rodou no Postgres; a tela foi conferida com banco falso.
