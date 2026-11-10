@@ -70,6 +70,7 @@ export function cardConduta() {
     return `<div class="card cd-card">${TITULO}${novos ? `<span class="cd-st aguarda">${novos} não lido${novos > 1 ? 's' : ''}</span>` : ''}</div>
       ${sw}
       <p class="muted cd-intro">Relatos da corrente, com o nome de quem abriu. Só o admin root vê. Ao marcar como lido, a pessoa não edita mais; a resposta publicada aparece só para ela.</p>
+      ${estado.cdForm === 'novo' ? formulario(null) : '<button class="btn cd-novo" data-act="cdnovo">＋ Abrir relato</button>'}
       ${estado.conduta === null ? '<div class="loading">Carregando…</div>' : L.length ? `<div class="cd-lista">${L.map(itemRoot).join('')}</div>` : '<p class="muted" style="margin:0;font-size:.88rem">Nenhum relato.</p>'}</div>`;
   }
   // Bloco desligado pelo root (ou ainda carregando): a corrente não vê nada.
