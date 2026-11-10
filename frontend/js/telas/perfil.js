@@ -452,7 +452,7 @@ function cardOferendas(todos) {
     </div>` : total ? '' : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}`, true, true);
 }
 
-// Aba Pessoas, depois da Corrente: só para quem recebe o perfil de todos.
+// Aba Pessoas, dentro do bloco da Corrente (abaixo das licenças), sem moldura: só para quem recebe o perfil de todos.
 let pedindoPerfil = false;
 export function cardOferendasPendentes() {
   if (!pode('perfil:corrente')) return '';
@@ -461,7 +461,7 @@ export function cardOferendasPendentes() {
     return '';
   }
   if (!admin()) return '';
-  return `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN</span>${cardOferendas(estado.perfil.todos.filter((x) => cadastraEspiritual(x.funcao)))}</div>`;
+  return cardOferendas(estado.perfil.todos.filter((x) => cadastraEspiritual(x.funcao)));
 }
 
 // Aluno: só o próprio bloco Informações e o de orixás, guias e oferendas, depois de criar a senha.

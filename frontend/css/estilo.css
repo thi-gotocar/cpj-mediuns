@@ -20,7 +20,7 @@
   color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
-.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:grid;gap:18px}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
 h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
 h1{font-size:1.9rem;font-weight:700}
 h2{font-size:1.3rem;font-weight:700}
@@ -32,8 +32,10 @@ header.top{display:flex;justify-content:space-between;align-items:flex-start;gap
 nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:6px;display:flex;gap:4px;border-bottom:1px solid var(--line)}
 nav.tabs button{flex:1;background:none;border:0;border-bottom:3px solid transparent;padding:10px 6px;font:700 .95rem var(--f-body);color:var(--muted);cursor:pointer}
 nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
-section.panel{display:grid;gap:18px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:14px;min-width:0}
+/* minmax(0,1fr): a coluna nunca passa da largura da tela; sem isso, um texto que não quebra (ex.: nome longo de aula)
+   alarga a página e o celular encolhe tudo para a metade esquerda. */
+section.panel{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;grid-template-columns:minmax(0,1fr);gap:14px;min-width:0}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .row>*{min-width:0}
 .grow{flex:1 1 180px}
@@ -1155,6 +1157,9 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-alunos{--fn:#a78bfa}
 .pessoas-tela .pp-card > h2,.pessoas-tela .pp-card .turmas-d > summary h2{color:var(--fn)}
 .pessoas-tela .corrente-card{border-top:4px solid var(--gold)}
+/* Oferendas pendentes: seção do próprio bloco da Corrente (sem moldura), separada por uma linha */
+.pessoas-tela .corrente-card .pf-c-corrente-oferendas{border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none;padding:12px 0 0;gap:10px}
+.pessoas-tela .corrente-card .pf-c-corrente-oferendas h2{font-size:1.05rem}
 /* Os quadradinhos das funções da corrente usam o .pf-of-total (o mesmo de Oferendas pendentes); as licenças ficam embaixo */
 .pessoas-tela .contagem-quadrados{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:6px}
 .pessoas-tela .contagem-quadrados > button{display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;padding:7px 3px 6px;border-radius:9px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--fn);min-width:0;text-align:center}

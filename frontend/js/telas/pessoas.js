@@ -354,7 +354,7 @@ function renderPessoas() {
   const funcaoCorrenteAberta = estado.correnteFuncaoAberta;
   const pessoasPorFuncao = Object.fromEntries(ORDEM_FUNCOES.map((f) => [f.k, ps.filter((p) => p.funcao === f.k)]));
   const correnteListaAberta = pessoasPorFuncao[funcaoCorrenteAberta]?.length ? funcaoCorrenteAberta : null;
-  // Ordem: Adicionar, Corrente (com as licenças), Oferendas pendentes, Turmas da limpeza (com Curimba), Alunos.
+  // Ordem: Adicionar, Corrente (com as licenças e, embaixo, Oferendas pendentes), Turmas da limpeza (com Curimba), Alunos.
   h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="pf-of-totais">${ORDEM_FUNCOES.map((f) => {
       const abertas = pessoasPorFuncao[f.k];
@@ -363,8 +363,8 @@ function renderPessoas() {
       return `<button type="button" class="pf-of-total fn-${f.k}${aberta ? ' selecionado' : ''}" data-act="correnteFuncao" data-f="${f.k}" aria-expanded="${aberta}" aria-label="${f.pl}: ${abertas.length} pessoas${aberta ? ', recolher lista' : ', expandir lista'}"${abertas.length ? '' : ' disabled'}><b>${abertas.length}</b><span>${f.k === 'extra' ? 'At. Extra' : f.pl}</span></button>`;
     }).join('')}</div>
     ${correnteListaAberta ? `<div class="corrente-pessoas"><div class="ppl">${pessoasPorFuncao[correnteListaAberta].map((p) => linhaPessoa(p)).join('')}</div></div>` : ''}
-    ${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
-  h += cardOferendasPendentes() + cardTurmas(todas, editar);
+    ${listaLicencas(ps, editar)}${cardOferendasPendentes()}</div>`;   // licença: só a corrente
+  h += cardTurmas(todas, editar);
   if (verAlunos) h += cardAlunos();
   return h + '</section>';
 }
