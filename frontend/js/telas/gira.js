@@ -28,7 +28,7 @@ const campoParticipantes = (g) => `<div class="ev-participantes-bloco">
   <span class="ev-participantes-titulo">Total de participantes</span>
   <input class="ev-participantes-input" type="number" inputmode="numeric" min="0" max="100000" step="1" id="ev-participantes" data-act="participantes" aria-label="Total de participantes do evento" value="${Number(g.participantes) || 0}">
 </div>`;
-const seletorOrixa = (g) => `<select data-act="orixagira" aria-label="Orixá"><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+const seletorOrixa = (g, travado = false) => `<select data-act="orixagira" aria-label="Orixá" ${travado ? 'disabled' : ''}><option value="">— escolha —</option>${ORIXAS.map((o) => `<option ${o === g.orixa ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
 
 function chaveImg() {
   return textoWhats(estado.pessoas, giraAtual(), 'lista', girasLista());
@@ -40,12 +40,12 @@ function podeCompartilhar() {
 }
 
 // Lista das linhas; mantém um valor antigo (texto livre) se a gira já tinha um.
-function seletorEntidade(atual, nomeAtual = '') {
+function seletorEntidade(atual, nomeAtual = '', travado = false) {
   const conhecida = linhaDaEntidade(atual);
   const especial = giraEspecial(atual);
   const valor = nomeGira(atual);
   const antigo = valor && !conhecida && !especial ? `<option value="${esc(valor)}" selected>${esc(valor)} (fora da lista)</option>` : '';
-  return `<select id="f-ent"><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
+  return `<select id="f-ent" ${travado ? 'disabled' : ''}><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
     ${opcoesGira(estado.entidadesApelidos).map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([canonico, label, alias]) => `<option value="${esc(canonico)}" data-alias="${esc(alias)}" ${canonico === valor && alias === nomeAtual ? 'selected' : ''}>${esc(label)}</option>`).join('')}</optgroup>`).join('')}
   </select>`;
 }
@@ -341,15 +341,17 @@ function renderGira() {
     };
     const aberto = manual || duplasAbertas.has(g.data);
     const caixa = editar ? 'gira-adm gira-sec' : 'gira-sec';
-    // Depois do sorteio, o bloco vem recolhido (só o título); tocar no título expande e recolhe.
+    // Depois do sorteio, os botões e o aviso de publicada (ou Publicar) ficam à vista; as duplas vêm recolhidas
+    // e tocar no título (ou em Ver mais) expande e recolhe.
     const titDobra = (ab) => `<button class="grp-h dobra" data-act="dobrarduplas" aria-expanded="${ab}">${tituloSorteio(true)}<span class="count"><span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
-    if (temDuplas && !aberto) return `<div class="${caixa}">${titDobra(false)}</div>`;
+    const recolhido = temDuplas && !aberto;
     // Depois de sorteado, "Cancelar sorteio" (junto de Remanejar faltas e Ajuste manual) apaga as duplas e volta ao Sortear.
-    const cancelaOk = temDuplas && sortearOk && !estado.salvando;
-    let h = `<div class="${caixa}"><div class="grp-h">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}</div>
+    // Com a escala publicada, o sorteio não se cancela mais (para isso, oculte a escala).
+    const cancelaOk = temDuplas && sortearOk && !estado.salvando && !g.publicada;
+    let h = `<div class="${caixa}">${recolhido ? titDobra(false) : `<div class="grp-h">${temDuplas && !manual ? titDobra(true) : tituloSorteio(temDuplas)}</div>`}
       ${temDuplas ? acoesSorteio(g, sortearOk && !g.travada && !estado.salvando, editar && !passada, manual, cancelaOk) : ''}
       ${estado.confirm === 'rem:' + g.data ? confirmaRemenajo() : ''}
-      ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Cancelar o sorteio?</b> Todas as duplas são apagadas (também as fixadas)${g.publicada ? ' e a escala deixa de ficar publicada' : ''}. Tudo volta a como estava antes de sortear, com o botão Sortear.`, 'cancelsort', 'Sim, cancelar') : ''}
+      ${cancelaOk && estado.confirm === 'csort:' + g.data ? confirmaSorteio(`<b>Cancelar o sorteio?</b> Todas as duplas são apagadas (também as fixadas). Tudo volta a como estava antes de sortear, com o botão Sortear.`, 'cancelsort', 'Sim, cancelar') : ''}
       ${temDuplas ? '' : !sortearOk ? '' : estado.confirm === 'sort:' + g.data
         ? confirmaSorteio('<b>Tem certeza que quer sortear?</b> O app monta as duplas agora.', 'sortear', '🎲 Sortear')
         : `<button class="btn primary btn-grande" data-act="askdel" data-k="sort:${g.data}">🎲 Sortear</button>`}
@@ -357,6 +359,7 @@ function renderGira() {
         ? `<div class="pub-linha"><span class="pub-ok">📢 Escala publicada: todos veem o sorteio.</span><button class="btn small" data-act="despublicar">Ocultar</button></div>`
         : `<button class="btn btn-grande pub-bt" data-act="publicar"><span class="pub-tit">📢 Publicar escala</span><span class="pub-sub">Só os admins veem o sorteio até publicar</span></button>`) : ''}
       ${!temDuplas && manual && !passada ? `<div class="row"><button class="btn small" data-act="manual" aria-pressed="true">Concluir ajuste</button></div>` : ''}`;
+    if (recolhido) return h + `${botaoDobrar(false)}</div>`;
     if (manual) h += `<p class="muted" style="margin:0;font-size:.88rem">${passada ? '<b>Gira passada:</b> registre como foi. ' : ''}Adicione ou tire cambones e médiuns de passe de cada médium. Um médium pode ter mais de um cambone, e o médium de passe pode ir com qualquer médium.</p>`;
     if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Use o Ajuste manual.' : ' Marque na aba Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
     if (!temDuplas && !manual) {
@@ -427,17 +430,25 @@ function renderGira() {
 
   const btEscala = whats ? botaoWhats(temDuplas, 'Escala Gira') : '';
   const btEvento = g.evento ? botaoImagemEvento(g, ps) : '';
+  // Escala publicada (Sorteio realizado): gira, orixá, Evento e data ficam fixos (o servidor também recusa);
+  // no lugar de Alterar data, o WhatsApp das orações do bloco Geral.
+  const publicada = !!(temDuplas && g.publicada);
+  const temOracoes = !!(estado.oracoes || []).length;
+  const btData = publicada
+    ? `<button class="btn" data-act="oraabrir" ${temOracoes ? 'title="Mandar os pedidos de oração no WhatsApp"' : 'disabled title="Nenhum pedido de oração"'}><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar orações</button>`
+    : `<button class="btn" data-act="mudardata" title="Alterar a data da gira (hoje: ${esc(dLong(g.data))})"><span aria-hidden="true">📅</span> Alterar data · ${esc(dDM(g.data))}</button>`;
   // Admin: um bloco só com os botões, os dados da gira e os atendidos.
   const painelAdm = !editar ? '' : ouro(`<div class="gira-bts">${botaoWhatsLimpeza(g)}${botaoEncerrar(g)}</div>
       ${estado.confirm === 'enc:' + g.data ? caixaEncerrar() : ''}
-      <div class="gira-bts">${btEscala}${btEvento}<button class="btn" data-act="mudardata" title="Alterar a data da gira (hoje: ${esc(dLong(g.data))})"><span aria-hidden="true">📅</span> Alterar data · ${esc(dDM(g.data))}</button></div>
-      <div class="gira-campos"><div class="row"><label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade, g.entidadeNome || '')}</label>
-        <label class="ev-toggle"><input type="checkbox" data-act="evento" aria-label="Marcar esta atividade como evento" ${g.evento ? 'checked' : ''}><span>Evento</span></label></div>
+      <div class="gira-bts">${btEscala}${btEvento}${btData}</div>
+      <div class="gira-campos"><div class="row"><label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade, g.entidadeNome || '', publicada)}</label>
+        <label class="ev-toggle"><input type="checkbox" data-act="evento" aria-label="Marcar esta atividade como evento" ${g.evento ? 'checked' : ''} ${publicada ? 'disabled' : ''}><span>Evento</span></label></div>
+      ${publicada ? '<p class="muted" style="margin:0;font-size:.85rem">Escala publicada: a gira, o orixá e o Evento não mudam mais. Para mudar, oculte a escala.</p>' : ''}
       ${avisoEntidade(ps, g, editar, admin)}
-      ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g)}</label>` : ''}</div>
+      ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g, publicada)}</label>` : ''}</div>
       <div class="atend-sec gira-campos">${g.evento ? campoParticipantes(g) : `<span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}`}</div>`);
   const botoes = editar ? painelAdm : btEscala || btEvento ? `<div class="gira-bts">${btEscala}${btEvento}</div>` : '';
-  return `<section class="panel"><div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${blocoLimpeza(g, editar)}${blocoRecado(g, editar)}${escala}${informes}${realizado}${novos}</div>${rodape}</section>`;
+  return `<section class="panel"><div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${escala}${blocoLimpeza(g, editar)}${blocoRecado(g, editar)}${informes}${realizado}${novos}</div>${rodape}</section>`;
 }
 
 // Botão do WhatsApp da escala: abre a janela para escolher texto ou imagem.
@@ -863,7 +874,7 @@ function atualizarJanela() {
   // Prévia aberta: a atualização da tela não pode apagar o que a pessoa está escrevendo.
   if (estado.previaGira && raizJanela?.querySelector('#pv-texto')) return;
   const html = prefs.tab === 'agenda'
-    ? janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala()
+    ? janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala() || janelaOracoes()
     : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() : '';
   if (!raizJanela) {
     if (!html) return;

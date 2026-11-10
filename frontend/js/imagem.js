@@ -2,18 +2,18 @@
 // Mesma organização do texto do WhatsApp: cabeçalho com o logo da casa e as linhas Orixá, Gira e Senha;
 // médiuns e At. Extras em linhas alternadas, com o médium de passe embaixo do nome do médium;
 // o recado do admin logo abaixo do cabeçalho; no fim, quadros para suporte, cambones de apoio, a turma da limpeza
-// (com quem ajuda) e quem não vem (ausências e faltas).
+// (com quem ajuda), quem não vem (ausências e faltas) e os aniversariantes do dia e do dia seguinte.
 
 import { paresPorMedium, escalaDaGira, guiaNaGira } from '/shared/regras.js';
 import { dLong } from './util.js';
-import { gruposExtras, cabecalhoGira, foraDaGira } from './exportar.js';
+import { gruposExtras, cabecalhoGira, foraDaGira, aniversariantesDaGira } from './exportar.js';
 
 const C = {
   bg: '#f4f1ea', card: '#ffffff', ink: '#1e2533', muted: '#6b7385', line: '#e8e3d8', zebra: '#faf7f0',
   navy: '#1c2b4a', navy2: '#2d4a86', gold: '#c9a24a', guia: '#8a6516', vermelho: '#c0392b', re: '#b4530a', reSoft: '#fde6cc',
 };
 // Cor de cada seção e de cada quadro do fim.
-const COR = { medium: '#2d4a86', extra: '#b07d1c', passe: '#2f7d5b', suporte: '#2f7d5b', apoio: '#2d4a86', limpeza: '#c06a14', recado: '#2c4ea3', fora: '#c0392b' };
+const COR = { medium: '#2d4a86', extra: '#b07d1c', passe: '#2f7d5b', suporte: '#2f7d5b', apoio: '#2d4a86', limpeza: '#c06a14', recado: '#2c4ea3', fora: '#c0392b', niver: '#b0487a' };
 const FD = '"Alegreya",Georgia,serif';
 const FB = '"Alegreya Sans",system-ui,sans-serif';
 // Área de desenho estreita (560) e imagem final larga (1440 px): no celular, tudo aparece grande e nítido.
@@ -254,6 +254,8 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   const { ausentes, faltas } = foraDaGira(pessoas, g);
   linhaDeQuadros([ausentes.length ? { titulo: `Ausências · ${ausentes.length}`, nomes: ausentes, cor: COR.fora } : null,
     faltas.length ? { titulo: `Faltas · ${faltas.length}`, nomes: faltas, cor: COR.fora } : null].filter(Boolean));
+  const niver = aniversariantesDaGira(pessoas, g);
+  if (niver.length) linhaDeQuadros([{ titulo: `Aniversariantes · ${niver.length}`, nomes: niver, cor: COR.niver }]);
 
   // ---- rodapé
   y += 8;

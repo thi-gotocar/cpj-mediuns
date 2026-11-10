@@ -36,6 +36,16 @@ export function foraDaGira(pessoas, g) {
   return { ausentes: de('a'), faltas: de('f') };
 }
 
+// Aniversariantes no dia da gira e no dia seguinte (dia/mês do Perfil): "Nome (dd/mm)", por data e nome.
+export function aniversariantesDaGira(pessoas, g) {
+  const d = pd(g.data);
+  const amanha = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  const dias = [g.data.slice(5), `${String(amanha.getMonth() + 1).padStart(2, '0')}-${String(amanha.getDate()).padStart(2, '0')}`];
+  return pessoas.filter((p) => dias.includes(p.aniversario) && naCorrenteEm(p, g.data))
+    .sort((a, b) => dias.indexOf(a.aniversario) - dias.indexOf(b.aniversario) || a.nome.localeCompare(b.nome, 'pt-BR'))
+    .map((p) => `${p.nome} (${p.aniversario.slice(3)}/${p.aniversario.slice(0, 2)})`);
+}
+
 // Nome de quem não vai (ausência/falta) no texto do WhatsApp: ❌ e riscado.
 const riscar = (nomes, naoVao = []) => nomes.map((n) => (naoVao.includes(n) ? `❌ ~${n}~` : n));
 
@@ -117,6 +127,8 @@ export function textoWhats(pessoas, g, fmt, giras = []) {
   const { ausentes, faltas } = foraDaGira(pessoas, g);
   if (ausentes.length) L.push('', `❌ *Ausências (${ausentes.length}):* ${ausentes.join(', ')}.`);
   if (faltas.length) L.push('', `🚫 *Faltas (${faltas.length}):* ${faltas.join(', ')}.`);
+  const niver = aniversariantesDaGira(pessoas, g);
+  if (niver.length) L.push('', `🎂 *Aniversariantes:* ${niver.join(', ')}.`);
   L.push('', LINHA, 'Boa gira a todos! 🙏');
   return L.join('\n');
 }

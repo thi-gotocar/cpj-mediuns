@@ -7,7 +7,7 @@
 //                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
 //                            { acao: 'ausencia' }  acesso da corrente: a própria pessoa passa de Pendente para Ausente (até a véspera)
 //                            { acao: 'minhaEntidade', linha }  gira com mais de uma linha: a própria pessoa escolhe a entidade que vai atender ('' = tira a escolha)
-//                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas), despublica e tira a trava: volta ao botão Sortear
+//                            { acao: 'cancelarSorteio' }  apaga todas as duplas (também as fixadas) e tira a trava: volta ao botão Sortear (escala publicada: recusa)
 //                            { acao: 'travar', travada: true|false }  com a trava, marcar falta ou ausência não muda a escala (e não dá para remanejar)
 //                            { acao: 'recado', recado }  recado do admin: até 5 linhas, para todos verem no evento em andamento
 //                            { acao: 'mudarData', para: 'AAAA-MM-DD' }  troca a data programada da gira em aberto (leva tudo junto) → { gira, mensagem }
@@ -53,6 +53,11 @@ function validarPapeis(o) {
   }
   return r;
 }
+
+// Escala publicada ("Sorteio realizado!"): a gira, o orixá, a data e o Evento ficam como estão e o sorteio
+// não se cancela. Para mudar, o admin oculta a escala antes.
+const escalaPublicada = (g) => !!(g?.publicada && (g.pares?.length || g.passes?.length));
+const MSG_PUBLICADA = 'A escala já foi publicada. Para mudar isso, oculte a escala antes.';
 
 function validarEntidade(v) {
   const e = String(v ?? '').trim();
@@ -168,6 +173,10 @@ export default rota({
       else throw new HttpError(400, 'Turma da limpeza inválida (1 a 7).');
     }
     if ('orixa' in b) p.orixa = validarOrixa(b.orixa);
+    if (escalaPublicada(atual) && (('entidade' in p && p.entidade !== (atual.entidade || ''))
+      || ('entidadeNome' in p && p.entidadeNome !== (atual.entidadeNome || ''))
+      || ('orixa' in p && p.orixa !== (atual.orixa || ''))
+      || (mudaEvento && b.evento !== !!atual.evento))) throw new HttpError(409, MSG_PUBLICADA);
     if (b.encerrada === true) p.encerrada = true;
     if (b.evento === true && !atual?.evento) {
       p.limpeza = null;
@@ -207,6 +216,7 @@ export default rota({
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
       if (atual.evento) throw new HttpError(409, 'Evento não tem escala para cancelar.');
       if (!atual.pares?.length && !atual.passes?.length) throw new HttpError(409, 'Não há sorteio para cancelar.');
+      if (escalaPublicada(atual)) throw new HttpError(409, MSG_PUBLICADA);
       // Cancela o sorteio (apaga duplas e despublica) em uma transação.
       // gira_salvar deve ser a última chamada porque db.tx() retorna o resultado do último RPC.
       const gira = await db.tx([
@@ -224,6 +234,7 @@ export default rota({
       const [atual, ocupada] = await Promise.all([db.rpc('gira_obter', { data }), db.rpc('gira_obter', { data: para })]);
       if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
+      if (escalaPublicada(atual)) throw new HttpError(409, MSG_PUBLICADA);
       if (para === data) return { gira: atual, mensagem: 'A gira já está nesta data.' };
       if (ocupada) throw new HttpError(409, 'Já existe uma gira nesta data. Escolha outro dia.');
       const [y, m, d] = para.split('-');

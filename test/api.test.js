@@ -962,13 +962,21 @@ test('reiniciar gira em aberto: volta tudo ao início, só a data fica', async (
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });
 
-test('cancelar o sorteio: apaga as duplas (também as fixadas) e despublica', async () => {
+test('cancelar o sorteio: apaga as duplas (também as fixadas); com a escala publicada, recusa', async () => {
   const d = '2029-06-13';
-  await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' });
+  await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo', orixa: 'Oxóssi' });
   const s1 = (await api('POST', `/api/giras/${d}/sortear`, ADMIN)).json.gira;
   assert.ok(s1.pares.length > 0, 'sorteou');
   await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'publicar' });
   assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'cancelarSorteio' })).status, 403);
+  // Escala publicada: sorteio, gira, orixá, Evento e data ficam como estão.
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'cancelarSorteio' })).status, 409);
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Exu' })).status, 409);
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { orixa: 'Ogum' })).status, 409);
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { evento: true })).status, 409);
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'mudarData', para: '2029-06-14' })).status, 409);
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo', orixa: 'Oxóssi', evento: false })).status, 200, 'o mesmo valor passa');
+  await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'publicar', publicada: false });
   const r = (await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'cancelarSorteio' })).json;
   assert.deepEqual(r.gira.pares, []);
   assert.deepEqual(r.gira.passes || [], []);
@@ -1358,6 +1366,9 @@ test('evento na gira: remove limpeza e escala, e bloqueia operações de escala'
   });
   assert.equal(criada.status, 200, JSON.stringify(criada.json));
   assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'publicar' })).status, 200);
+  // Com a escala publicada, não vira evento; ocultando a escala, pode.
+  assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { evento: true, entidade: 'Festa' })).status, 409);
+  assert.equal((await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'publicar', publicada: false })).status, 200);
 
   const evento = await api('PUT', `/api/giras/${d}`, ADMIN, { evento: true, entidade: 'Festa' });
   assert.equal(evento.status, 200, JSON.stringify(evento.json));
