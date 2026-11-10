@@ -1,6 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
-import { giraEspecial, nomeEntidadeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira } from '/shared/regras.js';
+import { giraEspecial, nomeEntidadeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira, contaNaPresenca, naCorrenteEm } from '/shared/regras.js';
 import { pd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -27,6 +27,13 @@ export function gruposLimpeza(pessoas, g, giras) {
   const out = [[`Limpeza · Turma ${L.turma}`, L.membros.length ? L.membros.map((p) => p.nome) : ['ninguém cadastrado nesta turma'], 'limpeza', naoVao(L.membros)]];
   if (L.ajudantes.length) out.push([`Ajudam na limpeza (Turma ${L.anterior.limpeza}, faltaram em ${dm(L.anterior.data)})`, L.ajudantes.map((p) => p.nome), 'ajudam', naoVao(L.ajudantes)]);
   return out;
+}
+
+// Quem não vem nesta gira, como nos blocos Ausência e Faltas da aba Gira (texto e imagem da escala), em ordem alfabética.
+export function foraDaGira(pessoas, g) {
+  const ps = pessoas.filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
+  const de = (st) => ps.filter((p) => status(p, g) === st).map((p) => p.nome).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return { ausentes: de('a'), faltas: de('f') };
 }
 
 // Nome de quem não vai (ausência/falta) no texto do WhatsApp: ❌ e riscado.
@@ -64,6 +71,8 @@ export function textoWhats(pessoas, g, fmt, giras = []) {
   if (cab.gira) L.push(`🕯️ *${cab.gira}*`);
   if (grupo('senha')) L.push(`${ICONE.senha} *Senha:* ${grupo('senha')[1].join(', ')}`);
   if (lista.some((x) => x.cams.some((p) => p.remanejado) || x.passes.some((p) => p.remanejado))) L.push('🔄 *Escala remanejada* (faltas de última hora)');
+  // Recado do admin logo depois do cabeçalho; ausências e faltas no fim (como na aba Gira).
+  if (g.recado) L.push('', '📢 *Recado:*', ...g.recado.split('\n'));
   L.push(LINHA);
   const tab = fmt === 'tabela';
   // Médiuns e At. Extras em seções separadas (como na planilha da casa); quem está sem cambone aparece também.
@@ -105,6 +114,9 @@ export function textoWhats(pessoas, g, fmt, giras = []) {
     const aj = grupo('ajudam');
     if (aj) L.push(`${ICONE.ajudam} *Ajudam na limpeza:* ${riscar(aj[1], aj[3]).join(', ')}.`);
   }
+  const { ausentes, faltas } = foraDaGira(pessoas, g);
+  if (ausentes.length) L.push('', `❌ *Ausências (${ausentes.length}):* ${ausentes.join(', ')}.`);
+  if (faltas.length) L.push('', `🚫 *Faltas (${faltas.length}):* ${faltas.join(', ')}.`);
   L.push('', LINHA, 'Boa gira a todos! 🙏');
   return L.join('\n');
 }

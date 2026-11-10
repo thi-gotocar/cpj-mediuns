@@ -425,7 +425,7 @@ function renderGira() {
     return `<section class="panel"><div class="card card-gira">${topo}${botoes}${blocoEncerrada(ps, g)}${blocoRecado(g)}${informes}${realizado}${novos}</div>${rodape}</section>`;
   }
 
-  const btEscala = whats ? botaoWhats(temDuplas, 'Escala de atendimentos') : '';
+  const btEscala = whats ? botaoWhats(temDuplas, 'Escala Gira') : '';
   const btEvento = g.evento ? botaoImagemEvento(g, ps) : '';
   // Admin: um bloco só com os botões, os dados da gira e os atendidos.
   const painelAdm = !editar ? '' : ouro(`<div class="gira-bts">${botaoWhatsLimpeza(g)}${botaoEncerrar(g)}</div>

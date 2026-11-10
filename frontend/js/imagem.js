@@ -1,18 +1,19 @@
 // Imagem PNG da escala (para mandar no grupo do WhatsApp).
 // Mesma organização do texto do WhatsApp: cabeçalho com o logo da casa e as linhas Orixá, Gira e Senha;
 // médiuns e At. Extras em linhas alternadas, com o médium de passe embaixo do nome do médium;
-// no fim, quadros para suporte, cambones de apoio e a turma da limpeza (com quem ajuda).
+// o recado do admin logo abaixo do cabeçalho; no fim, quadros para suporte, cambones de apoio, a turma da limpeza
+// (com quem ajuda) e quem não vem (ausências e faltas).
 
 import { paresPorMedium, escalaDaGira, guiaNaGira } from '/shared/regras.js';
 import { dLong } from './util.js';
-import { gruposExtras, cabecalhoGira } from './exportar.js';
+import { gruposExtras, cabecalhoGira, foraDaGira } from './exportar.js';
 
 const C = {
   bg: '#f4f1ea', card: '#ffffff', ink: '#1e2533', muted: '#6b7385', line: '#e8e3d8', zebra: '#faf7f0',
   navy: '#1c2b4a', navy2: '#2d4a86', gold: '#c9a24a', guia: '#8a6516', vermelho: '#c0392b', re: '#b4530a', reSoft: '#fde6cc',
 };
 // Cor de cada seção e de cada quadro do fim.
-const COR = { medium: '#2d4a86', extra: '#b07d1c', passe: '#2f7d5b', suporte: '#2f7d5b', apoio: '#2d4a86', limpeza: '#c06a14' };
+const COR = { medium: '#2d4a86', extra: '#b07d1c', passe: '#2f7d5b', suporte: '#2f7d5b', apoio: '#2d4a86', limpeza: '#c06a14', recado: '#2c4ea3', fora: '#c0392b' };
 const FD = '"Alegreya",Georgia,serif';
 const FB = '"Alegreya Sans",system-ui,sans-serif';
 // Área de desenho estreita (560) e imagem final larga (1440 px): no celular, tudo aparece grande e nítido.
@@ -118,6 +119,64 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   }
   y = hh + 22;
 
+  // ---- quadros (Recado, no topo; os do fim, depois das seções)
+  const gap = 14;
+  // Quadro: título colorido, nomes e, se houver, uma parte de baixo separada por um fio (quem ajuda na limpeza).
+  // Dois lado a lado: um nome por linha; sozinho na largura toda: nomes separados por " · " (sem quebrar um nome no meio).
+  // Quem já está com ausência (naoVao) aparece em vermelho e riscado.
+  const LQ = 25;
+  const medir = (q, bw, empilhado) => {
+    const max = bw - 44;
+    const partes = [{ t: q.titulo, nomes: q.nomes, naoVao: q.naoVao || [] }, ...(q.sub ? [q.sub] : [])].map((pt) => {
+      fonte(700, 12); const tt = quebrar(ctx, pt.t.toUpperCase(), bw - 40);
+      fonte(400, 19);
+      const sep = ctx.measureText(' · ').width;
+      const linhas = [[]];
+      let x = 0;
+      pt.nomes.forEach((n) => {
+        const w = ctx.measureText(n).width;
+        if (linhas[linhas.length - 1].length && (empilhado || q.porLinha || x + sep + w > max)) { linhas.push([]); x = 0; }
+        const l = linhas[linhas.length - 1];
+        x += (l.length ? sep : 0) + w;
+        l.push({ n, w, risc: (pt.naoVao || []).includes(n) });
+      });
+      return { tt, linhas };
+    });
+    return { partes, h: 18 + partes.reduce((a, pt, i) => a + (i ? 14 : 0) + pt.tt.length * 17 + 8 + pt.linhas.length * LQ, 0) + 16 };
+  };
+  const quadro = (q, m, bx, bw, bh) => {
+    cartao(ctx, bx, y, bw, bh, q.cor);
+    let yy = y + 18;
+    m.partes.forEach((pt, i) => {
+      if (i) { yy += 4; ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx + 22, yy + 0.5); ctx.lineTo(bx + bw - 22, yy + 0.5); ctx.stroke(); yy += 10; }
+      fonte(700, 12); espaco('1.5px'); ctx.fillStyle = q.cor; pt.tt.forEach((l) => { ctx.fillText(l, bx + 22, yy); yy += 17; }); espaco('0px');
+      yy += 8;
+      fonte(400, 19);
+      const sep = ctx.measureText(' · ').width;
+      pt.linhas.forEach((l) => {
+        let x = bx + 22;
+        l.forEach((tk, k) => {
+          if (k) { ctx.fillStyle = C.muted; ctx.fillText(' · ', x, yy); x += sep; }
+          ctx.fillStyle = tk.risc ? C.vermelho : C.ink; ctx.fillText(tk.n, x, yy);
+          if (tk.risc) { ctx.strokeStyle = C.vermelho; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 1, yy + 11); ctx.lineTo(x + tk.w + 1, yy + 11); ctx.stroke(); }
+          x += tk.w;
+        });
+        yy += LQ;
+      });
+    });
+  };
+  const linhaDeQuadros = (qs) => {
+    if (!qs.length) return;
+    const bw = qs.length === 2 ? (CW - gap) / 2 : CW;
+    const ms = qs.map((q) => medir(q, bw, qs.length === 2));
+    const bh = Math.max(...ms.map((m) => m.h));
+    if (desenhar) qs.forEach((q, j) => quadro(q, ms[j], P + j * (bw + gap), bw, bh));
+    y += bh + gap;
+  };
+  const q = (k) => (grupo(k) ? { titulo: grupo(k)[0], nomes: grupo(k)[1], cor: COR[k] } : null);
+  // ---- recado do admin (como na aba Gira): linhas já quebradas na largura do quadro, uma embaixo da outra
+  if (g.recado) { fonte(400, 19); linhaDeQuadros([{ titulo: 'Recado', nomes: quebrar(ctx, g.recado, CW - 44), cor: COR.recado, porLinha: true }]); y += 4; }
+
   // ---- seções em duas colunas, com linhas alternadas; o médium de passe vai embaixo do nome do médium
   const secao = (titulo, cor, c1, c2, itens) => {
     if (!itens.length) return;
@@ -183,61 +242,7 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
   secao('At. Extras', COR.extra, 'AT. EXTRA', 'CAMBONE', lista.filter((x) => x.m.funcao === 'extra').map(linhaCambone));
 
   // ---- quadros do fim: passe sem médium (se houver), suporte e cambones de apoio lado a lado,
-  //      e a turma da limpeza na largura toda, com quem ajuda embaixo
-  const gap = 14;
-  // Quadro: título colorido, nomes e, se houver, uma parte de baixo separada por um fio (quem ajuda na limpeza).
-  // Dois lado a lado: um nome por linha; sozinho na largura toda: nomes separados por " · " (sem quebrar um nome no meio).
-  // Quem já está com ausência (naoVao) aparece em vermelho e riscado.
-  const LQ = 25;
-  const medir = (q, bw, empilhado) => {
-    const max = bw - 44;
-    const partes = [{ t: q.titulo, nomes: q.nomes, naoVao: q.naoVao || [] }, ...(q.sub ? [q.sub] : [])].map((pt) => {
-      fonte(700, 12); const tt = quebrar(ctx, pt.t.toUpperCase(), bw - 40);
-      fonte(400, 19);
-      const sep = ctx.measureText(' · ').width;
-      const linhas = [[]];
-      let x = 0;
-      pt.nomes.forEach((n) => {
-        const w = ctx.measureText(n).width;
-        if (linhas[linhas.length - 1].length && (empilhado || x + sep + w > max)) { linhas.push([]); x = 0; }
-        const l = linhas[linhas.length - 1];
-        x += (l.length ? sep : 0) + w;
-        l.push({ n, w, risc: (pt.naoVao || []).includes(n) });
-      });
-      return { tt, linhas };
-    });
-    return { partes, h: 18 + partes.reduce((a, pt, i) => a + (i ? 14 : 0) + pt.tt.length * 17 + 8 + pt.linhas.length * LQ, 0) + 16 };
-  };
-  const quadro = (q, m, bx, bw, bh) => {
-    cartao(ctx, bx, y, bw, bh, q.cor);
-    let yy = y + 18;
-    m.partes.forEach((pt, i) => {
-      if (i) { yy += 4; ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx + 22, yy + 0.5); ctx.lineTo(bx + bw - 22, yy + 0.5); ctx.stroke(); yy += 10; }
-      fonte(700, 12); espaco('1.5px'); ctx.fillStyle = q.cor; pt.tt.forEach((l) => { ctx.fillText(l, bx + 22, yy); yy += 17; }); espaco('0px');
-      yy += 8;
-      fonte(400, 19);
-      const sep = ctx.measureText(' · ').width;
-      pt.linhas.forEach((l) => {
-        let x = bx + 22;
-        l.forEach((tk, k) => {
-          if (k) { ctx.fillStyle = C.muted; ctx.fillText(' · ', x, yy); x += sep; }
-          ctx.fillStyle = tk.risc ? C.vermelho : C.ink; ctx.fillText(tk.n, x, yy);
-          if (tk.risc) { ctx.strokeStyle = C.vermelho; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 1, yy + 11); ctx.lineTo(x + tk.w + 1, yy + 11); ctx.stroke(); }
-          x += tk.w;
-        });
-        yy += LQ;
-      });
-    });
-  };
-  const linhaDeQuadros = (qs) => {
-    if (!qs.length) return;
-    const bw = qs.length === 2 ? (CW - gap) / 2 : CW;
-    const ms = qs.map((q) => medir(q, bw, qs.length === 2));
-    const bh = Math.max(...ms.map((m) => m.h));
-    if (desenhar) qs.forEach((q, j) => quadro(q, ms[j], P + j * (bw + gap), bw, bh));
-    y += bh + gap;
-  };
-  const q = (k) => (grupo(k) ? { titulo: grupo(k)[0], nomes: grupo(k)[1], cor: COR[k] } : null);
+  //      a turma da limpeza na largura toda (com quem ajuda embaixo) e, por último, ausências e faltas
   if (semPasse.length) linhaDeQuadros([{ titulo: 'Passe sem médium', nomes: semPasse.map(nome), cor: COR.passe }]);
   linhaDeQuadros([q('suporte'), q('apoio')].filter(Boolean));
   const limp = grupo('limpeza');
@@ -246,6 +251,9 @@ function desenhar(ctx, pessoas, g, desenhar, giras = [], logo = null) {
     linhaDeQuadros([{ titulo: limp[0].replace(/^Limpeza · (Turma \d+)$/, '$1 da limpeza'), nomes: limp[1], naoVao: limp[3], cor: COR.limpeza,
       sub: aj ? { t: 'Ajudam na limpeza', nomes: aj[1], naoVao: aj[3] } : null }]);
   }
+  const { ausentes, faltas } = foraDaGira(pessoas, g);
+  linhaDeQuadros([ausentes.length ? { titulo: `Ausências · ${ausentes.length}`, nomes: ausentes, cor: COR.fora } : null,
+    faltas.length ? { titulo: `Faltas · ${faltas.length}`, nomes: faltas, cor: COR.fora } : null].filter(Boolean));
 
   // ---- rodapé
   y += 8;
