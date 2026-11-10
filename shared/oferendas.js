@@ -70,7 +70,26 @@ export const temAbaPublica = (abas) => abas.some((a) => !a.iemanja && a.visivel)
 // Cor do percentual: verde com 100%, amarelo de 50% a 99%, vermelho abaixo de 50%.
 export const faixaPct = (pct) => (pct >= 100 ? 'cheio' : pct >= 50 ? 'meio' : 'baixo');
 
-export const somaDoado = (item) => (item.doacoes || []).reduce((a, d) => a + (Number(d.quantidade) || 0), 0);
+// Itens separados pela categoria (Elemento, Flores, Frutas…): [[categoria, itens]], na ordem da lista do evento
+// (ordem) e depois as que estão fora dela, na ordem em que apareceram; categoria sem item não aparece.
+// Maiúsculas não separam ("flores" entra em "Flores"). Sem nenhuma categoria: um bloco só, com categoria ''.
+// Com alguma, os itens sem categoria vão para "Outros", no fim.
+export function porCategoria(itens, ordem = []) {
+  const blocos = new Map((ordem || []).map((c) => [c.toLocaleLowerCase('pt-BR'), [c, []]]));
+  const sem = [];
+  for (const i of itens || []) {
+    const cat = String(i.categoria || '').trim();
+    if (!cat) { sem.push(i); continue; }
+    const k = cat.toLocaleLowerCase('pt-BR');
+    if (!blocos.has(k)) blocos.set(k, [cat, []]);
+    blocos.get(k)[1].push(i);
+  }
+  const usados = [...blocos.values()].filter(([, l]) => l.length);
+  if (!usados.length) return [['', sem]];
+  return [...usados, ...(sem.length ? [['Outros', sem]] : [])];
+}
+
+export const somaDoado =(item) => (item.doacoes || []).reduce((a, d) => a + (Number(d.quantidade) || 0), 0);
 
 // { doado, falta, completo }
 export function situacao(item) {
@@ -121,13 +140,16 @@ export function textoOferenda(of) {
     ENTREGA.forEach((x) => grupo('entrega', x, 'Entrega'));
     L.push('');
   }
-  of.itens.forEach((i) => {
-    const s = situacao(i);
-    L.push(`${s.completo ? '🟢' : '🟡'} *${i.nome}* · ${s.doado} de ${i.quantidade}${i.entregue ? ' · ✅ entregue' : ''}`);
-    L.push(`   Entrega: ${textoEntrega(i)}`);
-    if (i.doacoes.length) L.push(`   ${i.doacoes.map((d) => `${d.nome} (${d.quantidade})`).join(', ')}`);
-    if (!s.completo) L.push(`   Faltam ${s.falta}`);
-    L.push('');
+  porCategoria(of.itens, of.categorias).forEach(([cat, itens]) => {
+    if (cat) L.push(`*${cat.toUpperCase()}*`);
+    itens.forEach((i) => {
+      const s = situacao(i);
+      L.push(`${s.completo ? '🟢' : '🟡'} *${i.nome}* · ${s.doado} de ${i.quantidade}${i.entregue ? ' · ✅ entregue' : ''}`);
+      L.push(`   Entrega: ${textoEntrega(i)}`);
+      if (i.doacoes.length) L.push(`   ${i.doacoes.map((d) => `${d.nome} (${d.quantidade})`).join(', ')}`);
+      if (!s.completo) L.push(`   Faltam ${s.falta}`);
+      L.push('');
+    });
   });
   const pend = of.itens.filter((i) => !situacao(i).completo).length;
   if (of.porMedium && !of.itens.length) return L.join('\n').trimEnd();

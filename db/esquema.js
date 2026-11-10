@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 96;  // v96: Gestão de Conduta e Risco: interruptor Visível para todos
+export const VERSAO = 97;  // v97: Iemanjá: categoria do item
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3028,6 +3028,82 @@ export const MIGRACOES = [
      insert into sistema (chave, valor) values ('conduta_ativa', case when (p ->> 'ativa')::boolean then 'true' else 'false' end)
      on conflict (chave) do update set valor = excluded.valor;
      return conduta_ativa();
+   end;
+   $$`,
+  // ================================================== v97: Iemanjá: categorias (Elemento, Flores, Frutas…)
+  // O evento tem a lista, que vale para todas as oferendas (grupos); cada item guarda a sua (vazio = sem categoria).
+  // A tela agrupa os itens do grupo na ordem da lista. Evento novo herda a lista do último evento.
+  `alter table iemanja_eventos add column if not exists categorias text[] not null default '{}'`,
+  `alter table iemanja_itens add column if not exists categoria text not null default ''`,
+  `create or replace function iemanja_evento_novo(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid;
+   begin
+     if exists (select 1 from iemanja_eventos where encerrado_em is null) then
+       raise exception 'Já existe um evento em andamento. Encerre antes de criar outro.';
+     end if;
+     insert into iemanja_eventos (data, nome, categorias)
+       values ((p ->> 'data')::date, coalesce(nullif(btrim(p ->> 'nome'), ''), 'Oferenda de Iemanjá'),
+               coalesce((select categorias from iemanja_eventos order by data desc, criado_em desc limit 1), '{}'))
+       returning id into v_id;
+     insert into iemanja_grupos (evento_id, ordem) select v_id, n from generate_series(1, 5) n;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_evento_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := (p ->> 'id')::uuid;
+   begin
+     update iemanja_eventos set
+       nome = case when p ? 'nome' then p ->> 'nome' else nome end,
+       data = case when p ? 'data' then (p ->> 'data')::date else data end,
+       visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end,
+       fora = case when p ? 'fora' then array(select jsonb_array_elements_text(p -> 'fora')) else fora end,
+       listas = case when p ? 'listas' then array(select jsonb_array_elements_text(p -> 'listas')) else listas end,
+       categorias = case when p ? 'categorias' then array(select jsonb_array_elements_text(p -> 'categorias')) else categorias end,
+       encerrado_em = case when (p ->> 'encerrar')::boolean then now() else encerrado_em end
+     where id = v_id;
+     update iemanja_grupos g set nome = x ->> 'nome', responsavel_id = nullif(x ->> 'responsavelId', '')::uuid
+       from jsonb_array_elements(coalesce(p -> 'grupos', '[]'::jsonb)) x
+      where g.id = (x ->> 'id')::uuid and g.evento_id = v_id;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', (select pe.nome from pessoas pe where pe.id = g.responsavel_id),
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
+   $$`,
+  `create or replace function iemanja_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_doado int;
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into iemanja_itens (grupo_id, nome, categoria, quantidade, entrega)
+       values ((p ->> 'grupoId')::uuid, p ->> 'nome', coalesce(p ->> 'categoria', ''), (p ->> 'quantidade')::int, nullif(p ->> 'entrega', '')::date);
+     else
+       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = (p ->> 'id')::uuid;
+       if (p ->> 'quantidade')::int < v_doado then
+         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update iemanja_itens set nome = p ->> 'nome', categoria = coalesce(p ->> 'categoria', ''), quantidade = (p ->> 'quantidade')::int,
+                                entrega = nullif(p ->> 'entrega', '')::date
+       where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return iemanja_estado();
    end;
    $$`,
 ];

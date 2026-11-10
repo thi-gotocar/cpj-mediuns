@@ -1,6 +1,6 @@
 // Imagem PNG da lista de uma oferenda (para mandar no grupo do WhatsApp).
 
-import { situacao, dataBR, textoEntrega, ROTULO_MEDIUM, medConferido, contagemMediuns } from '/shared/oferendas.js';
+import { situacao, dataBR, textoEntrega, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria } from '/shared/oferendas.js';
 
 const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5', verde: '#2f9e5b', amarelo: '#e3b021', ok: '#24785a' };
 const FD = '"Alegreya",Georgia,serif';
@@ -78,8 +78,22 @@ function desenhar(ctx, of, pintar) {
     }
     y += h + 12;
   }
-  // itens
-  of.itens.forEach((i) => {
+  // itens, com o título de cada categoria
+  porCategoria(of.itens, of.categorias).forEach(([cat, itens]) => {
+    if (cat) {
+      if (pintar) {
+        fonte(700, 15); ctx.fillStyle = C.accent;
+        try { ctx.letterSpacing = '2px'; } catch { /* */ }
+        ctx.fillText(cat.toUpperCase(), P + 4, y + 6);
+        try { ctx.letterSpacing = '0px'; } catch { /* */ }
+      }
+      y += 32;
+    }
+    itens.forEach((i) => desenharItem(i));
+  });
+  return y + P - 12;
+
+  function desenharItem(i) {
     const s = situacao(i);
     fonte(700, 21);
     const nome = quebrar(ctx, i.nome, CW - 150);
@@ -107,8 +121,7 @@ function desenhar(ctx, of, pintar) {
       if (!s.completo) { fonte(700, 16); ctx.fillStyle = '#9a6a10'; ctx.fillText(`Faltam ${s.falta}`, x + 22, yy); }
     }
     y += h + 12;
-  });
-  return y + P - 12;
+  }
 }
 
 export async function gerarImagemOferenda(of) {

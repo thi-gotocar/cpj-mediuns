@@ -263,6 +263,9 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .iem-mini h3{margin:0;font-size:.95rem}
 .iem-lista{display:grid;gap:6px;min-width:0}
 .iem-p{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:3px 8px 3px 10px;background:var(--bg);border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere;box-sizing:border-box}
+.iem-cats{display:grid;gap:8px;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.iem-cats .grp-h h3{margin:0}
+.iem-cat-bts{display:flex;gap:6px;flex:none}
 .iem-p.fora span{color:var(--muted);text-decoration:line-through}
 .iem-p .btn{flex:none;width:36px;height:36px;min-width:0;padding:0}
 .iem-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
@@ -318,6 +321,8 @@ input[type=date]{min-width:0}
 .legenda{margin:0;font-size:.85rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .legenda .dot{margin-left:8px}
 .of-itens{display:grid;gap:6px}
+.of-cat{margin:10px 0 0;font-size:.8rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent)}
+.of-cat .muted{font-weight:500;letter-spacing:0}
 .of-item{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:4px;background:var(--surface)}
 .of-item.completo{border-color:color-mix(in srgb,#2f9e5b 45%,var(--line))}
 /* Item recolhido: uma linha só (o cabeçalho é o botão que abre/recolhe) */

@@ -1,16 +1,22 @@
 // Peças comuns às listas de oferendas e à Iemanjá: campos e linha do item, compartilhar.
 // As ações que gravam levam o prefixo da tela (c.p): '' nas listas e 'iem' na Iemanjá.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria } from '/shared/oferendas.js';
 import { estado } from '../estado.js';
 import { esc, hoje, dLong } from '../util.js';
 
 export const U = () => estado.ofUi;
 export const Dia = (s) => { const t = dLong(s); return t.charAt(0).toUpperCase() + t.slice(1); };
 
-export function camposItem(i = {}) {
+// categorias: a lista do evento (só a Iemanjá passa). Vazia e o item sem categoria: o campo não aparece.
+// A categoria que o item já tinha continua na lista mesmo se saiu da do evento.
+export function camposItem(i = {}, categorias = null) {
   const porData = !!i.entrega;
-  return `<label class="field grow">Item<input type="text" name="nome" maxlength="80" required value="${esc(i.nome || '')}" placeholder="Ex.: Rosas brancas"></label>
+  const atual = i.categoria || '';
+  const ops = [...(categorias || [])];
+  if (atual && !ops.some((c) => c.toLocaleLowerCase('pt-BR') === atual.toLocaleLowerCase('pt-BR'))) ops.push(atual);
+  const categoria = ops.length ? `<label class="field" style="flex:1 1 100%">Categoria<select name="categoria"><option value="">— sem categoria —</option>${ops.map((c) => `<option ${c.toLocaleLowerCase('pt-BR') === atual.toLocaleLowerCase('pt-BR') ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>` : '';
+  return `${categoria}<label class="field grow">Item<input type="text" name="nome" maxlength="80" required value="${esc(i.nome || '')}" placeholder="Ex.: Rosas brancas"></label>
     <label class="field" style="flex:0 1 110px">Quantidade<input type="number" name="qtd" min="1" max="10000" step="1" required value="${esc(i.quantidade || 1)}" inputmode="numeric"></label>
     <label class="field" style="flex:1 1 170px">Entrega<select name="modo" data-act="modoentrega"><option value="evento" ${porData ? '' : 'selected'}>No dia do evento</option><option value="data" ${porData ? 'selected' : ''}>Escolher data</option></select></label>
     <label class="field" style="flex:1 1 150px" ${porData ? '' : 'hidden'}>Data da entrega<input type="date" name="entrega" value="${esc(i.entrega || '')}"></label>`;
@@ -47,7 +53,7 @@ function linhaItem(i, c) {
   const minha = i.doacoes.find((d) => d.chave === c.eu?.chave)?.quantidade || 0;
   const max = minha + s.falta;
   if (c.admin && U().editarItem === i.id) {
-    return `<div class="of-item"><form class="row" data-form="${c.p}itemed" data-id="${i.id}" autocomplete="off">${camposItem(i)}
+    return `<div class="of-item"><form class="row" data-form="${c.p}itemed" data-id="${i.id}" autocomplete="off">${camposItem(i, c.categorias)}
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelaritem">Cancelar</button></form></div>`;
   }
   const conf = estado.confirm === 'oi:' + i.id;
@@ -86,11 +92,12 @@ function linhaItem(i, c) {
   return h + `</div>`;
 }
 
-// Em aberto primeiro; os completos (verdes) no fim.
+// Em aberto primeiro; os completos (verdes) no fim. Com c.categorias, separa por categoria (título e itens).
 export function listaItens(itens, c) {
-  const ordem = [...itens].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
+  const ordenar = (l) => [...l].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
+  const blocos = c.categorias ? porCategoria(itens, c.categorias) : [['', itens]];
   return `${itens.length ? '<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>' : ''}
-    <div class="of-itens">${ordem.map((i) => linhaItem(i, c)).join('')}</div>`;
+    ${blocos.map(([cat, l]) => `${cat ? `<h4 class="of-cat">${esc(cat)} <span class="muted">· ${l.length}</span></h4>` : ''}<div class="of-itens">${ordenar(l).map((i) => linhaItem(i, c)).join('')}</div>`).join('')}`;
 }
 
 export const botoesCompartilhar = (of) => `<button class="btn ${U().compartilhar === of.id ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${U().compartilhar === of.id}">Compartilhar lista</button>

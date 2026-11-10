@@ -70,6 +70,11 @@ export async function abaIemanja(eu) {
   return { iemanjaAba: ehRoot(eu) || lista.some((ev) => veEvento(eu, ev)), iemanjaPublica: lista.some((ev) => ev.visivel) };
 }
 
+const limpar = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
+// Categoria sempre com a primeira letra maiúscula ("velas" vira "Velas").
+const maiuscula = (c) => c.charAt(0).toLocaleUpperCase('pt-BR') + c.slice(1);
+const mesma = (a, b) => a.toLocaleLowerCase('pt-BR') === b.toLocaleLowerCase('pt-BR');
+
 const quantidade = (v, min) => {
   const n = Number(v);
   if (!Number.isInteger(n) || n < min || n > 9999) throw new HttpError(400, 'Quantidade inválida.');
@@ -128,6 +133,13 @@ export async function acaoIemanja(eu, b) {
       if (listas.some((k) => !validas.has(k))) throw new HttpError(400, 'Lista inválida.');
       return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, listas }));
     }
+    case 'categorias': {
+      const lista = Array.isArray(b.categorias) ? b.categorias.map((c) => maiuscula(limpar(c))) : [];
+      if (lista.some((c) => !c || c.length > 40)) throw new HttpError(400, 'Cada categoria precisa de nome, com até 40 letras.');
+      if (lista.some((c, k) => lista.findIndex((x) => mesma(x, c)) !== k)) throw new HttpError(400, 'Essa categoria já existe.');
+      if (lista.length > 30) throw new HttpError(400, 'Até 30 categorias.');
+      return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, categorias: lista }));
+    }
     case 'grupoNovo':
       return devolver(await db.rpc('iemanja_grupo_novo', { id: ev.id }));
     case 'grupoExcluir':
@@ -155,7 +167,14 @@ export async function acaoIemanja(eu, b) {
       if (!item && !grupo) throw new HttpError(400, 'Grupo inválido.');
       const nome = String(b.nome ?? '').replace(/\s+/g, ' ').trim();
       if (!nome || nome.length > 80) throw new HttpError(400, 'Informe o item.');
-      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, quantidade: quantidade(b.quantidade, 1), entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
+      // Categoria da lista do evento (ou a que o item já tinha, se saiu da lista); vazio = sem categoria.
+      let categoria = limpar(b.categoria);
+      if (categoria) {
+        const daLista = (ev.categorias || []).find((c) => mesma(c, categoria)) || (item?.categoria && mesma(item.categoria, categoria) ? item.categoria : null);
+        if (!daLista) throw new HttpError(400, 'Escolha uma categoria da lista do evento.');
+        categoria = daLista;
+      }
+      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, categoria, quantidade: quantidade(b.quantidade, 1), entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
     }
     case 'entregue':
       if (!item) throw new HttpError(404, 'Item não encontrado.');

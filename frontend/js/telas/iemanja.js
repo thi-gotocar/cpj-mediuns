@@ -7,7 +7,7 @@ import { NOMES_ENTIDADES, LISTA_CURIMBA } from '/shared/iemanja.js';
 import { dataBR, faixaPct, textoEntrega } from '/shared/oferendas.js';
 import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar } from './oferendaComum.js';
 
-const ui = { abertos: new Set(), edit: null, janela: null, rascunho: {} };
+const ui = { abertos: new Set(), edit: null, janela: null, rascunho: {}, categorias: false };
 const val = (id) => document.getElementById(id)?.value ?? '';
 // A visão CPJ/Alunos do root mostra o que a corrente vê.
 const comoAdmin = (ev) => ev.admin && (estado.me?.papel !== 'root' || estado.visaoRoot === 'root');
@@ -16,7 +16,9 @@ const souRoot = () => !!estado.iemanja?.root && estado.visaoRoot === 'root';
 const seta = (k) => `<span class="seta" aria-hidden="true">${ui.abertos.has(k) ? '▾' : '▸'}</span>`;
 const icone = (i, t) => `<span aria-hidden="true">${i}</span> ${t}`;
 const nomeGrupo = (g) => g.nome || `Grupo ${g.ordem}`;
-const paraCompartilhar = (ev, g) => ({ id: g.id, titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel, porMedium: false, itens: g.itens });
+// Categorias do evento: valem para todas as oferendas (grupos) e dão a ordem dos itens.
+const categoriasDe = (ev) => ev.categorias || [];
+const paraCompartilhar = (ev, g) => ({ id: g.id, titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel, porMedium: false, itens: g.itens, categorias: categoriasDe(ev) });
 
 function opcoesNome(atual) {
   const op = (n) => `<option ${n === atual ? 'selected' : ''}>${esc(n)}</option>`;
@@ -57,9 +59,9 @@ function cardGrupo(ev, g, adm) {
   const pode = adm && !ev.encerradoEm;
   // Admin registra a doação só de quem é do grupo.
   const opcoesDoador = (ja) => g.membros.filter((m) => !ja.has(m.chave)).map((m) => `<option value="${esc(m.chave)}">${esc(m.nome)}</option>`).join('');
-  const itens = `<div class="ofg-sec"><span class="ofg-tit">Itens</span>${g.itens.length ? listaItens(g.itens, { p: 'iem', eu: estado.iemanja.eu, admin: pode, ref: ev, podeDoar: !ev.encerradoEm && g.meu, opcoesDoador }) : '<p class="muted" style="margin:0">Nenhum item ainda.</p>'}</div>`;
+  const itens = `<div class="ofg-sec"><span class="ofg-tit">Itens</span>${g.itens.length ? listaItens(g.itens, { p: 'iem', eu: estado.iemanja.eu, admin: pode, ref: ev, podeDoar: !ev.encerradoEm && g.meu, opcoesDoador, categorias: categoriasDe(ev) }) : '<p class="muted" style="margin:0">Nenhum item ainda.</p>'}</div>`;
   const novoItem = pode ? `<details class="of-novo"${U().novoItem === g.id ? ' open' : ''}><summary>+ Adicionar item</summary>
-      <form class="row" data-form="iemitem" data-of="${g.id}" autocomplete="off">${camposItem(ui.rascunho[g.id])}<button class="btn primary" type="submit">Adicionar</button></form></details>` : '';
+      <form class="row" data-form="iemitem" data-of="${g.id}" autocomplete="off">${camposItem(ui.rascunho[g.id], categoriasDe(ev))}<button class="btn primary" type="submit">Adicionar</button></form></details>` : '';
   const of = paraCompartilhar(ev, g);
   const rodape = pode ? `<div class="of-rod">${botoesCompartilhar(of)}<button class="btn danger" data-act="iemjanela" data-t="excluirGrupo" data-g="${g.id}">${icone('🗑', 'Excluir grupo')}</button></div>${painelCompartilhar(of)}` : '';
   return `<div class="card iem-grupo" id="iem-g-${g.id}">${cab}${edicao}${barra}${novoItem}${itens}${blocoPessoas(g, ev, adm, C)}${rodape}</div>`;
@@ -127,10 +129,24 @@ function blocoEvento(ev) {
     <div class="cp-bts">${editando ? `<button class="btn" data-act="iemcancelar">${icone('✕', 'Cancelar')}</button><button class="btn primary" data-act="iemsalvar">${icone('✓', 'Salvar')}</button>` : `<button class="btn" data-act="iemeditar">${icone('✎', 'Editar')}</button>`}
       <button class="btn" data-act="iemjanela" data-t="encerrar">${icone('🔒', 'Encerrar')}</button></div>
     ${dados}
-    <div class="cp-bts"><button class="btn" data-act="iemjanela" data-t="novaOferenda">${icone('＋', 'Nova oferenda')}</button>${souRoot() ? `<button class="btn" data-act="iemnovoaviso">${icone('＋', 'Novo evento')}</button>` : ''}</div>
+    <div class="cp-bts"><button class="btn" data-act="iemjanela" data-t="novaOferenda">${icone('＋', 'Nova oferenda')}</button><button class="btn ${ui.categorias ? 'primary' : ''}" data-act="iemcats" aria-pressed="${ui.categorias}">${icone('🏷️', `Categorias (${categoriasDe(ev).length})`)}</button>${souRoot() ? `<button class="btn" data-act="iemnovoaviso">${icone('＋', 'Novo evento')}</button>` : ''}</div>
+    ${ui.categorias ? blocoCategorias(ev) : ''}
     <div class="of-sec"><h2><span aria-hidden="true">🕯️</span> Oferendas</h2><span class="of-sec-n">${ev.grupos.length}</span></div>
     ${grupos}</div>
     ${blocoSorteio(ev)}`;
+}
+
+// Painel do botão Categorias: a lista do evento, com subir, excluir e adicionar.
+function blocoCategorias(ev) {
+  const l = categoriasDe(ev);
+  const usos = (c) => ev.grupos.reduce((n, g) => n + g.itens.filter((i) => (i.categoria || '').toLocaleLowerCase('pt-BR') === c.toLocaleLowerCase('pt-BR')).length, 0);
+  const linhas = l.map((c, k) => `<div class="iem-p"><span>${esc(c)} <small class="muted">· ${usos(c)} ${usos(c) === 1 ? 'item' : 'itens'}</small></span><span class="iem-cat-bts">
+      <button class="btn small" data-act="iemcatsobe" data-k="${k}" ${k ? '' : 'disabled'} aria-label="Subir ${esc(c)}">↑</button>
+      <button class="btn small" data-act="iemcatdel" data-k="${k}" aria-label="Excluir ${esc(c)}">✕</button></span></div>`).join('');
+  return `<div class="iem-cats"><div class="grp-h"><h3>🏷️ Categorias</h3><button class="btn small" data-act="iemcats">Fechar</button></div>
+    <p class="muted" style="margin:0;font-size:.88rem">Valem para todas as oferendas deste evento. Os itens aparecem nesta ordem.</p>
+    <div class="iem-lista">${linhas || '<p class="muted" style="margin:0">Nenhuma categoria ainda.</p>'}</div>
+    <form class="iem-add" data-form="iemcat" autocomplete="off"><input type="text" name="categoria" maxlength="40" required placeholder="Nova categoria (ex.: Flores)" aria-label="Nova categoria"><button class="btn primary" type="submit">Adicionar</button></form></div>`;
 }
 
 function blocoHistorico(lista) {
@@ -161,7 +177,7 @@ function textosJanela(j) {
   if (!g) return null;
   if (j.t === 'excluirGrupo') return ['Excluir este grupo?', `<b>${esc(nomeGrupo(g))}</b>: os itens, as doações e as pessoas deste grupo saem do evento. Não dá para desfazer.`, 'Excluir grupo', 'danger'];
   const r = ui.rascunho[j.g];
-  return ['Adicionar este item?', `<b>${esc(r.quantidade)}</b> × ${esc(r.nome)} no grupo <b>${esc(nomeGrupo(g))}</b>.<br><span class="muted">Entrega: ${textoEntrega(r)}</span>`, 'Adicionar', 'primary'];
+  return ['Adicionar este item?', `${r.categoria ? `${esc(r.categoria)}: ` : ''}<b>${esc(r.quantidade)}</b> × ${esc(r.nome)} no grupo <b>${esc(nomeGrupo(g))}</b>.<br><span class="muted">Entrega: ${textoEntrega(r)}</span>`, 'Adicionar', 'primary'];
 }
 function janela() {
   const t = ui.janela && textosJanela(ui.janela);
@@ -219,6 +235,19 @@ export const cliques = {
     }
     avisar();
   },
+  iemcats() { ui.categorias = !ui.categorias; avisar(); },
+  iemcatsobe(el) {
+    const l = [...categoriasDe(eventoAberto())];
+    const k = Number(el.dataset.k);
+    [l[k - 1], l[k]] = [l[k], l[k - 1]];
+    acaoIemanja('categorias', { id: eventoAberto().id, categorias: l });
+  },
+  async iemcatdel(el) {
+    const ev = eventoAberto();
+    const c = categoriasDe(ev)[Number(el.dataset.k)];
+    const usada = ev.grupos.some((g) => g.itens.some((i) => i.categoria === c));
+    if (await acaoIemanja('categorias', { id: ev.id, categorias: categoriasDe(ev).filter((x) => x !== c) })) toast(usada ? `Categoria excluída. Os itens de ${c} continuam nela até serem editados.` : 'Categoria excluída.');
+  },
   iemnovoaviso() { toast('Encerre o evento atual antes de criar outro.'); },
   async iemnovo() {
     const data = val('iem-nova-data');
@@ -266,6 +295,11 @@ function assumirDe(el, delta) {
 // Formulários: adicionar (com confirmação) e editar item, e doação por outra pessoa do grupo.
 export async function enviar(form) {
   const v = (n) => form.elements[n]?.value ?? '';
+  if (form.dataset.form === 'iemcat') {
+    const ev = eventoAberto();
+    if (await acaoIemanja('categorias', { id: ev.id, categorias: [...categoriasDe(ev), v('categoria')] })) toast('Categoria criada.');
+    return;
+  }
   if (form.dataset.form === 'iemporpessoa') {
     if (!v('pessoa')) { toast('Escolha a pessoa.'); return; }
     if (await acaoIemanja('assumirPor', { itemId: form.dataset.item, chave: v('pessoa'), quantidade: v('qtd') })) toast('Doação registrada.');
@@ -273,7 +307,7 @@ export async function enviar(form) {
   }
   const entrega = v('modo') === 'data' ? v('entrega') : '';
   if (v('modo') === 'data' && !entrega) { toast('Escolha a data da entrega.'); return; }
-  const dados = { nome: v('nome').trim(), quantidade: v('qtd'), entrega };
+  const dados = { categoria: v('categoria').trim(), nome: v('nome').trim(), quantidade: v('qtd'), entrega };
   if (form.dataset.form === 'iemitem') {
     ui.rascunho[form.dataset.of] = dados;
     ui.janela = { t: 'item', g: form.dataset.of };

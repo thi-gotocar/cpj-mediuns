@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sortearIemanja, pctItens, nomeGrupoValido, listasDoSorteio } from '../shared/iemanja.js';
-import { abasOcultas, temAbaPublica } from '../shared/oferendas.js';
+import { abasOcultas, temAbaPublica, porCategoria, textoOferenda } from '../shared/oferendas.js';
 
 const NOMES = ['Iemanjá', 'Oxum', 'Ogum', 'Caboclo', 'Exu'];
 const grupos = (fixos = 0) => NOMES.map((nome, i) => ({ id: 'g' + i, nome, fixos }));
@@ -64,4 +64,16 @@ test('iemanjá: percentual de itens com responsável e nomes aceitos', () => {
   assert.equal(pctItens([{ quantidade: 4, doacoes: [{ quantidade: 1 }] }, { quantidade: 4, doacoes: [{ quantidade: 9 }] }]), 62);
   assert.ok(nomeGrupoValido('Iemanjá') && nomeGrupoValido('Caboclo') && nomeGrupoValido(''));
   assert.ok(!nomeGrupoValido('Caboclo Pena Branca'));
+});
+
+test('iemanjá: itens separados por categoria, sem diferenciar maiúsculas, e os sem categoria em Outros', () => {
+  const it = (nome, categoria) => ({ nome, categoria, quantidade: 1, doacoes: [] });
+  assert.deepEqual(porCategoria([it('Rosas', ''), it('Pera')]).map(([c, l]) => [c, l.length]), [['', 2]]);
+  const r = porCategoria([it('Abebé', 'Elemento'), it('Rosas', 'Flores'), it('Vela', ''), it('Leque', 'elemento'), it('Pera', 'Frutas')]);
+  assert.deepEqual(r.map(([c, l]) => [c, l.map((i) => i.nome)]), [['Elemento', ['Abebé', 'Leque']], ['Flores', ['Rosas']], ['Frutas', ['Pera']], ['Outros', ['Vela']]]);
+  // Com a lista do evento: a ordem dela manda e categoria sem item não aparece.
+  const r2 = porCategoria([it('Pera', 'Frutas'), it('Abebé', 'Elemento'), it('Rosas', 'flores')], ['Flores', 'Velas', 'Elemento']);
+  assert.deepEqual(r2.map(([c, l]) => [c, l.map((i) => i.nome)]), [['Flores', ['Rosas']], ['Elemento', ['Abebé']], ['Frutas', ['Pera']]]);
+  const txt = textoOferenda({ titulo: 'Iemanjá', data: '2026-12-12', itens: r.flatMap(([, l]) => l) });
+  assert.ok(txt.indexOf('*ELEMENTO*') < txt.indexOf('*Abebé*') && txt.indexOf('*Leque*') < txt.indexOf('*FLORES*'));
 });
