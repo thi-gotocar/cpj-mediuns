@@ -452,7 +452,7 @@ function cardOferendas(todos) {
     </div>` : total ? '' : '<p class="muted" style="margin:0">Nenhuma oferenda pendente. 🙌</p>'}`, true, true);
 }
 
-// Aba Pessoas, dentro do bloco da Corrente (abaixo das licenças), sem moldura: só para quem recebe o perfil de todos.
+// Aba Pessoas, dentro do bloco da Corrente (acima das licenças), sem moldura: só para quem recebe o perfil de todos.
 let pedindoPerfil = false;
 export function cardOferendasPendentes() {
   if (!pode('perfil:corrente')) return '';

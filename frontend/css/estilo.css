@@ -978,7 +978,6 @@ body.deslogado .rodape{display:none}
 .pub-linha{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;background:var(--ok-soft);border-radius:10px;padding:8px 12px}
 .pub-ok{color:var(--ok);font-weight:700;font-size:.92rem}
 .sorteio-ok{color:var(--ok)}
-.lic-lista{display:flex;flex-direction:column;gap:6px}
 .lic-l{display:flex;align-items:center;gap:12px}
 .selo-lic{display:inline-block;font-size:.75rem;font-weight:700;border-radius:20px;padding:1px 10px;border:1.5px solid #d4a017;color:#8a6500;background:#fff7d6}
 .sort-acoes{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}.sort-acoes .btn{white-space:normal;min-width:0;line-height:1.2}
@@ -986,7 +985,6 @@ body.deslogado .rodape{display:none}
 .lock.falta-bt{color:var(--off);border-color:color-mix(in srgb,var(--off) 45%,transparent)}
 .med .falta-bt{margin-left:8px}
 .falta-conf{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;background:var(--off-soft);border:1px solid color-mix(in srgb,var(--off) 40%,transparent);border-radius:10px;padding:8px 10px;font-size:.9rem;margin:4px 0}
-.lic-lista{border-top:1px solid var(--line);padding-top:10px}
 .lic-l{gap:10px}
 .selo-lic{border-color:var(--off);color:var(--off);background:var(--off-soft)}
 .sup-lista{display:flex;flex-direction:column;gap:6px}.sup-l{display:flex;align-items:center;gap:10px}
@@ -1122,157 +1120,95 @@ section.panel.pf-tela{gap:14px}
 /* Publicar escala: o aviso fica dentro do botão, sem mudar a altura */
 .btn-grande.pub-bt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding-block:5px;height:54px;line-height:1.15}
 .pub-bt .pub-sub{font-size:.72rem;font-weight:500;opacity:.85}
-/* Pessoas: card CORRENTE CPJ com as licenças em mini blocos */
-.estrela-ouro{color:var(--gold)}
-.lic-lista{display:grid;gap:8px}
-.lic-mini{border:1px solid color-mix(in srgb,var(--off) 35%,var(--line));border-left:4px solid var(--off);border-radius:10px;padding:8px 10px;display:grid;gap:4px;background:color-mix(in srgb,var(--off) 4%,var(--surface))}
-.lic-l1{display:flex;align-items:center;gap:8px;min-width:0}
-.lic-l1 .nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.lic-datas{font-size:.82rem;color:var(--muted);white-space:nowrap;margin-left:auto}
-.lic-mot{font-size:.85rem;padding-left:22px;overflow-wrap:anywhere}
-.lic-mini.lic-ed{gap:8px}
-/* Pessoas: linha 1 = nome + Editar/Excluir; linha 2 = função, turma e + médium de passe */
-.pp.pp2{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:10px 0}
-.pp-form{display:grid;gap:6px;margin:0}
-.pp-l1{display:flex;align-items:center;gap:8px;min-width:0}
-.pp-l1 .nm{flex:1 1 auto;min-width:0;font-weight:600}
-.pp-l1 input{flex:1 1 auto;min-width:0;padding:6px 9px}
-.pp-bts{display:flex;gap:6px;flex:none;margin-left:auto}
-.btn.pp-bt{min-width:84px;justify-content:center;text-align:center}
-.pp-l2{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
-.pp-l2 select{width:auto}
-.pp-limp{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:5px 9px;background:var(--bg);white-space:nowrap}
-.pp-limp.ed{color:var(--ink);padding:2px 4px 2px 9px}
-.pp-exp{white-space:nowrap}
-.pp2 .linhas{margin:0}
-.lic-l1 .nm,.pp-l1 .nm{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;flex:1 1 auto}
-.lic-datas{margin-left:0;flex:none}
-.lic-l1 .btn{flex:none}
-.btn.pp-bt{min-width:76px}
-.lic-txt{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px}
-.lic-txt .nm{flex:0 1 auto}
-.chip-todas{font-weight:700;margin:2px 0 6px;border-color:var(--accent)}
-/* Alunos: nome com Editar/Excluir; a turma só aparece em Editar */
-.al-l{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-items:center}
-.al-ed{margin:0}
-.al-turma{display:flex;align-items:center;gap:8px;font-size:.88rem;color:var(--muted)}
-.al-l .al-turma select{max-width:none;width:auto;flex:1 1 auto}
-/* Adicionar → Licença: início e fim lado a lado, do mesmo tamanho, sem passar da borda */
-.lic-form{display:grid;gap:10px;min-width:0}
-.lic-datas-f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;min-width:0}
-.lic-form .field,.lic-datas-f .field{min-width:0}
-.lic-form input[type=date]{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
-/* Pessoas fora do Editar: só leitura */
-.pp-fn{display:inline-flex;align-items:center;font-size:.85rem;font-weight:600;border:1px solid var(--line);border-radius:8px;padding:5px 10px;background:var(--surface)}
-.pp-exp-on{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
-.pp-res{display:grid;gap:2px}
-/* Aba Pessoas (só layout): contagens em quadradinhos, borda colorida por função, cada pessoa numa caixinha */
+/* ---------- Aba Pessoas ----------
+   Um padrão só para a aba: cada bloco é um .card com a borda de cima na cor do bloco (--fn) e título grp-h (h2 + .count);
+   as contagens usam os quadradinhos .pf-of-total (os mesmos de Oferendas pendentes: nome em cima, número embaixo);
+   cada pessoa fica numa caixinha .pp com selos .badge e botões .btn small; os sub-blocos (licenças, Oferendas pendentes,
+   Curimba, histórico de licenças) ficam dentro do bloco, separados por uma linha. */
 .pessoas-tela{--fn:var(--accent)}
-.pessoas-tela .fn-medium{--fn:var(--gold)}
+.pessoas-tela .fn-medium,.pessoas-tela .fn-corrente{--fn:var(--gold)}
 .pessoas-tela .fn-extra{--fn:var(--orange)}
 .pessoas-tela .fn-passe{--fn:var(--accent)}
-.pessoas-tela .fn-cambone{--fn:var(--ok)}
+.pessoas-tela .fn-cambone,.pessoas-tela .fn-limpeza{--fn:var(--ok)}
 .pessoas-tela .fn-senha{--fn:var(--muted)}
 .pessoas-tela .fn-curimba{--fn:var(--off)}
-.pessoas-tela .fn-limpeza{--fn:#2dd4bf}
-.pessoas-tela .fn-alunos{--fn:#a78bfa}
-.pessoas-tela .pp-card > h2,.pessoas-tela .pp-card .turmas-d > summary h2{color:var(--fn)}
-.pessoas-tela .corrente-card{border-top:4px solid var(--gold)}
-/* Oferendas pendentes: seção do próprio bloco da Corrente (sem moldura), separada por uma linha */
+.pessoas-tela .fn-alunos{--fn:var(--accent)}
+.pessoas-tela .pp-card{border-top:4px solid var(--fn)}
+.pessoas-tela .estrela-ouro{color:var(--gold)}
+.pessoas-tela .nota{margin:0;font-size:.85rem;color:var(--muted)}
+/* Sub-blocos: sem moldura, separados por uma linha; o título é um pouco menor que o do bloco */
+.pessoas-tela .sub-bloco{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.pessoas-tela .sub-bloco h2{font-size:1.05rem}
 .pessoas-tela .corrente-card .pf-c-corrente-oferendas{border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none;padding:12px 0 0;gap:10px}
 .pessoas-tela .corrente-card .pf-c-corrente-oferendas h2{font-size:1.05rem}
-/* Os quadradinhos das funções da corrente usam o .pf-of-total (o mesmo de Oferendas pendentes); as licenças ficam embaixo */
-.pessoas-tela .contagem-quadrados{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:6px}
-.pessoas-tela .contagem-quadrados > button{display:flex;flex-direction:column-reverse;align-items:center;justify-content:flex-end;gap:3px;padding:7px 3px 6px;border-radius:9px;background:var(--bg);border:1px solid var(--line);border-top:3px solid var(--fn);min-width:0;text-align:center}
-.pessoas-tela .contagem-quadrados > button{color:inherit;font:inherit;cursor:pointer}
-.pessoas-tela .contagem-quadrados > button.selecionado{background:color-mix(in srgb,var(--fn) 12%,var(--surface));border-color:var(--fn)}
-.pessoas-tela .contagem-quadrados > button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.pessoas-tela .contagem-quadrados b{font:700 1.3rem/1 var(--f-display);color:var(--fn)}
-.pessoas-tela .contagem-quadrados .muted{font-size:.62rem;line-height:1.15;letter-spacing:.02em;text-transform:uppercase;overflow-wrap:anywhere}
-.pessoas-tela .corrente-pessoas{margin-top:8px}
-.pessoas-tela .corrente-pessoas .pp{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg)}
-.pessoas-tela .corrente-pessoas .pp2{display:grid;gap:4px}
-.pessoas-tela .corrente-pessoas .pp-l1{gap:6px}
-.pessoas-tela .corrente-pessoas .pp-l1>.nm{flex:1 1 auto;min-width:0;overflow-wrap:break-word}
-.pessoas-tela .corrente-pessoas .pp-l1>.pp-l2{flex:none;flex-wrap:nowrap;gap:4px}
-.pessoas-tela .corrente-pessoas .pp-fn,.pessoas-tela .corrente-pessoas .pp-limp{font-size:.74rem;padding:2px 8px;border-radius:20px;white-space:nowrap}
-.pessoas-tela .corrente-pessoas .pp-l3{display:flex}
-.pessoas-tela .corrente-pessoas .pp-res{padding-top:4px;gap:1px}
-.pessoas-tela .corrente-pessoas .pp-res .muted{font-size:.72rem !important;line-height:1.25}
-.pessoas-tela .corrente-pessoas .pp-bts{gap:4px}
-.pessoas-tela .corrente-pessoas .btn.pp-ico{min-width:0;width:32px;height:32px;padding:0;display:inline-grid;place-items:center;font-size:.95rem;line-height:1}
-.pessoas-tela .corrente-pessoas .btn.pp-del{border-color:color-mix(in srgb,var(--off) 40%,var(--line))}
-.pessoas-tela .pp-card{border-top:4px solid var(--fn)}
-.pessoas-tela .pp-card > .grp-h h2{color:var(--fn)}
-.pessoas-tela .pp-card .ppl{gap:6px}
-.pessoas-tela .pp-card .pp{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--bg)}
-/* Cada pessoa: linha 1 = nome, etiquetas e botões ✎ / 🗑️ (só ícone); embaixo, o resumo das entidades */
-.pessoas-tela .pp-card .pp2:not(.pp-editando){gap:4px}
-.pessoas-tela .pp-card .pp2:not(.pp-editando) > .pp-l1{gap:6px}
-/* Linha 1: o nome usa o espaço que sobra (quebra entre palavras); função e 🧹 turma ficam inteiras ao lado, antes dos botões */
-.pessoas-tela .pp-card .pp2:not(.pp-editando) .pp-l1 > .nm{flex:1 1 auto;min-width:0;overflow-wrap:break-word}
-.pessoas-tela .pp-card .pp2:not(.pp-editando) .pp-l1 > .pp-l2{flex:none;flex-wrap:nowrap;gap:4px}
-.pessoas-tela .pp-card .pp-l1 .pp-fn,.pessoas-tela .pp-card .pp-l1 .pp-limp{white-space:nowrap}
-.pessoas-tela .pp-card .pp-l3{display:flex}
-.pessoas-tela .pp-card .pp-res{padding-top:4px;gap:1px}
-.pessoas-tela .pp-card .pp-res .muted{font-size:.72rem !important;line-height:1.25}
-.pessoas-tela .pp-card .pp-bts{gap:4px}
+/* Quadradinhos das turmas (limpeza e alunos): quantos couberem por linha */
+.pessoas-tela .pf-of-totais.auto{grid-template-columns:repeat(auto-fit,minmax(64px,1fr))}
+.pessoas-tela .lista-aberta{display:grid;gap:10px}
+/* Cada pessoa: linha 1 = nome, selos e botões ✎ / 🗑️; embaixo, "+ médium de passe" e o resumo das entidades */
+.pessoas-tela .ppl{display:grid;gap:6px}
+.pessoas-tela .pp{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.pessoas-tela .pp:last-child{border-bottom:1px solid var(--line)}
+.pessoas-tela .pp-l1{display:flex;align-items:center;gap:6px;min-width:0}
+.pessoas-tela .pp-l1 > .nm{flex:1 1 auto;min-width:0;font-weight:700;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word}
+.pessoas-tela .pp-l2{display:flex;align-items:center;flex-wrap:wrap;gap:4px}
+.pessoas-tela .pp-l1 > .pp-l2{flex:none;flex-wrap:nowrap}
+.pessoas-tela .pp-l3{display:flex}
+.pessoas-tela .badge.pp-fn{background:color-mix(in srgb,var(--fn) 14%,var(--surface));color:var(--fn)}
+.pessoas-tela .badge.pp-limp{background:var(--surface);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.pessoas-tela .pp-res{display:grid;gap:2px;padding-top:6px;border-top:1px dashed var(--line)}
+.pessoas-tela .pp-res .muted{font-size:.78rem;line-height:1.3}
+.pessoas-tela .pp-bts{display:flex;gap:4px;flex:none;margin-left:auto}
+.pessoas-tela .btn.pp-bt{min-width:76px;text-align:center}
 .pessoas-tela .btn.pp-ico{min-width:0;width:32px;height:32px;padding:0;display:inline-grid;place-items:center;font-size:.95rem;line-height:1}
 .pessoas-tela .btn.pp-del{border-color:color-mix(in srgb,var(--off) 40%,var(--line))}
-.pessoas-tela .pp-card .pp:last-child{border-bottom:1px solid var(--line)}
-.pessoas-tela .pp-card .pp .nm{font-weight:700}
-.pessoas-tela .pp-card .pp-editando{margin:0;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg))}
-.pessoas-tela .pp-l2{gap:6px}
-.pessoas-tela .pp-fn,.pessoas-tela .pp-limp{font-size:.74rem;padding:2px 8px;border-radius:20px}
-.pessoas-tela .pp-res{padding-top:6px;border-top:1px dashed var(--line)}
-.pessoas-tela .fn-limpeza{padding:12px}
-.pessoas-tela .turmas-cab{align-items:center;gap:10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--fn) 42%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--fn) 9%,var(--surface))}
-.pessoas-tela .turmas-cab h2{flex:1 1 auto;margin:0;font-size:1.08rem}
-.pessoas-tela .turmas-cab .count{flex:none;padding:4px 9px;border-radius:20px;background:var(--surface);font-size:.78rem}
-.pessoas-tela .turmas-conteudo{display:grid;gap:12px;margin-top:12px}
-.pessoas-tela .turmas{gap:8px}
-.pessoas-tela .turma-l{display:grid;grid-template-columns:2.2rem minmax(0,1fr);align-items:start;gap:10px;padding:10px 12px;border-radius:12px;background:var(--bg);border:1px solid var(--line)}
-.pessoas-tela .turma-n{flex:none;display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;font-weight:800;font-size:.85rem;color:var(--accent);background:var(--accent-soft)}
-.pessoas-tela .turma-info{display:grid;gap:4px;min-width:0}
-.pessoas-tela .turma-cab{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
-.pessoas-tela .turma-cab b{font-size:.94rem}
-.pessoas-tela .turma-count{padding:2px 8px;border-radius:20px;background:color-mix(in srgb,var(--fn) 13%,var(--surface));color:var(--ink);font-size:.74rem;font-weight:700}
-.pessoas-tela .turma-pessoas{gap:6px}
-.pessoas-tela .limpeza-pessoa-ed{gap:8px}
-.pessoas-tela .limpeza-pessoa-ed .nm{overflow-wrap:anywhere}
-.pessoas-tela .limpeza-pessoa-ed .field{margin:0}
+/* Em Editar: a caixinha ganha a borda azul; os campos ficam nas mesmas linhas */
+.pessoas-tela .pp-editando{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--bg))}
+.pessoas-tela .pp-form{display:grid;gap:8px;margin:0}
+.pessoas-tela .pp-form .field{margin:0}
+.pessoas-tela .pp-l1 input{flex:1 1 auto;min-width:0;padding:6px 9px}
+.pessoas-tela .pp-l2 select{width:auto}
+.pessoas-tela .pp-limp.ed{display:inline-flex;align-items:center;gap:4px;font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:2px 4px 2px 9px;background:var(--bg);white-space:nowrap}
+.pessoas-tela .pp-exp{white-space:nowrap}
+.pessoas-tela .pp .linhas{margin:0}
+.pessoas-tela .chip-todas{font-weight:700;margin:2px 0 6px;border-color:var(--accent)}
 .pessoas-tela .limpeza-pessoa-ed .pp-bts{justify-content:flex-end}
-.pessoas-tela .limpeza-atribuir{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;padding:12px;border:1px solid color-mix(in srgb,var(--fn) 34%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--fn) 5%,var(--surface))}
-.pessoas-tela .limpeza-atribuir .field{margin:0}
-.pessoas-tela .limpeza-atribuir .btn{min-height:42px}
-.pessoas-tela .turma-nomes{font-size:.88rem;line-height:1.5;overflow-wrap:anywhere}
-.pessoas-tela .turma-sem{padding:8px 10px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:.84rem}
-.pessoas-tela .fn-limpeza .fn-curimba{gap:10px;margin:0;padding:12px;border-color:color-mix(in srgb,var(--off) 45%,var(--line));background:color-mix(in srgb,var(--off) 4%,var(--surface))}
-.pessoas-tela .fn-limpeza .fn-curimba > .grp-h h2{font-size:1rem}
-.pessoas-tela .fn-limpeza .fn-curimba .ppl{gap:6px}
-@media(max-width:520px){.pessoas-tela .limpeza-atribuir{grid-template-columns:1fr}.pessoas-tela .limpeza-atribuir .btn{width:100%}}
-.pessoas-tela .fn-alunos .al-grupo{gap:10px;padding:12px;border-color:color-mix(in srgb,var(--fn) 30%,var(--line));background:color-mix(in srgb,var(--fn) 4%,var(--surface))}
-.pessoas-tela .fn-alunos .al-gh-l{justify-content:space-between;flex-wrap:wrap;gap:8px;padding-bottom:10px;border-bottom:1px solid color-mix(in srgb,var(--fn) 22%,var(--line))}
-.pessoas-tela .fn-alunos .al-gh-l h3{margin:0;color:var(--fn);font-size:1rem}
-.pessoas-tela .fn-alunos .al-gh-l input{flex:1 1 160px}
-.pessoas-tela .fn-alunos .al-gh-l .pp-bts{flex-wrap:wrap}
-.pessoas-tela .fn-alunos .al-add-wrap{padding-top:8px}
-.pessoas-tela .fn-alunos .al-add-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
-.pessoas-tela .fn-alunos .al-add-form .field{min-width:0}
-.pessoas-tela .fn-alunos .al-add-form .pp-bts{display:flex;flex-wrap:wrap;gap:6px}
-.pessoas-tela .fn-alunos .al-lista{display:grid;gap:6px;margin:0}
-.pessoas-tela .fn-alunos .al-l{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
-.pessoas-tela .fn-alunos .al-l:first-child{border-top:1px solid var(--line)}
-.pessoas-tela .fn-alunos .al-l:not(.al-ed) .pp-l1{flex-wrap:nowrap}
-.pessoas-tela .fn-alunos .al-l:not(.al-ed) .nm{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
-.pessoas-tela .fn-alunos .al-l:not(.al-ed) .pp-bts{flex-wrap:nowrap;gap:4px}
-.pessoas-tela .fn-alunos .al-promover{min-width:auto;padding:5px 10px;border-color:color-mix(in srgb,var(--ok) 45%,var(--line));border-radius:20px;background:var(--ok-soft);color:var(--ok);font-weight:800;letter-spacing:.03em;box-shadow:0 2px 6px color-mix(in srgb,var(--ok) 14%,transparent)}
-.pessoas-tela .fn-alunos .al-promover:hover{border-color:var(--ok);background:var(--ok);color:var(--surface);transform:translateY(-1px)}
-.pessoas-tela .fn-alunos .al-l .al-turma{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
-.pessoas-tela .fn-alunos .al-l .al-turma select{width:100%;max-width:none;min-width:0}
-.pessoas-tela .fn-alunos .al-grupo > .muted{margin:0;padding:8px 2px}
-@media (max-width:520px){.pessoas-tela .fn-alunos .al-add-form{grid-template-columns:minmax(0,1fr)}}
-.pp-editando{background:color-mix(in srgb,var(--accent) 4%,transparent);border-radius:10px;padding:10px;margin:4px -6px}
+/* Licenças em vigor (bloco Corrente): mini blocos com a borda vermelha */
+.pessoas-tela .lic-lista{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+.pessoas-tela .lic-mini{display:grid;gap:4px;padding:8px 10px;border:1px solid color-mix(in srgb,var(--off) 35%,var(--line));border-left:4px solid var(--off);border-radius:var(--r);background:color-mix(in srgb,var(--off) 4%,var(--surface))}
+.pessoas-tela .lic-mini.lic-ed{gap:8px}
+.pessoas-tela .lic-l1{display:flex;align-items:center;gap:8px;min-width:0}
+.pessoas-tela .lic-l1 .nm{font-weight:700;min-width:0;overflow-wrap:anywhere}
+.pessoas-tela .lic-l1 .btn{flex:none;margin-left:auto}
+.pessoas-tela .lic-txt{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px}
+.pessoas-tela .lic-datas{font-size:.82rem;color:var(--muted);white-space:nowrap}
+.pessoas-tela .lic-mot{font-size:.85rem;padding-left:22px;overflow-wrap:anywhere}
+/* Adicionar → Licença: início e fim lado a lado; embaixo, o histórico da pessoa escolhida */
+.pessoas-tela .lic-form{display:grid;gap:10px;min-width:0}
+.pessoas-tela .lic-datas-f{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;min-width:0}
+.pessoas-tela .lic-form input[type=date]{width:100%;min-width:0;max-width:100%}
+.pessoas-tela .lic-hist{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+.pessoas-tela .lic-hist h3{font-size:1rem}
+.pessoas-tela .lic-h-l{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.pessoas-tela .lic-h-l.lic-ed{display:grid}
+.pessoas-tela .lic-h-t{min-width:0;font-size:.9rem;overflow-wrap:anywhere}
+/* Turma aberta: formulário para pôr alguém na turma (limpeza) ou adicionar alunos */
+.pessoas-tela .limpeza-atribuir,.pessoas-tela .al-add-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px}
+.pessoas-tela .al-add-form .pp-bts{margin:0}
+@media (max-width:520px){.pessoas-tela .limpeza-atribuir,.pessoas-tela .al-add-form{grid-template-columns:minmax(0,1fr)}}
+/* Alunos: ações da turma numa linha; cada aluno numa caixinha como as pessoas */
+.pessoas-tela .al-acoes{display:flex;align-items:center;gap:6px}
+.pessoas-tela .al-turma-ed{display:flex;align-items:center;gap:6px;margin:0}
+.pessoas-tela .al-turma-ed input{flex:1 1 auto;min-width:0;padding:6px 9px}
+.pessoas-tela .btn.al-promover{min-width:0;color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.pessoas-tela .btn.al-promover:hover{border-color:var(--ok)}
+/* UP CPJ: escolha de quem promover (caixinha em cada aluno; Cancelar / Confirmar na faixa verde) */
+.pessoas-tela .al-promover-bar{display:grid;gap:8px;padding:10px;border:1px solid color-mix(in srgb,var(--ok) 40%,var(--line));border-radius:var(--r);background:var(--ok-soft)}
+.pessoas-tela .al-sel{cursor:pointer}
+.pessoas-tela .al-sel input{flex:none;width:20px;height:20px;margin:0;accent-color:var(--ok)}
+.pessoas-tela .al-sel:has(input:checked){border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--bg))}
+.pessoas-tela .btn:disabled{opacity:.55;cursor:default}
+.pessoas-tela .al-turma{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;font-size:.88rem;color:var(--muted)}
+.pessoas-tela .al-turma select{width:100%;max-width:none}
 /* Sorteio: Remanejar faltas e Ajuste manual do mesmo tamanho, em amarelo */
 .sort-acoes{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .sort-acoes.n1{grid-template-columns:minmax(0,1fr)}
@@ -1288,12 +1224,6 @@ section.panel.pf-tela{gap:14px}
 .st-det-p .st-l-ed .btn.link{padding:0 2px;font-size:.78rem;flex:none}
 .st-ed{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:4px 0}
 .st-ed select{width:auto;padding:4px 8px;font-size:.85rem}
-/* Adicionar → Licença: histórico da pessoa escolhida */
-.lic-hist{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:12px}
-.lic-hist h3{margin:0;font-size:1rem}
-.lic-h-l{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
-.lic-h-l.lic-ed{display:grid;gap:8px}
-.lic-h-t{min-width:0;font-size:.9rem;overflow-wrap:anywhere}
 /* aba Curimba (e o bloco Aula de curimba da aba Gira) */
 .mp-st.p{background:var(--ok-soft);color:var(--ok)}
 .mp-st.nada{background:var(--bg);color:var(--muted)}

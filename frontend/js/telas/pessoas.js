@@ -39,10 +39,10 @@ function listaLicencas(ps, editar) {
         <label class="field" style="flex:1 1 130px">Fim<input type="date" id="el-f" value="${l.fim}"></label>
         <label class="field" style="flex:2 1 200px">Motivo<input type="text" id="el-m" maxlength="200" value="${esc(l.motivo || '')}"></label></div>
         <div class="row"><button class="btn small primary" data-act="salvarlic" data-id="${l.id}">Salvar</button><button class="btn small" data-act="cancelarlic">Cancelar</button>
-          <button class="btn small" data-act="excluirask" data-tipo="lic" data-id="${l.id}">Remover</button></div></div>`;
+          <button class="btn small danger" data-act="excluirask" data-tipo="lic" data-id="${l.id}">Remover</button></div></div>`;
     }
     return `<div class="lic-mini"><div class="lic-l1"><span class="cruz-vermelha" aria-hidden="true">✚</span><span class="lic-txt"><span class="nm">${esc(l.pessoa.nome)}</span> <span class="lic-datas">${dBR(l.inicio)} a ${dBR(l.fim)}</span></span>
-        ${editar ? `<button class="btn small pp-bt" data-act="editlic" data-id="${l.id}">Editar</button>` : ''}</div>
+        ${editar ? `<button class="btn small pp-ico" data-act="editlic" data-id="${l.id}" aria-label="Editar licença de ${esc(l.pessoa.nome)}" title="Editar"><span aria-hidden="true">✎</span></button>` : ''}</div>
       ${l.motivo ? `<div class="lic-mot muted">${esc(l.motivo)}</div>` : ''}</div>`;
   }).join('')}</div>`;
 }
@@ -59,12 +59,12 @@ function historicoLicencas(p) {
           <label class="field">Fim<input type="date" id="elh-f" value="${l.fim}"></label></div>
           <label class="field">Motivo<input type="text" id="elh-m" maxlength="200" value="${esc(l.motivo || '')}"></label>
           <div class="row"><button class="btn small primary" type="button" data-act="salvarlich" data-id="${l.id}">Salvar</button><button class="btn small" type="button" data-act="cancelarlich">Cancelar</button>
-            <button class="btn small" type="button" data-act="excluirask" data-tipo="lic" data-id="${l.id}">Remover</button></div></div>`;
+            <button class="btn small danger" type="button" data-act="excluirask" data-tipo="lic" data-id="${l.id}">Remover</button></div></div>`;
       }
       const sit = l.fim < hj ? '' : l.inicio <= hj ? ' <span class="badge lic">em andamento</span>' : ' <span class="badge rep">futura</span>';
       return `<div class="lic-h-l"><span class="lic-h-t"><b>${dBR(l.inicio)} a ${dBR(l.fim)}</b>${sit}${l.motivo ? `<span class="muted"> · ${esc(l.motivo)}</span>` : ''}</span>
-        <button class="btn small pp-bt" type="button" data-act="editlich" data-id="${l.id}">Editar</button></div>`;
-    }).join('') : '<p class="muted" style="margin:0;font-size:.88rem">Nenhuma licença registrada.</p>'}</div>`;
+        <button class="btn small pp-ico" type="button" data-act="editlich" data-id="${l.id}" aria-label="Editar licença de ${dBR(l.inicio)} a ${dBR(l.fim)}" title="Editar"><span aria-hidden="true">✎</span></button></div>`;
+    }).join('') : '<p class="nota">Nenhuma licença registrada.</p>'}</div>`;
 }
 
 // Guarda o que já foi digitado no cadastro de licença antes de redesenhar.
@@ -85,21 +85,24 @@ function cardTurmas(todas, editar) {
   const aberta = grupos.some((g) => g.chave === estado.limpezaTurmaAberta) ? estado.limpezaTurmaAberta : null;
   const turmaAtiva = aberta && aberta !== 'sem' ? grupos.find((g) => g.chave === aberta) : null;
   const disponiveis = turmaAtiva ? todas.filter((p) => !p.limpeza) : [];
-  return `<div class="card pp-card fn-limpeza"><div class="grp-h turmas-cab"><h2>🧹 Turmas da limpeza</h2><span class="count">${com.length} de ${todas.length}</span></div>
-    ${curimba}
-    <div class="contagem-quadrados">${grupos.map((g) => `<button type="button" class="fn-limpeza${aberta === g.chave ? ' selecionado' : ''}" data-act="limpezaTurma" data-t="${g.chave}" aria-expanded="${aberta === g.chave}" aria-label="${g.nome}: ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}${aberta === g.chave ? ', recolher lista' : ', expandir lista'}"${!editar && !g.lista.length ? ' disabled' : ''}><span class="muted">${g.nome}</span><b>${g.lista.length}</b></button>`).join('')}</div>
+  // Começa minimizado; aberto: quadradinhos das turmas, a turma aberta e, embaixo, o sub-bloco da Curimba.
+  const cab = (ab) => `<div class="card pp-card fn-limpeza">${cabDobra('dobrarlimpeza', '🧹 Turmas da limpeza', `${com.length} de ${todas.length}`, ab)}`;
+  if (!estado.limpezaAberto) return cab(false) + '</div>';
+  return `${cab(true)}
+    <div class="pf-of-totais auto">${grupos.map((g) => `<button type="button" class="pf-of-total fn-limpeza${aberta === g.chave ? ' selecionado' : ''}" data-act="limpezaTurma" data-t="${g.chave}" aria-expanded="${aberta === g.chave}" aria-label="${g.nome}: ${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}${aberta === g.chave ? ', recolher lista' : ', expandir lista'}"${!editar && !g.lista.length ? ' disabled' : ''}><b>${g.lista.length}</b><span>${g.nome}</span></button>`).join('')}</div>
     ${aberta ? (() => {
       const g = grupos.find((x) => x.chave === aberta);
-      return `<div class="turmas-conteudo"><div class="turma-cab"><b>${g.nome}</b><span class="turma-count">${g.lista.length} ${g.lista.length === 1 ? 'pessoa' : 'pessoas'}</span></div>
-        <div class="ppl turma-pessoas">${g.lista.length ? g.lista.map((p) => editar
+      return `<div class="lista-aberta">
+        ${g.lista.length ? `<div class="ppl">${g.lista.map((p) => editar
           ? linhaPessoa(p, { funcao: false, simples: true })
-          : `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span><span class="pp-l2"><span class="pp-limp">🧹 Turma ${p.limpeza || '—'}</span></span></div></div>`).join('')
-          : '<p class="muted" style="margin:0">Ninguém nesta turma.</p>'}</div>
+          : `<div class="pp"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span><span class="badge pp-limp">🧹 Turma ${p.limpeza || '—'}</span></div></div>`).join('')}</div>`
+          : '<p class="nota">Ninguém nesta turma.</p>'}
         ${editar && turmaAtiva ? disponiveis.length ? `<form id="f-limpeza-atribuir" class="limpeza-atribuir" data-t="${turmaAtiva.chave}">
           <label class="field">Adicionar pessoa nesta turma<select id="limpeza-pessoa" required><option value="">— escolha uma pessoa —</option>${disponiveis.map((p) => `<option value="${p.id}">${esc(p.nome)}${ehCurimba(p) ? ' · Curimba' : ` · ${esc(FUNCOES.find((f) => f.k === p.funcao)?.label || p.funcao)}`}</option>`).join('')}</select></label>
-          <button class="btn primary" type="submit">＋ Adicionar à turma</button></form>`
-          : '<p class="muted" style="margin:0">Não há pessoas sem turma de limpeza para adicionar.</p>' : ''}</div>`;
-    })() : ''}</div>`;
+          <button class="btn primary" type="submit">＋ Adicionar</button></form>`
+          : '<p class="nota">Não há pessoas sem turma de limpeza para adicionar.</p>' : ''}</div>`;
+    })() : ''}
+    ${curimba}</div>`;
 }
 
 const nomeFuncao = (p) => (p.funcao === 'extra' ? 'at. extra' : 'médium de passe');
@@ -121,7 +124,7 @@ function resumoLinhas(p) {
       ? (!ls.length ? `⚠️ Nenhuma marcada: não atua como ${nomeFuncao(p)} em nenhuma gira (cambona).`
         : todasMarcadas(c, ls) ? `Como ${nomeFuncao(p)} em todas as giras.` : `Como ${nomeFuncao(p)} em: ${rotLinhas(ls)}. Nas outras giras, cambona.`)
       : (ls.length ? `Confiante como ${NOME_CAMPO[c]} em: ${rotLinhas(ls)}.` : `Como ${NOME_CAMPO[c]}: nenhuma marcada (não apto).`);
-    return `<span class="muted" style="font-size:.82rem">${t}</span>`;
+    return `<span class="muted">${t}</span>`;
   }).join('');
 }
 
@@ -137,7 +140,7 @@ function editorLinhas(p, c) {
     : `Marque as entidades em que tem 100% de afinidade e segurança como ${NOME_CAMPO[c]} (o mesmo que a pessoa marca no Perfil). Vale para a Sugestão ${esc(config().sugestao)}.`;
   return `<details class="linhas"${estadoAberto.has(chave) ? ' open' : ''} data-id="${chave}">
     <summary>${resumo}</summary>
-    <p class="muted" style="margin:6px 0;font-size:.82rem">${texto}</p>
+    <p class="nota" style="margin:6px 0">${texto}</p>
     <label class="chip chip-todas"><input type="checkbox" id="ln-${p.id}-${c}-todas" data-act="lnedit" data-c="${c}" data-todas="1" ${todasMarcadas(c, ls) ? 'checked' : ''}> Todas</label>
     ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
       `<label class="chip"><input type="checkbox" id="ln-${p.id}-${c}-${k}" data-act="lnedit" data-c="${c}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}
@@ -150,26 +153,26 @@ function editorLinhas(p, c) {
 function linhaPessoa(p, { funcao = true, acoes = true, simples = false } = {}) {
   if (simples) {
     if (estado.limpezaPessoaEditando === p.id) {
-      return `<div class="pp pp2 pp-editando"><form id="f-limpeza-pessoa-ed" class="pp-form limpeza-pessoa-ed" data-id="${p.id}" autocomplete="off">
-        <b class="nm">${esc(p.nome)}</b>
+      return `<div class="pp pp-editando"><form id="f-limpeza-pessoa-ed" class="pp-form limpeza-pessoa-ed" data-id="${p.id}" autocomplete="off">
+        <div class="pp-l1"><span class="nm">${esc(p.nome)}</span></div>
         <label class="field">Turma da limpeza<select id="limpeza-turma-ed" required><option value="">— escolha a turma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>
         <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelLimpezaPessoa">Cancelar</button></span></form></div>`;
     }
-    return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
-      <span class="pp-l2"><span class="pp-limp" title="Turma da limpeza">🧹 Turma ${p.limpeza || '—'}</span></span>
+    return `<div class="pp"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
+      <span class="pp-l2"><span class="badge pp-limp" title="Turma da limpeza">🧹 Turma ${p.limpeza || '—'}</span></span>
       ${acoes ? `<span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="editarLimpezaPessoa" data-id="${p.id}" aria-label="Editar turma de ${esc(p.nome)}" title="Editar turma"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="limpezaRemoverAsk" data-id="${p.id}" aria-label="Retirar ${esc(p.nome)} da turma da limpeza" title="Retirar da turma"><span aria-hidden="true">🗑️</span></button></span>` : ''}</div></div>`;
   }
   const ed = estado.renomear === p.id;
   if (!ed) {
     // Linha 1: nome (quebra entre palavras se precisar), função, 🧹 turma e os botões; "+ médium de passe" na linha de baixo.
-    return `<div class="pp pp2"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
-        <span class="pp-l2">${funcao && !simples ? `<span class="pp-fn">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
-          <span class="pp-limp" title="Turma da limpeza">🧹 ${simples ? 'Turma ' : ''}${p.limpeza || '—'}</span></span>
+    return `<div class="pp"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
+        <span class="pp-l2">${funcao && !simples ? `<span class="badge pp-fn fn-${p.funcao}">${esc(FUNCOES.find((o) => o.k === p.funcao)?.label || p.funcao)}</span>` : ''}
+          <span class="badge pp-limp" title="Turma da limpeza">🧹 ${simples ? 'Turma ' : ''}${p.limpeza || '—'}</span></span>
         ${acoes ? `<span class="pp-bts"><button class="btn small pp-bt pp-ico" data-act="ren" data-id="${p.id}" aria-label="Editar ${esc(p.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="p" data-id="${p.id}" aria-label="Excluir ${esc(p.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span>` : ''}</div>
-      ${!simples && p.funcao === 'medium' && p.experiente ? '<div class="pp-l3"><span class="pp-fn pp-exp-on">+ médium de passe</span></div>' : ''}
+      ${!simples && p.funcao === 'medium' && p.experiente ? '<div class="pp-l3"><span class="badge new">+ médium de passe</span></div>' : ''}
       ${!simples && camposDe(p).length ? `<div class="pp-res">${resumoLinhas(p)}</div>` : ''}</div>`;
   }
-  return `<div class="pp pp2 pp-editando"><form id="f-ren" class="pp-form" data-id="${p.id}" data-simples="${simples ? '1' : '0'}" autocomplete="off">
+  return `<div class="pp pp-editando"><form id="f-ren" class="pp-form" data-id="${p.id}" data-simples="${simples ? '1' : '0'}" autocomplete="off">
       <div class="pp-l1"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Nome de ${esc(p.nome)}">
         <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelren">Cancelar</button></span></div>
       <div class="pp-l2">${funcao && !simples ? `<select id="ren-func" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>` : ''}
@@ -188,16 +191,16 @@ document.addEventListener('toggle', (e) => {
   }
 }, true);
 
-// Curimba: só nome e turma da limpeza (não entra na presença nem no sorteio).
+// Curimba: só nome e turma da limpeza (não entra na presença nem no sorteio). Sub-bloco dentro de Turmas da limpeza.
 function cardCurimba(todas, editar) {
   const cs = todas.filter(ehCurimba);
   if (!cs.length) return '';
   const aberto = !!estado.curimbaAberta && !estado.limpezaTurmaAberta;
-  let h = `<div class="card pp-card fn-curimba">${cabDobra('dobrarcurimba', '🧹 Limpeza extra(curimba)', cs.length, aberto)}`;
+  let h = `<div class="sub-bloco fn-curimba">${cabDobra('dobrarcurimba', 'Limpeza extra (curimba)', cs.length, aberto)}`;
   if (!aberto) return h + `</div>`;
-  h += `<p class="muted" style="margin:0;font-size:.85rem">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
+  h += `<p class="nota">Fazem parte das turmas da limpeza, mas não contam presença nem falta e não entram no sorteio.</p>`;
   h += `<div class="ppl">${cs.map((p) => (editar ? linhaPessoa(p, { funcao: false })
-    : `<div class="pp" style="grid-template-columns:minmax(0,1fr) auto"><span class="nm">${esc(p.nome)}</span>${p.limpeza ? `<span class="muted" style="font-size:.85rem">🧹 Turma ${p.limpeza}</span>` : ''}</div>`)).join('')}</div>`;
+    : `<div class="pp"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>${p.limpeza ? `<span class="badge pp-limp">🧹 Turma ${p.limpeza}</span>` : ''}</div></div>`)).join('')}</div>`;
   return h + `</div>`;
 }
 
@@ -237,59 +240,79 @@ function cardAdicionar(ps) {
       <label class="field">Motivo (opcional)<input type="text" id="lic-m" maxlength="200" placeholder="Ex.: Férias, Gravidez…" value="${esc(R.m || '')}"></label>
       <button class="btn primary" type="submit">Adicionar</button></form>
       ${historicoLicencas(ps.find((p) => p.id === sel))}
-      <p class="muted" style="margin:0;font-size:.85rem">Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p>`;
+      <p class="nota">Quem estiver de licença fica fora do sorteio e aparece como “de licença” na gira. A licença sai da lista sozinha depois da data final.</p>`;
   } else {
     h += `<form id="f-curimba" class="row" autocomplete="off">
       <label class="field grow">Nome<input type="text" id="cur-nome" placeholder="Um nome, ou vários separados por vírgula" maxlength="4000"></label>
       <button class="btn primary" type="submit">Adicionar</button></form>
-      <p class="muted" style="margin:0;font-size:.85rem">A curimba entra nas turmas da limpeza, mas não conta presença nem falta e não entra no sorteio.</p>`;
+      <p class="nota">A curimba entra nas turmas da limpeza, mas não conta presença nem falta e não entra no sorteio.</p>`;
   }
   return h + `</div>`;
 }
 
 // ---------- alunos da CPJ: um sub-bloco por turma ----------
-function cabecalhoTurma(g, editar) {
-  if (!editar || !g.id || g.id === 'sem') return `<div class="al-gh-l"><h3>${esc(g.nome)}</h3></div>`;
-  if (estado.editTurma === g.id) {
-    return `<form id="f-turma-ed" class="al-gh-l" data-id="${g.id}" autocomplete="off"><input type="text" id="turma-nome" value="${esc(g.nome)}" maxlength="40" aria-label="Nome da turma">
+// Escolhendo quem promover (UP CPJ) nesta turma?
+const promovendo = (g) => estado.alunosPromover?.turma === g.id;
+
+// Turma aberta (quem edita Alunos): Adicionar alunos, UP CPJ, Editar turma e Remover turma numa linha; em Editar, o nome da turma.
+// UP CPJ abre a escolha: uma caixinha em cada aluno e, aqui, Cancelar / Confirmar.
+function acoesTurma(g, editar, podePromover) {
+  if (!editar || !g.id) return '';
+  const real = g.id !== 'sem';   // "Sem turma" não se edita nem recebe alunos novos
+  if (promovendo(g)) {
+    const { ids, enviando } = estado.alunosPromover;
+    return `<div class="al-promover-bar"><p class="nota">Marque quem vai para a <b>Corrente CPJ</b> como Cambone. O acesso passa de “alunos” para “cpj” e o nome usado como senha é mantido.</p>
+      <div class="pp-bts"><button class="btn small pp-bt" type="button" data-act="cancelarPromover"${enviando ? ' disabled' : ''}>Cancelar</button><button class="btn small primary pp-bt" type="button" data-act="confirmarPromover"${ids.length && !enviando ? '' : ' disabled'}>${enviando ? 'Promovendo…' : `Confirmar${ids.length ? ` (${ids.length})` : ''}`}</button></div></div>`;
+  }
+  if (real && estado.editTurma === g.id) {
+    return `<form id="f-turma-ed" class="al-turma-ed" data-id="${g.id}" autocomplete="off"><input type="text" id="turma-nome" value="${esc(g.nome)}" maxlength="40" aria-label="Nome da turma">
       <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelturma">Cancelar</button></span></form>`;
   }
-  return `<div class="al-gh-l"><h3>${esc(g.nome)}</h3><span class="pp-bts"><button class="btn small pp-bt" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}">Editar turma</button><button class="btn small pp-bt" data-act="excluirask" data-tipo="turma" data-id="${g.id}" aria-label="Remover ${esc(g.nome)}">Remover turma</button></span></div>`;
+  const add = real && estado.alunosAdicionarTurma === g.id;
+  const up = podePromover && g.lista.length;
+  if (!real && !up) return '';
+  return `<div class="al-acoes">${real && !add ? `<button class="btn small" type="button" data-act="abrirAddAlunosTurma" data-id="${g.id}">＋ Adicionar alunos</button>` : ''}${up ? `<button class="btn small al-promover" type="button" data-act="abrirPromover" data-id="${esc(g.id)}" aria-label="Promover alunos de ${esc(g.nome)} para a Corrente CPJ">↑ UP CPJ</button>` : ''}${real ? `<span class="pp-bts"><button class="btn small pp-ico" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}" title="Editar turma"><span aria-hidden="true">✎</span></button><button class="btn small pp-ico pp-del" data-act="excluirask" data-tipo="turma" data-id="${g.id}" aria-label="Remover ${esc(g.nome)}" title="Remover turma"><span aria-hidden="true">🗑️</span></button></span>` : ''}</div>
+    ${add ? `<form id="f-alunos-turma" class="al-add-form" data-id="${g.id}" autocomplete="off">
+      <label class="field">Nome do aluno (ou vários separados por vírgula)<input type="text" id="alunos-turma-nomes" maxlength="4000" required autocomplete="off"></label>
+      <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Adicionar</button><button class="btn small pp-bt" type="button" data-act="cancelarAddAlunosTurma">Cancelar</button></span></form>` : ''}`;
 }
 
-function linhaAluno(a, turmas, editar, podePromover) {
-  if (!editar) return `<div class="al-l"><span class="nm">${esc(a.nome)}</span></div>`;
+function linhaAluno(a, turmas, editar, escolhendo) {
+  if (!editar) return `<div class="pp al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span></div></div>`;
+  // Escolhendo quem promover: a linha inteira marca/desmarca a caixinha; os outros botões somem.
+  if (escolhendo) {
+    const marcado = estado.alunosPromover.ids.includes(a.id);
+    return `<label class="pp al-l al-sel"><span class="pp-l1"><input type="checkbox" data-act="promoverSel" data-id="${a.id}" ${marcado ? 'checked' : ''}${estado.alunosPromover.enviando ? ' disabled' : ''}><span class="nm">${esc(a.nome)}</span></span></label>`;
+  }
   if (estado.editAluno === a.id) {
-    return `<form id="f-aluno" class="al-l al-ed" data-id="${a.id}" autocomplete="off">
+    return `<form id="f-aluno" class="pp pp-editando pp-form al-l" data-id="${a.id}" autocomplete="off">
       <div class="pp-l1"><input type="text" id="al-nome" value="${esc(a.nome)}" maxlength="80" aria-label="Nome de ${esc(a.nome)}">
         <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelaluno">Cancelar</button></span></div>
       <label class="al-turma">Turma <select id="al-turma" aria-label="Turma de ${esc(a.nome)}">${!a.turmaId ? '<option value="" selected>Sem turma</option>' : ''}${turmas.map((t) => `<option value="${t.id}" ${t.id === a.turmaId ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></label></form>`;
   }
-  return `<div class="al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
-    <span class="pp-bts">${pode('usuarios:gerenciar') ? `<button class="btn small pp-bt pp-ico" type="button" data-act="senhaaluno" data-id="${a.id}" data-nome="${esc(a.nome)}" aria-label="Definir senha de ${esc(a.nome)}" title="Definir senha"><span aria-hidden="true">🔑</span></button>` : ''}${podePromover ? `<button class="btn small pp-bt al-promover" type="button" data-act="promoverAlunoCPJ" data-id="${a.id}" aria-label="Promover ${esc(a.nome)} para a Corrente CPJ">↑ UP CPJ</button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
+  return `<div class="pp al-l"><div class="pp-l1"><span class="nm">${esc(a.nome)}</span>
+    <span class="pp-bts">${pode('usuarios:gerenciar') ? `<button class="btn small pp-bt pp-ico" type="button" data-act="senhaaluno" data-id="${a.id}" data-nome="${esc(a.nome)}" aria-label="Definir senha de ${esc(a.nome)}" title="Definir senha"><span aria-hidden="true">🔑</span></button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
 }
 
 function cardAlunos() {
   const A = estado.alunos;
-  if (!A) return `<div class="card pp-card fn-alunos"><h2>🎓 Alunos</h2><div class="loading">Carregando alunos…</div></div>`;
+  // Começa minimizado (a contagem fica no título).
+  const aberto = !!estado.alunosAberto;
+  const cab = `<div class="card pp-card fn-alunos">${cabDobra('dobraralunos', '🎓 Alunos', A ? `${A.alunos.length} aluno${A.alunos.length === 1 ? '' : 's'}` : '', aberto)}`;
+  if (!aberto) return cab + '</div>';
+  if (!A) return cab + `<div class="loading">Carregando alunos…</div></div>`;
   const editar = pode('alunos:editar');
   const podePromover = pode('pessoas:editar');
   const grupos = A.turmas.map((t) => ({ id: t.id, nome: t.nome, lista: [] }));
   const porTurma = new Map(grupos.map((g) => [g.id, g]));
   for (const aluno of A.alunos) porTurma.get(aluno.turmaId)?.lista.push(aluno);
   const aberta = grupos.some((g) => g.id === estado.alunosTurmaAberta) ? estado.alunosTurmaAberta : null;
-  let h = `<div class="card pp-card fn-alunos"><div class="grp-h turmas-cab"><h2>🎓 Alunos</h2><span class="count">${A.alunos.length}</span></div>
-    <div class="contagem-quadrados">${grupos.map((g) => `<button type="button" class="fn-alunos${aberta === g.id ? ' selecionado' : ''}" data-act="alunosTurma" data-t="${esc(g.id)}" aria-expanded="${aberta === g.id}" aria-label="${esc(g.nome)}: ${g.lista.length} ${g.lista.length === 1 ? 'aluno' : 'alunos'}${aberta === g.id ? ', recolher lista' : ', expandir lista'}"${g.id === 'sem' && !g.lista.length ? ' disabled' : ''}><span class="muted">${esc(g.nome)}</span><b>${g.lista.length}</b></button>`).join('')}</div>`;
+  let h = `${cab}
+    <div class="pf-of-totais auto">${grupos.map((g) => `<button type="button" class="pf-of-total fn-alunos${aberta === g.id ? ' selecionado' : ''}" data-act="alunosTurma" data-t="${esc(g.id)}" aria-expanded="${aberta === g.id}" aria-label="${esc(g.nome)}: ${g.lista.length} ${g.lista.length === 1 ? 'aluno' : 'alunos'}${aberta === g.id ? ', recolher lista' : ', expandir lista'}"${g.id === 'sem' && !g.lista.length ? ' disabled' : ''}><b>${g.lista.length}</b><span>${esc(g.nome)}</span></button>`).join('')}</div>`;
   if (!aberta) return h + '</div>';
   const g = grupos.find((x) => x.id === aberta);
-  h += `<div class="turmas-conteudo al-grupos"><div class="al-grupo">${cabecalhoTurma(g, editar)}
-      ${editar && g.id !== 'sem' ? `<div class="al-add-wrap">
-        ${estado.alunosAdicionarTurma === g.id ? `<form id="f-alunos-turma" class="al-add-form" data-id="${g.id}" autocomplete="off">
-          <label class="field">Nome do aluno (ou vários separados por vírgula)<input type="text" id="alunos-turma-nomes" maxlength="4000" required autocomplete="off"></label>
-          <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Adicionar</button><button class="btn small pp-bt" type="button" data-act="cancelarAddAlunosTurma">Cancelar</button></span></form>`
-          : `<button class="btn small pp-bt" type="button" data-act="abrirAddAlunosTurma" data-id="${g.id}">＋ Adicionar alunos</button>`}
-      </div>` : ''}
-      ${g.lista.length ? `<div class="al-lista">${g.lista.map((a) => linhaAluno(a, A.turmas, editar, podePromover)).join('')}</div>` : '<p class="muted" style="margin:4px 0 0;font-size:.9rem">Nenhum aluno nesta turma.</p>'}</div></div>`;
+  h += `<div class="lista-aberta">${acoesTurma(g, editar, podePromover)}
+      ${g.lista.length ? `<div class="ppl">${g.lista.map((a) => linhaAluno(a, A.turmas, editar, promovendo(g))).join('')}</div>` : '<p class="nota">Nenhum aluno nesta turma.</p>'}</div>`;
   return h + '</div>';
 }
 
@@ -354,16 +377,16 @@ function renderPessoas() {
   const funcaoCorrenteAberta = estado.correnteFuncaoAberta;
   const pessoasPorFuncao = Object.fromEntries(ORDEM_FUNCOES.map((f) => [f.k, ps.filter((p) => p.funcao === f.k)]));
   const correnteListaAberta = pessoasPorFuncao[funcaoCorrenteAberta]?.length ? funcaoCorrenteAberta : null;
-  // Ordem: Adicionar, Corrente (com as licenças e, embaixo, Oferendas pendentes), Turmas da limpeza (com Curimba), Alunos.
-  h += `<div class="card corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> CORRENTE CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
+  // Ordem: Adicionar, Corrente (com Oferendas pendentes e, embaixo, as licenças), Turmas da limpeza (com Curimba), Alunos.
+  h += `<div class="card pp-card fn-corrente corrente-card"><div class="grp-h"><h2><span class="estrela-ouro" aria-hidden="true">★</span> Corrente CPJ</h2><span class="count">${ps.length} pessoa${ps.length === 1 ? '' : 's'}</span></div>
     <div class="pf-of-totais">${ORDEM_FUNCOES.map((f) => {
       const abertas = pessoasPorFuncao[f.k];
       const aberta = funcaoCorrenteAberta === f.k;
       // Mesmo quadrado do bloco Oferendas pendentes (pf-of-total): nome em cima, número embaixo.
       return `<button type="button" class="pf-of-total fn-${f.k}${aberta ? ' selecionado' : ''}" data-act="correnteFuncao" data-f="${f.k}" aria-expanded="${aberta}" aria-label="${f.pl}: ${abertas.length} pessoas${aberta ? ', recolher lista' : ', expandir lista'}"${abertas.length ? '' : ' disabled'}><b>${abertas.length}</b><span>${f.k === 'extra' ? 'At. Extra' : f.pl}</span></button>`;
     }).join('')}</div>
-    ${correnteListaAberta ? `<div class="corrente-pessoas"><div class="ppl">${pessoasPorFuncao[correnteListaAberta].map((p) => linhaPessoa(p)).join('')}</div></div>` : ''}
-    ${listaLicencas(ps, editar)}${cardOferendasPendentes()}</div>`;   // licença: só a corrente
+    ${correnteListaAberta ? `<div class="ppl">${pessoasPorFuncao[correnteListaAberta].map((p) => linhaPessoa(p, { acoes: editar })).join('')}</div>` : ''}
+    ${cardOferendasPendentes()}${listaLicencas(ps, editar)}</div>`;   // licença: só a corrente
   h += cardTurmas(todas, editar);
   if (verAlunos) h += cardAlunos();
   return h + '</section>';
@@ -374,6 +397,17 @@ export const cliques = {
   pfdobra: (el) => cliquesPerfil.pfdobra(el),
   pfofertas: (el) => cliquesPerfil.pfofertas(el),
   dobraradd() { estado.addAberto = !(estado.addAberto ?? !pessoasOrd().some((p) => !ehCurimba(p))); avisar(); },
+  // Turmas da limpeza e Alunos: tocar no título minimiza/abre (minimizar fecha a turma aberta).
+  dobrarlimpeza() {
+    estado.limpezaAberto = !estado.limpezaAberto;
+    if (!estado.limpezaAberto) { estado.limpezaTurmaAberta = null; estado.curimbaAberta = false; estado.limpezaPessoaEditando = null; }
+    avisar();
+  },
+  dobraralunos() {
+    estado.alunosAberto = !estado.alunosAberto;
+    if (!estado.alunosAberto) { estado.alunosTurmaAberta = null; estado.alunosAdicionarTurma = null; estado.editAluno = null; estado.editTurma = null; if (!estado.alunosPromover?.enviando) estado.alunosPromover = null; }
+    avisar();
+  },
   dobrarcurimba() {
     estado.curimbaAberta = !estado.curimbaAberta;
     if (estado.curimbaAberta) { estado.limpezaTurmaAberta = null; estado.correnteFuncaoAberta = null; }
@@ -392,6 +426,7 @@ export const cliques = {
   alunosTurma(el) {
     estado.alunosTurmaAberta = estado.alunosTurmaAberta === el.dataset.t ? null : el.dataset.t;
     estado.alunosAdicionarTurma = null;
+    if (!estado.alunosPromover?.enviando) estado.alunosPromover = null;
     avisar();
   },
   abrirAddAlunosTurma(el) {
@@ -400,7 +435,14 @@ export const cliques = {
     document.getElementById('alunos-turma-nomes')?.focus();
   },
   cancelarAddAlunosTurma() { estado.alunosAdicionarTurma = null; avisar(); },
-  promoverAlunoCPJ,
+  // UP CPJ: escolhe os alunos da turma aberta e, no Confirmar, promove um por um para a Corrente como Cambone.
+  abrirPromover(el) {
+    estado.alunosPromover = { turma: el.dataset.id, ids: [], enviando: false };
+    estado.alunosAdicionarTurma = null; estado.editAluno = null; estado.editTurma = null;
+    avisar();
+  },
+  cancelarPromover() { estado.alunosPromover = null; avisar(); },
+  confirmarPromover,
   async atribuirLimpeza(form) {
     const pessoaId = document.getElementById('limpeza-pessoa')?.value;
     if (!pessoaId) { toast('Escolha uma pessoa.'); return; }
@@ -534,6 +576,7 @@ export async function renomear(form) {
   if (await atualizarPessoa(id, patch)) {
     if (novaTurmaLimpeza) {
       estado.limpezaTurmaAberta = novaTurmaLimpeza;
+      estado.limpezaAberto = true;
       estado.curimbaAberta = false;
       estado.correnteFuncaoAberta = null;
       avisar();
@@ -562,6 +605,13 @@ export const mudancas = {
     if (campo) campo.hidden = t.value !== ALUNO;
   },
   turmasel(t) { estado.turmaSel = t.value; },
+  // UP CPJ: marca/desmarca o aluno (o número no Confirmar acompanha).
+  promoverSel(t) {
+    const sel = estado.alunosPromover;
+    if (!sel) return;
+    sel.ids = t.checked ? [...new Set([...sel.ids, t.dataset.id])] : sel.ids.filter((x) => x !== t.dataset.id);
+    avisar();
+  },
   licpessoa(t) { guardarRascunhoLic(); estado.licPessoa = t.value; estado.editLicH = null; avisar(); },
   exp(t) { atualizarPessoa(t.dataset.id, { experiente: t.checked }); },
   func(t) { atualizarPessoa(t.dataset.id, { funcao: t.value }); },
@@ -660,13 +710,28 @@ export async function salvarAluno(form) {
   if (await acaoAlunos('aluno', { id, ...patch })) toast('Aluno alterado.');
 }
 
-async function promoverAlunoCPJ(el) {
-  const aluno = estado.alunos?.alunos.find((a) => a.id === el.dataset.id);
-  if (!aluno) { toast('Aluno não encontrado. Atualize a tela e tente novamente.'); return; }
-  if (!confirm(`Promover ${aluno.nome} para a Corrente como Cambone?\n\nO acesso passará de “alunos” para “cpj”. O nome usado como senha será mantido.`)) return;
-  const r = await acaoAlunos('promoverAlunoCPJ', { id: aluno.id });
-  if (!r) return;
-  toast(`${aluno.nome} foi promovido(a) para a Corrente como Cambone.`);
+// Confirmar do UP CPJ: promove os marcados um por um. Se um falhar (o erro aparece na tela), para ali e
+// deixa marcados só os que faltaram, para tentar de novo.
+async function confirmarPromover() {
+  const sel = estado.alunosPromover;
+  if (!sel || sel.enviando || !sel.ids.length) return;
+  sel.enviando = true;
+  avisar();
+  const feitos = [];
+  for (const id of sel.ids) {
+    const aluno = estado.alunos?.alunos.find((a) => a.id === id);
+    if (!aluno) continue;
+    if (!(await acaoAlunos('promoverAlunoCPJ', { id }))) {
+      sel.ids = sel.ids.filter((x) => !feitos.some((f) => f.id === x));
+      sel.enviando = false;
+      avisar();
+      return;
+    }
+    feitos.push(aluno);
+  }
+  estado.alunosPromover = null;
+  avisar();
+  if (feitos.length) toast(feitos.length === 1 ? `${feitos[0].nome} foi promovido(a) para a Corrente como Cambone.` : `${feitos.length} alunos promovidos para a Corrente como Cambone.`);
 }
 
 // Turma em Editar: salva o novo nome.
