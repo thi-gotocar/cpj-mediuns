@@ -64,6 +64,8 @@ function validarFoto(foto) {
 
 // O aluno só acessa o próprio registro: o id vem da sessão, nunca do pedido.
 const exigirSenhaAluno = (eu) => { if (!eu.temSenha) throw new HttpError(403, 'Crie a sua senha para abrir o Perfil.'); };
+// Corrente (acesso cpj): Perfil e Anamnese só depois de criar a senha.
+const exigirSenhaCorrente = (eu) => { if (eu.papel === 'corrente' && !eu.temSenha) throw new HttpError(403, 'Crie a sua senha para abrir o Perfil.'); };
 
 async function perfilAluno(req, eu) {
   exigirSenhaAluno(eu);
@@ -157,6 +159,7 @@ const acoes = {
     const eu = await exigir(req);
     if (eu.grupo === 'alunos') return perfilAluno(req, eu);
     if (eu.grupo) throw new HttpError(403, 'Este acesso não tem perfil pessoal.');
+    exigirSenhaCorrente(eu);
     const limpo = (r) => ({ ...r, perfil: perfilDaFuncao(r.perfil, r.funcao) });
     if (req.method === 'GET') {
       const r = { eu: eu.pessoaId ? limpo(await db.rpc('perfil_ler', { pessoaId: eu.pessoaId })) : null };
@@ -223,6 +226,7 @@ const acoes = {
   async anamnese(req) {
     const eu = await exigir(req);
     if (eu.grupo) throw new HttpError(403, 'Este acesso não tem Anamnese.');
+    exigirSenhaCorrente(eu);
     const admin = pode(eu, 'perfil:corrente');
     const resposta = (E) => ({
       visivel: E.visivel !== false,

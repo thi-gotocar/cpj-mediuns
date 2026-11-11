@@ -476,8 +476,17 @@ function renderAluno() {
   return `<section class="panel pf-tela">${cardInfo(eu)}${cardEspiritual(eu.perfil)}${janelaInfo()}</section>`;
 }
 
+// Corrente (acesso cpj) sem senha: a aba aparece, mas o perfil só abre depois de criar a senha (aviso em janela).
+function renderSemSenha() {
+  const aviso = U().semSenhaFechado ? '' : `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="pf-ss-t"><div class="modal"><h3 id="pf-ss-t">🔒 Crie uma senha</h3>
+    <p style="margin:0">Para ver o seu perfil, você precisa criar uma senha.</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="pfsemsenhafechar">Agora não</button><button class="btn primary" data-act="pfcriarsenha">Criar senha</button></div></div></div>`;
+  return `<section class="panel pf-tela"><div class="card"><div class="grp-h"><h2><span aria-hidden="true">🔒</span> Perfil</h2></div><p class="muted" style="margin:0">Para abrir o seu perfil, crie a sua senha no botão <b>🔒 Criar senha</b>, no topo da tela.</p></div>${aviso}</section>`;
+}
+
 export function render() {
   if (soAluno()) return renderAluno();
+  if (estado.me?.corrente && !estado.me.temSenha && visaoAtiva() !== 'root') return renderSemSenha();
   if (estado.perfil === null) { carregarPerfil(); return `<div class="loading">Carregando perfil…</div>`; }
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;
@@ -503,6 +512,8 @@ export function render() {
 }
 
 export const cliques = {
+  pfsemsenhafechar() { U().semSenhaFechado = true; avisar(); },
+  pfcriarsenha() { U().semSenhaFechado = true; avisar(); document.querySelector('[data-conta="criarsenha"]')?.click(); },
   // Anamnese (pessoa): Editar e Salvar abrem a janela de confirmação.
   anaeditar() { U().anaConf = 'editar'; avisar(); },
   anasalvar() { U().anaRasc = lerAnamneseTela(); U().anaConf = 'salvar'; avisar(); },
