@@ -67,6 +67,13 @@ export function estatisticasPorPessoa(oferendas) {
 export const abasOcultas = (abas) => new Set(abas.filter((a) => !a.iemanja && !a.visivel).map((a) => a.id));
 export const temAbaPublica = (abas) => abas.some((a) => !a.iemanja && a.visivel);
 
+// Detalhes da sub-aba (o admin escreve, todos leem e vai no começo da lista compartilhada): até 10 linhas.
+export const DETALHES_LINHAS = 10;
+export const DETALHES_MAX = 1500;
+// Sem espaço no fim das linhas nem linhas vazias no começo e no fim.
+export const limparDetalhes = (s) => String(s ?? '').replace(/\r\n?/g, '\n').split('\n').map((l) => l.trimEnd()).join('\n').replace(/^\n+|\n+$/g, '');
+export const linhasDetalhes = (s) => (s ? s.split('\n').length : 0);
+
 // Cor do percentual: verde com 100%, amarelo de 50% a 99%, vermelho abaixo de 50%.
 export const faixaPct = (pct) => (pct >= 100 ? 'cheio' : pct >= 50 ? 'meio' : 'baixo');
 
@@ -127,8 +134,10 @@ function semana(s) {
 export const textoEntrega = (item) => (item.entrega ? dataBR(item.entrega) : 'no dia do evento');
 
 // Texto para o WhatsApp: itens, quantidade, responsáveis e data de entrega.
-export function textoOferenda(of) {
+// detalhes: o texto da sub-aba, logo abaixo do cabeçalho.
+export function textoOferenda(of, detalhes = '') {
   const L = [`*OFERENDA · ${of.titulo}*`, `${dataBR(of.data)} (${semana(of.data)})`, ...(of.responsavel ? [`Responsável: ${of.responsavel}`] : []), ''];
+  if (detalhes) L.push(detalhes, '');
   if (of.porMedium && (of.mediuns || []).length) {
     const c = contagemMediuns(of);
     L.push(`*Pessoas* (${of.mediuns.length}) · Pago ${c.pago} · Não pago ${c.nao_pago} · Entregue ${c.entregue} · Pendente ${c.pendente}`);

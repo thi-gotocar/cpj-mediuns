@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 99;  // v99: abertura do app em uma consulta e "nada mudou" ao voltar
+export const VERSAO = 100;  // v100: Detalhes de cada sub-aba de Oferendas
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3425,6 +3425,20 @@ export const MIGRACOES = [
                                     'ervasPublicada', ervas_publicada('{}'::jsonb), 'iemanja', iemanja_resumo('{}'::jsonb));
      end if;
      return r;
+   end;
+   $$`,
+  // ================================================== v100: Detalhes de cada sub-aba de Oferendas (texto do admin para o pessoal)
+  `alter table oferenda_abas add column if not exists detalhes text not null default ''`,
+  `create or replace function oferenda_abas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'iemanja', iemanja, 'visivel', visivel, 'detalhes', detalhes) order by ordem), '[]'::jsonb) from oferenda_abas
+   $$`,
+  `create or replace function oferenda_aba_detalhes(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferenda_abas set detalhes = coalesce(p ->> 'detalhes', '') where id = (p ->> 'id')::uuid and not iemanja;
+     if not found then raise exception 'Sub-aba não encontrada.'; end if;
+     return oferenda_abas_listar();
    end;
    $$`,
 ];

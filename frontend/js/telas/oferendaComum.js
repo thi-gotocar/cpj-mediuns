@@ -107,10 +107,13 @@ function podeCompartilhar(img) {
   try { return !!(navigator.canShare && navigator.canShare({ files: [new File([img.blob], img.nome, { type: 'image/png' })] })); } catch { return false; }
 }
 
+// Texto do "Compartilhar lista": com os Detalhes da sub-aba da oferenda no começo (a Iemanjá não tem).
+export const textoCompartilhar = (of) => textoOferenda(of, (estado.oferendas?.abas || []).find((a) => a.id === of.abaId && !a.iemanja)?.detalhes || '');
+
 export function painelCompartilhar(of) {
   const u = U();
   if (u.compartilhar !== of.id) return '';
-  const txt = textoOferenda(of);
+  const txt = textoCompartilhar(of);
   const img = u.img && u.img.id === of.id && u.img.chave === txt ? u.img : null;
   return `<div class="grp exp"><textarea id="of-txt-${of.id}" readonly aria-label="Lista para compartilhar">${esc(txt)}</textarea>
       <div class="row"><button class="btn primary" data-act="copiarof" data-id="${of.id}">Copiar</button>

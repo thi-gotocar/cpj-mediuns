@@ -605,6 +605,17 @@ test('oferendas: alunos por turma nos grupos', async () => {
   assert.ok(gruposParaEnviar(['corrente']).every(grupoOferendaValido));
 });
 
+test('oferendas: Detalhes da sub-aba — limpeza, linhas e no começo da lista compartilhada', async () => {
+  const { limparDetalhes, linhasDetalhes, textoOferenda } = await import('../shared/oferendas.js');
+  assert.equal(limparDetalhes('\n\nRoupa branca.  \r\nChegar 19h\n\n'), 'Roupa branca.\nChegar 19h');
+  assert.equal(limparDetalhes(null), '');
+  assert.deepEqual(['', 'a', 'a\nb'].map(linhasDetalhes), [0, 1, 2]);
+  const of = { titulo: 'Caboclos', data: '2027-01-20', responsavel: 'Ana', itens: [{ nome: 'Velas', quantidade: 2, doacoes: [] }] };
+  const txt = textoOferenda(of, 'Roupa branca.\nChegar 19h');
+  assert.ok(txt.indexOf('Responsável: Ana') < txt.indexOf('Roupa branca.') && txt.indexOf('Chegar 19h') < txt.indexOf('*Velas*'));
+  assert.ok(!textoOferenda(of).includes('Roupa branca.'));
+});
+
 test('oferendas: cor do percentual por faixa', async () => {
   const { faixaPct } = await import('../shared/oferendas.js');
   assert.deepEqual([100, 99, 50, 49, 0].map(faixaPct), ['cheio', 'meio', 'meio', 'baixo', 'baixo']);

@@ -175,6 +175,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Só o **root** cria, renomeia, exclui e liga **Visível para todos** nas sub-abas. Só exclui se estiver vazia e sobrar outra de lista; Iemanjá é fixa e segue o Visível para todos do evento.
 - **Visível para todos**: desligado, só quem administra oferendas vê a sub-aba e o que há nela (some também dos compromissos e da aba Geral). Sub-aba nova nasce oculta.
 - Sem nenhuma sub-aba visível (Iemanjá inclusa), a aba **Oferendas** não aparece para quem não administra.
+- **📝 Detalhes** (logo acima de ＋ Nova oferenda, um por sub-aba de lista; a Iemanjá não tem): texto de até 10 linhas que só quem administra oferendas escreve (Salvar; vazio apaga), para deixar informações para o pessoal. Começa minimizado (tocar no título abre e fecha). Quem vê a sub-aba lê, só se houver texto. Vai no começo do **Compartilhar lista** de cada oferenda da sub-aba, logo abaixo do título, data e responsável.
 - **＋ Nova oferenda** pede confirmação antes de criar: na lista, ao tocar em Criar; na Iemanjá, ao tocar no botão.
 - **Seus compromissos** e **Oferendas por pessoa** ficam acima das sub-abas e valem para todas. O compromisso de Iemanjá aparece para quem está num grupo do evento aberto (itens assumidos, grupo, responsável, evento e data).
 - Quem só tem acesso à Iemanjá (alunos) vê a aba Oferendas sem barra de sub-abas, só com ela.

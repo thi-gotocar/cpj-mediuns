@@ -405,6 +405,21 @@ test('perfis admin oferendas e admin ervas: cada um administra só a sua aba', a
   for (const o of lista.filter((x) => x.titulo === 'Teste')) await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: o.id });
 });
 
+test('oferendas: Detalhes da sub-aba — só o admin escreve, todos leem', async () => {
+  const of = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'abaDetalhes', ...b });
+  const abas = (await api('GET', '/api/oferendas', ADMIN)).json.abas;
+  const gerais = abas.find((a) => a.nome === 'Gerais');
+  assert.equal(gerais.detalhes, '');
+  assert.equal((await of(USER, { id: gerais.id, detalhes: 'Oi' })).status, 403);
+  assert.equal((await of(ADMIN, { id: gerais.id, detalhes: Array(11).fill('linha').join('\n') })).status, 400, 'mais de 10 linhas');
+  assert.equal((await of(ADMIN, { id: gerais.id })).status, 400);
+  const r = await of(ADMIN, { id: gerais.id, detalhes: '\nRoupa branca.  \r\nChegar 19h\n' });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.abas.find((a) => a.id === gerais.id).detalhes, 'Roupa branca.\nChegar 19h');
+  assert.equal((await api('GET', '/api/oferendas', USER)).json.abas.find((a) => a.id === gerais.id).detalhes, 'Roupa branca.\nChegar 19h');
+  assert.equal((await of(ADMIN, { id: gerais.id, detalhes: '' })).json.abas.find((a) => a.id === gerais.id).detalhes, '');
+});
+
 test('curimba: alunos da corrente e de fora, aulas e presença; o aluno vê as próprias aulas', async () => {
   assert.equal((await api('GET', '/api/pessoas?lista=curimba', USER)).status, 403);
   assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'curimbaAluno', nome: 'X' })).status, 403);

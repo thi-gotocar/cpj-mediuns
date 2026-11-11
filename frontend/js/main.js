@@ -364,6 +364,12 @@ main.addEventListener('input', (e) => {
     if (linhas.length > 5) e.target.value = linhas.slice(0, 5).join('\n');
     estado.recadoTxt = { data: e.target.dataset.d, texto: e.target.value };
   }
+  // Detalhes da sub-aba de Oferendas: até 10 linhas e guardado para um redesenho não apagar.
+  if (e.target.id === 'of-det') {
+    const linhas = e.target.value.split('\n');
+    if (linhas.length > 10) e.target.value = linhas.slice(0, 10).join('\n');
+    estado.ofUi.detRascunho = { id: e.target.dataset.id, texto: e.target.value };
+  }
   if (e.target.id === 'gira-titulo') estado.tituloTxt = { data: e.target.dataset.d, texto: e.target.value };
   // Texto colado da escala (Histórico): guardado já, para um redesenho não apagar antes de tocar em "Ler escala".
   if (e.target.id === 'es-msg' && estado.escalaTxt) estado.escalaTxt.msg = e.target.value;

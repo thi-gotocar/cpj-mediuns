@@ -4,6 +4,7 @@
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
 //        root:   abaSalvar { id?, nome } · abaVisivel { id, visivel } · abaExcluir { id }  (sub-abas)
 //        admin:  salvar { id?, titulo, data, responsavelId, abaId?, porMedium? (só ao criar) } · excluir { id }
+//                abaDetalhes { id, detalhes }  (texto da sub-aba, até 10 linhas)
 //                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? } · resumo { id, noResumo }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
@@ -15,7 +16,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, linhasDetalhes, DETALHES_LINHAS, DETALHES_MAX } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
@@ -90,6 +91,15 @@ export default rota({
         else await db.rpc('oferenda_aba_excluir', { id: validarId(b.id, 'Sub-aba') });
         estado = await db.rpc('oferendas_estado');
         break;
+      case 'abaDetalhes': {
+        // Texto da sub-aba para o pessoal (vazio apaga).
+        if (typeof b.detalhes !== 'string') throw new HttpError(400, 'Informe os detalhes.');
+        const detalhes = limparDetalhes(b.detalhes);
+        if (linhasDetalhes(detalhes) > DETALHES_LINHAS || detalhes.length > DETALHES_MAX) throw new HttpError(400, `Os detalhes têm no máximo ${DETALHES_LINHAS} linhas.`);
+        await db.rpc('oferenda_aba_detalhes', { id: validarId(b.id, 'Sub-aba'), detalhes });
+        estado = await db.rpc('oferendas_estado');
+        break;
+      }
       case 'salvar': {
         // Responsável: uma pessoa da corrente (obrigatório).
         const resp = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável'));
