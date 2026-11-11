@@ -1,4 +1,4 @@
-// Aba Gira: bloco do ano no topo, para todos. Total de atendimentos do ano, a presença de quem está
+// Aba Gira: bloco do ano no topo, para todos. Total de atendimentos (do ano ou do mês escolhido), a presença de quem está
 // logado (tocar abre gira a gira) e o orixá de cabeça com mais pessoas — os mesmos números do Histórico.
 
 import { presencaDe, naCorrenteEm, contaNaPresenca, nomeEntidadeGira } from '/shared/regras.js';
@@ -26,13 +26,32 @@ function minhaPresenca(encerradas) {
     ${lista}</div>`;
 }
 
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+// Totais de atendimento do período escolhido (ano inteiro ou um mês; começa no ano corrente). Só giras encerradas.
+function totaisDoPeriodo() {
+  const atual = hoje().slice(0, 4);
+  const fechadas = girasLista().filter((g) => g.encerrada && !g.evento);
+  const anos = [...new Set([atual, ...fechadas.map((g) => g.data.slice(0, 4))])].sort().reverse();
+  const ano = anos.includes(estado.atAno) ? estado.atAno : atual;
+  // No ano corrente, só os meses até o atual.
+  const ultimoMes = ano === atual ? Number(hoje().slice(5, 7)) : 12;
+  const mes = Number(estado.atMes) >= 1 && Number(estado.atMes) <= ultimoMes ? Number(estado.atMes) : 0;   // 0 = ano todo
+  const prefixo = ano + (mes ? '-' + String(mes).padStart(2, '0') : '');
+  const gs = fechadas.filter((g) => g.data.startsWith(prefixo));
+  return `<div class="ano-sec"><div class="ano-filtro"><span class="muted">Total de atendimentos</span>
+      <select data-act="atmes" aria-label="Mês dos atendimentos"><option value="0">Ano todo</option>${MESES.slice(0, ultimoMes).map((m, i) => `<option value="${i + 1}" ${i + 1 === mes ? 'selected' : ''}>${m}</option>`).join('')}</select>
+      <select data-act="atano" aria-label="Ano dos atendimentos">${anos.map((a) => `<option ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}</select></div>
+    ${totaisAtendimento(gs)}
+    <span class="muted ano-nota">${gs.length ? `${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'}` : 'Nenhuma gira encerrada neste período'}</span></div>`;
+}
+
 export function cardAno() {
   const ano = hoje().slice(0, 4);
   const encerradas = girasLista().filter((g) => g.encerrada && g.data.startsWith(ano));
-  const giras = encerradas.filter((g) => !g.evento);
   const S = stPerfis();
   const orixa = S && !S.erro ? blocoOrixaCabeca(S) : '';
-  return `<div class="card st ano"><div class="ano-sec"><span class="muted">Total de atendimentos em ${ano}</span>${totaisAtendimento(giras)}</div>
+  return `<div class="card st ano">${totaisDoPeriodo()}
     ${minhaPresenca(encerradas)}
     ${orixa ? `<div class="ano-sec">${orixa}</div>` : ''}</div>`;
 }
@@ -40,4 +59,9 @@ export function cardAno() {
 export const cliquesAno = {
   anopres() { estado.anoPresAberto = !estado.anoPresAberto; avisar(); },
   stcabeca() { estado.stCabecaMais = !estado.stCabecaMais; avisar(); },
+};
+
+export const mudancasAno = {
+  atano(t) { estado.atAno = t.value; avisar(); },
+  atmes(t) { estado.atMes = t.value; avisar(); },
 };

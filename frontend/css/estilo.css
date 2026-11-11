@@ -472,6 +472,9 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .ano-eu{display:grid;grid-template-columns:minmax(0,1fr) 96px auto;align-items:center;gap:8px;width:100%;padding:0;border:0;background:none;color:var(--ink);font:inherit;font-size:.95rem;font-weight:700;text-align:left;cursor:pointer}
 .ano-eu .st-num{font-weight:400}
 .ano-nota{font-size:.8rem}
+.ano-filtro{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ano-filtro > span{flex:1 1 100%}
+.ano-filtro select{width:auto;flex:none;font:inherit;font-size:.9rem;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
 .ano-giras{display:flex;flex-direction:column;gap:2px;font-size:.84rem;background:var(--bg);border-radius:8px;padding:6px 10px;margin-top:2px}
 .ano-gira{display:grid;grid-template-columns:3.2em minmax(0,1fr) auto;gap:8px;align-items:baseline}
 .ano-gira .ano-d{color:var(--muted)}

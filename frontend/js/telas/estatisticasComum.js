@@ -38,17 +38,17 @@ export function stPerfis() {
 
 // Top 3 de um item do Perfil (guia ou orixá), com o % sobre todas as pessoas do cadastro.
 // preencheram: quem escolheu algo (no orixá de cabeça a pessoa pode estar em até 3 linhas, por isso vem do servidor).
-// nomes (só para quem administra o Perfil): "Ver mais" abre todos os itens com as pessoas de cada um.
-export const blocoPerfil = (S, titulo, lista, cor, preencheram = lista.reduce((a, x) => a + x.qtd, 0), nota = '', nomes = null) => {
-  const aberto = !!nomes && !!estado.stCabecaMais;
+// mais: "Ver mais" abre todos os itens; nomes (só para quem administra o Perfil) mostra também as pessoas de cada um.
+export const blocoPerfil = (S, titulo, lista, cor, preencheram = lista.reduce((a, x) => a + x.qtd, 0), nomes = null, mais = false) => {
+  const aberto = mais && !!estado.stCabecaMais;
   const top = aberto ? lista : lista.slice(0, 3);
   return `<div class="st-bloco"><h3>${titulo}</h3>
-    ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b></span>${aberto && nomes[x.nome] ? `<span class="st-det st-pessoas">${nomes[x.nome].map(esc).join(', ')}</span>` : ''}</li>`).join('')}</ol>
-      ${nomes ? `<button class="btn link small" data-act="stcabeca" aria-expanded="${aberto}">${aberto ? 'Ver menos' : 'Ver mais'}</button>` : ''}`
+    ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b></span>${aberto && nomes?.[x.nome] ? `<span class="st-det st-pessoas">${nomes[x.nome].map(esc).join(', ')}</span>` : ''}</li>`).join('')}</ol>
+      ${mais ? `<button class="btn link small" data-act="stcabeca" aria-expanded="${aberto}">${aberto ? 'Ver menos' : 'Ver mais'}</button>` : ''}`
       : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém preencheu ainda.</p>'}
-    <p class="muted" style="margin:0;font-size:.8rem">${nota}Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
+    <p class="muted" style="margin:0;font-size:.8rem">Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
 };
 
 export const blocoOrixaCabeca = (S) => (S.cabeca
-  ? blocoPerfil(S, 'Orixá de cabeça com mais pessoas', S.cabeca, 'or', S.cabecaPessoas, 'Frente, ancestral ou adjunto (cada pessoa conta uma vez por orixá) · ', S.cabecaNomes || null)
+  ? blocoPerfil(S, 'Orixá de cabeça com mais pessoas', S.cabeca, 'or', S.cabecaPessoas, S.cabecaNomes || null, !!S.cabecaNomes || S.cabeca.length > 3)
   : '');

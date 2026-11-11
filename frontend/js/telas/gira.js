@@ -18,7 +18,7 @@ import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './gi
 import { blocoLimpeza, blocoRecado, blocoLicenca, blocoBanho, blocoAusPrevia, blocoAusencia, blocoFaltas, avisoEntidade, contagemPresentes, blocoPedirErvas, blocosOferenda } from './giraInformacoes.js';
 import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra, linhaEscala } from './giraEscala.js';
 import { cardConduta, cliquesConduta, mudancasConduta } from './giraConduta.js';
-import { cardAno, cliquesAno } from './giraAno.js';
+import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
 export { enviarOracao } from './giraTopo.js';
 export { enviarConduta, digitarConduta } from './giraConduta.js';
 
@@ -953,6 +953,7 @@ function janelaPresenca() {
 
 export const mudancas = {
   ...mudancasConduta,
+  ...mudancasAno,
   // “Não poderei ir” usa o valor de presença 'a' (Ausente) no cadastro da gira.
   // A própria pessoa só pode declarar até a véspera.
   async ausencia(t) {
