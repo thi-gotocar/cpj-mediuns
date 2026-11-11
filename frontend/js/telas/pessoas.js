@@ -302,9 +302,11 @@ function cardAlunos() {
   if (!A) return cab + `<div class="loading">Carregando alunos…</div></div>`;
   const editar = pode('alunos:editar');
   const podePromover = pode('pessoas:editar');
-  const grupos = A.turmas.map((t) => ({ id: t.id, nome: t.nome, lista: [] }));
+  // Uma turma por quadradinho e, no fim, "Sem turma" (quem não tem turma ou ficou sem ela ao remover a turma):
+  // a soma dos quadradinhos é sempre o total do título.
+  const grupos = [...A.turmas.map((t) => ({ id: t.id, nome: t.nome, lista: [] })), { id: 'sem', nome: 'Sem turma', lista: [] }];
   const porTurma = new Map(grupos.map((g) => [g.id, g]));
-  for (const aluno of A.alunos) porTurma.get(aluno.turmaId)?.lista.push(aluno);
+  for (const aluno of A.alunos) (porTurma.get(aluno.turmaId) || porTurma.get('sem')).lista.push(aluno);
   const aberta = grupos.some((g) => g.id === estado.alunosTurmaAberta) ? estado.alunosTurmaAberta : null;
   let h = `${cab}
     <div class="pf-of-totais auto">${grupos.map((g) => `<button type="button" class="pf-of-total fn-alunos${aberta === g.id ? ' selecionado' : ''}" data-act="alunosTurma" data-t="${esc(g.id)}" aria-expanded="${aberta === g.id}" aria-label="${esc(g.nome)}: ${g.lista.length} ${g.lista.length === 1 ? 'aluno' : 'alunos'}${aberta === g.id ? ', recolher lista' : ', expandir lista'}"${g.id === 'sem' && !g.lista.length ? ' disabled' : ''}><b>${g.lista.length}</b><span>${esc(g.nome)}</span></button>`).join('')}</div>`;
