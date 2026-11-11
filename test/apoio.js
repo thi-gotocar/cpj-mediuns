@@ -38,7 +38,9 @@ export function prepararBanco() {
   const arq = path.join(dir, 'esquema.sql');
   // Aplica duas vezes para garantir que a migração é idempotente.
   const sql = 'begin;\n' + MIGRACOES.join(';\n') + ';\ncommit;\n';
-  writeFileSync(arq, sql + sql);
+  // Banco novo: algumas funções SQL usam outras criadas mais adiante na lista (em produção elas já existem);
+  // sem conferir o corpo na criação, como o pg_dump faz. O erro de verdade aparece quando o teste chama a função.
+  writeFileSync(arq, 'set check_function_bodies = off;\n' + sql + sql);
   execFileSync('chmod', ['-R', 'a+rX', dir]);
   rodarPsql(['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-d', BANCO, '-f', arq], { stdio: 'pipe' });
 }
