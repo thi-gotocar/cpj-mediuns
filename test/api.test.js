@@ -1610,7 +1610,14 @@ test('gestão de conduta e risco: interruptor do root; só o root lê; quem abri
   assert.equal((await lista(USER))[0].resposta, 'Obrigado, vamos conversar.');
   assert.equal((await lista(ana))[0].resposta, undefined, 'a resposta é só de quem abriu');
   assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'condutaResponder', id, resposta: 'outra' })).status, 400, 'publicada não muda');
+  // Sem identificação: grava sem autor; quem mandou não vê na própria lista, e o root vê sem nome.
+  assert.equal((await relato(ana, { id, texto: 'x', anonimo: true })).status, 400, 'anônimo não edita');
+  const anon = await relato(ana, { texto: 'Prefiro não me identificar', anonimo: true });
+  assert.deepEqual(anon.json.relatos.map((c) => c.texto), ['Relato da Ana'], 'o anônimo não volta para quem mandou');
+  const anonRoot = (await lista(ADMIN)).find((c) => c.texto === 'Prefiro não me identificar');
+  assert.equal(anonRoot.anonimo, true);
+  assert.equal(anonRoot.autorNome, '');
   // Desligar esconde de novo da corrente; o root continua vendo tudo.
-  assert.equal((await ativar(ADMIN, false)).json.relatos.length, 2);
+  assert.equal((await ativar(ADMIN, false)).json.relatos.length, 3);
   assert.deepEqual((await api('GET', '/api/giras?lista=conduta', USER)).json, { ativa: false, relatos: [] });
 });

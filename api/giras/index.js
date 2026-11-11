@@ -12,7 +12,7 @@
 // POST /api/giras  { acao: 'oracao', texto } (qualquer um logado) · { acao: 'excluirOracao', id } (quem pediu ou admin)
 //                  { acao: 'reagirOracao', id } (qualquer um logado; liga/desliga a 🕯️)  → orações
 // GET  /api/giras?lista=conduta — Gestão de Conduta e Risco: o root vê todos os relatos; os outros, só os próprios (e nada com o bloco desligado)
-// POST /api/giras  { acao: 'conduta', id?, texto } (qualquer um logado, com o bloco ligado; editar só o próprio e antes de lido)
+// POST /api/giras  { acao: 'conduta', id?, texto, anonimo? } (qualquer um logado, com o bloco ligado; editar só o próprio e antes de lido; anonimo grava sem autor)
 //                  { acao: 'condutaLer', id } · { acao: 'condutaResponder', id, resposta, publicar? } · { acao: 'condutaAtivar', ativa } (só o root)
 //                  → { ativa, relatos }
 // GET  /api/giras?lista=fotos — álbuns e fotos (aba Fotos), com links assinados do R2  → { albuns, fotos, usado, limite, configurado }

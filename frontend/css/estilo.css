@@ -1464,6 +1464,9 @@ button.eu-av{cursor:zoom-in}
 .cd-resp-ed{border-left-color:var(--off)}
 .cd-resp-t{font-size:.8rem;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .cd-pub{justify-self:start}
+.cd-anon-sw{justify-self:start;font-size:.92rem}
+.cd-anon-nota{margin:0;font-size:.88rem;background:var(--ok-soft);color:var(--ink);border-left:3px solid var(--ok);border-radius:8px;padding:8px 12px}
+.cd-nome.cd-anon{color:var(--muted);font-style:italic}
 .gira-adm.cd-sw{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .cd-sw .muted{font-size:.85rem}
 

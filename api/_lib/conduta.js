@@ -1,6 +1,8 @@
 // Gestão de Conduta e Risco (aba Geral). Rotas em api/giras.
 // Só o admin root lê todos os relatos (com o nome de quem abriu); os outros veem só os próprios
 // e a resposta só depois de publicada (o rascunho do root nunca sai do servidor para eles).
+// Relato sem identificação (anonimo: true): grava sem autor e sem nome — ninguém, nem o root, sabe quem mandou;
+// por isso ele não aparece na lista de quem enviou, não é editado e não tem resposta para alguém ler.
 // Interruptor "Visível para todos" (começa desligado): desligado, só o root vê o bloco; os outros não leem nem abrem relato.
 import { validarId, HttpError } from './http.js';
 import { db } from './db.js';
@@ -22,7 +24,7 @@ export async function condutas(eu, lista, ativa) {
   const on = ativa ?? (await db.rpc('conduta_ativa'));
   if (!ehRoot(eu) && !on) return { ativa: false, relatos: [] };
   const L = lista || (await db.rpc('condutas_listar'));
-  if (ehRoot(eu)) return { ativa: on, relatos: L.map(({ autor, ...c }) => c) };
+  if (ehRoot(eu)) return { ativa: on, relatos: L.map(({ autor, ...c }) => (autor ? c : { ...c, autorNome: '', anonimo: true })) };
   const meu = autorDe(eu);
   return {
     ativa: true,
@@ -36,6 +38,10 @@ export async function acaoConduta(eu, b) {
     if (!ehRoot(eu) && !(await db.rpc('conduta_ativa'))) throw new HttpError(403, 'O bloco Gestão de Conduta e Risco ainda não foi ativado.');
     const texto = validarTexto(b.texto, 'O relato');
     if (!texto) throw new HttpError(400, 'Escreva o relato.');
+    if (b.anonimo === true) {
+      if (b.id) throw new HttpError(400, 'Relato sem identificação não pode ser editado.');
+      return condutas(eu, await db.rpc('conduta_salvar', { id: '', texto, autor: '', autorNome: '' }));
+    }
     const id = b.id ? validarId(b.id, 'Relato') : '';
     return condutas(eu, await db.rpc('conduta_salvar', { id, texto, autor: autorDe(eu), autorNome: eu.nome || '' }));
   }
