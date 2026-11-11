@@ -37,14 +37,16 @@ export function foraDaGira(pessoas, g) {
 }
 
 // Aniversariantes no dia da gira e no dia seguinte (dia/mês do Perfil): "Nome (dd/mm)", por data e nome.
-export function aniversariantesDaGira(pessoas, g) {
+function quemFazAniversario(pessoas, g) {
   const d = pd(g.data);
   const amanha = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
   const dias = [g.data.slice(5), `${String(amanha.getMonth() + 1).padStart(2, '0')}-${String(amanha.getDate()).padStart(2, '0')}`];
   return pessoas.filter((p) => dias.includes(p.aniversario) && naCorrenteEm(p, g.data))
-    .sort((a, b) => dias.indexOf(a.aniversario) - dias.indexOf(b.aniversario) || a.nome.localeCompare(b.nome, 'pt-BR'))
-    .map((p) => `${p.nome} (${p.aniversario.slice(3)}/${p.aniversario.slice(0, 2)})`);
+    .sort((a, b) => dias.indexOf(a.aniversario) - dias.indexOf(b.aniversario) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
+export const aniversariantesDaGira = (pessoas, g) => quemFazAniversario(pessoas, g).map((p) => `${p.nome} (${p.aniversario.slice(3)}/${p.aniversario.slice(0, 2)})`);
+// Ids de quem faz aniversário no próprio dia da gira (a imagem põe 🥳 ao lado do nome).
+export const idsAniversariantes = (pessoas, g) => new Set(quemFazAniversario(pessoas, g).filter((p) => p.aniversario === g.data.slice(5)).map((p) => p.id));
 
 // Nome de quem não vai (ausência/falta) no texto do WhatsApp: ❌ e riscado.
 const riscar = (nomes, naoVao = []) => nomes.map((n) => (naoVao.includes(n) ? `❌ ~${n}~` : n));
