@@ -465,6 +465,19 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .st-bar i.pleno,.badge.pleno{background:#178a5e;color:#fff} .st-bar i.off{background:var(--off)} .st-bar i.acc{background:var(--accent)} .st-bar i.or{background:var(--orange)}
 .st-num{white-space:nowrap;text-align:right}
 .st-det{grid-column:2 / -1;font-size:.8rem;color:var(--muted);margin-top:-3px}
+/* Aba Gira: bloco do ano (atendimentos, sua presença e orixá de cabeça), seções separadas por linha tracejada */
+.ano{gap:0}
+.ano-sec{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ano-sec + .ano-sec{margin-top:12px;padding-top:12px;border-top:1px dashed color-mix(in srgb,var(--muted) 55%,var(--line))}
+.ano-eu{display:grid;grid-template-columns:minmax(0,1fr) 96px auto;align-items:center;gap:8px;width:100%;padding:0;border:0;background:none;color:var(--ink);font:inherit;font-size:.95rem;font-weight:700;text-align:left;cursor:pointer}
+.ano-eu .st-num{font-weight:400}
+.ano-nota{font-size:.8rem}
+.ano-giras{display:flex;flex-direction:column;gap:2px;font-size:.84rem;background:var(--bg);border-radius:8px;padding:6px 10px;margin-top:2px}
+.ano-gira{display:grid;grid-template-columns:3.2em minmax(0,1fr) auto;gap:8px;align-items:baseline}
+.ano-gira .ano-d{color:var(--muted)}
+.ano-gira .ano-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ano-gira .ano-st{white-space:nowrap;text-align:right;font-weight:600}
+.ano-gira.ruim .ano-st{color:var(--off)}
 
 /* Compartilhar resumo da gira encerrada */
 .hi-rs{grid-column:1 / -1;display:flex;flex-direction:column;align-items:flex-start;gap:8px}

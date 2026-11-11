@@ -200,6 +200,7 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'fotos') { estado.fotos = null; if (!estado.fotUi?.envio) estado.fotUi = null; }
   // Histórico: o bloco Giras salvas volta minimizado.
   if (b.dataset.tab === 'hist') { estado.stPerfis = null; estado.salvasAberto = false; }
+  if (b.dataset.tab === 'agenda') estado.stPerfis = null;   // orixá de cabeça do bloco do ano
   salvarPerfilAgora();
   salvarPrefs();
   render();

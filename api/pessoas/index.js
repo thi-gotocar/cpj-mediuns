@@ -3,7 +3,7 @@
 //                              { acao: 'licenca', pessoaId, inicio, fim, motivo? } · { acao: 'editarLicenca', id, inicio, fim, motivo? }
 //                              { acao: 'removerLicenca', id }  → lista da corrente
 // GET  /api/pessoas?lista=alunos  { turmas, alunos }  (alunos da CPJ: fora da corrente)
-// GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa, cabeca, cabecaPessoas }  (Histórico → Estatísticas: só contagens do Perfil)
+// GET  /api/pessoas?lista=perfis  { total, chefe, frente, orixa, cabeca, cabecaPessoas }  (Histórico → Estatísticas e bloco do ano da aba Gira: só contagens do Perfil)
 // POST /api/pessoas            { acao: 'alunos', nome: "A, B", turmaId } · { acao: 'aluno', id, nome?, turmaId? }
 //                              { acao: 'promoverAlunoCPJ', id } (aluno → Corrente como Cambone)
 //                              { acao: 'excluirAluno', id } · { acao: 'turma', id?, nome } (com id = renomear)
@@ -87,7 +87,9 @@ export default rota({
       return eu.pessoaId ? db.rpc('curimba_minha', { pessoaId: eu.pessoaId }) : null;
     }
     if (req.query.lista === 'perfis') {
-      const eu = await exigir(req, 'historico:ver');
+      // Só contagens: quem vê o Histórico ou a aba Gira (bloco do ano).
+      const eu = await exigir(req);
+      if (!pode(eu, 'historico:ver') && !pode(eu, 'giras:ler')) throw new HttpError(403, 'Este acesso não tem permissão para isso.');
       const todos = await db.rpc('perfis_listar');
       // Só quem administra o Perfil (já vê o orixá de cada um) recebe também os nomes por orixá de cabeça.
       return { ...contagemPerfis(todos), ...(pode(eu, 'perfil:corrente') ? { cabecaNomes: pessoasPorOrixaCabeca(todos) } : {}) };

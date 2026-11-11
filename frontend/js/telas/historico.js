@@ -1,10 +1,11 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
 import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, opcoesGira, nomeGira, nomeEntidadeGira, apelidoEntidade, LINHA_LABEL, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, pessoasComSaidas, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar, carregarStPerfis } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, pessoasComSaidas, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
+import { ATEND, somaAt, PRES, ROT_PRESENCA, pos, corBarraPresenca, barra, totaisAtendimento, stPerfis, blocoPerfil, blocoOrixaCabeca } from './estatisticasComum.js';
 
 // Resultado da leitura da mensagem. Tudo o que ficou em dúvida aparece em vermelho, com opção de
 // corrigir e um botão Aceitar; só dá para gravar depois de aceitar todos.
@@ -46,8 +47,6 @@ function relatorioResumo(F, ps) {
   return h + `</div>`;
 }
 
-const ATEND = [['preferencial', 'Preferencial'], ['normal', 'Normal'], ['passe', 'Passe']];
-const somaAt = (a) => ATEND.reduce((s, [k]) => s + (Number(a?.[k]) || 0), 0);
 const linhaAt = (a) => `Atendidos: ${ATEND.map(([k, t]) => `${t} <b>${Number(a[k]) || 0}</b>`).join(' · ')} · Total <b>${somaAt(a)}</b>`;
 
 // ---- Cadastrar gira antiga (só para alimentar o histórico: sem escala de médiuns)
@@ -97,20 +96,9 @@ function presencaGira(ps, g) {
 }
 // Presença: só 100% é verde; o tom é próprio (.pleno), para se destacar.
 const corPct = (pct) => (pct === 100 ? 'pleno' : pct >= 80 ? 'rep' : pct >= 60 ? 'hot' : 're');
-const corBarraPresenca = (pct) => (pct === 100 ? 'pleno' : pct >= 80 ? 'acc' : pct >= 60 ? 'warn' : 'off');
 const seloPct = (pct, title) => `<span class="badge ${corPct(pct)}" style="text-transform:none" title="${title}">${pct}% de presença</span>`;
 
 // ---- Estatísticas (topo do Histórico): rankings de presença e faltas, atendimentos e giras.
-const PRES = ['p', 'na', 'sup'];
-const pos = (i) => `<span class="st-pos">${i + 1}º</span>`;
-// Barra com a porcentagem escrita: v de "total" (ex.: 3 presenças em 4 giras = 75%).
-const pctDe = (v, total) => (total ? Math.round((v / total) * 100) : 0);
-// A porcentagem fica sempre no centro da barra. cor: classe fixa ou função do percentual; comRotulo: false mostra só a barra.
-const barra = (v, total, cor, comRotulo = true) => {
-  const pc = pctDe(v, total);
-  const classe = typeof cor === 'function' ? cor(pc) : cor;
-  return `<span class="st-bar"${comRotulo ? ` title="${pc}%"` : ''}><i class="${classe}" style="width:${Math.max(pc, 2)}%"></i>${comRotulo ? `<em>${pc}%</em>` : ''}</span>`;
-};
 
 function cardEventos(todas) {
   const eventos = todas.filter((g) => g.evento && g.encerrada)
@@ -163,7 +151,7 @@ function cardEstatisticas(todas, ps) {
     return { p, pres, a, f, base };
   });
   // Tocar no nome mostra gira a gira o que contou para a pessoa (para conferir uma falta, por exemplo).
-  const ROT = { p: '✅ presente', na: '✅ presente', sup: '✅ presente (suporte)', f: '🚫 falta', a: '❌ ausente' };
+  const ROT = ROT_PRESENCA;
   const detalhe = (p) => {
     const linhas = comEventos.filter((g) => naCorrenteEm(p, g.data)).map((g) => [g, presencaDe(p, g)])
       .filter(([, st]) => st !== 'lic' && st !== 'pend')
@@ -226,16 +214,12 @@ function cardEstatisticas(todas, ps) {
   const media = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
   const giraAt = gs.filter((g) => g.atendimentos).length;
 
-  const totalAt = somaAt(totAt);
   return `<div class="card st"><div class="grp-h"><h2>Estatísticas</h2>
       <select data-act="stano" aria-label="Período das estatísticas">${anos.map((a) => `<option value="${a}" ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}<option value="todos" ${ano === 'todos' ? 'selected' : ''}>Todos os anos</option></select></div>
     <p class="muted" style="margin:0;font-size:.85rem">${gs.length} gira${gs.length === 1 ? '' : 's'} encerrada${gs.length === 1 ? '' : 's'}${nEventos ? ` e ${nEventos} evento${nEventos === 1 ? '' : 's'}` : ''} ${ano === 'todos' ? 'no total' : `em ${ano}`}.</p>
     <div class="st-resumo">
       <div class="st-resumo-at"><span class="muted">Total de atendimentos${giraAt ? ` · ${giraAt} gira${giraAt === 1 ? '' : 's'} com registro` : ''}</span>
-        <div class="st-at-totais" aria-label="Total de atendimentos por tipo">
-          <div class="st-at-total fn-total"><b>${totalAt}</b><span>Total</span></div>
-          ${ATEND.map(([k, t]) => `<div class="st-at-total fn-${k}"><b>${totAt[k]}</b><span>${t}</span></div>`).join('')}
-        </div></div>
+        ${totaisAtendimento(gs)}</div>
       <div><span class="muted">Média de presença da corrente</span>${media !== null ? `<b class="st-grande">${media}%</b>${barra(media, 100, corBarraPresenca)}` : '<b class="st-grande">—</b>'}</div>
     </div>
     <div class="st-grid">
@@ -262,23 +246,10 @@ function cardEstatisticas(todas, ps) {
 // Guia chefe, guia de frente, orixá de frente e orixá de cabeça (frente, ancestral ou adjunto) com mais pessoas
 // (top 3), do cadastro (aba Perfil): não depende do ano; o percentual é sobre todas as pessoas do cadastro.
 function blocosPerfis() {
-  const S = estado.stPerfis;
-  if (S === null) carregarStPerfis();
+  const S = stPerfis();
   if (!S || S.erro) return S?.erro ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(S.erro)}</p>` : '';
-  // preencheram: quem escolheu algo (no orixá de cabeça a pessoa pode estar em até 3 linhas, por isso vem do servidor).
-  // nomes (só para quem administra o Perfil): "Ver mais" abre todos os itens com as pessoas de cada um.
-  const bloco = (titulo, lista, cor, preencheram = lista.reduce((a, x) => a + x.qtd, 0), nota = '', nomes = null) => {
-    const aberto = !!nomes && !!estado.stCabecaMais;
-    const top = aberto ? lista : lista.slice(0, 3);
-    return `<div class="st-bloco"><h3>${titulo}</h3>
-      ${top.length ? `<ol class="st-lista">${top.map((x, i) => `<li>${pos(i)}<span class="st-nome">${esc(x.nome)}</span>${barra(x.qtd, S.total, cor)}<span class="st-num"><b>${x.qtd}</b></span>${aberto && nomes[x.nome] ? `<span class="st-det st-pessoas">${nomes[x.nome].map(esc).join(', ')}</span>` : ''}</li>`).join('')}</ol>
-        ${nomes ? `<button class="btn link small" data-act="stcabeca" aria-expanded="${aberto}">${aberto ? 'Ver menos' : 'Ver mais'}</button>` : ''}`
-        : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém preencheu ainda.</p>'}
-      <p class="muted" style="margin:0;font-size:.8rem">${nota}Do cadastro (Perfil), em qualquer ano · ${preencheram} de ${S.total} pessoa${S.total === 1 ? '' : 's'} preencheram</p></div>`;
-  };
-  return bloco('Guia chefe com mais pessoas', S.chefe, 'acc') + bloco('Guia de frente com mais pessoas', S.frente, 'acc')
-    + bloco('Orixá de frente com mais pessoas', S.orixa, 'or')
-    + (S.cabeca ? bloco('Orixá de cabeça com mais pessoas', S.cabeca, 'or', S.cabecaPessoas, 'Frente, ancestral ou adjunto (cada pessoa conta uma vez por orixá) · ', S.cabecaNomes || null) : '');
+  return blocoPerfil(S, 'Guia chefe com mais pessoas', S.chefe, 'acc') + blocoPerfil(S, 'Guia de frente com mais pessoas', S.frente, 'acc')
+    + blocoPerfil(S, 'Orixá de frente com mais pessoas', S.orixa, 'or') + blocoOrixaCabeca(S);
 }
 
 export function render() {

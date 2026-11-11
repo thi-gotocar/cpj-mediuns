@@ -18,6 +18,7 @@ import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './gi
 import { blocoLimpeza, blocoRecado, blocoLicenca, blocoBanho, blocoAusPrevia, blocoAusencia, blocoFaltas, avisoEntidade, contagemPresentes, blocoPedirErvas, blocosOferenda } from './giraInformacoes.js';
 import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra, linhaEscala } from './giraEscala.js';
 import { cardConduta, cliquesConduta, mudancasConduta } from './giraConduta.js';
+import { cardAno, cliquesAno } from './giraAno.js';
 export { enviarOracao } from './giraTopo.js';
 export { enviarConduta, digitarConduta } from './giraConduta.js';
 
@@ -227,10 +228,11 @@ function renderGira() {
   const editar = admin && !encerrada;
   const sortearOk = pode('giras:sortear') && !encerrada;
   const existe = !!estado.giras[g.data];
+  const ano = cardAno();   // bloco do ano, no topo para todos
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return `<section class="panel"><div class="card card-novo adm">
+    return `<section class="panel">${ano}<div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       ${seletorData(g)}
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>
@@ -427,7 +429,7 @@ function renderGira() {
     const botoes = admin
       ? ouro(`<div class="gira-bts">${resumo}<button class="btn" data-act="reabrir"><span aria-hidden="true">↺</span> Reabrir gira</button></div>${escalaWa ? `<div class="gira-bts">${escalaWa}</div>` : ''}${painel}`)
       : `${resumo || escalaWa ? `<div class="gira-bts">${escalaWa}${resumo}</div>` : ''}${painel}`;
-    return `<section class="panel"><div class="card card-gira">${topo}${botoes}${blocoEncerrada(ps, g)}${blocoRecado(g)}${informes}${realizado}${novos}</div>${rodape}</section>`;
+    return `<section class="panel">${ano}<div class="card card-gira">${topo}${botoes}${blocoEncerrada(ps, g)}${blocoRecado(g)}${informes}${realizado}${novos}</div>${rodape}</section>`;
   }
 
   const btEscala = whats ? botaoWhats(temDuplas, 'Escala Gira') : '';
@@ -450,7 +452,7 @@ function renderGira() {
       ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g, publicada)}</label>` : ''}</div>
       <div class="atend-sec gira-campos">${g.evento ? campoParticipantes(g) : `<span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}`}</div>`);
   const botoes = editar ? painelAdm : btEscala || btEvento ? `<div class="gira-bts">${btEscala}${btEvento}</div>` : '';
-  return `<section class="panel"><div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${escala}${blocoLimpeza(g, editar)}${blocoRecado(g, editar)}${informes}${realizado}${novos}</div>${rodape}</section>`;
+  return `<section class="panel">${ano}<div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${escala}${blocoLimpeza(g, editar)}${blocoRecado(g, editar)}${informes}${realizado}${novos}</div>${rodape}</section>`;
 }
 
 // Botão do WhatsApp da escala: abre a janela para escolher texto ou imagem.
@@ -590,6 +592,7 @@ function janelaWhats() {
 export const cliques = {
   ...cliquesResumo,
   ...cliquesConduta,
+  ...cliquesAno,
   dobrarcard(el) { const k = el.dataset.k; if (abertos.has(k)) abertos.delete(k); else abertos.add(k); avisar(); },
   // Gira nova já vem com a próxima turma da limpeza (depois da última gira encerrada, pulando turmas vazias).
   criargira() {
