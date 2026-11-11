@@ -43,3 +43,6 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:@127.0.0.1:5432/test_mediuns
           CODIGO_INSTALACAO: test-ci-code
+          # test/apoio.js: sem root no runner, o psql conecta direto no Postgres do serviço
+          PGHOST: 127.0.0.1
+          PGUSER: postgres

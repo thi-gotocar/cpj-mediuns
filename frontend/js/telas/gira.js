@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, naCorrenteEm, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
+import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje, pd } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { gerarImagemOracoes } from '../imagemOracoes.js';
@@ -221,7 +221,7 @@ export function render() {
 function renderGira() {
   const g = giraAtual();
   // Curimba fica fora da presença; quem entrou na corrente depois desta data também.
-  const ps = pessoasComSaidas().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
+  const ps = daGira(pessoasComSaidas(), g).filter(contaNaPresenca);
   const admin = pode('giras:editar');
   const encerrada = !!g.encerrada;
   // Gira encerrada não muda até ser reaberta.
@@ -300,6 +300,7 @@ function renderGira() {
   };
 
   const secaoSorteio = () => {
+    const nome = nomeNaGira(g);   // encerrada: nomes do retrato
     const map = custos(girasLista(), g.data, 'pares');
     const mapP = custos(girasLista(), g.data, 'passes');
     const psg = pessoasDaGira(ps, g);
@@ -521,7 +522,7 @@ async function prepararImagemEvento(g, ps) {
   try {
     const blob = await gerarImagemEvento(evento);
     const atual = giraAtual();
-    const pessoasAtuais = pessoasComSaidas().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, atual.data));
+    const pessoasAtuais = daGira(pessoasComSaidas(), atual).filter(contaNaPresenca);
     if (chaveImagemEvento(atual, pessoasAtuais) !== key) return;
     if (estado.eventoImg) URL.revokeObjectURL(estado.eventoImg.url);
     estado.eventoImg = { url: URL.createObjectURL(blob), blob, key, nome: `evento-${g.data}.png` };
@@ -750,7 +751,7 @@ export const cliques = {
   eventoimagem() {
     const g = giraAtual();
     if (!g.evento || g.encerrada) return;
-    const ps = pessoasComSaidas().filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
+    const ps = daGira(pessoasComSaidas(), g).filter(contaNaPresenca);
     if (!imagemEventoPronta(g, ps)) {
       estado.eventoImgErro = null;
       prepararImagemEvento(g, ps);

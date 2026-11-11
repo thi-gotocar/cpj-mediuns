@@ -1,6 +1,6 @@
 // Apoio aos testes: Postgres local no lugar do banco da Vercel.
-// Requer o Postgres rodando localmente e acesso como usuário "postgres"
-// (no Linux: runuser -u postgres). O login e as senhas são os reais.
+// Requer o Postgres rodando localmente e acesso como usuário "postgres": como root, via runuser -u postgres;
+// sem root (GitHub Actions), psql direto, com a conexão das variáveis PGHOST/PGUSER. O login e as senhas são os reais.
 
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdtempSync } from 'node:fs';
@@ -11,10 +11,16 @@ import { MIGRACOES } from '../db/esquema.js';
 
 export const BANCO = process.env.TEST_DB || 'sortm_teste';
 
+// runuser só funciona como root; sem root, o psql conecta pelas variáveis PG* do ambiente.
+const comoRoot = process.getuid?.() === 0;
+const rodarPsql = (args, opcoes) => (comoRoot
+  ? execFileSync('runuser', ['-u', 'postgres', '--', 'psql', ...args], opcoes)
+  : execFileSync('psql', args, opcoes));
+
 function psql(sql, banco = BANCO) {
-  const args = ['-u', 'postgres', '--', 'psql', '-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1', '-d', banco];
+  const args = ['-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1', '-d', banco];
   try {
-    return execFileSync('runuser', args, { input: '\\set VERBOSITY verbose\n' + sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    return rodarPsql(args, { input: '\\set VERBOSITY verbose\n' + sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
   } catch (e) {
     const m = String(e.stderr).match(/ERROR:\s+([0-9A-Z]{5}):\s+(.*)/);
     const err = new Error(m ? m[2] : String(e.stderr));
@@ -32,9 +38,11 @@ export function prepararBanco() {
   const arq = path.join(dir, 'esquema.sql');
   // Aplica duas vezes para garantir que a migração é idempotente.
   const sql = 'begin;\n' + MIGRACOES.join(';\n') + ';\ncommit;\n';
-  writeFileSync(arq, sql + sql);
+  // Banco novo: algumas funções SQL usam outras criadas mais adiante na lista (em produção elas já existem);
+  // sem conferir o corpo na criação, como o pg_dump faz. O erro de verdade aparece quando o teste chama a função.
+  writeFileSync(arq, 'set check_function_bodies = off;\n' + sql + sql);
   execFileSync('chmod', ['-R', 'a+rX', dir]);
-  execFileSync('runuser', ['-u', 'postgres', '--', 'psql', '-X', '-q', '-v', 'ON_ERROR_STOP=1', '-d', BANCO, '-f', arq], { stdio: 'pipe' });
+  rodarPsql(['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-d', BANCO, '-f', arq], { stdio: 'pipe' });
 }
 
 export function sql(q) {

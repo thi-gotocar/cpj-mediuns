@@ -34,7 +34,11 @@ async function acaoAlunos(b) {
     if (b.id) return db.rpc('turma_aluno_renomear', { id: validarId(b.id, 'Turma'), nome });
     return db.rpc('turma_aluno_criar', { nome });
   }
-  if (b.acao === 'excluirAluno') return db.rpc('aluno_excluir', { id: validarId(b.id, 'Aluno') });
+  if (b.acao === 'excluirAluno') {
+    const r = await db.rpc('aluno_excluir', { id: validarId(b.id, 'Aluno') });
+    await db.rpc('apagar_excluidos');   // sem oferenda aberta, o aluno é apagado de vez
+    return r;
+  }
   if (b.acao === 'aluno') {
     const p = { id: validarId(b.id, 'Aluno') };
     if ('nome' in b) {

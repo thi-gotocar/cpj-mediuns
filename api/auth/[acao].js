@@ -30,7 +30,7 @@ import { gerarHash, conferirSenha, emitirToken, emitirTokenCorrente, emitirToken
 import { permissoesDe, ehAcessoCorrente, grupoAcesso, pode, PIN_VALIDO } from '../../shared/permissoes.js';
 import { normalizarNome, nomesParecidos } from '../../shared/ervas.js';
 import { normalizarPerfil, perfilDaFuncao, blocosAfinidade, ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_OPCOES_MAX, ANAMNESE_OPCAO_MAX, limparRespostaTexto, limparRespostaData } from '../../shared/perfil.js';
-import { LINHA_KEYS } from '../../shared/regras.js';
+import { LINHA_KEYS, compactarRetratos } from '../../shared/regras.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -132,7 +132,8 @@ async function listasIniciais(eu) {
     opcional(oracoes(eu)),
     opcional(db.rpc('entidades_apelidos_listar')),
   ]);
-  return { pessoas, giras: ocultarSorteios(eu, giras), eventos, minhaCurimba, oracoes: listaOracoes, entidadesApelidos };
+  // Retrato das giras encerradas só com o que difere do cadastro (ver shared/regras.js compactarRetrato).
+  return { pessoas, giras: ocultarSorteios(eu, compactarRetratos(pessoas, giras)), eventos, minhaCurimba, oracoes: listaOracoes, entidadesApelidos };
 }
 
 const acoes = {

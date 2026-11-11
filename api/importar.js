@@ -89,6 +89,8 @@ export default rota({
       });
       if (g.entidadeNome) await db.rpc('gira_entidade_nome', { data, nome: String(g.entidadeNome).slice(0, 120) });
       if (g.titulo) await db.rpc('gira_titulo', { data, titulo: String(g.titulo).slice(0, 120) });
+      // Encerrada: retrato pelo cadastro de agora; aberta: sem retrato (segue o cadastro).
+      await db.rpc('gira_retrato', g.encerrada === true ? { data, doCadastro: true } : { data, retrato: null });
       giras++;
     }
     return { pessoasCriadas: criadas, pessoasNoArquivo: pessoasArq.length, giras };

@@ -29,7 +29,7 @@ import { ACOES_ORACOES, oracoes, acaoOracao } from '../_lib/oracoes.js';
 import { ACOES_CONDUTA, condutas, acaoConduta } from '../_lib/conduta.js';
 import { ACOES_FOTOS, exigirFotosAtiva, fotosEstado, acaoFoto } from '../_lib/fotos.js';
 import { pode } from '../../shared/permissoes.js';
-import { OPCOES_GIRA, LINHA_LABEL } from '../../shared/regras.js';
+import { OPCOES_GIRA, LINHA_LABEL, compactarRetratos } from '../../shared/regras.js';
 
 const normalizarNome = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
 
@@ -85,7 +85,9 @@ export default rota({
       return fotosEstado(await exigir(req, 'fotos:ver'));
     }
     const eu = await exigir(req, 'giras:ler');
-    return ocultarSorteios(eu, await db.rpc('giras_listar'));
+    // Retrato das encerradas só com o que difere do cadastro (a lista inteira vai para o app).
+    const [pessoas, giras] = await Promise.all([db.rpc('pessoas_listar', { todas: true }), db.rpc('giras_listar')]);
+    return ocultarSorteios(eu, compactarRetratos(pessoas, giras));
   },
   POST: async (req) => {
     const b = corpo(req);

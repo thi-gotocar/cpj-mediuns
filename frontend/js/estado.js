@@ -3,7 +3,7 @@
 
 import { api } from './api.js';
 import { token } from './auth.js';
-import { giraVazia, ordenarPessoas } from '/shared/regras.js';
+import { giraVazia, ordenarPessoas, pessoasDe, expandirRetrato } from '/shared/regras.js';
 import { permissoesDe, PERFIS_PADRAO } from '/shared/permissoes.js';
 import { definirConfig } from '/shared/config.js';
 import { hoje, toast } from './util.js';
@@ -93,6 +93,8 @@ export const pessoasOrd = () => ordenarPessoas(estado.pessoas.filter((p) => !p.s
 // Inclui quem já saiu: só para giras e estatísticas, sempre filtrando pela data da gira (naCorrenteEm).
 export const pessoasComSaidas = () => ordenarPessoas(estado.pessoas);
 export const nome = (id) => estado.pessoas.find((p) => p.id === id)?.nome || '(removido)';
+// Nome como estava na gira (encerrada: o do retrato, mesmo de quem já saiu do cadastro).
+export const nomeNaGira = (g) => { const ps = pessoasDe(estado.pessoas, g); return (id) => ps.find((p) => p.id === id)?.nome || nome(id); };
 export const girasLista = () => Object.values(estado.giras);
 export const giraAtual = () => estado.giras[prefs.data] || giraVazia(prefs.data);
 
@@ -100,7 +102,9 @@ function definirGiras(lista) {
   const novo = {};
   // Na visão da corrente, a escala ainda não publicada fica escondida, como o servidor faz para a corrente.
   const visaoCorrente = estado.me?.papel === 'root' ? estado.visaoRoot === 'cpj' : estado.me?.papel === 'corrente';
-  lista.forEach((g) => { novo[g.data] = visaoCorrente && !g.publicada ? { ...g, pares: [], passes: [] } : g; });
+  // Retrato das encerradas vem compacto: completa com o cadastro que chegou junto (estado.pessoas).
+  lista.map((g) => expandirRetrato(estado.pessoas, g))
+    .forEach((g) => { novo[g.data] = visaoCorrente && !g.publicada ? { ...g, pares: [], passes: [] } : g; });
   // Não sobrescreve giras com edição ainda não enviada.
   Object.keys(pendente).forEach((d) => { if (estado.giras[d]) novo[d] = estado.giras[d]; });
   estado.giras = novo;

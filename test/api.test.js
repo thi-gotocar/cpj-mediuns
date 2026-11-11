@@ -64,7 +64,7 @@ test('login: senha certa, errada e bloqueio', async () => {
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'ninguem@x.org', senha: 'nao' })).status, 401);
   const ok = await api('POST', '/api/auth/entrar', null, { email: ' USER@corrente.org ', senha: 'senha-do-ze' });
   assert.equal(ok.status, 200);
-  assert.deepEqual(ok.json.usuario.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver']);
+  assert.deepEqual(ok.json.usuario.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver', 'fotos:ver']);
   USER = ok.json.token;
   for (let i = 0; i < 8; i++) await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' + i });
   assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alvo@x.org', senha: 'x' })).status, 429);
@@ -269,7 +269,57 @@ test('encerrar gira: quem não cambonou vai para o Suporte; encerrada não muda 
   assert.equal(re.json.gira.encerrada, false);
   for (const n of ['Fábio', 'Gabi', 'Kátia']) { assert.equal(re.json.gira.presenca[id(n)], 'p', n + ' devia voltar a Presente'); assert.equal(re.json.gira.papeis[id(n)], undefined); }
   assert.match(re.json.mensagem, /Voltaram do Suporte/);
+  assert.equal(re.json.gira.retrato, null, 'reaberta, volta a seguir o cadastro');
   assert.equal((await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' })).status, 200);
+  await api('DELETE', `/api/giras/${d}`, ADMIN);
+});
+
+test('encerrado não muda com o cadastro; excluído sem nada aberto é apagado de vez', async () => {
+  const d = '2027-03-06';
+  // Entrada hoje: giras abertas de antes (de outros testes) não seguram a pessoa.
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Retrato Rita', funcao: 'cambone', entradaHoje: true });
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const rita = ps.find((p) => p.nome === 'Retrato Rita');
+  await api('PUT', `/api/giras/${d}`, ADMIN, { presenca: Object.fromEntries(ps.map((p) => [p.id, 'p'])) });
+  const enc = await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'encerrar', atendimentos: { preferencial: 0, normal: 0, passe: 0 } });
+  assert.equal(enc.status, 200, JSON.stringify(enc.json));
+  assert.deepEqual(enc.json.gira.retrato[rita.id], { nome: 'Retrato Rita', funcao: 'cambone', experiente: false, linhas: [], limpeza: null, licenca: null });
+
+  // Depois de encerrada: nome, função e licença mudam no cadastro; a gira continua como estava.
+  assert.equal((await api('PATCH', '/api/pessoas/' + rita.id, ADMIN, { nome: 'Rita Renomeada', funcao: 'medium' })).status, 200);
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'licenca', pessoaId: rita.id, inicio: d, fim: d });
+  const g = (await api('GET', `/api/giras/${d}`, ADMIN)).json;
+  assert.deepEqual(g.retrato[rita.id], enc.json.gira.retrato[rita.id]);
+  // Na lista (vai inteira para o app), o retrato vai só com o que difere do cadastro.
+  const naLista = (await api('GET', '/api/giras', ADMIN)).json.find((x) => x.data === d);
+  assert.deepEqual(naLista.retrato[rita.id], { nome: 'Retrato Rita', funcao: 'cambone', licenca: null });
+
+  // Excluída e sem nada aberto: apagada de vez; a gira encerrada continua com ela pelo retrato.
+  assert.equal((await api('DELETE', '/api/pessoas/' + rita.id, ADMIN)).status, 200);
+  assert.equal(sql(`select count(*) from pessoas where id = '${rita.id}'`), '0', 'apagada do banco');
+  const g2 = (await api('GET', `/api/giras/${d}`, ADMIN)).json;
+  assert.equal(g2.presenca[rita.id], 'p', 'a presença fica');
+  assert.equal(g2.retrato[rita.id].nome, 'Retrato Rita');
+  assert.equal((await api('GET', '/api/giras', ADMIN)).json.find((x) => x.data === d).retrato[rita.id].nome, 'Retrato Rita', 'apagada vai completa na lista');
+
+  // Oferenda encerrada guarda os nomes: renomear não muda; o aluno excluído é apagado e continua nela.
+  const turmaId = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json.turmas[0].id;
+  const al = (await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluno Retrato', turmaId })).json.alunos.find((a) => a.nome === 'Aluno Retrato');
+  const of = (await api('POST', '/api/oferendas', ADMIN, {
+    acao: 'salvar', responsavelId: RESP(), titulo: 'Oferenda retrato', data: '2038-06-01', porMedium: true, grupos: ['alunos'],
+  })).json.oferendas.find((o) => o.titulo === 'Oferenda retrato');
+  await api('POST', '/api/oferendas', ADMIN, { acao: 'medium', oferendaId: of.id, pessoaId: 'a:' + al.id, pagamento: 'pago' });
+  assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'status', id: of.id, status: 'encerrado' })).status, 200);
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'aluno', id: al.id, nome: 'Aluno Renomeado' });
+  await api('POST', '/api/pessoas', ADMIN, { acao: 'excluirAluno', id: al.id });
+  assert.equal(sql(`select count(*) from alunos where id = '${al.id}'`), '0', 'aluno apagado do banco');
+  const fechada = (await api('GET', '/api/oferendas', ADMIN)).json.oferendas.find((o) => o.id === of.id);
+  const linha = fechada.mediuns.find((m) => m.pessoaId === 'a:' + al.id);
+  assert.deepEqual([linha.nome, linha.pagamento], ['Aluno Retrato', 'pago']);
+  // Reabrir a oferenda apaga o retrato (quem foi apagado sai dela).
+  const aberta = (await api('POST', '/api/oferendas', ADMIN, { acao: 'status', id: of.id, status: 'publicado' })).json.oferendas.find((o) => o.id === of.id);
+  assert.ok(!aberta.mediuns.some((m) => m.pessoaId === 'a:' + al.id));
+  await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: of.id });
   await api('DELETE', `/api/giras/${d}`, ADMIN);
 });
 

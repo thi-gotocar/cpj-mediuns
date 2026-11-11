@@ -2,7 +2,7 @@
 
 import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
 import { config } from '/shared/config.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, acaoUsuarios, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, acaoUsuarios, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 import { PIN_VALIDO } from '/shared/permissoes.js';
 import { cardOferendasPendentes, cliques as cliquesPerfil } from './perfil.js';
@@ -17,16 +17,7 @@ const dBR = (s) => { const [y, m, d] = s.split('-'); return `${d}/${m}/${y}`; };
 
 // Licenças em vigor ou futuras (as que já terminaram saem da lista sozinhas), dentro do card da Corrente.
 // Cada uma num mini bloco: cruz vermelha, nome, datas e Editar; embaixo, o motivo.
-// Licença muda o que as giras do período mostram: conta as já encerradas que mudam com a alteração.
-const licencaPorId = (id) => estado.pessoas.flatMap((p) => p.licencas || []).find((l) => l.id === id) || null;
-function girasEncerradasMudam(nova, antiga) {
-  const dentro = (d, l) => !!l && l.inicio <= d && d <= l.fim;
-  return girasLista().filter((g) => g.encerrada && dentro(g.data, nova) !== dentro(g.data, antiga)).length;
-}
-function confirmaLicenca(inicio, fim, antiga) {
-  const n = girasEncerradasMudam({ inicio, fim }, antiga);
-  return !n || confirm(`Isso muda a presença mostrada em ${n} gira${n > 1 ? 's' : ''} já encerrada${n > 1 ? 's' : ''}. Continuar?`);
-}
+// Licença não mexe em gira encerrada (ela guarda o retrato de como estava ao encerrar).
 
 function listaLicencas(ps, editar) {
   const hj = hoje();
@@ -354,8 +345,7 @@ function janelaExcluir() {
     const p = estado.pessoas.find((y) => (y.licencas || []).some((l) => l.id === x.id));
     const l = p && p.licencas.find((y) => y.id === x.id);
     if (!l) return '';
-    const n = girasEncerradasMudam(null, l);
-    titulo = 'Remover licença'; texto = `Remover a licença de <b>${esc(p.nome)}</b> (${dBR(l.inicio)} a ${dBR(l.fim)})?${n ? ` A presença registrada volta a aparecer em ${n} gira${n > 1 ? 's' : ''} já encerrada${n > 1 ? 's' : ''}.` : ''}`;
+    titulo = 'Remover licença'; texto = `Remover a licença de <b>${esc(p.nome)}</b> (${dBR(l.inicio)} a ${dBR(l.fim)})?`;
   }
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ex-t"><div class="modal">
     <h3 id="ex-t">${titulo}</h3><p style="margin:0">${texto}</p>
@@ -472,7 +462,6 @@ export const cliques = {
     const fim = document.getElementById('elh-f').value;
     if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
     if (fim < inicio) { toast('A data final é antes do início.'); return; }
-    if (!confirmaLicenca(inicio, fim, licencaPorId(el.dataset.id))) return;
     if (await editarLicenca(el.dataset.id, inicio, fim, document.getElementById('elh-m').value.trim())) { estado.editLicH = null; toast('Licença alterada.'); avisar(); }
   },
   editlic(el) { estado.editLic = el.dataset.id; avisar(); },
@@ -482,7 +471,6 @@ export const cliques = {
     const fim = document.getElementById('el-f').value;
     if (!inicio || !fim) { toast('Informe o início e o fim da licença.'); return; }
     if (fim < inicio) { toast('A data final é antes do início.'); return; }
-    if (!confirmaLicenca(inicio, fim, licencaPorId(el.dataset.id))) return;
     if (await editarLicenca(el.dataset.id, inicio, fim, document.getElementById('el-m').value.trim())) { estado.editLic = null; toast('Licença alterada.'); avisar(); }
   },
   dellic(el) { estado.confirm = null; estado.editLic = null; removerLicenca(el.dataset.id); },
@@ -658,7 +646,6 @@ export async function enviarLicenca() {
   if (fim < inicio) { toast('A data final é antes do início.'); return; }
   guardarRascunhoLic();
   estado.licPessoa = pessoa;
-  if (!confirmaLicenca(inicio, fim, null)) return;
   if (await salvarLicenca(pessoa, inicio, fim, document.getElementById('lic-m').value.trim())) { estado.licRasc = null; toast('Licença cadastrada.'); avisar(); }
 }
 
