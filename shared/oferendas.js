@@ -73,6 +73,7 @@ export const DETALHES_MAX = 1500;
 // Sem espaço no fim das linhas nem linhas vazias no começo e no fim.
 export const limparDetalhes = (s) => String(s ?? '').replace(/\r\n?/g, '\n').split('\n').map((l) => l.trimEnd()).join('\n').replace(/^\n+|\n+$/g, '');
 export const linhasDetalhes = (s) => (s ? s.split('\n').length : 0);
+export const detalhesOk = (s) => linhasDetalhes(s) <= DETALHES_LINHAS && s.length <= DETALHES_MAX;
 
 // Cor do percentual: verde com 100%, amarelo de 50% a 99%, vermelho abaixo de 50%.
 export const faixaPct = (pct) => (pct >= 100 ? 'cheio' : pct >= 50 ? 'meio' : 'baixo');

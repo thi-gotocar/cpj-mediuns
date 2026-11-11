@@ -420,6 +420,21 @@ test('oferendas: Detalhes da sub-aba — só o admin escreve, todos leem', async
   assert.equal((await of(ADMIN, { id: gerais.id, detalhes: '' })).json.abas.find((a) => a.id === gerais.id).detalhes, '');
 });
 
+test('iemanjá: Detalhes do evento — só os admins do evento escrevem, quem vê o evento lê', async () => {
+  const iem = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'iemanja', ...b });
+  const ev = (await api('GET', '/api/oferendas?lista=iemanja', ADMIN)).json.eventos.find((e) => !e.encerradoEm);
+  assert.equal(ev.detalhes, '');
+  assert.equal((await iem(USER, { op: 'detalhes', id: ev.id, detalhes: 'Oi' })).status, 403);
+  assert.equal((await iem(ADMIN, { op: 'detalhes', id: ev.id, detalhes: Array(11).fill('x').join('\n') })).status, 400, 'mais de 10 linhas');
+  const r = await iem(ADMIN, { op: 'detalhes', id: ev.id, detalhes: 'Roupa branca.  \nPraia às 6h\n' });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.eventos.find((e) => e.id === ev.id).detalhes, 'Roupa branca.\nPraia às 6h');
+  await iem(ADMIN, { op: 'visivel', id: ev.id, visivel: true });
+  assert.equal((await api('GET', '/api/oferendas?lista=iemanja', USER)).json.eventos.find((e) => e.id === ev.id).detalhes, 'Roupa branca.\nPraia às 6h');
+  await iem(ADMIN, { op: 'visivel', id: ev.id, visivel: ev.visivel });
+  assert.equal((await iem(ADMIN, { op: 'detalhes', id: ev.id, detalhes: '' })).json.eventos.find((e) => e.id === ev.id).detalhes, '');
+});
+
 test('curimba: alunos da corrente e de fora, aulas e presença; o aluno vê as próprias aulas', async () => {
   assert.equal((await api('GET', '/api/pessoas?lista=curimba', USER)).status, 403);
   assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'curimbaAluno', nome: 'X' })).status, 403);

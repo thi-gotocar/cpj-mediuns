@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 100;  // v100: Detalhes de cada sub-aba de Oferendas
+export const VERSAO = 101;  // v101: Detalhes de cada evento da Iemanjá
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3440,5 +3440,46 @@ export const MIGRACOES = [
      if not found then raise exception 'Sub-aba não encontrada.'; end if;
      return oferenda_abas_listar();
    end;
+   $$`,
+  // ================================================== v101: Detalhes de cada evento da Iemanjá (evento novo começa vazio)
+  `alter table iemanja_eventos add column if not exists detalhes text not null default ''`,
+  `create or replace function iemanja_evento_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := (p ->> 'id')::uuid;
+   begin
+     update iemanja_eventos set
+       nome = case when p ? 'nome' then p ->> 'nome' else nome end,
+       data = case when p ? 'data' then (p ->> 'data')::date else data end,
+       visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end,
+       fora = case when p ? 'fora' then array(select jsonb_array_elements_text(p -> 'fora')) else fora end,
+       listas = case when p ? 'listas' then array(select jsonb_array_elements_text(p -> 'listas')) else listas end,
+       categorias = case when p ? 'categorias' then array(select jsonb_array_elements_text(p -> 'categorias')) else categorias end,
+       detalhes = case when p ? 'detalhes' then coalesce(p ->> 'detalhes', '') else detalhes end,
+       encerrado_em = case when (p ->> 'encerrar')::boolean then now() else encerrado_em end
+     where id = v_id;
+     update iemanja_grupos g set nome = x ->> 'nome', responsavel_id = nullif(x ->> 'responsavelId', '')::uuid
+       from jsonb_array_elements(coalesce(p -> 'grupos', '[]'::jsonb)) x
+      where g.id = (x ->> 'id')::uuid and g.evento_id = v_id;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
+       'detalhes', e.detalhes,
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
+                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
    $$`,
 ];

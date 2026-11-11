@@ -606,10 +606,12 @@ test('oferendas: alunos por turma nos grupos', async () => {
 });
 
 test('oferendas: Detalhes da sub-aba — limpeza, linhas e no começo da lista compartilhada', async () => {
-  const { limparDetalhes, linhasDetalhes, textoOferenda } = await import('../shared/oferendas.js');
+  const { limparDetalhes, linhasDetalhes, detalhesOk, textoOferenda } = await import('../shared/oferendas.js');
   assert.equal(limparDetalhes('\n\nRoupa branca.  \r\nChegar 19h\n\n'), 'Roupa branca.\nChegar 19h');
   assert.equal(limparDetalhes(null), '');
   assert.deepEqual(['', 'a', 'a\nb'].map(linhasDetalhes), [0, 1, 2]);
+  assert.ok(detalhesOk('') && detalhesOk(Array(10).fill('x').join('\n')));
+  assert.ok(!detalhesOk(Array(11).fill('x').join('\n')) && !detalhesOk('x'.repeat(1501)));
   const of = { titulo: 'Caboclos', data: '2027-01-20', responsavel: 'Ana', itens: [{ nome: 'Velas', quantidade: 2, doacoes: [] }] };
   const txt = textoOferenda(of, 'Roupa branca.\nChegar 19h');
   assert.ok(txt.indexOf('Responsável: Ana') < txt.indexOf('Roupa branca.') && txt.indexOf('Chegar 19h') < txt.indexOf('*Velas*'));

@@ -1,10 +1,10 @@
 // Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
 
-import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, linhasDetalhes } from '/shared/oferendas.js';
+import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
-import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar } from './oferendaComum.js';
+import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes } from './oferendaComum.js';
 import * as iemanja from './iemanja.js';
 
 const opcoesPessoas = (atual) => `<option value="">— escolha —</option>${pessoasOrd().map((p) => `<option value="${p.id}" ${p.id === atual ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}`;
@@ -255,23 +255,6 @@ function rodapeOferenda(of, admin) {
       ${estado.confirm === 'of:' + of.id ? `<button class="btn danger" data-act="delof" data-id="${of.id}">Confirmar exclusão</button>` : `<button class="btn" data-act="askdel" data-k="of:${of.id}">Excluir</button>`}` : ''}</div>${painelCompartilhar(of)}`;
 }
 
-// Detalhes da sub-aba, acima de "＋ Nova oferenda": o admin escreve (até 10 linhas) e todos leem; vai no começo
-// de "Compartilhar lista". Começa minimizado; vazio, só o admin vê.
-function blocoDetalhes(aba, admin) {
-  const txt = aba.detalhes || '';
-  if (!admin && !txt) return '';
-  const aberto = (U().detAbertos || []).includes(aba.id);
-  let h = `<div class="card of-det"><button class="grp-h dobra" data-act="dobrardet" data-id="${aba.id}" aria-expanded="${aberto}"><h2><span aria-hidden="true">📝</span> Detalhes</h2><span class="count">${admin && !txt ? '<span class="muted">vazio</span> ' : ''}<span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
-  if (aberto) {
-    if (admin) {
-      const r = U().detRascunho?.id === aba.id ? U().detRascunho.texto : txt;
-      h += `<textarea id="of-det" class="of-det-in" data-id="${aba.id}" rows="${DETALHES_LINHAS}" maxlength="${DETALHES_MAX}" aria-label="Detalhes desta sub-aba" placeholder="Informações para o pessoal (até ${DETALHES_LINHAS} linhas).">${esc(r)}</textarea>
-        <div class="of-det-rod"><span class="muted">Todos leem. Vai no começo de “Compartilhar lista”.</span><button class="btn small primary" data-act="ofdetsalvar" data-id="${aba.id}">Salvar</button></div>`;
-    } else h += `<p class="of-det-txt">${esc(txt)}</p>`;
-  }
-  return h + '</div>';
-}
-
 function listaDaAba(aba) {
   // Alunos (para "doação por alguém"): só quem administra e pode ver os alunos.
   if (pode('oferendas:gerenciar') && pode('alunos:ver') && estado.alunos === null) { estado.alunos = undefined; carregarAlunos(); }
@@ -280,7 +263,7 @@ function listaDaAba(aba) {
   const hj = hoje();
   const proximas = lista.filter((o) => o.data >= hj);
   const anteriores = lista.filter((o) => o.data < hj).reverse();
-  let h = blocoDetalhes(aba, admin);
+  let h = blocoDetalhes(aba.id, aba.detalhes, admin, 'ofdetsalvar');
   if (admin) {
     // Começa minimizado; abre ao tocar no título (aberto já se a sub-aba ainda não tiver nenhuma oferenda).
     const novaAberta = U().novaAberta ?? !lista.length;
@@ -414,15 +397,7 @@ export const cliques = {
     U().detAbertos = [...set];
     avisar();
   },
-  async ofdetsalvar(el) {
-    const detalhes = limparDetalhes(document.getElementById('of-det')?.value);
-    if (linhasDetalhes(detalhes) > DETALHES_LINHAS) { toast(`Use no máximo ${DETALHES_LINHAS} linhas.`); return; }
-    if (await acaoOferendas('abaDetalhes', { id: el.dataset.id, detalhes })) {
-      U().detRascunho = null;
-      toast(detalhes ? 'Detalhes salvos.' : 'Detalhes apagados.');
-      avisar();
-    }
-  },
+  ofdetsalvar(el) { return salvarDetalhes((detalhes) => acaoOferendas('abaDetalhes', { id: el.dataset.id, detalhes })); },
   // Ao abrir, recarrega as turmas (uma turma nova no cadastro já aparece nos grupos).
   dobrarnova() {
     U().novaAberta = !(U().novaAberta ?? !daAba(abaAtiva()).length); avisar();

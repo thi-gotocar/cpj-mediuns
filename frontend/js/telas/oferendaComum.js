@@ -1,9 +1,9 @@
 // Peças comuns às listas de oferendas e à Iemanjá: campos e linha do item, compartilhar.
 // As ações que gravam levam o prefixo da tela (c.p): '' nas listas e 'iem' na Iemanjá.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria } from '/shared/oferendas.js';
-import { estado } from '../estado.js';
-import { esc, hoje, dLong } from '../util.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
+import { estado, avisar } from '../estado.js';
+import { esc, hoje, dLong, toast } from '../util.js';
 
 export const U = () => estado.ofUi;
 export const Dia = (s) => { const t = dLong(s); return t.charAt(0).toUpperCase() + t.slice(1); };
@@ -107,8 +107,36 @@ function podeCompartilhar(img) {
   try { return !!(navigator.canShare && navigator.canShare({ files: [new File([img.blob], img.nome, { type: 'image/png' })] })); } catch { return false; }
 }
 
-// Texto do "Compartilhar lista": com os Detalhes da sub-aba da oferenda no começo (a Iemanjá não tem).
-export const textoCompartilhar = (of) => textoOferenda(of, (estado.oferendas?.abas || []).find((a) => a.id === of.abaId && !a.iemanja)?.detalhes || '');
+// Texto do "Compartilhar lista": com os Detalhes no começo — o do evento (grupo da Iemanjá) ou o da sub-aba da oferenda.
+export const textoCompartilhar = (of) => textoOferenda(of, of.detalhes ?? (estado.oferendas?.abas || []).find((a) => a.id === of.abaId && !a.iemanja)?.detalhes ?? '');
+
+// Bloco 📝 Detalhes (da sub-aba de lista ou do evento da Iemanjá): o admin escreve (até 10 linhas) e todos leem;
+// vai no começo de "Compartilhar lista". Começa minimizado; vazio, só o admin vê. act: a ação do Salvar.
+export function blocoDetalhes(id, texto, admin, act) {
+  const txt = texto || '';
+  if (!admin && !txt) return '';
+  const aberto = (U().detAbertos || []).includes(id);
+  let h = `<div class="card of-det"><button class="grp-h dobra" data-act="dobrardet" data-id="${id}" aria-expanded="${aberto}"><h2><span aria-hidden="true">📝</span> Detalhes</h2><span class="count">${admin && !txt ? '<span class="muted">vazio</span> ' : ''}<span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
+  if (aberto) {
+    if (admin) {
+      const r = U().detRascunho?.id === id ? U().detRascunho.texto : txt;
+      h += `<textarea id="of-det" class="of-det-in" data-id="${id}" rows="${DETALHES_LINHAS}" maxlength="${DETALHES_MAX}" aria-label="Detalhes" placeholder="Informações para o pessoal (até ${DETALHES_LINHAS} linhas).">${esc(r)}</textarea>
+        <div class="of-det-rod"><span class="muted">Todos leem. Vai no começo de “Compartilhar lista”.</span><button class="btn small primary" data-act="${act}" data-id="${id}">Salvar</button></div>`;
+    } else h += `<p class="of-det-txt">${esc(txt)}</p>`;
+  }
+  return h + '</div>';
+}
+
+// Salvar do bloco Detalhes: gravar(texto) chama a ação da tela e devolve se deu certo.
+export async function salvarDetalhes(gravar) {
+  const detalhes = limparDetalhes(document.getElementById('of-det')?.value);
+  if (!detalhesOk(detalhes)) { toast(`Use no máximo ${DETALHES_LINHAS} linhas.`); return; }
+  if (await gravar(detalhes)) {
+    U().detRascunho = null;
+    toast(detalhes ? 'Detalhes salvos.' : 'Detalhes apagados.');
+    avisar();
+  }
+}
 
 export function painelCompartilhar(of) {
   const u = U();

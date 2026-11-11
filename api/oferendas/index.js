@@ -16,7 +16,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, linhasDetalhes, DETALHES_LINHAS, DETALHES_MAX } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
@@ -95,7 +95,7 @@ export default rota({
         // Texto da sub-aba para o pessoal (vazio apaga).
         if (typeof b.detalhes !== 'string') throw new HttpError(400, 'Informe os detalhes.');
         const detalhes = limparDetalhes(b.detalhes);
-        if (linhasDetalhes(detalhes) > DETALHES_LINHAS || detalhes.length > DETALHES_MAX) throw new HttpError(400, `Os detalhes têm no máximo ${DETALHES_LINHAS} linhas.`);
+        if (!detalhesOk(detalhes)) throw new HttpError(400, `Os detalhes têm no máximo ${DETALHES_LINHAS} linhas.`);
         await db.rpc('oferenda_aba_detalhes', { id: validarId(b.id, 'Sub-aba'), detalhes });
         estado = await db.rpc('oferendas_estado');
         break;

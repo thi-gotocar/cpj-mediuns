@@ -5,7 +5,7 @@ import { esc, toast } from '../util.js';
 import { ORIXAS } from '/shared/regras.js';
 import { NOMES_ENTIDADES, LISTA_CURIMBA } from '/shared/iemanja.js';
 import { dataBR, faixaPct, textoEntrega } from '/shared/oferendas.js';
-import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar } from './oferendaComum.js';
+import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, blocoDetalhes, salvarDetalhes } from './oferendaComum.js';
 
 const ui = { abertos: new Set(), edit: null, janela: null, rascunho: {}, categorias: false };
 const val = (id) => document.getElementById(id)?.value ?? '';
@@ -18,7 +18,7 @@ const icone = (i, t) => `<span aria-hidden="true">${i}</span> ${t}`;
 const nomeGrupo = (g) => g.nome || `Grupo ${g.ordem}`;
 // Categorias do evento: valem para todas as oferendas (grupos) e dão a ordem dos itens.
 const categoriasDe = (ev) => ev.categorias || [];
-const paraCompartilhar = (ev, g) => ({ id: g.id, titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel, porMedium: false, itens: g.itens, categorias: categoriasDe(ev) });
+const paraCompartilhar = (ev, g) => ({ id: g.id, titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel, porMedium: false, itens: g.itens, categorias: categoriasDe(ev), detalhes: ev.detalhes || '' });
 
 function opcoesNome(atual) {
   const op = (n) => `<option ${n === atual ? 'selected' : ''}>${esc(n)}</option>`;
@@ -193,7 +193,9 @@ export function conteudo() {
   const aberto = I.eventos.find((e) => !e.encerradoEm);
   const novo = !aberto && souRoot() ? `<div class="card adm"><div class="grp-h"><h2>Novo evento</h2></div><label class="field">Nome do evento<input type="text" id="iem-nova-nome" maxlength="80" placeholder="Oferenda de Iemanjá"></label><label class="field">Data do evento<input type="date" id="iem-nova-data"></label>
     <div class="cp-bts"><button class="btn primary" data-act="iemnovo">${icone('＋', 'Novo evento')}</button></div></div>` : '';
-  return `${novo}${aberto ? blocoEvento(aberto) : ''}${blocoHistorico(I.eventos.filter((e) => e.encerradoEm))}${janela()}`;
+  // Detalhes do evento em andamento, acima do bloco do evento (ADMIN).
+  const det = aberto ? blocoDetalhes(aberto.id, aberto.detalhes, comoAdmin(aberto), 'iemdetsalvar') : '';
+  return `${novo}${det}${aberto ? blocoEvento(aberto) : ''}${blocoHistorico(I.eventos.filter((e) => e.encerradoEm))}${janela()}`;
 }
 
 // Oferenda criada ou excluída durante a edição: mantém o que já foi escolhido nas outras.
@@ -235,6 +237,7 @@ export const cliques = {
     }
     avisar();
   },
+  iemdetsalvar(el) { return salvarDetalhes((detalhes) => acaoIemanja('detalhes', { id: el.dataset.id, detalhes })); },
   iemcats() { ui.categorias = !ui.categorias; avisar(); },
   iemcatsobe(el) {
     const l = [...categoriasDe(eventoAberto())];

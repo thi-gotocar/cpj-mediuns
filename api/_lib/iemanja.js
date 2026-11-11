@@ -7,6 +7,7 @@ import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 import { normalizarPerfil } from '../../shared/perfil.js';
 import { sortearIemanja, pctItens, nomeGrupoValido, listasDoSorteio, LISTA_CURIMBA, NOME_EVENTO_PADRAO } from '../../shared/iemanja.js';
+import { limparDetalhes, detalhesOk, DETALHES_LINHAS } from '../../shared/oferendas.js';
 
 const ehRoot = (eu) => pode(eu, 'usuarios:gerenciar');
 const chaveDe = (eu) => (eu.alunoId ? 'a:' + eu.alunoId : chavePessoa(eu));
@@ -141,6 +142,12 @@ export async function acaoIemanja(eu, b) {
       if (lista.some((c, k) => lista.findIndex((x) => mesma(x, c)) !== k)) throw new HttpError(400, 'Essa categoria já existe.');
       if (lista.length > 30) throw new HttpError(400, 'Até 30 categorias.');
       return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, categorias: lista }));
+    }
+    case 'detalhes': {
+      // Texto do evento para o pessoal (vazio apaga); vai no começo da lista compartilhada de cada grupo.
+      const detalhes = typeof b.detalhes === 'string' ? limparDetalhes(b.detalhes) : null;
+      if (detalhes === null || !detalhesOk(detalhes)) throw new HttpError(400, `Os detalhes têm no máximo ${DETALHES_LINHAS} linhas.`);
+      return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, detalhes }));
     }
     case 'grupoNovo':
       return devolver(await db.rpc('iemanja_grupo_novo', { id: ev.id }));
