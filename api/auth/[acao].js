@@ -8,8 +8,9 @@
 //   POST /api/auth/senha    { atual, nova }   → { token }  (logado)
 //   POST /api/auth/criarSenha { senha }  acesso da corrente: cria a senha (4 a 8 números) → { token }
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
-//   GET  /api/auth/inicio   a abertura do app em um pedido só → { me, pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos }
-//                           ?atualizar=1 (voltar ao app): só as listas, sem "me". Alunos recebem { eventos }; curimba, { eventos, minhaCurimba }.
+//   GET  /api/auth/inicio   a abertura do app em um pedido só → { me, versao, config, pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos }
+//                           ?atualizar=1 (voltar ao app): só as listas, sem "me"; com &versao= igual à atual, só { versao, semMudanca: true }.
+//                           Alunos recebem { eventos, config }; curimba, { eventos, minhaCurimba, config }.
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
 //                           Aluno (depois de criar a senha): só os próprios dados, informações, orixás e guias.
@@ -94,16 +95,17 @@ async function conferirPin(b, info, chaveFalha, nome) {
   return null;
 }
 
-async function dadosDoMe(u) {
+// extras: o que decide as abas, quando já veio junto na abertura (inicio_dados); sem ele, busca aqui (/auth/me).
+async function dadosDoMe(u, extras = null) {
   const [iemanja, abasOferendas, videosPublicada, ervasPublicada] = await Promise.all([
     // Falha na aba Iemanjá só esconde a aba: não pode impedir o app de abrir.
-    abaIemanja(u).catch((e) => {
+    abaIemanja(u, extras?.iemanja).catch((e) => {
       console.error('[auth/me] aba Iemanjá', e);
       return { iemanjaAba: false, iemanjaPublica: false };
     }),
-    db.rpc('oferenda_abas_listar'),
-    db.rpc('videos_publicada'),
-    db.rpc('ervas_publicada'),
+    extras ? extras.abasOferendas : db.rpc('oferenda_abas_listar'),
+    extras ? extras.videosPublicada : db.rpc('videos_publicada'),
+    extras ? extras.ervasPublicada : db.rpc('ervas_publicada'),
   ]);
   // Sem nenhuma sub-aba visível, a aba Oferendas some para quem não administra.
   // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
@@ -117,23 +119,28 @@ const opcional = (promessa) => promessa.catch((e) => {
   return undefined;
 });
 
-async function listasIniciais(eu) {
-  if (eu.grupo === 'alunos') return { eventos: await db.rpc('eventos_listar') };
-  if (eu.grupo === 'curimba') {
-    const [eventos, minhaCurimba] = await Promise.all([db.rpc('eventos_listar'), db.rpc('curimba_minha', { alunoId: eu.curimbaAlunoId })]);
-    return { eventos: eventos.filter((x) => x.tipo !== 'aviso'), minhaCurimba };
-  }
+// Acessos de grupo (alunos, curimba): poucas listas, buscadas aqui.
+async function listasDoGrupo(eu) {
+  const config = opcional(db.rpc('config_casa'));
+  if (eu.grupo === 'alunos') return { eventos: await db.rpc('eventos_listar'), config: await config };
+  const [eventos, minhaCurimba] = await Promise.all([db.rpc('eventos_listar'), db.rpc('curimba_minha', { alunoId: eu.curimbaAlunoId })]);
+  return { eventos: eventos.filter((x) => x.tipo !== 'aviso'), minhaCurimba, config: await config };
+}
+
+// Corrente e usuários: tudo de uma vez no banco (inicio_dados). Com a versão que o app já tem e nada mudado,
+// volta só { versao, semMudanca }. extras: o que decide as abas, quando me = true.
+async function listasIniciais(eu, { versao = '', me = false } = {}) {
   if (!pode(eu, 'pessoas:ler') || !pode(eu, 'giras:ler')) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
-  const [pessoas, giras, eventos, minhaCurimba, listaOracoes, entidadesApelidos] = await Promise.all([
-    db.rpc('pessoas_listar', { todas: true }),
-    db.rpc('giras_listar'),
-    opcional(db.rpc('eventos_listar')),
-    eu.pessoaId ? opcional(db.rpc('curimba_minha', { pessoaId: eu.pessoaId })) : null,
-    opcional(oracoes(eu)),
-    opcional(db.rpc('entidades_apelidos_listar')),
-  ]);
-  // Retrato das giras encerradas só com o que difere do cadastro (ver shared/regras.js compactarRetrato).
-  return { pessoas, giras: ocultarSorteios(eu, compactarRetratos(pessoas, giras)), eventos, minhaCurimba, oracoes: listaOracoes, entidadesApelidos };
+  const d = await db.rpc('inicio_dados', { versao, me, pessoaId: eu.pessoaId || '' });
+  if (d.semMudanca) return { listas: { versao: d.versao, semMudanca: true }, extras: null };
+  const listas = {
+    versao: d.versao, config: d.config, pessoas: d.pessoas,
+    // Retrato das giras encerradas só com o que difere do cadastro (ver shared/regras.js compactarRetrato).
+    giras: ocultarSorteios(eu, compactarRetratos(d.pessoas, d.giras)),
+    eventos: d.eventos, minhaCurimba: eu.pessoaId ? d.minhaCurimba : null,
+    oracoes: d.oracoes ? await oracoes(eu, d.oracoes) : undefined, entidadesApelidos: d.entidadesApelidos,
+  };
+  return { listas, extras: d };
 }
 
 const acoes = {
@@ -145,13 +152,14 @@ const acoes = {
   async inicio(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
-    const lendoConfig = opcional(db.rpc('config_casa'));
-    if (req.query.atualizar) {
-      const [listas, config] = await Promise.all([listasIniciais(u), lendoConfig]);
-      return { ...listas, config };
+    const atualizar = !!req.query.atualizar;
+    if (u.grupo) {
+      const listas = await listasDoGrupo(u);
+      return atualizar ? listas : { me: await dadosDoMe(u), ...listas };
     }
-    const [me, listas, config] = await Promise.all([dadosDoMe(u), listasIniciais(u), lendoConfig]);
-    return { me, ...listas, config };
+    // Ao voltar ao app, ?versao= é a que ele já tem: sem mudança, a resposta é só { versao, semMudanca }.
+    const { listas, extras } = await listasIniciais(u, { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar });
+    return atualizar ? listas : { me: await dadosDoMe(u, extras), ...listas };
   },
 
   // Perfil da própria pessoa (todo mundo que está no cadastro da corrente).

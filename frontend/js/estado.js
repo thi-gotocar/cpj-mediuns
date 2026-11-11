@@ -151,6 +151,7 @@ export async function carregarTudo() {
   estado.pessoas = r.pessoas;
   estado.entidadesApelidos = r.entidadesApelidos || [];
   definirGiras(r.giras);
+  estado.versaoDados = r.versao || '';   // ao voltar ao app, sem mudança desde esta versão, nada é baixado de novo
   estado.pronto = true;
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
   // Abre sempre na próxima gira (ou na mais recente).
@@ -194,7 +195,12 @@ export async function atualizarDoServidor() {
       avisar();
       return;
     }
-    const r = await api('GET', '/auth/inicio?atualizar=1');
+    // A versão que o app já tem: sem mudança no servidor, a resposta é só { semMudanca } e as listas ficam como estão.
+    // Uma gravação feita daqui também muda a versão: na volta seguinte, baixa tudo uma vez.
+    const versao = estado.me?.grupo ? '' : estado.versaoDados || '';
+    const r = await api('GET', '/auth/inicio?atualizar=1' + (versao ? '&versao=' + encodeURIComponent(versao) : ''));
+    if (r.semMudanca) { await atualizarAbaAberta(); return; }
+    if (r.versao) estado.versaoDados = r.versao;
     if (r.config) definirConfig(r.config);
     if (estado.me?.grupo === 'curimba') {
       estado.eventos = r.eventos;
@@ -205,22 +211,27 @@ export async function atualizarDoServidor() {
     // Lista que falhou no servidor não vem: fica a que já está na tela.
     const minhaCurimba = r.minhaCurimba === undefined ? estado.minhaCurimba : r.minhaCurimba;
     estado.oracoes = r.oracoes || estado.oracoes;
-    if (estado.conduta !== null && prefs.tab === 'gira') estado.conduta = await api('GET', '/giras?lista=conduta').catch(() => estado.conduta);
     estado.pessoas = r.pessoas;
     estado.eventos = r.eventos || estado.eventos;
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
     estado.entidadesApelidos = r.entidadesApelidos || estado.entidadesApelidos;
     definirGiras(r.giras);
-    // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
-    // Geral e Gira mostram os compromissos das oferendas; atualizar quando qualquer uma estiver aberta.
-    if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {
-      estado.oferendas = await api('GET', '/oferendas').catch(() => estado.oferendas);
-    }
-    // Bloco "Pedir ervas" da aba Gira: mostra se o pedido ainda está aberto.
-    if (estado.ervas !== null && prefs.tab === 'agenda') estado.ervas = await api('GET', '/ervas').catch(() => estado.ervas);
-    if (estado.iemanja !== null && prefs.tab === 'oferendas') estado.iemanja = await api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja);
-    avisar();
+    await atualizarAbaAberta();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
+}
+
+// O que não entra na versão dos dados (oferendas, ervas, Iemanjá, relatos): só da aba aberta, como antes.
+async function atualizarAbaAberta() {
+  if (estado.conduta !== null && prefs.tab === 'gira') estado.conduta = await api('GET', '/giras?lista=conduta').catch(() => estado.conduta);
+  // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
+  // Geral e Gira mostram os compromissos das oferendas; atualizar quando qualquer uma estiver aberta.
+  if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {
+    estado.oferendas = await api('GET', '/oferendas').catch(() => estado.oferendas);
+  }
+  // Bloco "Pedir ervas" da aba Gira: mostra se o pedido ainda está aberto.
+  if (estado.ervas !== null && prefs.tab === 'agenda') estado.ervas = await api('GET', '/ervas').catch(() => estado.ervas);
+  if (estado.iemanja !== null && prefs.tab === 'oferendas') estado.iemanja = await api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja);
+  avisar();
 }
 
 // ---------- gira: edição com fila de salvamento ----------

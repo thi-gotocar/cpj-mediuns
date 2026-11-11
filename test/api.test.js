@@ -128,6 +128,18 @@ test('/api/auth/inicio traz a abertura do app em um pedido só', async () => {
   const atualizar = await api('GET', '/api/auth/inicio?atualizar=1', USER);
   assert.equal(atualizar.json.me, undefined, 'ao voltar para o app, só as listas');
   assert.deepEqual(atualizar.json.pessoas, r.json.pessoas);
+  // Com a versão que o app já tem e nada gravado no meio: só "sem mudança".
+  assert.ok(r.json.versao);
+  const igual = await api('GET', '/api/auth/inicio?atualizar=1&versao=' + encodeURIComponent(r.json.versao), USER);
+  assert.deepEqual(igual.json, { versao: r.json.versao, semMudanca: true });
+  // Uma gravação muda a versão: a volta seguinte traz as listas de novo.
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Versão Nova', funcao: 'senha' });
+  const mudou = (await api('GET', '/api/auth/inicio?atualizar=1&versao=' + encodeURIComponent(r.json.versao), USER)).json;
+  assert.notEqual(mudou.versao, r.json.versao);
+  assert.equal(mudou.semMudanca, undefined);
+  assert.ok(mudou.pessoas.some((p) => p.nome === 'Versão Nova'));
+  const p = mudou.pessoas.find((x) => x.nome === 'Versão Nova');
+  await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
 });
 
 test('perfil: cada um vê e salva só o seu; root sem cadastro não tem', async () => {

@@ -64,10 +64,12 @@ export async function respostaIemanja(eu, eventos = null) {
 }
 
 // Para /auth/me: se a pessoa vê a aba, e se ela está aberta ao público (visão CPJ/Alunos do root).
-export async function abaIemanja(eu) {
+// Lê só o resumo (visível e responsáveis de cada evento), o mesmo critério de veEvento; resumo já lido vem pronto.
+export async function abaIemanja(eu, resumo) {
   if (eu.grupo === 'curimba') return { iemanjaAba: false, iemanjaPublica: false };
-  const lista = await lerEventos();
-  return { iemanjaAba: ehRoot(eu) || lista.some((ev) => veEvento(eu, ev)), iemanjaPublica: lista.some((ev) => ev.visivel) };
+  const lista = resumo || (await db.rpc('iemanja_resumo'));
+  const meu = (ev) => !!eu.pessoaId && ev.responsaveis.includes(eu.pessoaId);
+  return { iemanjaAba: ehRoot(eu) || lista.some((ev) => ev.visivel || meu(ev)), iemanjaPublica: lista.some((ev) => ev.visivel) };
 }
 
 const limpar = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();

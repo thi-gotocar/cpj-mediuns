@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 98;  // v98: retrato do que foi encerrado; apagar de vez quem foi excluído
+export const VERSAO = 99;  // v99: abertura do app em uma consulta e "nada mudou" ao voltar
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3363,4 +3363,68 @@ export const MIGRACOES = [
    end;
    $$`,
   `select apagar_excluidos()`,
+
+  // ================================================== v99: abertura do app em uma consulta e "nada mudou" ao voltar
+  // Versão dos dados da abertura: um contador que sobe a cada gravação nas tabelas que vão em /auth/inicio,
+  // mais a hora (o que vence com o tempo, como as orações de 7 dias, se renova pelo menos a cada hora).
+  `create sequence if not exists versao_dados_seq`,
+  `create or replace function versao_dados_subir()
+   returns trigger language plpgsql as $$
+   begin
+     perform nextval('versao_dados_seq');
+     return null;
+   end;
+   $$`,
+  `do $$ declare t text;
+   begin
+     foreach t in array array['pessoas', 'licencas', 'giras', 'presencas', 'duplas', 'eventos', 'oracoes', 'oracoes_reacoes',
+                              'curimba_aulas', 'curimba_presencas', 'curimba_alunos', 'sistema']
+     loop
+       if to_regclass(t) is not null then
+         execute format('drop trigger if exists versao_dados on %I', t);
+         -- Por linha: só sobe quando uma linha muda de fato (um delete que não apaga nada, como o das orações vencidas
+         -- a cada abertura, não conta).
+         execute format('create trigger versao_dados after insert or update or delete on %I for each row execute function versao_dados_subir()', t);
+       end if;
+     end loop;
+   end $$`,
+  `create or replace function versao_dados()
+   returns text language sql volatile as $$
+     select (select last_value from versao_dados_seq)::text || '-' || to_char(now() at time zone 'America/Sao_Paulo', 'YYYYMMDDHH24');
+   $$`,
+  // Iemanjá para decidir a aba (sem ler grupos, itens e doações): visível e quem é responsável em cada evento.
+  `create or replace function iemanja_resumo(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('visivel', e.visivel,
+       'responsaveis', coalesce((select jsonb_agg(g.responsavel_id) from iemanja_grupos g
+                                 where g.evento_id = e.id and g.responsavel_id is not null), '[]'::jsonb))), '[]'::jsonb)
+     from iemanja_eventos e
+   $$`,
+  // p = { versao, me, pessoaId }. Mesma versão do app: só { versao, semMudanca }. Senão, tudo da abertura de uma vez
+  // (as listas que podem falhar sem impedir o app de abrir ficam de fora em caso de erro, como antes).
+  // me: também o que decide as abas (sub-abas de oferendas, vídeos e ervas publicados, resumo da Iemanjá).
+  `create or replace function inicio_dados(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_versao text := versao_dados();
+     r jsonb;
+   begin
+     if coalesce(p ->> 'versao', '') = v_versao then
+       return jsonb_build_object('versao', v_versao, 'semMudanca', true);
+     end if;
+     r := jsonb_build_object('versao', v_versao, 'pessoas', pessoas_listar('{"todas": true}'::jsonb),
+                             'giras', giras_listar('{}'::jsonb), 'config', config_casa('{}'::jsonb));
+     begin r := r || jsonb_build_object('eventos', eventos_listar('{}'::jsonb)); exception when others then null; end;
+     begin r := r || jsonb_build_object('oracoes', oracoes_listar('{}'::jsonb)); exception when others then null; end;
+     begin r := r || jsonb_build_object('entidadesApelidos', entidades_apelidos_listar('{}'::jsonb)); exception when others then null; end;
+     if nullif(p ->> 'pessoaId', '') is not null then
+       begin r := r || jsonb_build_object('minhaCurimba', curimba_minha(jsonb_build_object('pessoaId', p ->> 'pessoaId'))); exception when others then null; end;
+     end if;
+     if coalesce((p ->> 'me')::boolean, false) then
+       r := r || jsonb_build_object('abasOferendas', oferenda_abas_listar('{}'::jsonb), 'videosPublicada', videos_publicada('{}'::jsonb),
+                                    'ervasPublicada', ervas_publicada('{}'::jsonb), 'iemanja', iemanja_resumo('{}'::jsonb));
+     end if;
+     return r;
+   end;
+   $$`,
 ];
