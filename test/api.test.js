@@ -23,6 +23,14 @@ async function api(metodo, rota, token, corpo) {
   const json = await r.json().catch(() => null);
   return { status: r.status, json };
 }
+// Acesso da corrente com senha (PIN): Perfil e Anamnese só abrem para quem já criou a senha.
+async function entrarComSenha(nome, pin = '2468') {
+  let r = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: nome })).json;
+  if (r?.precisaSenha) r = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: nome, pin })).json;
+  if (!r?.token) return null;
+  const c = await api('POST', '/api/auth/criarSenha', r.token, { senha: pin });
+  return c.status === 200 ? c.json.token : r.token;
+}
 
 before(async () => {
   prepararBanco();
@@ -85,7 +93,7 @@ test('/api/auth/me mostra papel e permissões', async () => {
   assert.ok(a.json.permissoes.includes('giras:sortear'));
   const u = await api('GET', '/api/auth/me', USER);
   assert.equal(u.json.papel, 'usuario');
-  assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver']);
+  assert.deepEqual(u.json.permissoes, ['pessoas:ler', 'giras:ler', 'pessoas:ver', 'historico:ver', 'escala:completa', 'ervas:escolher', 'oferendas:doar', 'perfil:ver', 'fotos:ver']);
 });
 
 test('excluir pessoa: sai das listas, o histórico fica e cadastrar de novo traz de volta', async () => {
@@ -449,7 +457,7 @@ test('gestão de usuários: só admin root, com travas', async () => {
   const pNovo = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Novo');
   const novo = await api('POST', '/api/usuarios', ADMIN, { email: 'Novo@Corrente.org', pessoaId: pNovo.id, senha: '12345678', papel: 'usuario' });
   assert.equal(novo.status, 200, JSON.stringify(novo.json));
-  assert.equal(novo.json.length, 5, "root, Zé, admin oferendas, admin ervas e o novo");
+  assert.equal(novo.json.length, 6, "root, Zé, admin oferendas, admin ervas, admin curimba e o novo");
   assert.ok(!('sessaoVersao' in novo.json[0]) && !('senhaHash' in novo.json[0]));
   assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'novo@corrente.org', pessoaId: pNovo.id, senha: '12345678', papel: 'usuario' })).status, 400);
   assert.equal((await api('POST', '/api/usuarios', ADMIN, { email: 'z@z.org', pessoaId: pNovo.id, senha: '1', papel: 'usuario' })).status, 400);
@@ -1156,7 +1164,7 @@ test('alunos da CPJ: turmas 09 a 11, fora da corrente; admin oferendas cadastra 
   const t10 = A.turmas.find((t) => t.nome === 'Turma 10').id;
   const r = (await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluno Um, Aluno Dois', turmaId: t10 })).json;
   assert.equal(r.criadas, 2);
-  assert.ok(r.alunos.every((a) => a.turmaId === t10));
+  assert.ok(r.alunos.filter((a) => ['Aluno Um', 'Aluno Dois'].includes(a.nome)).every((a) => a.turmaId === t10));
   // Não entram na corrente.
   assert.ok(!(await api('GET', '/api/pessoas', ADMIN)).json.some((p) => p.nome === 'Aluno Um'));
   const t12 = (await api('POST', '/api/pessoas', ADMIN, { acao: 'turma', nome: 'Turma 12' })).json.turmas.find((t) => t.nome === 'Turma 12');
@@ -1208,7 +1216,9 @@ test('promover aluno para CPJ como Cambone mantém o acesso e preserva o histór
   const pessoa = transferido.json.pessoas.find((p) => p.nome === aluno.nome);
   assert.equal(pessoa.funcao, 'cambone');
   assert.equal((await api('GET', '/api/pessoas?lista=alunos', acessoAluno.json.token)).status, 401, 'a sessão antiga de aluno é encerrada');
-  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'alunos', senha: aluno.nome })).status, 404, 'o acesso alunos deixa de funcionar');
+  // O acesso alunos deixa de funcionar (pode sugerir outros alunos de nome parecido, mas não ele).
+  const comoAluno = (await api('POST', '/api/auth/entrar', null, { email: 'alunos', senha: aluno.nome })).json;
+  assert.ok(!comoAluno?.token && !comoAluno?.candidatos?.includes(aluno.nome), JSON.stringify(comoAluno));
   const acessoCPJ = await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: aluno.nome });
   assert.equal(acessoCPJ.status, 200, JSON.stringify(acessoCPJ.json));
   assert.equal(acessoCPJ.json.usuario.papel, 'corrente');
@@ -1334,7 +1344,7 @@ test('perfil: a própria pessoa salva só as informações; outra pessoa, só o 
   const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
   const ana = ps.find((p) => p.nome === 'Ana').id;
   const outra = ps.find((p) => p.nome !== 'Ana').id;
-  const tok = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  const tok = await entrarComSenha('Ana');
   const antes = (await api('GET', '/api/auth/perfil', tok)).json.eu.perfil;
   const r = await api('POST', '/api/auth/perfil', tok, { pessoaId: ana, info: { contatoNome: 'Dona Lia' } });
   assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -1361,7 +1371,7 @@ test('perfil: admin ajusta a data de nascimento de outra pessoa (Ajustes)', asyn
 test('perfil: afinidade com as entidades por função (extra, passe, cambone)', async () => {
   const add = async (nome, funcao) => {
     await api('POST', '/api/pessoas', ADMIN, { nome, funcao });
-    return (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: nome })).json.token;
+    return entrarComSenha(nome);
   };
   const passe = await add('Paula Passe', 'passe');
   const camb = await add('Caio Cambone', 'cambone');
@@ -1390,7 +1400,7 @@ test('escala: o sorteio só aparece para todos depois de publicado', async () =>
   const adm = (await api('GET', '/api/giras/' + d, ADMIN)).json;
   assert.equal(adm.publicada, false);
   assert.ok(adm.pares.length > 0, 'admin vê o sorteio');
-  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  const ana = await entrarComSenha('Ana');
   for (const t of [USER, ana]) {
     assert.deepEqual((await api('GET', '/api/giras/' + d, t)).json.pares, [], 'antes de publicar, ninguém mais vê');
     assert.deepEqual((await api('GET', '/api/giras', t)).json.find((g) => g.data === d).pares, []);
@@ -1548,31 +1558,29 @@ test('anamnese: o admin do perfil cadastra perguntas; cada pessoa responde as su
   assert.ok(Array.isArray(r.todas), 'o admin recebe as respostas de todos');
   // Acesso da corrente: responde as próprias; não vê as dos outros.
   const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
-  const ent = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: ps[0].nome })).json;
-  const C = ent.token;
-  if (C) {
-    assert.equal((await pq(C, { acao: 'visibilidade', visivel: false })).status, 403, 'só admin altera visibilidade');
-    assert.equal((await pq(ADMIN, { acao: 'visibilidade', visivel: 'false' })).status, 400, 'visibilidade precisa ser boolean');
-    r = (await pq(ADMIN, { acao: 'visibilidade', visivel: false })).json;
-    assert.equal(r.visivel, false);
-    const oculto = (await api('GET', '/api/auth/anamnese', C)).json;
-    assert.equal(oculto.visivel, false);
-    assert.deepEqual(oculto.perguntas, [], 'usuário não recebe perguntas quando o bloco está oculto');
-    assert.equal(oculto.minhas, null, 'usuário não recebe respostas enquanto está oculto');
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: 'dipirona' } })).status, 409);
-    r = (await pq(ADMIN, { acao: 'visibilidade', visivel: true })).json;
-    assert.equal(r.visivel, true);
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [q1.id]: 'talvez' } })).status, 400);
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: Array.from({ length: 21 }, () => 'a').join('\n') } })).status, 400, 'até 20 linhas');
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2026-02-29' } })).status, 400, 'data inexistente');
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [mental.id]: ['opção inválida'] } })).status, 400, 'opções validadas no servidor');
-    const sel = mental.opcoes[0];
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [mental.id]: [sel] } })).status, 200);
-    assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2000-02-29', [escolha.id]: escolha.opcoes[0] } })).status, 200, 'data e escolha válidas');
-    const m = (await pq(C, { acao: 'responder', respostas: { [q1.id]: 'sim', [q2.id]: ' dipirona ' } })).json;
-    assert.deepEqual([m.minhas[q1.id], m.minhas[q2.id]], ['sim', 'dipirona']);
-    assert.equal(m.todas, undefined, 'a corrente não vê as respostas dos outros');
-  }
+  const C = await entrarComSenha(ps[0].nome);
+  assert.ok(C);
+  assert.equal((await pq(C, { acao: 'visibilidade', visivel: false })).status, 403, 'só admin altera visibilidade');
+  assert.equal((await pq(ADMIN, { acao: 'visibilidade', visivel: 'false' })).status, 400, 'visibilidade precisa ser boolean');
+  r = (await pq(ADMIN, { acao: 'visibilidade', visivel: false })).json;
+  assert.equal(r.visivel, false);
+  const oculto = (await api('GET', '/api/auth/anamnese', C)).json;
+  assert.equal(oculto.visivel, false);
+  assert.deepEqual(oculto.perguntas, [], 'usuário não recebe perguntas quando o bloco está oculto');
+  assert.equal(oculto.minhas, null, 'usuário não recebe respostas enquanto está oculto');
+  assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: 'dipirona' } })).status, 409);
+  r = (await pq(ADMIN, { acao: 'visibilidade', visivel: true })).json;
+  assert.equal(r.visivel, true);
+  assert.equal((await pq(C, { acao: 'responder', respostas: { [q1.id]: 'talvez' } })).status, 400);
+  assert.equal((await pq(C, { acao: 'responder', respostas: { [q2.id]: Array.from({ length: 21 }, () => 'a').join('\n') } })).status, 400, 'até 20 linhas');
+  assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2026-02-29' } })).status, 400, 'data inexistente');
+  assert.equal((await pq(C, { acao: 'responder', respostas: { [mental.id]: ['opção inválida'] } })).status, 400, 'opções validadas no servidor');
+  const sel = mental.opcoes[0];
+  assert.equal((await pq(C, { acao: 'responder', respostas: { [mental.id]: [sel] } })).status, 200);
+  assert.equal((await pq(C, { acao: 'responder', respostas: { [dataNasc.id]: '2000-02-29', [escolha.id]: escolha.opcoes[0] } })).status, 200, 'data e escolha válidas');
+  const m = (await pq(C, { acao: 'responder', respostas: { [q1.id]: 'sim', [q2.id]: ' dipirona ' } })).json;
+  assert.deepEqual([m.minhas[q1.id], m.minhas[q2.id]], ['sim', 'dipirona']);
+  assert.equal(m.todas, undefined, 'a corrente não vê as respostas dos outros');
   assert.equal((await pq(USER, { acao: 'editarPergunta', id: q2.id, texto: 'Pergunta alterada' })).status, 403);
   assert.equal((await pq(ADMIN, { acao: 'editarPergunta', id: q2.id, texto: 'x'.repeat(501) })).status, 400);
   r = (await pq(ADMIN, { acao: 'editarPergunta', id: q2.id, texto: '  Remédios   em uso? ' })).json;
@@ -1608,7 +1616,9 @@ test('recado do admin: até 5 linhas, só quem edita a gira e todos leem', async
 
 test('trava da escala: só quem edita liga; com ela não dá para remanejar; cancelar o sorteio tira a trava', async () => {
   const d = '2031-03-05';
-  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: '' });
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Caboclo' });
+  const s = await api('POST', `/api/giras/${d}/sortear`, ADMIN);
+  assert.equal(s.status, 200, JSON.stringify(s.json));
   assert.equal((await api('POST', '/api/giras/' + d, USER, { acao: 'travar', travada: true })).status, 403);
   assert.equal((await api('POST', '/api/giras/' + d, ADMIN, { acao: 'travar', travada: 'sim' })).status, 400);
   const r = (await api('POST', '/api/giras/' + d, ADMIN, { acao: 'travar', travada: true })).json;
@@ -1619,7 +1629,7 @@ test('trava da escala: só quem edita liga; com ela não dá para remanejar; can
 });
 
 test('gestão de conduta e risco: interruptor do root; só o root lê; quem abriu edita até ser lido e vê só a resposta publicada', async () => {
-  const ana = (await api('POST', '/api/auth/entrar', null, { email: 'cpj', senha: 'Ana' })).json.token;
+  const ana = await entrarComSenha('Ana');
   const lista = async (t) => (await api('GET', '/api/giras?lista=conduta', t)).json.relatos;
   const relato = (t, dados) => api('POST', '/api/giras', t, { acao: 'conduta', ...dados });
   const ativar = (t, ativa) => api('POST', '/api/giras', t, { acao: 'condutaAtivar', ativa });
