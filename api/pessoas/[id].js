@@ -49,6 +49,9 @@ export default rota({
   },
   DELETE: async (req) => {
     await exigir(req, 'pessoas:editar');
-    return db.rpc('pessoas_excluir', { id: validarId(req.query.id) });
+    const r = await db.rpc('pessoas_excluir', { id: validarId(req.query.id) });
+    // Sem nada aberto que dependa dela, a pessoa é apagada de vez (o encerrado tem o retrato).
+    await db.rpc('apagar_excluidos');
+    return r;
   },
 });

@@ -1,6 +1,6 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
-import { recebe, ehCambone, ordRecebe, status, presencaDe, naCorrenteEm, FUNCOES, STATUS, STATUS_KEYS, opcoesGira, nomeGira, nomeEntidadeGira, apelidoEntidade, LINHA_LABEL, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
+import { recebe, ehCambone, ordRecebe, status, presencaDe, daGira, naGira, FUNCOES, STATUS, STATUS_KEYS, opcoesGira, nomeGira, nomeEntidadeGira, apelidoEntidade, LINHA_LABEL, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, pessoasComSaidas, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
@@ -90,7 +90,8 @@ export function cardGiraAntiga(ps) {
 // Presença da corrente na gira: presentes (presente, não atende, suporte) sobre toda a corrente,
 // licenças incluídas (a mesma conta do resumo compartilhado no WhatsApp).
 function presencaGira(ps, g) {
-  const sts = ps.filter((p) => naCorrenteEm(p, g.data)).map((p) => presencaDe(p, g)).filter((st) => st !== 'pend');   // pendente ainda não conta
+  // Encerrada com retrato: quem estava na gira (mesmo quem já saiu do cadastro).
+  const sts = daGira(ps, g).filter(contaNaPresenca).map((p) => presencaDe(p, g)).filter((st) => st !== 'pend');   // pendente ainda não conta
   const pres = sts.filter((st) => st === 'p').length;
   return { pres, base: sts.length, pct: sts.length ? Math.round((pres / sts.length) * 100) : null };
 }
@@ -140,7 +141,7 @@ function cardEstatisticas(todas, ps) {
   const porPessoa = ps.map((p) => {
     let pres = 0, a = 0, f = 0, base = 0;
     comEventos.forEach((g) => {
-      if (!naCorrenteEm(p, g.data)) return;   // antes de entrar na corrente
+      if (!naGira(p, g)) return;   // antes de entrar na corrente (ou fora do retrato da gira)
       const st = presencaDe(p, g);
       if (st === 'lic' || st === 'pend') return;
       base++;
@@ -153,10 +154,10 @@ function cardEstatisticas(todas, ps) {
   // Tocar no nome mostra gira a gira o que contou para a pessoa (para conferir uma falta, por exemplo).
   const ROT = ROT_PRESENCA;
   const detalhe = (p) => {
-    const linhas = comEventos.filter((g) => naCorrenteEm(p, g.data)).map((g) => [g, presencaDe(p, g)])
+    const linhas = comEventos.filter((g) => naGira(p, g)).map((g) => [g, presencaDe(p, g)])
       .filter(([, st]) => st !== 'lic' && st !== 'pend')
       .sort(([a], [b]) => b.data.localeCompare(a.data));
-    const fora = comEventos.filter((g) => !naCorrenteEm(p, g.data)).length;
+    const fora = comEventos.filter((g) => !naGira(p, g)).length;
     // Admin root: Editar em cada gira (Presente / Falta / Ausente).
     const root = pode('usuarios:gerenciar');
     const linhaDet = ([g, st]) => {
@@ -306,7 +307,7 @@ function blocoGirasSalvas(gs, ps) {
     h += `<div class="hist" data-rolar="3">`;
     gs.forEach((g) => {
       // Presentes = quem esteve na gira (presente, não atende ou suporte).
-      const n = (...sts) => ps.filter((p) => naCorrenteEm(p, g.data) && sts.includes(status(p, g))).length;
+      const n = (...sts) => daGira(ps, g).filter((p) => contaNaPresenca(p) && sts.includes(status(p, g))).length;
       const nLic = n('lic');
       const conf = estado.confirm === 'g:' + g.data;
       const pr = presencaGira(ps, g);

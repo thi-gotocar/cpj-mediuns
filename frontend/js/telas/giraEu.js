@@ -1,6 +1,6 @@
 // Aba Gira: bloco "Você nesta gira" de quem está logado.
 
-import { tituloGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naCorrenteEm, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira, podeEscolherEntidade, linhasParaEscolher, entidadeEscolhida } from '/shared/regras.js';
+import { tituloGira, ehCurimba, orixaDaGira, limpezaDaGira, status, presencaDe, naGira, pessoaNaGira, pessoasDe, licencaEm, funcaoNaGira, podeDeclararAusencia, statusMarcado, guiaNaGira, podeEscolherEntidade, linhasParaEscolher, entidadeEscolhida } from '/shared/regras.js';
 import { estado, pode, nome, girasLista, carregarFoto } from '../estado.js';
 import { config } from '/shared/config.js';
 import { esc, dDM, hoje, iniciais } from '../util.js';
@@ -9,8 +9,10 @@ import { htmlStatus } from './giraComum.js';
 const ROTULO_FUNCAO = { medium: 'Médium', extra: 'At. Extra', cambone: 'Cambone', passe: 'Médium de passe', senha: 'Senha', curimba: 'Curimba' };
 // Bloco de quem está logado: com quem trabalha nesta gira e se é da turma da limpeza.
 export function blocoEu(g) {
-  const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
-  if (!p) return '';
+  const cad = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
+  if (!cad) return '';
+  // Gira encerrada: a pessoa como estava no retrato da gira (função, turma, licença daquele dia).
+  const p = pessoaNaGira(cad, g);
   const foto = () => {
     const F = estado.fotosPessoa;
     if (F[p.id] === undefined) carregarFoto(p.id);
@@ -24,8 +26,8 @@ export function blocoEu(g) {
   </div></div>`;
   // Título do bloco: o nome da gira (igual ao da aba Gira) à esquerda e a data à direita.
   const cabeca = `<div class="datehead eu-cab"><div class="grp-h eu-h"><span class="dia gira-nome">${esc(tituloGira(g))}</span><span class="eu-gira">${dDM(g.data)}</span></div>${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>`;
-  if (!naCorrenteEm(p, g.data)) return `<div class="card eu">${cabeca}
-    ${identidade()}<p class="eu-nota muted">Sua entrada na corrente é em ${dDM(p.entrada)}/${p.entrada.slice(0, 4)}. Esta gira ainda não conta para você.</p></div>`;
+  if (!naGira(cad, g)) return `<div class="card eu">${cabeca}
+    ${identidade()}<p class="eu-nota muted">${cad.entrada && cad.entrada > g.data ? `Sua entrada na corrente é em ${dDM(cad.entrada)}/${cad.entrada.slice(0, 4)}. Esta gira ainda não conta para você.` : 'Esta gira não conta para você.'}</p></div>`;
   const curimba = ehCurimba(p);
   const rootVinculado = estado.me?.papel === 'root' && p.id === estado.me.pessoaId;
   const st = curimba ? 'p' : status(p, g);
@@ -40,7 +42,7 @@ export function blocoEu(g) {
   const comFoto = (rot, id) => {
     const F = estado.fotosPessoa;
     if (F[id] === undefined) carregarFoto(id);
-    const n = nome(id);
+    const n = pessoasDe(estado.pessoas, g).find((x) => x.id === id)?.nome || nome(id);   // encerrada: nome do retrato
     const av = F[id]
       ? `<button type="button" class="eu-av" data-act="eufoto" data-id="${id}" aria-label="Ver a foto de ${esc(n)}"><img src="${F[id]}" alt=""></button>`
       : `<span class="eu-av"><span aria-hidden="true">${esc(iniciais(n))}</span></span>`;

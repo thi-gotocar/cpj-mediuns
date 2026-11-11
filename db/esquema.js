@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 97;  // v97: Iemanjá: categoria do item
+export const VERSAO = 98;  // v98: retrato do que foi encerrado; apagar de vez quem foi excluído
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3106,4 +3106,261 @@ export const MIGRACOES = [
      return iemanja_estado();
    end;
    $$`,
+  // ================================================== v98: o que foi encerrado não muda mais com o cadastro
+  // Gira encerrada guarda o retrato de quem estava nela (shared/regras.js retratoDaGira): nome, função, linhas,
+  // + médium de passe, turma da limpeza e a licença daquele dia. Reabrir apaga o retrato.
+  `alter table giras add column if not exists retrato jsonb`,
+  `create or replace function gira_json(d date)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'data', g.data,
+       'entidade', g.entidade,
+       'entidadeNome', g.entidade_nome,
+       'titulo', g.titulo,
+       'encerrada', g.encerrada,
+       'suporteAuto', g.suporte_auto,
+       'atendimentos', g.atendimentos,
+       'participantes', g.participantes,
+       'limpeza', g.limpeza,
+       'orixa', g.orixa,
+       'evento', g.evento,
+       'pendentePadrao', g.pendente_padrao,
+       'publicada', coalesce(g.publicada, false),
+       'travada', g.travada,
+       'recado', g.recado,
+       'papeis', g.papeis,
+       'atende', g.atende,
+       'retrato', g.retrato,
+       'atualizadoEm', g.atualizado_em,
+       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
+                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
+       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
+       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
+                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
+                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
+     )
+     from giras g where g.data = d;
+   $$`,
+  // Retrato pelo cadastro de hoje (o mesmo que shared/regras.js retratoDaGira monta): para as giras já encerradas
+  // e para a gira antiga cadastrada (ou importada) já encerrada.
+  `create or replace function gira_retrato_do_cadastro(d date)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_object_agg(pe.id::text, jsonb_build_object(
+         'nome', pe.nome, 'funcao', pe.funcao, 'experiente', pe.experiente, 'linhas', to_jsonb(pe.linhas), 'limpeza', pe.limpeza,
+         'licenca', (select jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo)
+                     from licencas l where l.pessoa_id = pe.id and l.inicio <= d and d <= l.fim order by l.inicio limit 1))), '{}'::jsonb)
+     from pessoas pe
+     where (pe.entrada is null or pe.entrada <= d) and (pe.saida is null or d < pe.saida)
+   $$`,
+  // p = { data, retrato } grava (com null, apaga) o retrato; { data, doCadastro: true } tira pelo cadastro de hoje.
+  `create or replace function gira_retrato(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_data date := (p ->> 'data')::date;
+   begin
+     update giras set retrato = case when coalesce((p ->> 'doCadastro')::boolean, false) then gira_retrato_do_cadastro(v_data)
+                                     else nullif(p -> 'retrato', 'null'::jsonb) end
+     where data = v_data;
+     return gira_json(v_data);
+   end;
+   $$`,
+  `update giras set retrato = gira_retrato_do_cadastro(data) where encerrada and retrato is null`,
+
+  // Oferenda encerrada guarda o nome de quem participou, do responsável e de quem doou: { "p:<id>" | "a:<id>" |
+  // chave da doação | "responsavel": nome }. Pagamento, entrega e itens continuam na oferenda (podem ser acertados depois).
+  `alter table oferendas add column if not exists retrato jsonb`,
+  `create or replace function oferenda_retrato(p_id uuid)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_object_agg(x.k, x.n), '{}'::jsonb) from (
+       select 'p:' || pe.id::text as k, pe.nome as n
+       from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id where om.oferenda_id = p_id
+       union
+       select 'a:' || al.id::text, al.nome
+       from oferenda_alunos oa join alunos al on al.id = oa.aluno_id where oa.oferenda_id = p_id
+       union
+       select 'p:' || pe.id::text, pe.nome
+       from oferendas o join pessoas pe on pe.id = o.responsavel_id where o.id = p_id
+       union
+       -- também sem o id: apagar o responsável zera responsavel_id (on delete set null)
+       select 'responsavel', pe.nome
+       from oferendas o join pessoas pe on pe.id = o.responsavel_id where o.id = p_id
+       union
+       select d.pessoa_chave, coalesce(u.nome, pe.nome, al.nome, d.pessoa_nome)
+       from oferenda_doacoes d join oferenda_itens i on i.id = d.item_id
+       left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+       left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
+       left join alunos al on d.pessoa_chave = 'a:' || al.id::text
+       where i.oferenda_id = p_id
+     ) x where x.n is not null
+   $$`,
+  `update oferendas set retrato = oferenda_retrato(id) where status = 'encerrado' and retrato is null`,
+  // Nomes: o do retrato primeiro (encerrada); quem já foi apagado do cadastro continua pelo retrato.
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
+       'responsavelId', o.responsavel_id,
+       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
+                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
+       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'grupos', to_jsonb(o.grupos),
+       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
+           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
+           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
+           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
+           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
+           union all
+           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
+           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
+           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
+           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
+                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
+                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+
+  // Oferenda de Iemanjá: membros e doações já guardam o nome; o responsável do grupo fica guardado ao encerrar.
+  `alter table iemanja_grupos add column if not exists responsavel_nome text`,
+  `create or replace function iemanja_encerrar_trg()
+   returns trigger language plpgsql as $$
+   begin
+     if new.encerrado_em is not null and old.encerrado_em is null then
+       update iemanja_grupos g set responsavel_nome = (select nome from pessoas where id = g.responsavel_id) where g.evento_id = new.id;
+     end if;
+     return null;
+   end;
+   $$`,
+  `drop trigger if exists iemanja_encerrar on iemanja_eventos`,
+  `create trigger iemanja_encerrar after update of encerrado_em on iemanja_eventos
+   for each row execute function iemanja_encerrar_trg()`,
+  `update iemanja_grupos g set responsavel_nome = (select nome from pessoas where id = g.responsavel_id)
+   from iemanja_eventos e where e.id = g.evento_id and e.encerrado_em is not null and g.responsavel_nome is null`,
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
+                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
+   $$`,
+
+  // Apagar de vez quem foi excluído: o histórico (presença, duplas, linhas de oferenda) não some junto com o
+  // cadastro — as encerradas têm o retrato. Tira as chaves estrangeiras com "on delete cascade" dessas tabelas.
+  `do $$ declare r record;
+   begin
+     for r in select c.conname, t.relname from pg_constraint c join pg_class t on t.oid = c.conrelid
+              where c.contype = 'f' and t.relname in ('presencas', 'duplas', 'oferenda_mediuns', 'oferenda_alunos')
+                and c.confrelid in ('pessoas'::regclass, 'alunos'::regclass)
+     loop
+       execute format('alter table %I drop constraint %I', r.relname, r.conname);
+     end loop;
+   end $$`,
+  // UP CPJ: as oferendas encerradas ficam como estavam (com o aluno, pelo retrato); só as outras passam para médiuns.
+  `create or replace function aluno_transferir_cambone(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_id uuid := (p ->> 'id')::uuid;
+     v_aluno alunos%rowtype;
+     v_pessoa_id uuid;
+   begin
+     select * into v_aluno from alunos where id = v_id for update;
+     if not found then raise exception 'Aluno não encontrado.'; end if;
+     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_aluno.nome))) then
+       raise exception 'Já existe uma pessoa da corrente com esse nome.';
+     end if;
+
+     insert into pessoas (nome, funcao, perfil, pin_hash, pin_versao, entrada)
+       values (v_aluno.nome, 'cambone', v_aluno.perfil, v_aluno.pin_hash, v_aluno.pin_versao, (now() at time zone 'America/Sao_Paulo')::date)
+       returning id into v_pessoa_id;
+     if v_aluno.foto is not null then
+       insert into pessoas_fotos (pessoa_id, foto) values (v_pessoa_id, v_aluno.foto);
+     end if;
+     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
+       select oa.oferenda_id, v_pessoa_id, oa.pagamento, oa.entrega, oa.excluido, oa.atualizado_em
+       from oferenda_alunos oa join oferendas o on o.id = oa.oferenda_id
+       where oa.aluno_id = v_id and o.status <> 'encerrado'
+       on conflict (oferenda_id, pessoa_id) do update set
+         pagamento = excluded.pagamento, entrega = excluded.entrega,
+         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
+     delete from oferenda_alunos oa using oferendas o
+       where oa.aluno_id = v_id and o.id = oa.oferenda_id and o.status <> 'encerrado';
+     update oferenda_doacoes d set pessoa_chave = 'p:' || v_pessoa_id::text
+       from oferenda_itens i join oferendas o on o.id = i.oferenda_id
+       where d.item_id = i.id and o.status <> 'encerrado' and d.pessoa_chave = 'a:' || v_id::text;
+     delete from alunos where id = v_id;
+
+     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar('{"todas": true}'::jsonb));
+   exception when unique_violation then
+     raise exception 'Já existe uma pessoa da corrente com esse nome.';
+   end;
+   $$`,
+  // Apaga a pessoa ou o aluno excluído que não está em nada ainda aberto: gira não encerrada da época em que
+  // estava na corrente, oferenda não encerrada, Oferenda de Iemanjá não encerrada. Antes, tira as linhas
+  // "excluído" dele das oferendas abertas. Licenças, foto, Anamnese e ausências antecipadas vão junto (cascade).
+  `create or replace function apagar_excluidos(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_pessoas uuid[]; v_alunos uuid[];
+   begin
+     select coalesce(array_agg(pe.id), '{}') into v_pessoas from pessoas pe
+     where pe.saida is not null
+       and not exists (select 1 from giras g where not g.encerrada and g.data < pe.saida and (pe.entrada is null or g.data >= pe.entrada))
+       and not exists (select 1 from presencas pr join giras g on g.data = pr.gira_data where pr.pessoa_id = pe.id and not g.encerrada)
+       and not exists (select 1 from duplas du join giras g on g.data = du.gira_data where pe.id in (du.pessoa_id, du.medium_id) and not g.encerrada)
+       and not exists (select 1 from oferenda_mediuns om join oferendas o on o.id = om.oferenda_id
+                       where om.pessoa_id = pe.id and not om.excluido and o.status <> 'encerrado')
+       and not exists (select 1 from oferendas o where o.responsavel_id = pe.id and o.status <> 'encerrado')
+       and not exists (select 1 from iemanja_grupos g join iemanja_eventos e on e.id = g.evento_id
+                       where g.responsavel_id = pe.id and e.encerrado_em is null)
+       and not exists (select 1 from iemanja_membros m join iemanja_grupos g on g.id = m.grupo_id join iemanja_eventos e on e.id = g.evento_id
+                       where m.chave = 'p:' || pe.id::text and e.encerrado_em is null);
+     select coalesce(array_agg(a.id), '{}') into v_alunos from alunos a
+     where a.saida is not null
+       and not exists (select 1 from oferenda_alunos oa join oferendas o on o.id = oa.oferenda_id
+                       where oa.aluno_id = a.id and not oa.excluido and o.status <> 'encerrado')
+       and not exists (select 1 from iemanja_membros m join iemanja_grupos g on g.id = m.grupo_id join iemanja_eventos e on e.id = g.evento_id
+                       where m.chave = 'a:' || a.id::text and e.encerrado_em is null);
+     delete from oferenda_mediuns om using oferendas o
+       where om.pessoa_id = any(v_pessoas) and o.id = om.oferenda_id and o.status <> 'encerrado';
+     delete from oferenda_alunos oa using oferendas o
+       where oa.aluno_id = any(v_alunos) and o.id = oa.oferenda_id and o.status <> 'encerrado';
+     delete from pessoas where id = any(v_pessoas);
+     delete from alunos where id = any(v_alunos);
+     return jsonb_build_object('pessoas', cardinality(v_pessoas), 'alunos', cardinality(v_alunos));
+   end;
+   $$`,
+  // Encerrar tira o retrato (já encerrada, mantém o que tinha); sair de encerrado apaga. Encerrar também libera
+  // quem só faltava nela para ser apagado (apagar_excluidos).
+  `create or replace function oferenda_status(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oferendas set status = p ->> 'status', publicada = publicada or (p ->> 'status') = 'publicado',
+       retrato = case when (p ->> 'status') = 'encerrado'
+                      then coalesce(case when status = 'encerrado' then retrato end, oferenda_retrato(id)) end
+      where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Oferenda não encontrada.'; end if;
+     if (p ->> 'status') = 'encerrado' then perform apagar_excluidos(); end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `select apagar_excluidos()`,
 ];

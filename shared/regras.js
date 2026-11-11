@@ -172,6 +172,7 @@ export const TROCAS_DIA = { pas: ['passe', ['extra', 'cambone', 'senha']], ext: 
 export function funcaoNaGira(p, g) {
   // Já convertida (pessoasDaGira): não converte de novo.
   if (p.funcaoCadastro) return p.funcao;
+  p = pessoaNaGira(p, g);
   const r = (g.papeis || {})[p.id];
   if (TROCAS_DIA[r] && TROCAS_DIA[r][1].includes(p.funcao)) return TROCAS_DIA[r][0];
   // O admin pode manter a função do cadastro mesmo fora da linha (papeis[id] = 'cad').
@@ -183,7 +184,10 @@ export function funcaoNaGira(p, g) {
 // Entrada na corrente: antes dessa data a pessoa não conta na gira (nem presença, nem sorteio, nem limpeza).
 // Saída: da data em diante também não; as giras anteriores continuam com ela.
 export const naCorrenteEm = (p, data) => !data || ((!p?.entrada || p.entrada <= data) && (!p?.saida || data < p.saida));
-export const daGira = (pessoas, g) => pessoas.filter((p) => naCorrenteEm(p, g.data));
+// Gira encerrada com retrato: quem está nela é quem está no retrato (ver retratoDaGira).
+export const daGira = (pessoas, g) => (temRetrato(g) ? pessoasDe(pessoas, g) : pessoas.filter((p) => naCorrenteEm(p, g.data)));
+// A pessoa conta nesta gira? (para quem percorre pessoa por pessoa, ex.: Histórico)
+export const naGira = (p, g) => (temRetrato(g) ? !!p && Object.prototype.hasOwnProperty.call(g.retrato, p.id) : naCorrenteEm(p, g.data));
 // Quem entra pelo acesso da corrente declara a própria ausência: só em gira já criada e em aberto,
 // estando Pendente, até o dia anterior ao evento (hoje = 'AAAA-MM-DD'), e enquanto ninguém marcou
 // a presença dela (o último status vale; depois que está na lista de presença, só o admin muda).
@@ -215,18 +219,112 @@ export function licencaEm(p, data) {
   return (p.licencas || []).find((l) => l.inicio <= data && data <= l.fim) || null;
 }
 
+// ---- Retrato da gira encerrada
+// Ao encerrar, a gira guarda quem estava nela e como estava no cadastro naquele dia: { pessoaId: { nome, funcao,
+// experiente, linhas, limpeza, licenca } } (licenca = a licença que cobria a data, ou null). Encerrada, a gira lê
+// a pessoa do retrato: mudar o cadastro depois (nome, função, linhas, licença) ou apagar a pessoa não muda a gira.
+// Reabrir apaga o retrato e a gira volta a seguir o cadastro.
+// Formato compacto (lista de giras na abertura do app): só o que difere do cadastro atual; campo ausente = igual
+// ao cadastro; quem não está mais no cadastro vem completo.
+const CAMPOS_RETRATO = ['nome', 'funcao', 'experiente', 'linhas', 'limpeza'];
+function valorRetrato(p, c) {
+  if (c === 'experiente') return !!p.experiente;
+  if (c === 'limpeza') return p.limpeza ? Number(p.limpeza) : null;
+  if (c === 'linhas') return Array.isArray(p.linhas) ? [...p.linhas] : null;
+  return p[c];
+}
+const licRetrato = (l) => (l ? { id: l.id, inicio: l.inicio, fim: l.fim, motivo: l.motivo || '' } : null);
+const igualRetrato = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+export function retratoDaGira(pessoas, g) {
+  const r = {};
+  for (const p of daGira(pessoas, { ...g, retrato: null })) {
+    const e = {};
+    for (const c of CAMPOS_RETRATO) e[c] = valorRetrato(p, c);
+    e.licenca = licRetrato(licencaEm(p, g.data));
+    r[p.id] = e;
+  }
+  return r;
+}
+
+// Só gira encerrada usa o retrato (aberta segue o cadastro).
+export const temRetrato = (g) => !!(g?.encerrada && g.retrato);
+
+export function compactarRetrato(pessoas, g) {
+  if (!temRetrato(g)) return g;
+  const porId = new Map(pessoas.map((p) => [p.id, p]));
+  const r = {};
+  for (const [id, e] of Object.entries(g.retrato)) {
+    const cad = porId.get(id);
+    if (!cad) { r[id] = e; continue; }
+    const d = {};
+    for (const c of CAMPOS_RETRATO) if (!igualRetrato(e[c], valorRetrato(cad, c))) d[c] = e[c];
+    if (!igualRetrato(e.licenca, licRetrato(licencaEm(cad, g.data)))) d.licenca = e.licenca ?? null;
+    r[id] = d;
+  }
+  return { ...g, retrato: r };
+}
+export const compactarRetratos = (pessoas, giras) => giras.map((g) => compactarRetrato(pessoas, g));
+// O app recebe o retrato compacto e completa na hora com o cadastro que veio junto: daí em diante não depende
+// mais do cadastro (que pode mudar ou chegar filtrado nas telas).
+export function expandirRetrato(pessoas, g) {
+  if (!temRetrato(g)) return g;
+  const porId = new Map(pessoas.map((p) => [p.id, p]));
+  const r = {};
+  for (const [id, e] of Object.entries(g.retrato)) {
+    const cad = porId.get(id);
+    if (!cad) { r[id] = e; continue; }
+    const x = {};
+    for (const c of CAMPOS_RETRATO) x[c] = c in e ? e[c] : valorRetrato(cad, c);
+    x.licenca = 'licenca' in e ? e.licenca : licRetrato(licencaEm(cad, g.data));
+    r[id] = x;
+  }
+  return { ...g, retrato: r };
+}
+
+// Pessoa como estava na gira (com retrato); guardada por retrato para não refazer a cada chamada.
+const cacheRetrato = new WeakMap();
+function doRetrato(cad, id, g) {
+  let m = cacheRetrato.get(g.retrato);
+  if (!m) cacheRetrato.set(g.retrato, (m = new Map()));
+  const c = m.get(id);
+  if (c && c.cad === cad) return c.p;
+  const { licenca, ...resto } = g.retrato[id];
+  const base = cad || { id };
+  const lic = licenca !== undefined ? licenca : licencaEm(base, g.data);
+  const p = { ...base, ...resto, id, licencas: lic ? [lic] : [], entrada: null, saida: null, retratada: true };
+  m.set(id, { cad, p });
+  return p;
+}
+// Pessoas da gira: com retrato, as do retrato (por cima do cadastro; quem foi apagado vem só do retrato).
+export function pessoasDe(pessoas, g) {
+  if (!temRetrato(g)) return pessoas;
+  let m = cacheRetrato.get(g.retrato);
+  if (!m) cacheRetrato.set(g.retrato, (m = new Map()));
+  if (m.lista && m.pessoas === pessoas) return m.lista;
+  const porId = new Map(pessoas.map((p) => [p.id, p]));
+  m.lista = Object.keys(g.retrato).map((id) => doRetrato(porId.get(id), id, g));
+  m.pessoas = pessoas;
+  return m.lista;
+}
+// A pessoa com os dados do retrato desta gira (sem retrato, ou se já é do retrato, ela mesma).
+export const pessoaNaGira = (p, g) => (p && !p.retratada && temRetrato(g) && Object.prototype.hasOwnProperty.call(g.retrato, p.id)
+  ? doRetrato(p, p.id, g) : p);
+
 // Na gira, cada pessoa tem duas coisas separadas:
 //  - presença (g.presenca): pendente, presente, falta ou ausente ('lic' = de licença, vale sobre tudo);
 //  - função do dia (g.papeis): a do cadastro, 'sup' (Suporte, fora do sorteio), 'na' (Não atende: cambona;
 //    para o médium de passe aparece como "Cambone") ou 'pas' (Extra que atua como Passe nesta gira).
 // Giras antigas guardavam 'sup'/'na' na própria presença: continuam valendo (como presente).
 export function presencaDe(p, g) {
+  p = pessoaNaGira(p, g);
   if (licencaEm(p, g.data)) return 'lic';
   const v = (g.presenca || {})[p.id];
   if (v === 'sup' || v === 'na') return 'p';
   return ['pend', 'p', 'f', 'a'].includes(v) ? v : g.pendentePadrao ? 'pend' : 'p';
 }
 export function papelDe(p, g) {
+  p = pessoaNaGira(p, g);
   const r = (g.papeis || {})[p.id];
   if (r === 'sup' || r === 'na' || r === 'cad') return r;
   if (TROCAS_DIA[r] && TROCAS_DIA[r][1].includes(p.funcao)) return r;
@@ -590,7 +688,9 @@ export function encerrar(pessoas, g) {
   const mensagem = 'Gira encerrada.' + (movidos.length
     ? ` ${movidos.length === 1 ? 'Foi' : 'Foram'} para o Suporte (sem médium): ${movidos.join(', ')}.`
     : ' Todos os presentes estão na escala.');
-  return { patch: { presenca, papeis, pares: validos, passes: passesV, encerrada: true, suporteAuto }, movidos, mensagem };
+  // Retrato tirado com a gira como fica encerrada (presença e função do dia não entram: ficam na própria gira).
+  const retrato = retratoDaGira(pessoas, g);
+  return { patch: { presenca, papeis, pares: validos, passes: passesV, encerrada: true, suporteAuto, retrato }, movidos, mensagem };
 }
 
 // Reabrir: quem foi para o Suporte ao encerrar (e ainda está lá) volta ao status de antes.
@@ -598,18 +698,20 @@ export function reabrir(pessoas, g) {
   const presenca = { ...(g.presenca || {}) };
   const papeis = { ...(g.papeis || {}) };
   const nomes = [];
+  const ps = pessoasDe(pessoas, g);   // nomes como estavam na gira (mesmo de quem já foi apagado)
   for (const [id, antes] of Object.entries(g.suporteAuto || {})) {
     if (papeis[id] === 'sup') {
       if (antes === 'na' || TROCAS_DIA[antes]) papeis[id] = antes; else delete papeis[id];
     } else if (presenca[id] === 'sup') {
       presenca[id] = antes === 'cad' ? 'p' : antes;   // formato antigo
     } else continue;
-    const p = pessoas.find((x) => x.id === id);
+    const p = ps.find((x) => x.id === id);
     if (p) nomes.push(p.nome);
   }
   nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const mensagem = 'Gira reaberta.' + (nomes.length ? ` ${nomes.length === 1 ? 'Voltou' : 'Voltaram'} do Suporte: ${nomes.join(', ')}.` : '');
-  return { patch: { presenca, papeis, encerrada: false, suporteAuto: {} }, mensagem };
+  // Reaberta, a gira volta a seguir o cadastro (encerrar de novo tira um retrato novo).
+  return { patch: { presenca, papeis, encerrada: false, suporteAuto: {}, retrato: null }, mensagem };
 }
 
 // Sugestão de Passe / Atendimento extra para a gira (aba Gira, admin), pelo que cada um marcou no Perfil

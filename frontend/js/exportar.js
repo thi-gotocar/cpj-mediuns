@@ -1,6 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
-import { giraEspecial, nomeEntidadeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira, contaNaPresenca, naCorrenteEm } from '/shared/regras.js';
+import { giraEspecial, nomeEntidadeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira, contaNaPresenca, daGira, pessoasDe } from '/shared/regras.js';
 import { pd, dShort } from './util.js';
 
 function corta(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
@@ -31,7 +31,7 @@ export function gruposLimpeza(pessoas, g, giras) {
 
 // Quem não vem nesta gira, como nos blocos Ausência e Faltas da aba Gira (texto e imagem da escala), em ordem alfabética.
 export function foraDaGira(pessoas, g) {
-  const ps = pessoas.filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data));
+  const ps = daGira(pessoas, g).filter(contaNaPresenca);
   const de = (st) => ps.filter((p) => status(p, g) === st).map((p) => p.nome).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   return { ausentes: de('a'), faltas: de('f') };
 }
@@ -41,7 +41,7 @@ function quemFazAniversario(pessoas, g) {
   const d = pd(g.data);
   const amanha = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
   const dias = [g.data.slice(5), `${String(amanha.getMonth() + 1).padStart(2, '0')}-${String(amanha.getDate()).padStart(2, '0')}`];
-  return pessoas.filter((p) => dias.includes(p.aniversario) && naCorrenteEm(p, g.data))
+  return daGira(pessoas, g).filter((p) => dias.includes(p.aniversario))
     .sort((a, b) => dias.indexOf(a.aniversario) - dias.indexOf(b.aniversario) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 export const aniversariantesDaGira = (pessoas, g) => quemFazAniversario(pessoas, g).map((p) => `${p.nome} (${p.aniversario.slice(3)}/${p.aniversario.slice(0, 2)})`);
@@ -72,7 +72,8 @@ const ICONE = { senha: '🔑', suporte: '🛟', apoio: '🤲', limpeza: '🧹', 
 const LINHA = '━━━━━━━━━━━━━━━';
 
 export function textoWhats(pessoas, g, fmt, giras = []) {
-  const nome = (id) => pessoas.find((p) => p.id === id)?.nome || '(removido)';
+  const ps = pessoasDe(pessoas, g);   // encerrada: nomes do retrato
+  const nome = (id) => ps.find((p) => p.id === id)?.nome || '(removido)';
   const { lista, semPasse } = paresPorMedium(pessoas, escalaDaGira(g));
   const cab = cabecalhoGira(g);
   const grupos = gruposExtras(pessoas, g, giras);

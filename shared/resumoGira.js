@@ -6,7 +6,7 @@
 //   limpezaResumo(pessoas, g, giras) → turma da limpeza com a situação de cada um (ou null)
 //   textoLimpeza(pessoas, g, giras) → prévia da gira com a turma da limpeza para o grupo do WhatsApp (ou '')
 
-import { status, presencaDe, daGira, pessoasDaGira, presente, naCorrenteEm, licencaEm, nomeGira, nomeEntidadeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
+import { status, presencaDe, daGira, pessoasDaGira, presente, licencaEm, nomeGira, nomeEntidadeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
 import { config } from './config.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
@@ -81,7 +81,7 @@ export function historicoFrequencia(giras, pessoas, atual) {
     .sort((a, b) => a.data.localeCompare(b.data))
     .slice(-6)
     .map((g) => {
-      const elegiveis = (pessoas || []).filter((p) => contaNaPresenca(p) && naCorrenteEm(p, g.data))
+      const elegiveis = daGira(pessoas || [], g).filter(contaNaPresenca)
         .filter((p) => ['p', 'a', 'f'].includes(presencaDe(p, g)));
       const presentes = elegiveis.filter((p) => presencaDe(p, g) === 'p').length;
       return { data: g.data, presentes, elegiveis: elegiveis.length,

@@ -4,7 +4,7 @@
 // o recado do admin logo abaixo do cabeçalho; no fim, quadros para suporte, cambones de apoio, a turma da limpeza
 // (com quem ajuda) e quem não vem (ausências e faltas). Quem faz aniversário no dia da gira leva 🥳 ao lado do nome.
 
-import { paresPorMedium, escalaDaGira, guiaNaGira } from '/shared/regras.js';
+import { paresPorMedium, escalaDaGira, guiaNaGira, pessoasDe, temRetrato } from '/shared/regras.js';
 import { gruposExtras, cabecalhoGira, foraDaGira, idsAniversariantes } from './exportar.js';
 
 const C = {
@@ -60,7 +60,12 @@ function desenhar(ctx, cadastro, g, desenhar, giras = [], logo = null) {
   // Aniversariante: o 🥳 vai junto do nome, em qualquer lugar da imagem em que ele apareça.
   const festa = idsAniversariantes(cadastro, g);
   const pessoas = festa.size ? cadastro.map((p) => (festa.has(p.id) ? { ...p, nome: p.nome + ' 🥳' } : p)) : cadastro;
-  const nome = (id) => pessoas.find((p) => p.id === id)?.nome || '(removido)';
+  // Gira encerrada: os nomes vêm do retrato (o 🥳 vai nele também).
+  if (festa.size && temRetrato(g)) {
+    g = { ...g, retrato: Object.fromEntries(Object.entries(g.retrato).map(([id, e]) => [id, festa.has(id) && e.nome ? { ...e, nome: e.nome + ' 🥳' } : e])) };
+  }
+  const ps = pessoasDe(pessoas, g);
+  const nome = (id) => ps.find((p) => p.id === id)?.nome || '(removido)';
   const { lista, semPasse } = paresPorMedium(pessoas, escalaDaGira(g));
   const cab = cabecalhoGira(g);
   const grupos = gruposExtras(pessoas, g, giras);

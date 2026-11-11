@@ -57,6 +57,8 @@ O app abre só com o código da aba Geral; as outras abas são baixadas ao abrir
 
 A abertura do app e a atualização ao voltar para ele usam um pedido só (`/api/auth/inicio`): uma conferência de sessão e as consultas em paralelo, em vez de um pedido por lista. As rotas de cada lista continuam para recarregar só uma parte.
 
+**Retrato do que foi encerrado.** Gira, oferenda e Oferenda de Iemanjá guardam ids, e o resto (nome, função, licença…) vinha do cadastro na hora de mostrar. Ao encerrar, gravam um retrato: `giras.retrato` (`shared/regras.js` `retratoDaGira`, gravado por `gira_retrato`; reabrir apaga), `oferendas.retrato` (nomes por chave `p:`/`a:`/chave da doação, em `oferenda_status`) e `iemanja_grupos.responsavel_nome` (trigger ao encerrar). Nas regras, `daGira`/`presencaDe`/`papelDe`/`funcaoNaGira` leem a pessoa do retrato quando a gira está encerrada, então as telas não precisam saber dele; quem percorre pessoa por pessoa usa `naGira`. Como todas as giras vão na abertura, a lista manda o retrato **compacto** (`compactarRetratos`: só o que difere do cadastro que vai junto) e o app completa ao receber (`expandirRetrato` em `definirGiras`). Com o histórico no retrato, presença, duplas e linhas de oferenda não têm mais chave estrangeira para o cadastro, e `apagar_excluidos()` apaga de vez quem foi excluído e não está em nada aberto.
+
 ## Entidades
 
 Só as relações. Colunas: `db/esquema.js`. O significado dos campos de negócio (`linhas`, `experiente`, `papeis`, status de presença) está em [regras.md](regras.md).

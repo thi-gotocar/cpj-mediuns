@@ -1,7 +1,7 @@
 // Aba Gira: bloco do ano no topo, para todos. Total de atendimentos (do ano ou do mês escolhido), a presença de quem está
 // logado (tocar abre gira a gira) e o orixá de cabeça com mais pessoas — os mesmos números do Histórico.
 
-import { presencaDe, naCorrenteEm, contaNaPresenca, nomeEntidadeGira } from '/shared/regras.js';
+import { presencaDe, naGira, contaNaPresenca, nomeEntidadeGira } from '/shared/regras.js';
 import { estado, girasLista, avisar } from '../estado.js';
 import { esc, dShort, hoje } from '../util.js';
 import { PRES, ROT_PRESENCA, barra, corBarraPresenca, totaisAtendimento, stPerfis, blocoOrixaCabeca } from './estatisticasComum.js';
@@ -10,7 +10,7 @@ import { PRES, ROT_PRESENCA, barra, corBarraPresenca, totaisAtendimento, stPerfi
 function minhaPresenca(encerradas) {
   const p = estado.me?.pessoaId && estado.pessoas.find((x) => x.id === estado.me.pessoaId);
   if (!p || !contaNaPresenca(p)) return '';
-  const linhas = encerradas.filter((g) => naCorrenteEm(p, g.data)).map((g) => [g, presencaDe(p, g)])
+  const linhas = encerradas.filter((g) => naGira(p, g)).map((g) => [g, presencaDe(p, g)])
     .filter(([, st]) => st !== 'lic' && st !== 'pend')
     .sort(([a], [b]) => b.data.localeCompare(a.data));
   const pres = linhas.filter(([, st]) => PRES.includes(st)).length;

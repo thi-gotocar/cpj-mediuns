@@ -678,3 +678,50 @@ test('escala travada: falta e ausência não mudam a escala mostrada; encerrar c
   assert.deepEqual(trav.presenca, { c1: 'f', m2: 'a' }, 'a presença real não muda');
   assert.equal(encerrar(pessoas, trav).patch.pares.length, 0, 'ao encerrar, valem as faltas: a dupla de quem faltou não fica no histórico');
 });
+
+test('retrato da gira encerrada: mudar o cadastro depois não muda a gira; reabrir volta a seguir o cadastro', async () => {
+  const { encerrar, reabrir, giraVazia, pessoasDaGira, status, funcaoNaGira, limpezaDaGira, naGira, compactarRetratos } = await import('../shared/regras.js');
+  const data = '2026-11-04';
+  const ana = { id: 'a', nome: 'Ana', funcao: 'medium', limpeza: 2, licencas: [] };
+  const bia = { id: 'b', nome: 'Bia', funcao: 'cambone', limpeza: 2, licencas: [] };
+  const cai = { id: 'c', nome: 'Caio', funcao: 'extra', linhas: ['caboclo'], licencas: [] };
+  const g0 = { ...giraVazia(data), entidade: 'caboclo', limpeza: 2, presenca: { a: 'p', b: 'p', c: 'p' }, pares: [{ m: 'a', c: 'b' }] };
+  const { patch } = encerrar([ana, bia, cai], g0);
+  assert.deepEqual(Object.keys(patch.retrato).sort(), ['a', 'b', 'c']);
+  assert.deepEqual(patch.retrato.c, { nome: 'Caio', funcao: 'extra', experiente: false, linhas: ['caboclo'], limpeza: null, licenca: null });
+  const g = { ...g0, ...patch };
+
+  // Depois de encerrada: Ana renomeada, Bia vira médium e ganha licença no dia, Caio perde a linha; Dora entra com data antiga.
+  const depois = [
+    { ...ana, nome: 'Ana Maria' },
+    { ...bia, funcao: 'medium', licencas: [{ id: 'l', inicio: data, fim: data, motivo: '' }] },
+    { ...cai, linhas: [] },
+    { id: 'd', nome: 'Dora', funcao: 'cambone', licencas: [] },
+  ];
+  const ps = pessoasDaGira(depois, g);
+  assert.deepEqual(ps.map((p) => p.nome).sort(), ['Ana', 'Bia', 'Caio'], 'nomes do retrato; quem entrou depois não aparece');
+  assert.equal(status(depois[1], g), 'p', 'licença lançada depois não muda a gira encerrada');
+  assert.equal(funcaoNaGira(depois[1], g), 'cambone', 'função de quando encerrou');
+  assert.equal(funcaoNaGira(depois[2], g), 'extra', 'linha tirada depois não faz cambonar');
+  assert.equal(naGira(depois[3], g), false);
+  assert.deepEqual(limpezaDaGira(depois, g, [g]).membros.map((p) => p.nome), ['Ana', 'Bia'], 'turma da limpeza do retrato');
+
+  // Pessoa apagada do cadastro: a gira continua com ela.
+  const semAna = depois.filter((p) => p.id !== 'a');
+  assert.ok(pessoasDaGira(semAna, g).some((p) => p.id === 'a' && p.nome === 'Ana'));
+
+  // Formato compacto: só o que difere do cadastro; expandido dá o mesmo resultado.
+  const [gc] = compactarRetratos(depois, [g]);
+  assert.deepEqual(gc.retrato.a, { nome: 'Ana' });
+  assert.deepEqual(gc.retrato.b, { funcao: 'cambone', licenca: null });
+  assert.deepEqual(gc.retrato.c, { linhas: ['caboclo'] });
+  const nomes = (x) => pessoasDaGira(depois, x).map((p) => `${p.nome}:${p.funcao}:${status(p, x)}`).sort();
+  assert.deepEqual(nomes(gc), nomes(g));
+  const [gc2] = compactarRetratos(semAna, [g]);
+  assert.deepEqual(gc2.retrato.a, g.retrato.a, 'quem foi apagado vai completo');
+
+  // Reabrir: sem retrato, segue o cadastro de novo.
+  const r = reabrir(depois, g).patch;
+  assert.equal(r.retrato, null);
+  assert.equal(status(depois[1], { ...g, ...r }), 'lic');
+});
