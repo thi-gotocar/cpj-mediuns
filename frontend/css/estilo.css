@@ -1196,7 +1196,9 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .al-add-form .pp-bts{margin:0}
 @media (max-width:520px){.pessoas-tela .limpeza-atribuir,.pessoas-tela .al-add-form{grid-template-columns:minmax(0,1fr)}}
 /* Alunos: ações da turma numa linha; cada aluno numa caixinha como as pessoas */
-.pessoas-tela .al-acoes{display:flex;align-items:center;gap:6px}
+.pessoas-tela .al-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.pessoas-tela .btn.al-wa{border-width:1px;text-decoration:none}
+.pessoas-tela .al-wa .wa-ico svg{width:18px;height:18px}
 .pessoas-tela .al-turma-ed{display:flex;align-items:center;gap:6px;margin:0}
 .pessoas-tela .al-turma-ed input{flex:1 1 auto;min-width:0;padding:6px 9px}
 .pessoas-tela .btn.al-promover{min-width:0;color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}

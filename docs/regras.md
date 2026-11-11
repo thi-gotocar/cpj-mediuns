@@ -12,6 +12,7 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - Aba Pessoas: os blocos de Extra e Passe se chamam **Médiuns At. Extra** e **Médiuns de Passe**; nos quadradinhos da Corrente CPJ ficam os nomes curtos (At. Extra, Passe).
 - Aba Pessoas, dentro do bloco da Corrente, acima das licenças e sem moldura ADMIN: **Oferendas pendentes** (só para quem vê o perfil de todos), agrupadas pela função cadastrada.
 - Aba Pessoas: os blocos **Turmas da limpeza** e **Alunos** abrem sempre minimizados (só o título com a contagem); tocar no título abre ou minimiza.
+- Aba Pessoas → **Alunos**: com uma turma aberta, quem edita Alunos tem o botão do **WhatsApp** para compartilhar a lista da turma (nome da turma, total e um aluno por linha, numerados).
 - Aba Pessoas: tudo só muda em **Editar** (nome, função, turma, + médium de passe, entidades) e grava no **Salvar**; Excluir abre janela de confirmação.
 - **Excluir pessoa ou aluno guarda a saída, não apaga o passado.** Some das listas, do login e do que ainda vai acontecer (giras em aberto, oferendas não encerradas com data de hoje em diante). Giras encerradas e oferendas passadas ou encerradas continuam com a pessoa. Perfil, foto, Anamnese e senha são apagados. Cadastrar de novo o mesmo nome faz a pessoa voltar com o mesmo registro.
 - Quem é cadastrado pela tela entra com **data de entrada = hoje** e não conta em giras anteriores (o root pode ajustar a data). Restaurar backup mantém as datas do arquivo.

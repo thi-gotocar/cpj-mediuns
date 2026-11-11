@@ -6,6 +6,7 @@ import { estado, prefs, salvarPrefs, pode, pessoasOrd, girasLista, adicionarPess
 import { esc, toast, hoje } from '../util.js';
 import { PIN_VALIDO } from '/shared/permissoes.js';
 import { cardOferendasPendentes, cliques as cliquesPerfil } from './perfil.js';
+import { ICONE_WHATS } from './giraComum.js';
 
 // Ordem das funções exibidas nos totais da Corrente CPJ.
 const ORDEM_FUNCOES = ['medium', 'extra', 'passe', 'cambone', 'senha'].map((k) => FUNCOES.find((f) => f.k === k)).filter(Boolean);
@@ -251,6 +252,12 @@ function cardAdicionar(ps) {
 }
 
 // ---------- alunos da CPJ: um sub-bloco por turma ----------
+// Lista da turma para o WhatsApp: título em negrito, total e um aluno por linha, numerados.
+function textoTurma(g) {
+  const n = g.lista.length;
+  return `*🎓 Alunos · ${g.nome}*\n${n} aluno${n === 1 ? '' : 's'}\n\n${g.lista.map((a, i) => `${i + 1}. ${a.nome}`).join('\n')}`;
+}
+
 // Escolhendo quem promover (UP CPJ) nesta turma?
 const promovendo = (g) => estado.alunosPromover?.turma === g.id;
 
@@ -270,8 +277,9 @@ function acoesTurma(g, editar, podePromover) {
   }
   const add = real && estado.alunosAdicionarTurma === g.id;
   const up = podePromover && g.lista.length;
-  if (!real && !up) return '';
-  return `<div class="al-acoes">${real && !add ? `<button class="btn small" type="button" data-act="abrirAddAlunosTurma" data-id="${g.id}">＋ Adicionar alunos</button>` : ''}${up ? `<button class="btn small al-promover" type="button" data-act="abrirPromover" data-id="${esc(g.id)}" aria-label="Promover alunos de ${esc(g.nome)} para a Corrente CPJ">↑ UP CPJ</button>` : ''}${real ? `<span class="pp-bts"><button class="btn small pp-ico" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}" title="Editar turma"><span aria-hidden="true">✎</span></button><button class="btn small pp-ico pp-del" data-act="excluirask" data-tipo="turma" data-id="${g.id}" aria-label="Remover ${esc(g.nome)}" title="Remover turma"><span aria-hidden="true">🗑️</span></button></span>` : ''}</div>
+  const wa = g.lista.length ? `<a class="btn small pp-ico wa-bt al-wa" href="https://wa.me/?text=${encodeURIComponent(textoTurma(g))}" target="_blank" rel="noopener" aria-label="Compartilhar a lista de ${esc(g.nome)} no WhatsApp" title="Compartilhar no WhatsApp"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span></a>` : '';
+  if (!real && !up && !wa) return '';
+  return `<div class="al-acoes">${real && !add ? `<button class="btn small" type="button" data-act="abrirAddAlunosTurma" data-id="${g.id}">＋ Adicionar alunos</button>` : ''}${up ? `<button class="btn small al-promover" type="button" data-act="abrirPromover" data-id="${esc(g.id)}" aria-label="Promover alunos de ${esc(g.nome)} para a Corrente CPJ">↑ UP CPJ</button>` : ''}<span class="pp-bts">${wa}${real ? `<button class="btn small pp-ico" data-act="editturma" data-id="${g.id}" aria-label="Editar ${esc(g.nome)}" title="Editar turma"><span aria-hidden="true">✎</span></button><button class="btn small pp-ico pp-del" data-act="excluirask" data-tipo="turma" data-id="${g.id}" aria-label="Remover ${esc(g.nome)}" title="Remover turma"><span aria-hidden="true">🗑️</span></button>` : ''}</span></div>
     ${add ? `<form id="f-alunos-turma" class="al-add-form" data-id="${g.id}" autocomplete="off">
       <label class="field">Nome do aluno (ou vários separados por vírgula)<input type="text" id="alunos-turma-nomes" maxlength="4000" required autocomplete="off"></label>
       <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Adicionar</button><button class="btn small pp-bt" type="button" data-act="cancelarAddAlunosTurma">Cancelar</button></span></form>` : ''}`;
