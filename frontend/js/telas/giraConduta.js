@@ -19,8 +19,8 @@ function formulario(c) {
     ${anon ? `<p class="cd-anon-nota">Tudo bem, a escolha é sua. Sua mensagem chega à comissão <b>sem o seu nome</b>: ninguém vai saber quem enviou.
       Por isso ela não fica em “Seus relatos” e não recebe resposta por aqui.</p>` : ''}`;
   return `<form id="f-conduta" class="cd-form" data-id="${c ? esc(c.id) : ''}" autocomplete="off">
-    <textarea id="cd-texto" rows="10" maxlength="1500" aria-label="Relato" placeholder="Conte o que aconteceu: o quê, quando, onde e quem estava junto (até 10 linhas).">${esc(texto)}</textarea>
     ${opcao}
+    <textarea id="cd-texto" rows="10" maxlength="1500" aria-label="Relato" placeholder="Conte o que aconteceu: o quê, quando, onde e quem estava junto (até 10 linhas).">${esc(texto)}</textarea>
     <span class="row"><button class="btn primary" type="submit">${c ? 'Salvar' : anon ? 'Enviar sem identificação' : 'Enviar'}</button><button class="btn" type="button" data-act="cdfechar">Cancelar</button></span></form>`;
 }
 
