@@ -47,6 +47,9 @@ function doadoresAdmin(i, s, c) {
   return h + `</div>`;
 }
 
+const CHECK_VAZIO = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+const CHECK_FEITO = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="currentColor"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 // c: { p: prefixo das ações, eu, admin, ref: { data do evento }, podeDoar, opcoesDoador(jaDoaram) }
 function linhaItem(i, c) {
   const s = situacao(i);
@@ -59,12 +62,13 @@ function linhaItem(i, c) {
   const conf = estado.confirm === 'oi:' + i.id;
   const libera = podeMarcarEntregue(i, c.ref, hoje());
   // Cada item começa recolhido numa linha: a cor da situação, o item, quem ficou responsável e,
-  // para o admin, "Ok, entregue" (liberado na data de entrega; pede confirmação numa janela).
+  // para o admin, a caixinha de entregue (liberada na data de entrega; pede confirmação numa janela).
   // Tocar na linha mostra o resto e tocar de novo recolhe.
   const aberto = (U().itensAbertos || []).includes(i.id);
   const resp = i.doacoes.length ? i.doacoes.map((d) => esc(d.nome)).join(', ') : 'Ninguém ainda';
-  const ok = i.entregue ? '<span class="of-entregue">✓ Entregue</span>'
-    : c.admin ? `<button class="btn small of-ok" data-act="${c.p}askentregue" data-id="${i.id}" ${libera ? '' : `disabled title="Libera em ${dataBR(dataEntrega(i, c.ref))}"`}>Ok, entregue</button>` : '';
+  // Entrega: caixinha vazia (admin toca e confirma; liberada a partir da data de entrega) e marcada quando entregue.
+  const ok = i.entregue ? `<span class="of-check feito" role="img" aria-label="Entregue" title="Entregue">${CHECK_FEITO}</span>`
+    : c.admin ? `<button class="of-check" data-act="${c.p}askentregue" data-id="${i.id}" aria-label="Marcar ${esc(i.nome)} como entregue" ${libera ? 'title="Marcar como entregue"' : `disabled title="Libera em ${dataBR(dataEntrega(i, c.ref))}"`}>${CHECK_VAZIO}</button>` : '';
   const cab = `<div class="of-top of-item-l"><button class="of-item-cab" data-act="dobraritem" data-id="${i.id}" aria-expanded="${aberto}">
       <span class="dot ${s.completo ? 'ok' : 'pend'}" title="${s.completo ? 'Completo' : 'Faltam doadores'}"></span>
       <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${i.doacoes.length ? '' : ' muted'}">${resp}</span></span>
@@ -82,12 +86,12 @@ function linhaItem(i, c) {
       <button class="btn small ${minha ? '' : 'primary'}" data-act="${c.p}ofmais" data-id="${i.id}" ${minha >= max ? 'disabled' : ''} aria-label="Mais ${esc(i.nome)}">+</button></div>`;
   }
   if (c.admin) {
-    // "Ok, entregue" fica na linha do item; aqui só o desfazer.
+    // A caixinha de entregue fica na linha do item; aqui só o desfazer.
     h += `<div class="row of-adm">
       ${i.entregue ? `<button class="btn small" data-act="${c.p}entregue" data-id="${i.id}" data-v="0">Desfazer entregue</button>` : ''}
       <button class="btn small" data-act="editaritem" data-id="${i.id}">Editar</button>
       ${conf ? `<button class="btn small danger" data-act="${c.p}delitem" data-id="${i.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="oi:${i.id}">Excluir</button>`}
-      ${!libera && !i.entregue ? `<span class="muted" style="font-size:.82rem">“Ok, entregue” libera em ${dataBR(dataEntrega(i, c.ref))}</span>` : ''}</div>`;
+      ${!libera && !i.entregue ? `<span class="muted" style="font-size:.82rem">A marcação de entregue libera em ${dataBR(dataEntrega(i, c.ref))}</span>` : ''}</div>`;
   }
   return h + `</div>`;
 }

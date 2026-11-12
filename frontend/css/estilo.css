@@ -341,11 +341,17 @@ input[type=date]{min-width:0}
 .of-item-l{gap:8px}
 .of-item-cab{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
 .of-item-tx{flex:1 1 auto;min-width:0;display:grid}
-.of-item-tx .of-nome,.of-resp-i{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* O nome do item quebra em quantas linhas precisar; quem doa fica numa linha só. */
+.of-item-tx .of-nome{overflow-wrap:anywhere;line-height:1.25}
+.of-resp-i{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Caixinha de entregue: vazia (admin toca para marcar) e marcada (verde) quando entregue. */
+.of-check{flex:none;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;margin:-4px -6px -4px 0;padding:0;border:0;background:none;border-radius:10px;color:var(--muted);cursor:pointer}
+button.of-check:not(:disabled):hover{color:var(--accent);background:var(--bg)}
+button.of-check:disabled{opacity:.4;cursor:not-allowed}
+.of-check.feito{color:var(--ok);cursor:default}
 .of-resp-i{font-size:.8rem;color:var(--ink);opacity:.85}
 .of-resp-i.muted{color:var(--muted);opacity:1}
 .of-item-cab .seta{flex:none;color:var(--accent);font-size:.95rem}
-.btn.small.of-ok{flex:none;white-space:nowrap;padding:4px 10px}
 .of-entregue{flex:none;font-size:.78rem;font-weight:700;color:var(--ok);background:var(--ok-soft);border-radius:20px;padding:2px 8px;white-space:nowrap}
 .of-top{display:flex;align-items:center;gap:8px}
 .of-nome{font-weight:700;flex:1;min-width:0}

@@ -207,7 +207,7 @@ function textosJanela(j) {
     const i = itemDe(j.i);
     if (!i) return null;
     const resp = i.doacoes.map((d) => `${esc(d.nome)} (${d.quantidade})`).join(', ');
-    return ['Confirmar entrega', `<b>${esc(i.nome)}</b> foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}`, 'Sim, entregue', 'primary'];
+    return ['Confirmar entrega', `Confirma que <b>${esc(i.nome)}</b> foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}`, 'OK', 'primary', 'Cancelar'];
   }
   if (!j.g) return [...TEXTOS[j.t], 'primary'];
   const g = eventoAberto()?.grupos.find((x) => x.id === j.g);
@@ -219,9 +219,9 @@ function textosJanela(j) {
 function janela() {
   const t = ui.janela && textosJanela(ui.janela);
   if (!t) return '';
-  const [titulo, txt, bt, cor] = t;
+  const [titulo, txt, bt, cor, voltar = 'Voltar'] = t;
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="iem-t"><div class="modal"><h3 id="iem-t">${titulo}</h3><p style="margin:0">${txt}</p>
-    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="iemjanelanao">Voltar</button><button class="btn ${cor}" data-act="iemjanelasim">${bt}</button></div></div></div>`;
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="iemjanelanao">${voltar}</button><button class="btn ${cor}" data-act="iemjanelasim">${bt}</button></div></div></div>`;
 }
 
 export function conteudo() {

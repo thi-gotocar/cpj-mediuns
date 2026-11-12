@@ -324,15 +324,15 @@ export function render() {
   return `<section class="panel">${cardMeusCompromissos()}${veLista() ? cardPorPessoa() : ''}${barraAbas(aba)}${aba.iemanja ? iemanja.conteudo() : listaDaAba(aba)}${janelaEntregue()}${janelaAba()}${janelaNova()}</section>`;
 }
 
-// Janela "Confirmar entrega" do "Ok, entregue" da linha do item.
+// Janela "Confirmar entrega" da caixinha de entregue da linha do item: OK marca, Cancelar deixa como está.
 function janelaEntregue() {
   const { of, item } = U().confEntregue ? achar(U().confEntregue) : {};
   if (!item) return '';
   const resp = item.doacoes.map((d) => `${esc(d.nome)} (${d.quantidade})`).join(', ');
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ent-t"><div class="modal">
     <h3 id="ent-t">Confirmar entrega</h3>
-    <p style="margin:0"><b>${esc(item.nome)}</b> da ${esc(of.titulo)} foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}</p>
-    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="entcancelar">Cancelar</button><button class="btn primary" data-act="entregue" data-id="${item.id}" data-v="1">Sim, entregue</button></div>
+    <p style="margin:0">Confirma que <b>${esc(item.nome)}</b> da ${esc(of.titulo)} foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="entcancelar">Cancelar</button><button class="btn primary" data-act="entregue" data-id="${item.id}" data-v="1">OK</button></div>
   </div></div>`;
 }
 
@@ -432,7 +432,7 @@ export const cliques = {
     U().confEntregue = null;
     if (await acaoOferendas('entregue', { id: el.dataset.id, entregue: el.dataset.v === '1' })) toast(el.dataset.v === '1' ? 'Item marcado como entregue.' : 'Entrega desfeita.');
   },
-  // "Ok, entregue" na linha do item: abre a janela de confirmação.
+  // Caixinha de entregue na linha do item: abre a janela de confirmação.
   askentregue(el) { U().confEntregue = el.dataset.id; avisar(); },
   entcancelar() { U().confEntregue = null; avisar(); },
   editaritem(el) { U().editarItem = el.dataset.id; avisar(); },
