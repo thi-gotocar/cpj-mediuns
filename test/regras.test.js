@@ -336,6 +336,20 @@ test('perfil da curimba: só as informações pessoais', async () => {
   assert.equal(cadastraEspiritual('cambone'), true);
 });
 
+test('aniversariantes do dia: sem quem saiu, por nome, e uma mensagem diferente para cada um', async () => {
+  const { aniversariantesDoDia, mensagensAniversario, MENSAGENS_ANIVERSARIO } = await import('../shared/eventos.js');
+  const ps = [{ nome: 'Zé', aniversario: '11-12' }, { nome: 'Ana', aniversario: '11-12' }, { nome: 'Bia', aniversario: '11-13' }, { nome: 'Caio', aniversario: '11-12', saida: '2026-01-01' }, { nome: 'Davi' }];
+  assert.deepEqual(aniversariantesDoDia(ps, '2026-11-12').map((p) => p.nome), ['Ana', 'Zé']);
+  assert.deepEqual(aniversariantesDoDia(null, '2026-11-12'), []);
+  const m4 = mensagensAniversario(4, '2026-11-12');
+  assert.equal(new Set(m4).size, 4, '4 pessoas, 4 mensagens diferentes');
+  assert.ok(m4.every((m) => MENSAGENS_ANIVERSARIO.includes(m)));
+  assert.deepEqual(mensagensAniversario(4, '2026-11-12'), m4, 'mesma data, mesmas mensagens (prévia = imagem enviada)');
+  assert.equal(new Set(mensagensAniversario(MENSAGENS_ANIVERSARIO.length, 'x')).size, MENSAGENS_ANIVERSARIO.length);
+  assert.equal(mensagensAniversario(MENSAGENS_ANIVERSARIO.length + 2, 'x').length, MENSAGENS_ANIVERSARIO.length + 2);
+  assert.deepEqual(mensagensAniversario(0, 'x'), []);
+});
+
 test('eventos: data digitada 31/10 (ano automático) e a semana (hoje + 7 dias)', async () => {
   const { lerDataCurta, eventosDaSemana } = await import('../shared/eventos.js');
   const hoje = '2026-10-31';

@@ -59,3 +59,37 @@ export const orixasDoDia = (hoje) => DIAS_ORIXAS.filter(([, dias]) => dias.inclu
   .map(([orixa]) => ({ data: hoje, nome: 'Dia de ' + orixa, orixa: true }));
 
 export const dataCurta = (isoData) => `${isoData.slice(8, 10)}/${isoData.slice(5, 7)}`;
+
+// Quem faz aniversário no dia (aniversario = 'MM-DD', do nascimento do Perfil), sem quem saiu da corrente, por nome.
+export const aniversariantesDoDia = (pessoas, data) => (pessoas || [])
+  .filter((p) => !p.saida && p.aniversario === String(data).slice(5))
+  .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+// Mensagens da imagem de aniversariantes: curtas, uma diferente para cada pessoa.
+export const MENSAGENS_ANIVERSARIO = [
+  'Que Oxalá cubra o seu novo ano de paz, saúde e muita luz. Feliz aniversário!',
+  'Que a sua caminhada siga firme, com a proteção dos guias e alegria no coração.',
+  'Muito axé no seu dia! Que a vida devolva todo o carinho que você espalha.',
+  'Que Iemanjá te envolva em amor e que cada dia deste ano seja uma bênção.',
+  'Parabéns! Que não falte saúde, fé e motivos para sorrir.',
+  'Que Ogum abra os seus caminhos e Oxóssi traga fartura para a sua casa.',
+  'Feliz aniversário! A nossa corrente fica mais bonita com você nela.',
+  'Que o seu coração continue leve e a sua luz siga iluminando quem está perto.',
+  'Que este novo ciclo venha cheio de conquistas, amor e boas surpresas.',
+  'Saravá! Que os seus guias te acompanhem em cada passo deste novo ano.',
+  'Que a sua fé se renove hoje e te leve a lugares ainda mais bonitos.',
+  'Um dia cheio de abraços e um ano inteiro de bênçãos para você. Parabéns!',
+];
+// n mensagens diferentes (repete só se houver mais pessoas que mensagens). A ordem vem da semente (a data):
+// a mesma no dia todo, então a prévia e a imagem compartilhada batem.
+export function mensagensAniversario(n, semente = '') {
+  let h = 2166136261;
+  for (const c of String(semente)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  const proximo = () => { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return h / 2 ** 32; };
+  const L = [...MENSAGENS_ANIVERSARIO];
+  for (let i = L.length - 1; i > 0; i--) {
+    const j = Math.floor(proximo() * (i + 1));
+    [L[i], L[j]] = [L[j], L[i]];
+  }
+  return Array.from({ length: n }, (_, i) => L[i % L.length]);
+}

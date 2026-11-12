@@ -2,7 +2,7 @@
 
 import { estado, pode, carregarOferendas, acaoOracoes, avisar } from '../estado.js';
 import { esc, dDM, toast, hoje, pd } from '../util.js';
-import { eventosDoTopo, proximosEventos, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL } from '/shared/eventos.js';
+import { eventosDoTopo, proximosEventos, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL, aniversariantesDoDia } from '/shared/eventos.js';
 import { corDaFaixa } from './curimba.js';
 import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe } from '/shared/oferendas.js';
 import { abertos, cabDobra, ICONE_WHATS } from './giraComum.js';
@@ -25,7 +25,10 @@ export function cardSemana({ ocultarAvisos = false } = {}) {
   const todos = !!estado.evsTodos;
   const lista = todos ? evs : evs.slice(0, 3);
   const mais = evs.length > 3 ? `<button class="btn link small evs-mais" data-act="evsmais" aria-expanded="${todos}">${todos ? 'Ver menos' : 'Ver mais'}</button>` : '';
-  return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2><span class="or-cab-d">${mais}${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</span></div>
+  // Root: WhatsApp com a imagem dos aniversariantes de hoje (só aparece quando há algum).
+  const niver = !ocultarAvisos && pode('usuarios:gerenciar') && aniversariantesDoDia(estado.pessoas, hj).length
+    ? `<button class="btn small or-wa" data-act="niverabrir" title="Mandar os aniversariantes de hoje no WhatsApp"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Parabéns</button>` : '';
+  return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2><span class="or-cab-d">${niver}${mais}${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</span></div>
     ${lista.length ? `<div class="evs-lista">${lista.map((e) => { const [k, rot] = tipo(e); return `<div class="evs-l${e.data === hj ? ' hoje' : ''}">
         <span class="evs-data"><span class="evs-sem">${semana(e.data)}</span><b>${dataCurta(e.data)}</b></span>
         <span class="evs-nome">${e.niver ? '<span class="evs-niver" aria-hidden="true">🎈🎂</span> ' : ''}${esc(e.nome)}</span>

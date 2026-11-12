@@ -10,6 +10,7 @@ import { gerarImagemEvento } from '../imagemEvento.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
 import { config } from '/shared/config.js';
+import { aniversariantesDoDia, mensagensAniversario } from '/shared/eventos.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { htmlStatus, abertos, cabDobra, caixaPendente, ICONE_WHATS } from './giraComum.js';
 import { blocoEu } from './giraEu.js';
@@ -196,6 +197,45 @@ function podeCompartilharOracoes() {
     return !!(imagemOracoesPronta() && navigator.canShare && navigator.canShare({ files: [new File([estado.oraImg.blob], estado.oraImg.nome, { type: 'image/png' })] }));
   } catch { return false; }
 }
+// ---------- janela do WhatsApp dos aniversariantes do dia (root): prévia da imagem, Compartilhar e Salvar ----------
+// Cada pessoa com uma mensagem diferente; a escolha vem da data, então a prévia é a imagem que vai.
+function listaNiver() {
+  const hj = hoje();
+  const ps = aniversariantesDoDia(estado.pessoas, hj);
+  const msgs = mensagensAniversario(ps.length, hj);
+  return ps.map((p, i) => ({ nome: p.nome, mensagem: msgs[i] }));
+}
+const chaveNiver = () => hoje() + JSON.stringify(listaNiver());
+const imagemNiverPronta = () => !!(estado.niverImg && estado.niverImg.key === chaveNiver());
+async function prepararNiver() {
+  if (imagemNiverPronta() || estado.niverGerando) return;
+  estado.niverGerando = true;
+  const key = chaveNiver();
+  try {
+    const { gerarImagemAniversario } = await import('../imagemAniversario.js');
+    const blob = await gerarImagemAniversario(listaNiver());
+    if (estado.niverImg) URL.revokeObjectURL(estado.niverImg.url);
+    estado.niverImg = { url: URL.createObjectURL(blob), blob, key, nome: `aniversariantes-${hoje()}.png` };
+  } catch (e) { toast(e.message); }
+  estado.niverGerando = false;
+  atualizarJanela();
+}
+function podeCompartilharNiver() {
+  try {
+    return !!(imagemNiverPronta() && navigator.canShare && navigator.canShare({ files: [new File([estado.niverImg.blob], estado.niverImg.nome, { type: 'image/png' })] }));
+  } catch { return false; }
+}
+function janelaNiver() {
+  if (!estado.niverJanela) return '';
+  const pronta = imagemNiverPronta();
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="niver-t"><div class="modal or-modal">
+    <h3 id="niver-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Aniversariantes de hoje</h3>
+    ${pronta ? `<div class="or-previa"><img src="${estado.niverImg.url}" alt="Imagem dos aniversariantes de hoje"></div>` : '<div class="loading">Preparando a imagem…</div>'}
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="niverfechar">Fechar</button>
+      ${pronta ? `<button class="btn" data-act="niversalvar">Salvar imagem</button>${podeCompartilharNiver() ? '<button class="btn primary" data-act="nivercompartilhar">Compartilhar</button>' : ''}` : ''}</div>
+  </div></div>`;
+}
+
 function janelaOracoes() {
   if (!estado.oraJanela) return '';
   const pronta = imagemOracoesPronta();
@@ -785,6 +825,21 @@ export const cliques = {
       .then(() => cliques.orafechar())
       .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagem.'); });
   },
+  // Aniversariantes do dia (root): janela com a prévia da imagem; "Compartilhar" abre a lista do aparelho; sem ela, salva.
+  niverabrir() { estado.niverJanela = true; atualizarJanela(); prepararNiver(); },
+  niverfechar() { estado.niverJanela = null; atualizarJanela(); },
+  niversalvar() {
+    if (!imagemNiverPronta()) return;
+    baixar(estado.niverImg.url, estado.niverImg.nome);
+    toast('Imagem salva. Abra o WhatsApp e anexe a imagem no grupo.');
+  },
+  nivercompartilhar() {
+    if (!imagemNiverPronta()) return;
+    const { blob, nome: arq } = estado.niverImg;
+    navigator.share({ files: [new File([blob], arq, { type: 'image/png' })], title: 'Aniversariantes de hoje' })
+      .then(() => cliques.niverfechar())
+      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagem.'); });
+  },
   escimgfechar() { estado.escImgVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).
   waabrir() { estado.waJanela = true; atualizarJanela(); prepararImagem(); },
@@ -882,7 +937,7 @@ function atualizarJanela() {
   if (estado.previaGira && raizJanela?.querySelector('#pv-texto')) return;
   const html = prefs.tab === 'agenda'
     ? janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala() || janelaOracoes()
-    : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() : '';
+    : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() || janelaNiver() : '';
   if (!raizJanela) {
     if (!html) return;
     raizJanela = document.createElement('div');
@@ -892,7 +947,7 @@ function atualizarJanela() {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
       else if (estado.previaGira) return;   // tocar fora não fecha: perderia o texto ajustado
-      else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : estado.escImgVer ? cliques.escimgfechar : estado.oraJanela && e.target.classList.contains('modal-fundo') ? cliques.orafechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
+      else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : estado.escImgVer ? cliques.escimgfechar : estado.oraJanela && e.target.classList.contains('modal-fundo') ? cliques.orafechar : estado.niverJanela && e.target.classList.contains('modal-fundo') ? cliques.niverfechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
     });
     raizJanela.addEventListener('input', (e) => {
       if (e.target.id === 'pv-texto') document.getElementById('pv-enviar').href = linkWhats(e.target.value);
