@@ -1,11 +1,13 @@
 // Sub-aba "Iemanjá" de Oferendas: as oferendas (grupos) do evento, o sorteio das pessoas e o histórico dos eventos.
 
 import { estado, avisar, acaoIemanja } from '../estado.js';
-import { esc, toast } from '../util.js';
+import { esc, toast, baixar } from '../util.js';
 import { ORIXAS } from '/shared/regras.js';
-import { NOMES_ENTIDADES, LISTA_CURIMBA } from '/shared/iemanja.js';
+import { NOMES_ENTIDADES, LISTA_CURIMBA, porListaIemanja } from '/shared/iemanja.js';
+import { gerarImagemPessoas, gerarImagemOferenda } from '../imagemOferenda.js';
 import { dataBR, faixaPct, textoEntrega } from '/shared/oferendas.js';
-import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, blocoDetalhes, salvarDetalhes } from './oferendaComum.js';
+import { U, Dia, camposItem, listaItens, textoCompartilhar, blocoDetalhes, salvarDetalhes } from './oferendaComum.js';
+import { ICONE_WHATS } from './giraComum.js';
 
 const ui = { abertos: new Set(), edit: null, janela: null, rascunho: {}, categorias: false };
 const val = (id) => document.getElementById(id)?.value ?? '';
@@ -34,12 +36,17 @@ function opcoesPessoas(C, ja = new Set()) {
   }).join('');
 }
 
+// Pessoas do grupo separadas por lista (Corrente, Curimba, cada turma), nomes em duas colunas.
+// A imagem das pessoas assim agrupadas sai pelo botão "Lista pessoas" do rodapé do grupo.
 function blocoPessoas(g, ev, adm, C) {
   const k = 'p:' + g.id;
   const ja = new Set(g.membros.map((m) => m.chave));
+  const retira = adm && !ev.encerradoEm;
+  const pessoa = (m) => `<div class="iem-p"><span>${esc(m.nome)}</span>${retira ? `<button class="btn small" data-act="iemretirar" data-g="${g.id}" data-c="${esc(m.chave)}" aria-label="Retirar ${esc(m.nome)} do grupo">✕</button>` : ''}</div>`;
+  const listas = porListaIemanja(g.membros).map(([lista, ms]) => `<div class="iem-pg-l"><h4 class="iem-pg-t">${esc(lista)} <span>· ${ms.length}</span></h4><div class="iem-pg-nomes">${ms.map(pessoa).join('')}</div></div>`).join('');
   return `<div class="iem-mini"><button class="grp-h dobra" data-act="iemdobra" data-k="${k}" aria-expanded="${ui.abertos.has(k)}"><h3>Pessoas do grupo</h3><span class="count">${g.membros.length} ${seta(k)}</span></button>
-    ${ui.abertos.has(k) ? `<div class="iem-lista">${g.membros.map((m) => `<div class="iem-p"><span>${esc(m.nome)}</span>${adm && !ev.encerradoEm ? `<button class="btn small" data-act="iemretirar" data-g="${g.id}" data-c="${esc(m.chave)}" aria-label="Retirar ${esc(m.nome)} do grupo">✕</button>` : ''}</div>`).join('') || '<p class="muted" style="margin:0">Ninguém no grupo ainda.</p>'}</div>
-      ${adm && !ev.encerradoEm && C ? `<div class="iem-add"><select id="iem-p-${g.id}" aria-label="Associar pessoa ao grupo"><option value="">+ associar pessoa</option>${opcoesPessoas(C, ja)}</select><button class="btn small" data-act="iemassociar" data-g="${g.id}">Associar</button></div>` : ''}` : ''}</div>`;
+    ${ui.abertos.has(k) ? `${listas ? `<div class="iem-pg">${listas}</div>` : '<p class="muted" style="margin:0">Ninguém no grupo ainda.</p>'}
+      ${retira && C ? `<div class="iem-add"><select id="iem-p-${g.id}" aria-label="Associar pessoa ao grupo"><option value="">+ associar pessoa</option>${opcoesPessoas(C, ja)}</select><button class="btn small" data-act="iemassociar" data-g="${g.id}">Associar</button></div>` : ''}` : ''}</div>`;
 }
 
 function cardGrupo(ev, g, adm) {
@@ -62,8 +69,10 @@ function cardGrupo(ev, g, adm) {
   const itens = `<div class="ofg-sec"><span class="ofg-tit">Itens</span>${g.itens.length ? listaItens(g.itens, { p: 'iem', eu: estado.iemanja.eu, admin: pode, ref: ev, podeDoar: !ev.encerradoEm && g.meu, opcoesDoador, categorias: categoriasDe(ev) }) : '<p class="muted" style="margin:0">Nenhum item ainda.</p>'}</div>`;
   const novoItem = pode ? `<details class="of-novo"${U().novoItem === g.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="iemitem" data-of="${g.id}" autocomplete="off">${camposItem(ui.rascunho[g.id], categoriasDe(ev))}<button class="btn primary" type="submit">Adicionar</button></form></details>` : '';
-  const of = paraCompartilhar(ev, g);
-  const rodape = pode ? `<div class="of-rod">${botoesCompartilhar(of)}<button class="btn danger" data-act="iemjanela" data-t="excluirGrupo" data-g="${g.id}">${icone('🗑', 'Excluir grupo')}</button></div>${painelCompartilhar(of)}` : '';
+  // WhatsApp: a imagem das pessoas (por lista) e a lista de itens (escolhe texto ou imagem).
+  // Excluir grupo fica oculto por enquanto (a ação continua no servidor).
+  const wa = (act, rotulo, extra = '') => `<button class="btn wa-bt" data-act="${act}" data-g="${g.id}" ${extra}><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> ${rotulo}</button>`;
+  const rodape = pode ? `<div class="iem-wa-bts">${wa('iemimgpessoas', 'Lista pessoas', g.membros.length ? '' : 'disabled title="Ninguém no grupo ainda"')}${wa('iemcompitens', 'Lista de itens', g.itens.length ? '' : 'disabled title="Nenhum item ainda"')}</div>` : '';
   return `<div class="card iem-grupo" id="iem-g-${g.id}">${cab}${edicao}${barra}${novoItem}${itens}${blocoPessoas(g, ev, adm, C)}${rodape}</div>`;
 }
 
@@ -108,6 +117,34 @@ export function compromisso() {
       <button class="btn link of-meus-tit" data-act="iemver" data-g="${g.id}">${esc(ev.nome)} ›</button>
       <div class="of-meus-med"><span><span class="muted">Grupo:</span> <b>${esc(nomeGrupo(g))}</b></span><span><span class="muted">Responsável:</span> <b>${g.responsavel ? esc(g.responsavel) : '—'}</b></span></div>
       ${meus.length ? `<ul>${meus.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0;font-size:.9rem">Nenhum item assumido. Abra o grupo e toque em + no item.</p>'}</div>` };
+}
+
+const grupoDe = (id) => {
+  const ev = estado.iemanja?.eventos?.find((e) => e.grupos.some((x) => x.id === id));
+  return { ev, g: ev?.grupos.find((x) => x.id === id) };
+};
+const arquivo = (g) => nomeGrupo(g).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
+// Abre o compartilhar do aparelho com o PNG; onde não der, baixa a imagem.
+function compartilharPng(blob, nome, titulo) {
+  const f = new File([blob], nome, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [f] })) {
+    navigator.share({ files: [f], title: titulo }).catch(() => {});
+  } else {
+    baixar(blob, nome);
+    toast('Imagem salva no aparelho.');
+  }
+}
+
+// Janela do "Lista de itens": texto (abre o WhatsApp) ou imagem.
+function janelaItens() {
+  const { ev, g } = ui.compItens ? grupoDe(ui.compItens) : {};
+  if (!g) return '';
+  const txt = textoCompartilhar(paraCompartilhar(ev, g));
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="iem-ci-t"><div class="modal">
+    <h3 id="iem-ci-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Lista de itens</h3>
+    <p style="margin:0"><b>${esc(nomeGrupo(g))}</b>: compartilhar como texto ou como imagem?</p>
+    <div class="iem-wa-bts"><a class="btn wa-bt" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener" data-act="iemcompfechar">${icone('📝', 'Texto')}</a><button class="btn wa-bt" data-act="iemcompimg" data-g="${g.id}">${icone('🖼️', 'Imagem')}</button></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="iemcompfechar">Voltar</button></div></div></div>`;
 }
 
 export function comoOferenda(id) {
@@ -195,7 +232,7 @@ export function conteudo() {
     <div class="cp-bts"><button class="btn primary" data-act="iemnovo">${icone('＋', 'Novo evento')}</button></div></div>` : '';
   // Detalhes do evento em andamento, acima do bloco do evento (ADMIN).
   const det = aberto ? blocoDetalhes(aberto.id, aberto.detalhes, comoAdmin(aberto), 'iemdetsalvar') : '';
-  return `${novo}${det}${aberto ? blocoEvento(aberto) : ''}${blocoHistorico(I.eventos.filter((e) => e.encerradoEm))}${janela()}`;
+  return `${novo}${det}${aberto ? blocoEvento(aberto) : ''}${blocoHistorico(I.eventos.filter((e) => e.encerradoEm))}${janela()}${janelaItens()}`;
 }
 
 // Oferenda criada ou excluída durante a edição: mantém o que já foi escolhido nas outras.
@@ -236,6 +273,28 @@ export const cliques = {
       if (await acaoIemanja(op, { id })) { if (t === 'encerrar') ui.edit = null; toast({ sortear: 'Sorteio realizado.', cancelar: 'Sorteio cancelado.', encerrar: 'Evento encerrado.' }[t]); }
     }
     avisar();
+  },
+  // "Lista pessoas": imagem das pessoas do grupo, por lista.
+  async iemimgpessoas(el) {
+    const { ev, g } = grupoDe(el.dataset.g);
+    if (!g) return;
+    try {
+      const blob = await gerarImagemPessoas({ titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel,
+        listas: porListaIemanja(g.membros).map(([lista, ms]) => [lista, ms.map((m) => m.nome)]) });
+      compartilharPng(blob, `pessoas-${arquivo(g)}-${ev.data}.png`, `${ev.nome} · ${nomeGrupo(g)}`);
+    } catch (e) { toast(e.message); }
+  },
+  // "Lista de itens": abre a janela para escolher texto (WhatsApp) ou imagem.
+  iemcompitens(el) { ui.compItens = el.dataset.g; avisar(); },
+  iemcompfechar() { ui.compItens = null; avisar(); },
+  async iemcompimg(el) {
+    ui.compItens = null;
+    avisar();
+    const { ev, g } = grupoDe(el.dataset.g);
+    if (!g) return;
+    try {
+      compartilharPng(await gerarImagemOferenda(paraCompartilhar(ev, g)), `itens-${arquivo(g)}-${ev.data}.png`, `${ev.nome} · ${nomeGrupo(g)}`);
+    } catch (e) { toast(e.message); }
   },
   iemdetsalvar(el) { return salvarDetalhes((detalhes) => acaoIemanja('detalhes', { id: el.dataset.id, detalhes })); },
   iemcats() { ui.categorias = !ui.categorias; avisar(); },

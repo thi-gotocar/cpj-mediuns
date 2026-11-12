@@ -435,6 +435,18 @@ test('iemanjá: Detalhes do evento — só os admins do evento escrevem, quem v�
   assert.equal((await iem(ADMIN, { op: 'detalhes', id: ev.id, detalhes: '' })).json.eventos.find((e) => e.id === ev.id).detalhes, '');
 });
 
+test('iemanjá: cada pessoa do grupo vem com a lista dela (a turma do aluno)', async () => {
+  const iem = (b) => api('POST', '/api/oferendas', ADMIN, { acao: 'iemanja', ...b });
+  const t09 = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json.turmas.find((t) => t.nome === 'Turma 09').id;
+  const al = (await api('POST', '/api/pessoas', ADMIN, { acao: 'alunos', nome: 'Aluno da Praia', turmaId: t09 })).json.alunos.find((a) => a.nome === 'Aluno da Praia');
+  const ev = (await api('GET', '/api/oferendas?lista=iemanja', ADMIN)).json.eventos.find((e) => !e.encerradoEm);
+  const g = ev.grupos[0];
+  const r = await iem({ op: 'adicionar', grupoId: g.id, chave: 'a:' + al.id });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.eventos.find((e) => e.id === ev.id).grupos[0].membros.find((m) => m.chave === 'a:' + al.id).lista, 'Turma 09');
+  await iem({ op: 'retirar', grupoId: g.id, chave: 'a:' + al.id });
+});
+
 test('curimba: alunos da corrente e de fora, aulas e presença; o aluno vê as próprias aulas', async () => {
   assert.equal((await api('GET', '/api/pessoas?lista=curimba', USER)).status, 403);
   assert.equal((await api('POST', '/api/pessoas', USER, { acao: 'curimbaAluno', nome: 'X' })).status, 403);

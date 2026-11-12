@@ -268,6 +268,17 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .iem-cat-bts{display:flex;gap:6px;flex:none}
 .iem-p.fora span{color:var(--muted);text-decoration:line-through}
 .iem-p .btn{flex:none;width:36px;height:36px;min-width:0;padding:0}
+/* Pessoas do grupo por lista (Corrente, Curimba, turmas): título da lista e nomes em duas colunas. */
+.iem-pg{display:grid;gap:14px;min-width:0}
+.iem-pg-t{margin:0 0 6px;font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.iem-pg-t span{color:var(--muted);font-weight:500;letter-spacing:0}
+.iem-pg-nomes{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.iem-pg-nomes .iem-p{min-height:40px;padding:2px 4px 2px 10px;font-size:.92rem;line-height:1.25}
+.iem-pg-nomes .iem-p .btn{width:32px;height:32px}
+/* WhatsApp do grupo: "Lista pessoas" e "Lista de itens" (e Texto / Imagem na janela), lado a lado e do mesmo tamanho. */
+.iem-wa-bts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.iem-wa-bts .btn{width:100%;min-width:0;margin:0;height:48px;padding:4px 8px;box-sizing:border-box;border-width:1px;border-radius:10px;font-size:.9rem;line-height:1.15;white-space:normal;text-align:center;text-decoration:none;gap:6px}
+.iem-wa-bts .wa-ico svg{width:18px;height:18px;flex:none}
 .iem-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
 .iem-add select,.iem-add input{width:100%;min-width:0;min-height:44px;box-sizing:border-box}
 .iem-add .btn{min-height:44px}

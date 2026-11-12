@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 101;  // v101: Detalhes de cada evento da Iemanjá
+export const VERSAO = 102;  // v102: pessoas do grupo da Iemanjá com a lista (corrente, curimba ou turma)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3473,6 +3473,31 @@ export const MIGRACOES = [
            'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
                                else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
            'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
+   $$`,
+  // ================================================== v102: pessoas do grupo da Iemanjá com a lista de cada uma
+  // lista: 'Corrente', 'Curimba', o nome da turma do aluno ou 'Alunos sem turma' (como está no cadastro hoje).
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
+       'detalhes', e.detalhes,
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
+                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo,
+               'lista', case when m.chave like 'a:%'
+                               then coalesce((select t.nome from alunos a join turmas_alunos t on t.id = a.turma_id where a.id::text = substr(m.chave, 3)), 'Alunos sem turma')
+                             when (select pe.funcao from pessoas pe where pe.id::text = substr(m.chave, 3)) = 'curimba' then 'Curimba'
+                             else 'Corrente' end) order by lower(m.nome)), '[]'::jsonb)
                        from iemanja_membros m where m.grupo_id = g.id),
            'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
                'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)

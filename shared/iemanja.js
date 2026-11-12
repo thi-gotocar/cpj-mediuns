@@ -18,6 +18,19 @@ export function listasDoSorteio(listas, turmas) {
 
 export const pctItens = (itens) => percentualDoado({ itens });
 
+// Pessoas do grupo separadas pela lista de cada uma (vem do banco): Corrente, Curimba, as turmas em ordem de nome
+// e "Alunos sem turma" no fim. Só as listas com alguém. Sem lista conta como Corrente.
+const ORDEM_LISTA = { Corrente: 0, Curimba: 1, 'Alunos sem turma': 3 };
+export function porListaIemanja(membros) {
+  const grupos = new Map();
+  for (const m of membros || []) {
+    const l = m.lista || 'Corrente';
+    if (!grupos.has(l)) grupos.set(l, []);
+    grupos.get(l).push(m);
+  }
+  return [...grupos].sort(([a], [b]) => (ORDEM_LISTA[a] ?? 2) - (ORDEM_LISTA[b] ?? 2) || a.localeCompare(b, 'pt-BR', { numeric: true }));
+}
+
 const casaOrixa = (nomeGrupo, orixa) => nomeGrupo === orixa;
 const casaGuia = (nomeGrupo, linha) => linhaDaEntidade(nomeGrupo) === linha;
 // Ordem de preferência do sorteio da corrente.
