@@ -1,4 +1,4 @@
-// Tela "Pedidos de Guias": a pessoa pede os itens à venda; o admin cadastra grupos e itens,
+// Tela "Compras" (pedidos de guias): a pessoa pede os itens à venda; o admin cadastra grupos e itens,
 // encerra e começa pedidos (numerados), marca ok em cada linha e exporta a lista.
 
 import { estado, pode, carregarGuias, acaoGuias, avisar } from '../estado.js';
@@ -194,7 +194,7 @@ function cardFeitos(G) {
 
 // Texto e imagem de um pedido para o WhatsApp.
 function textoPedido(p) {
-  const L = [`*Pedido de Guias nº ${p.numero}*`, p.encerradoEm ? `Encerrado em ${dia(p.encerradoEm)}` : 'Pedido aberto', ''];
+  const L = [`*Compras · Pedido nº ${p.numero}*`, p.encerradoEm ? `Encerrado em ${dia(p.encerradoEm)}` : 'Pedido aberto', ''];
   porPessoa(p.linhas).forEach((x) => {
     L.push(`*${x.nome}* · ${R(x.total)}`);
     x.linhas.forEach((l) => L.push(`• ${l.quantidade}x ${l.descricao} · ${R(l.valor * l.quantidade)}`));
@@ -204,7 +204,7 @@ function textoPedido(p) {
   return L.join('\n');
 }
 const dadosImagem = (p) => ({
-  rotulo: 'Pedidos de Guias', titulo: `Pedido nº ${p.numero}`, subtitulo: p.encerradoEm ? `Encerrado em ${dia(p.encerradoEm)}` : 'Pedido aberto',
+  rotulo: 'Compras', titulo: `Pedido nº ${p.numero}`, subtitulo: p.encerradoEm ? `Encerrado em ${dia(p.encerradoEm)}` : 'Pedido aberto',
   linhas: porPessoa(p.linhas).map((x) => ({ texto: x.nome, valor: R(x.total), sub: x.linhas.map((l) => `${l.quantidade}x ${l.descricao}`).join(', ') })),
   rodape: `Total: ${R(totalDe(p.linhas))}`,
 });
@@ -229,7 +229,7 @@ function cardExportar(G) {
 }
 
 export function render() {
-  if (estado.guias === null) { carregarGuias(); return '<div class="loading">Carregando os pedidos de guias…</div>'; }
+  if (estado.guias === null) { carregarGuias(); return '<div class="loading">Carregando as compras…</div>'; }
   const G = estado.guias;
   let h = '<section class="panel">';
   if (admin()) h += cardTopo(G);
@@ -326,11 +326,11 @@ export const cliques = {
     try {
       const blob = await gerarImagemLista(dadosImagem(p));
       if (ui.img) URL.revokeObjectURL(ui.img.url);
-      ui.img = { chave: textoPedido(p), blob, url: URL.createObjectURL(blob), nome: `pedido-guias-${p.numero}-${hoje()}.png` };
+      ui.img = { chave: textoPedido(p), blob, url: URL.createObjectURL(blob), nome: `pedido-compras-${p.numero}-${hoje()}.png` };
       avisar();
     } catch (e) { toast(e.message); }
   },
-  async guiashare() { const i = ui.img; if (i && !(await compartilharImagem(i.blob, i.nome, 'Pedido de Guias'))) toast('Este aparelho não compartilha imagens daqui. Use Salvar imagem.'); },
+  async guiashare() { const i = ui.img; if (i && !(await compartilharImagem(i.blob, i.nome, 'Compras'))) toast('Este aparelho não compartilha imagens daqui. Use Salvar imagem.'); },
   guiasalvarimg() { if (ui.img) baixar(ui.img.url, ui.img.nome); },
 };
 

@@ -1,4 +1,4 @@
-// Aba Pedidos de Guias (rota: GET /api/oferendas?lista=guias · POST /api/oferendas { acao: 'guias', op, ... }).
+// Aba Compras (rota: GET /api/oferendas?lista=guias · POST /api/oferendas { acao: 'guias', op, ... }).
 //   todos:  pedir { itemId, quantidade }  — no pedido aberto, sem passar do disponível
 //   admin:  publicar { publicada } · grupo { id?, descricao?, visivel? } · excluirGrupo { id }
 //           item { id?, grupoId, descricao?, foto? (base64 JPEG | null tira), quantidade?, valor?, visivel? } · excluirItem { id }
@@ -14,8 +14,8 @@ const ehAdmin = (eu) => pode(eu, 'guias:gerenciar');
 
 // Sem a aba no perfil, ou com a aba desligada e sem administrar: não entra.
 async function exigirAba(eu) {
-  if (!pode(eu, 'guias:pedir') && !ehAdmin(eu)) throw new HttpError(403, 'Seu perfil não tem a aba Pedidos de Guias.');
-  if (!ehAdmin(eu) && !(await db.rpc('guias_publicada'))) throw new HttpError(403, 'A aba Pedidos de Guias não está disponível no momento.');
+  if (!pode(eu, 'guias:pedir') && !ehAdmin(eu)) throw new HttpError(403, 'Seu perfil não tem a aba Compras.');
+  if (!ehAdmin(eu) && !(await db.rpc('guias_publicada'))) throw new HttpError(403, 'A aba Compras não está disponível no momento.');
 }
 
 function paraTela(estado, eu) {
@@ -73,7 +73,7 @@ export async function acaoGuias(eu, b) {
     });
     return paraTela(estado, eu);
   }
-  if (!ehAdmin(eu)) throw new HttpError(403, 'Só quem administra os Pedidos de Guias pode fazer isso.');
+  if (!ehAdmin(eu)) throw new HttpError(403, 'Só quem administra a aba Compras pode fazer isso.');
   let estado;
   switch (b.op) {
     case 'publicar':

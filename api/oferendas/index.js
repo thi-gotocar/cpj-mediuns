@@ -9,7 +9,7 @@
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
-// Aba Pedidos de Guias: GET ?lista=guias e POST { acao: 'guias', op, ... } (veja api/_lib/guias.js).
+// Aba Compras: GET ?lista=guias e POST { acao: 'guias', op, ... } (veja api/_lib/guias.js).
 // Quem não administra as oferendas vê as publicadas (e doa nelas) e as bloqueadas (sem os itens).
 //                doarPor { itemId, pessoaId | chave, quantidade }  — doação de outra pessoa (0 = exclui)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';

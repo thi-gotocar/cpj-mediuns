@@ -1574,7 +1574,7 @@ button.iem-tot-n{cursor:pointer}
 .of-pct-sw{margin-left:auto;align-self:center}
 .of-pct-sw .of-sw{font-size:.85rem}
 
-/* Aba Pedidos de Guias */
+/* Aba Compras (pedidos de guias) */
 .gi-aviso{margin:0;font-weight:700;color:var(--warn)}
 .gi-lista{display:grid;gap:10px}
 .gi-item{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}

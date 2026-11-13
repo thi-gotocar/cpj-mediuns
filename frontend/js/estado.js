@@ -20,7 +20,7 @@ export const estado = {
   ervasFechar: false,  // janela "Fechar a lista?" aberta
   ervasNova: null,     // janela Nova compra: { passo: 'aviso' } (tem certeza?) ou { passo: 'escolher' } (encerrar ou descartar)
   ervasHist: null,     // Histórico de compras (admin): lista, undefined = carregando, { erro }
-  guias: null,         // aba Pedidos de Guias (GET /api/oferendas?lista=guias)
+  guias: null,         // aba Compras (GET /api/oferendas?lista=guias)
   ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
@@ -717,7 +717,7 @@ export async function acaoErvas(acao, dados = {}) {
   }
 }
 
-// ---------- Pedidos de Guias ----------
+// ---------- Compras (pedidos de guias) ----------
 // Aba: quem administra sempre vê; as pessoas com a aba no perfil, quando o admin liga "Visível para todos".
 export const veGuias = () => !['alunos', 'curimba'].includes(visaoAtiva())
   && (pode('guias:gerenciar') || (pode('guias:pedir') && !!estado.me?.guiasPublicada));

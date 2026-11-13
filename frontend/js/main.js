@@ -193,7 +193,7 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'ervas') { estado.ervas = null; estado.ervasCompra = null; estado.ervasFechar = false; estado.ervasNova = null; estado.ervasHist = null; }
   // Busca as oferendas de novo ao abrir a aba (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') { estado.oferendas = null; estado.iemanja = null; }
-  // Pedidos de Guias: busca de novo (estoque e pedidos mudam) e a tela volta ao padrão.
+  // Compras: busca de novo (estoque e pedidos mudam) e a tela volta ao padrão.
   if (b.dataset.tab === 'guias') { estado.guias = null; TELAS.guias?.limpar(); }
   if (b.dataset.tab === 'perfil') estado.perfil = null;
   // Curimba: busca de novo e fecha as janelas abertas.

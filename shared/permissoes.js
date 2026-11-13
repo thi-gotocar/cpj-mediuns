@@ -12,7 +12,7 @@ export const ABAS = [
   { k: 'hist', nome: 'Histórico', ver: 'Histórico, estatísticas e a presença completa na Gira.', editar: 'Excluir giras, backup e restauração.' },
   { k: 'ervas', nome: 'Ervas', ver: 'Escolher as próprias ervas.', editar: 'Ervas, preços, frete, pedidos e cobrança.' },
   { k: 'oferendas', nome: 'Oferendas', ver: 'Escolher o que doar.', editar: 'Criar oferendas, itens e marcar entregas.' },
-  { k: 'guias', nome: 'Pedidos de Guias', ver: 'Ver os itens à venda e fazer os próprios pedidos.', editar: 'Grupos e itens, encerrar e começar pedidos, marcar ok e exportar.' },
+  { k: 'guias', nome: 'Compras', ver: 'Ver os itens à venda e fazer os próprios pedidos.', editar: 'Grupos e itens, encerrar e começar pedidos, marcar ok e exportar.' },
   { k: 'eventos', nome: 'Eventos', ver: 'O bloco Eventos na aba Gira (a lista do mês).', editar: 'Cadastrar, editar e excluir eventos.' },
   { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás, guias e a própria Anamnese).', editar: 'Admin do perfil: ver o perfil de todos e as pendências, e a Anamnese (cadastrar perguntas, ver as respostas de todos e compartilhar).' },
   { k: 'curimba', nome: 'Curimba', ver: 'A aba Curimba: alunos, aulas e presença.', editar: 'Cadastrar alunos e aulas e marcar presença.' },
