@@ -1471,6 +1471,20 @@ button.eu-av{cursor:zoom-in}
 .ofg-med{display:flex;flex-wrap:wrap;gap:4px 14px}
 .ofg-sec{display:grid;gap:4px;min-width:0}
 .ofg-tit{font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+/* "Itens" do grupo da Iemanjá: título que abre e fecha a lista (começa fechada). */
+.ofg-dobra{min-height:36px;align-items:center}
+.ofg-dobra .count{font-size:.85rem}
+/* Sorteio: dois quadradinhos — quantos estão em grupos e quantos ficaram sem grupo (toca e vê os nomes). */
+.iem-tot{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.iem-tot-n{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:70px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit;box-sizing:border-box}
+.iem-tot-n b{font-size:1.6rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.iem-tot-n span{font-size:.82rem;color:var(--muted)}
+button.iem-tot-n{cursor:pointer}
+.iem-tot-n.sem{border-color:color-mix(in srgb,var(--warn) 55%,var(--line))}
+.iem-tot-n.sem b{color:var(--warn)}
+.iem-tot-n.sem:disabled{cursor:default;border-color:var(--line)}
+.iem-tot-n.sem:disabled b{color:var(--ok)}
+.iem-semg{display:grid;gap:12px}
 .ofg-lista{display:grid;gap:4px;max-height:416px;overflow-y:auto;overscroll-behavior:contain}
 .ofg-l{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:38px;padding:2px 8px;background:var(--surface);border:1px solid var(--line);border-radius:8px}
 .ofg-nome{display:grid;min-width:0;overflow-wrap:anywhere;line-height:1.2}

@@ -66,7 +66,10 @@ function cardGrupo(ev, g, adm) {
   const pode = adm && !ev.encerradoEm;
   // Admin registra a doação só de quem é do grupo.
   const opcoesDoador = (ja) => g.membros.filter((m) => !ja.has(m.chave)).map((m) => `<option value="${esc(m.chave)}">${esc(m.nome)}</option>`).join('');
-  const itens = `<div class="ofg-sec"><span class="ofg-tit">Itens</span>${g.itens.length ? listaItens(g.itens, { p: 'iem', eu: estado.iemanja.eu, admin: pode, ref: ev, podeDoar: !ev.encerradoEm && g.meu, opcoesDoador, categorias: categoriasDe(ev) }) : '<p class="muted" style="margin:0">Nenhum item ainda.</p>'}</div>`;
+  // Itens: começam minimizados; tocar no título abre e fecha.
+  const ki = 'i:' + g.id;
+  const itensAbertos = ui.abertos.has(ki);
+  const itens = `<div class="ofg-sec"><button class="grp-h dobra ofg-dobra" data-act="iemdobra" data-k="${ki}" aria-expanded="${itensAbertos}"><span class="ofg-tit">Itens</span><span class="count">${g.itens.length} ${seta(ki)}</span></button>${!itensAbertos ? '' : g.itens.length ? listaItens(g.itens, { p: 'iem', eu: estado.iemanja.eu, admin: pode, ref: ev, podeDoar: !ev.encerradoEm && g.meu, opcoesDoador, categorias: categoriasDe(ev) }) : '<p class="muted" style="margin:0">Nenhum item ainda.</p>'}</div>`;
   const novoItem = pode ? `<details class="of-novo"${U().novoItem === g.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="iemitem" data-of="${g.id}" autocomplete="off">${camposItem(ui.rascunho[g.id], categoriasDe(ev))}<button class="btn primary" type="submit">Adicionar</button></form></details>` : '';
   // WhatsApp: a imagem das pessoas (por lista) e a lista de itens (escolhe texto ou imagem).
@@ -84,6 +87,21 @@ function listaSorteio(k, titulo, pessoas, presos, fora) {
     ${ui.abertos.has(kk) ? `<div class="iem-lista">${lista.map((p) => `<div class="iem-p ${fora.has(p.chave) ? 'fora' : ''}"><span>${esc(p.nome)}</span><button class="btn small" data-act="iemfora" data-c="${esc(p.chave)}" data-v="${fora.has(p.chave) ? '0' : '1'}" aria-label="${fora.has(p.chave) ? 'Voltar' : 'Tirar'} ${esc(p.nome)} do sorteio">${fora.has(p.chave) ? '↺' : '✕'}</button></div>`).join('') || '<p class="muted" style="margin:0">Ninguém nesta lista.</p>'}</div>` : ''}</div>`;
 }
 
+// Totais do sorteio: quem já está num grupo e quem das listas do sorteio (corrente e as ligadas) ficou sem grupo.
+// Tocar em "sem grupo" mostra os nomes, por lista.
+function totaisSorteio(ev, C, presos, fora, ativas) {
+  const listas = [['Corrente', C.corrente], ...(ativas.has(LISTA_CURIMBA) ? [['Curimba', C.curimba]] : []), ...C.turmas.filter((t) => ativas.has(t.id)).map((t) => [t.nome, t.pessoas])];
+  const vistos = new Set();
+  const sem = listas.map(([nome, ps]) => [nome, ps.filter((p) => !presos.has(p.chave) && !vistos.has(p.chave) && vistos.add(p.chave))]).filter(([, ps]) => ps.length);
+  const nSem = sem.reduce((n, [, ps]) => n + ps.length, 0);
+  const k = 'semgrupo';
+  const aberto = ui.abertos.has(k) && nSem;
+  return `<div class="iem-tot"><div class="iem-tot-n"><b>${presos.size}</b><span>em grupos</span></div>
+      <button class="iem-tot-n sem" data-act="iemdobra" data-k="${k}" aria-expanded="${!!aberto}" ${nSem ? '' : 'disabled'}><b>${nSem}</b><span>sem grupo ${nSem ? seta(k) : ''}</span></button></div>
+    ${aberto ? `<div class="iem-semg">${sem.map(([nome, ps]) => `<div class="iem-pg-l"><h4 class="iem-pg-t">${esc(nome)} <span>· ${ps.length}</span></h4>
+      <div class="iem-pg-nomes">${ps.map((p) => `<div class="iem-p ${fora.has(p.chave) ? 'fora' : ''}"><span>${esc(p.nome)}</span>${fora.has(p.chave) ? '<small class="muted">fora do sorteio</small>' : ''}</div>`).join('')}</div></div>`).join('')}</div>` : ''}`;
+}
+
 function blocoSorteio(ev) {
   const C = estado.iemanja.candidatos;
   if (!C) return '';
@@ -93,6 +111,7 @@ function blocoSorteio(ev) {
   const presos = new Set(ev.grupos.flatMap((g) => g.membros.map((m) => m.chave)));
   const fora = new Set(ev.fora);
   const ativas = new Set(ev.listas);
+  const totais = totaisSorteio(ev, C, presos, fora, ativas);
   const chip = (valor, nome) => `<label class="chip"><input type="checkbox" data-act="iemlista" value="${esc(valor)}" ${ativas.has(valor) ? 'checked' : ''}> ${esc(nome)}</label>`;
   const escolha = `<div class="ofg-sec"><span class="ofg-tit">Listas no sorteio</span><div class="iem-chips">${chip(LISTA_CURIMBA, 'Curimba')}${C.turmas.map((t) => chip(t.id, t.nome)).join('')}</div></div>`;
   const listas = listaSorteio('corrente', 'Corrente', C.corrente, presos, fora)
@@ -103,7 +122,7 @@ function blocoSorteio(ev) {
     <div class="cp-bts"><button class="btn" data-act="iemadicionar">${icone('＋', 'Adicionar')}</button>${ev.sorteado
       ? `<button class="btn" data-act="iemjanela" data-t="cancelar">${icone('✕', 'Cancelar sorteio')}</button>`
       : `<button class="btn primary" data-act="iemjanela" data-t="sortear">${icone('🎲', 'Sortear')}</button>`}</div>`;
-  return `<div class="card adm iem-sorteio">${cab}${ev.sorteado ? '' : escolha + listas}${adicionar}</div>`;
+  return `<div class="card adm iem-sorteio">${cab}${totais}${ev.sorteado ? '' : escolha + listas}${adicionar}</div>`;
 }
 
 // Entrada em "Seus compromissos": nasce do grupo em que a pessoa foi escalada.
@@ -212,6 +231,11 @@ function textosJanela(j) {
   if (!j.g) return [...TEXTOS[j.t], 'primary'];
   const g = eventoAberto()?.grupos.find((x) => x.id === j.g);
   if (!g) return null;
+  if (j.t === 'retirar') {
+    const m = g.membros.find((x) => x.chave === j.c);
+    if (!m) return null;
+    return ['Tirar do grupo?', `Tem certeza que quer tirar <b>${esc(m.nome)}</b> do grupo <b>${esc(nomeGrupo(g))}</b>?`, 'OK', 'danger', 'Cancelar'];
+  }
   if (j.t === 'excluirGrupo') return ['Excluir este grupo?', `<b>${esc(nomeGrupo(g))}</b>: os itens, as doações e as pessoas deste grupo saem do evento. Não dá para desfazer.`, 'Excluir grupo', 'danger'];
   const r = ui.rascunho[j.g];
   return ['Adicionar este item?', `${r.categoria ? `${esc(r.categoria)}: ` : ''}<b>${esc(r.quantidade)}</b> × ${esc(r.nome)} no grupo <b>${esc(nomeGrupo(g))}</b>.<br><span class="muted">Entrega: ${textoEntrega(r)}</span>`, 'Adicionar', 'primary'];
@@ -257,14 +281,18 @@ export const cliques = {
   iemjanela(el) { ui.janela = { t: el.dataset.t, g: el.dataset.g }; avisar(); },
   iemjanelanao() { ui.janela = null; avisar(); },
   async iemjanelasim() {
-    const { t, g, i } = ui.janela;
+    const { t, g, i, c } = ui.janela;
     ui.janela = null;
-    if (t === 'novaOferenda') {
+    if (t === 'retirar') {
+      const nome = grupoDe(g).g?.membros.find((m) => m.chave === c)?.nome || 'A pessoa';
+      if (await acaoIemanja('retirar', { grupoId: g, chave: c })) toast(`${nome} saiu do grupo.`);
+    } else if (t === 'novaOferenda') {
       if (await acaoIemanja('grupoNovo', { id: eventoAberto().id })) { sincronizarEdicao(); toast('Oferenda criada. Escolha o orixá ou a entidade em Editar.'); }
     } else if (t === 'entregue') {
       if (await acaoIemanja('entregue', { itemId: i, entregue: true })) toast('Item marcado como entregue.');
     } else if (t === 'item') {
-      if (await acaoIemanja('item', { grupoId: g, ...ui.rascunho[g] })) { delete ui.rascunho[g]; toast('Item adicionado.'); }
+      // A lista de itens abre para mostrar o item novo.
+      if (await acaoIemanja('item', { grupoId: g, ...ui.rascunho[g] })) { delete ui.rascunho[g]; ui.abertos.add('i:' + g); toast('Item adicionado.'); }
     } else if (t === 'excluirGrupo') {
       if (await acaoIemanja('grupoExcluir', { grupoId: g })) { sincronizarEdicao(); toast('Grupo excluído.'); }
     } else {
@@ -316,8 +344,10 @@ export const cliques = {
     if (!data) { toast('Escolha a data do evento.'); return; }
     if (await acaoIemanja('novo', { data, nome: val('iem-nova-nome') })) toast('Evento criado.');
   },
+  // Seus compromissos → abre o grupo já com os itens à mostra.
   iemver(el) {
     ui.abertos.add('g:' + el.dataset.g);
+    ui.abertos.add('i:' + el.dataset.g);
     avisar();
     setTimeout(() => document.getElementById('iem-g-' + el.dataset.g)?.scrollIntoView({ block: 'start' }), 0);
   },
@@ -333,7 +363,8 @@ export const cliques = {
     if (!chave) { toast('Escolha a pessoa.'); return; }
     await acaoIemanja('adicionar', { grupoId: el.dataset.g, chave });
   },
-  iemretirar(el) { acaoIemanja('retirar', { grupoId: el.dataset.g, chave: el.dataset.c }); },
+  // ✕ da pessoa do grupo: pergunta antes de tirar.
+  iemretirar(el) { ui.janela = { t: 'retirar', g: el.dataset.g, c: el.dataset.c }; avisar(); },
   iemdelitem(el) { acaoIemanja('excluirItem', { itemId: el.dataset.id }); },
   iemaskentregue(el) { ui.janela = { t: 'entregue', i: el.dataset.id }; avisar(); },
   async iementregue(el) { if (await acaoIemanja('entregue', { itemId: el.dataset.id, entregue: el.dataset.v === '1' })) toast('Entrega desfeita.'); },
