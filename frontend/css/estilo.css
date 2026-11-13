@@ -288,7 +288,6 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .iem-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
 .iem-add select,.iem-add input{width:100%;min-width:0;min-height:44px;box-sizing:border-box}
 .iem-add .btn{min-height:44px}
-.iem-add2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .cp-nova{padding-top:12px;border-top:1px solid var(--line)}
 .cp-lista{display:grid;gap:4px}
 .cp-l{display:grid;grid-template-columns:minmax(0,1fr) 68px 92px 32px;align-items:center;gap:6px;min-height:44px;padding:3px 6px 3px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
@@ -1632,3 +1631,14 @@ button.iem-tot-n{cursor:pointer}
 
 /* Cadastro do item da oferenda: prévia do que a corrente vai ver */
 .of-previa{flex:1 1 100%;margin:0;font-size:.88rem;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;overflow-wrap:anywhere}
+/* Iemanjá, Sorteio: pessoas dos grupos com item assumido (verde) e sem nenhum (vermelho) */
+.iem-tot-n.com-item{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.iem-tot-n.com-item b{color:var(--ok)}
+.iem-tot-n.sem-item{border-color:color-mix(in srgb,var(--off) 55%,var(--line))}
+.iem-tot-n.sem-item b{color:var(--off)}
+.iem-tot-n:is(.com-item,.sem-item):disabled{cursor:default;border-color:var(--line)}
+.iem-tot-n:is(.com-item,.sem-item):disabled b{color:var(--muted)}
+.iem-itens-nomes{display:grid;gap:4px}
+.iem-itens-nomes .iem-p{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:0;padding:6px 10px}
+.iem-itens-nomes .iem-p small{text-align:right;overflow-wrap:anywhere}
+.iem-trava{margin:0;font-size:.85rem}

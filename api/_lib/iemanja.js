@@ -15,6 +15,8 @@ const adminDe = (eu, ev) => ehRoot(eu) || (!!eu.pessoaId && ev.grupos.some((g) =
 const lerEventos = () => db.rpc('iemanja_estado');
 const veEvento = (eu, ev) => ev.visivel || adminDe(eu, ev);
 
+const temAtribuicao = (ev) => ev.grupos.some((g) => g.itens.some((i) => i.doacoes.length));
+
 function negarCurimba(eu) {
   if (eu.grupo === 'curimba') throw new HttpError(403, 'Este acesso não tem a aba Iemanjá.');
 }
@@ -222,6 +224,8 @@ export async function acaoIemanja(eu, b) {
       return devolver(await db.rpc('iemanja_sorteio_gravar', { id: ev.id, grupos: ev.grupos.map((g) => ({ id: g.id, membros: [...fixosNovos[g.id], ...sorteados[g.id].map((p) => ({ ...p, fixo: false }))] })) }));
     }
     case 'cancelarSorteio':
+      // Depois que alguém assumiu um item, o sorteio não pode mais ser desfeito.
+      if (temAtribuicao(ev)) throw new HttpError(400, 'Já há itens assumidos nos grupos: o sorteio não pode mais ser cancelado.');
       return devolver(await db.rpc('iemanja_sorteio_cancelar', { id: ev.id }));
     default:
       throw new HttpError(400, 'Ação inválida.');

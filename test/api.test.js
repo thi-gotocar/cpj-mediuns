@@ -1802,3 +1802,22 @@ test('oferendas: o item tem unidade (da lista); sem unidade continua valendo', a
   assert.equal(r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.nome === 'Velas').unidade, '', 'sem unidade, como antes');
   await of({ acao: 'excluir', id: o.id });
 });
+
+test('iemanjá: com algum item assumido, o sorteio não pode mais ser cancelado', async () => {
+  const iem = (b) => api('POST', '/api/oferendas', ADMIN, { acao: 'iemanja', ...b });
+  const lido = (await api('GET', '/api/oferendas?lista=iemanja', ADMIN)).json;
+  const ev = lido.eventos.find((e) => !e.encerradoEm);
+  const g = ev.grupos[0];
+  const { chave } = lido.candidatos.corrente[0];
+  await iem({ op: 'adicionar', grupoId: g.id, chave });
+  const r = await iem({ op: 'item', grupoId: g.id, nome: 'Rosas da trava', quantidade: 2, unidade: 'unidade' });
+  const item = r.json.eventos.find((e) => e.id === ev.id).grupos[0].itens.find((i) => i.nome === 'Rosas da trava');
+  assert.equal((await iem({ op: 'assumirPor', itemId: item.id, chave, quantidade: 1 })).status, 200);
+  const nao = await iem({ op: 'cancelarSorteio', id: ev.id });
+  assert.equal(nao.status, 400);
+  assert.match(nao.json.erro, /não pode mais ser cancelado/);
+  await iem({ op: 'assumirPor', itemId: item.id, chave, quantidade: 0 });
+  assert.equal((await iem({ op: 'cancelarSorteio', id: ev.id })).status, 200, 'sem item assumido, cancela');
+  await iem({ op: 'excluirItem', itemId: item.id });
+  await iem({ op: 'retirar', grupoId: g.id, chave });
+});

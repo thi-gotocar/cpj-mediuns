@@ -117,15 +117,31 @@ function blocoSorteio(ev) {
   const listas = listaSorteio('corrente', 'Corrente', C.corrente, presos, fora)
     + (ativas.has(LISTA_CURIMBA) ? listaSorteio('curimba', 'Curimba', C.curimba, presos, fora) : '')
     + C.turmas.filter((t) => ativas.has(t.id)).map((t) => listaSorteio(t.id, t.nome, t.pessoas, presos, fora)).join('');
-  const adicionar = `<div class="iem-add iem-add2"><select id="iem-add-p" aria-label="Pessoa"><option value="">Buscar pessoa…</option>${opcoesPessoas(C)}</select>
-    <select id="iem-add-g" aria-label="Grupo"><option value="">Grupo…</option>${ev.grupos.map((g) => `<option value="${g.id}">${esc(nomeGrupo(g))}</option>`).join('')}</select></div>
-    <div class="cp-bts"><button class="btn" data-act="iemadicionar">${icone('＋', 'Adicionar')}</button>${ev.sorteado
-      ? `<button class="btn" data-act="iemjanela" data-t="cancelar">${icone('✕', 'Cancelar sorteio')}</button>`
-      : `<button class="btn primary" data-act="iemjanela" data-t="sortear">${icone('🎲', 'Sortear')}</button>`}</div>`;
+  // Depois que alguém assumiu um item, o sorteio não se cancela mais (o servidor também recusa).
+  const travado = ev.grupos.some((g) => g.itens.some((i) => i.doacoes.length));
+  const botao = ev.sorteado
+    ? `<div class="cp-bts iem-uma"><button class="btn" data-act="iemjanela" data-t="cancelar" ${travado ? 'disabled' : ''}>${icone('✕', 'Cancelar sorteio')}</button></div>
+      ${travado ? '<p class="muted iem-trava">Já há itens assumidos nos grupos: o sorteio não pode mais ser cancelado.</p>' : ''}`
+    : `<div class="cp-bts iem-uma"><button class="btn primary" data-act="iemjanela" data-t="sortear">${icone('🎲', 'Sortear')}</button></div>`;
   // WhatsApp: a "Lista pessoas" de todos os grupos de uma vez (uma imagem por grupo).
   const comGente = gruposComGente(ev).length;
   const todas = `<div class="iem-wa-bts iem-wa-uma"><button class="btn wa-bt" data-act="iemtodaspessoas" ${comGente ? '' : 'disabled title="Nenhum grupo tem pessoas ainda"'}><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Listas de pessoas · todos os grupos</button></div>`;
-  return `<div class="card adm iem-sorteio">${cab}${totais}${todas}${ev.sorteado ? '' : escolha + listas}${adicionar}</div>`;
+  return `<div class="card adm iem-sorteio">${cab}${totais}${totaisItens(ev)}${todas}${ev.sorteado ? '' : escolha + listas}${botao}</div>`;
+}
+
+// Quem está nos grupos e já assumiu algum item (verde) e quem ainda não assumiu nada (vermelho).
+// Tocar no quadrado mostra os nomes com a oferenda (grupo) de cada um.
+function totaisItens(ev) {
+  const pessoas = ev.grupos.flatMap((g) => g.membros.map((m) => ({ nome: m.nome, oferenda: nomeGrupo(g),
+    comItem: g.itens.some((i) => i.doacoes.some((d) => d.chave === m.chave)) })))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  const com = pessoas.filter((p) => p.comItem);
+  const sem = pessoas.filter((p) => !p.comItem);
+  const quadro = (k, cls, lista, rotulo) => `<button class="iem-tot-n ${cls}" data-act="iemdobra" data-k="${k}" aria-expanded="${ui.abertos.has(k) && !!lista.length}" ${lista.length ? '' : 'disabled'}><b>${lista.length}</b><span>${rotulo} ${lista.length ? seta(k) : ''}</span></button>`;
+  const nomes = (k, lista, titulo) => (ui.abertos.has(k) && lista.length ? `<div class="iem-semg"><div class="iem-pg-l"><h4 class="iem-pg-t">${titulo} <span>· ${lista.length}</span></h4>
+    <div class="iem-itens-nomes">${lista.map((p) => `<div class="iem-p"><span>${esc(p.nome)}</span><small class="muted">${esc(p.oferenda)}</small></div>`).join('')}</div></div></div>` : '');
+  return `<div class="iem-tot">${quadro('comitem', 'com-item', com, 'com itens')}${quadro('semitem', 'sem-item', sem, 'sem itens')}</div>
+    ${nomes('comitem', com, 'Com itens')}${nomes('semitem', sem, 'Sem itens')}`;
 }
 
 // Entrada em "Seus compromissos": nasce do grupo em que a pessoa foi escalada.
@@ -412,12 +428,6 @@ export const cliques = {
     setTimeout(() => document.getElementById('iem-g-' + el.dataset.g)?.scrollIntoView({ block: 'start' }), 0);
   },
   iemfora(el) { acaoIemanja('fora', { id: eventoAberto().id, chave: el.dataset.c, fora: el.dataset.v === '1' }); },
-  async iemadicionar() {
-    const chave = val('iem-add-p');
-    const grupoId = val('iem-add-g');
-    if (!chave || !grupoId) { toast('Escolha a pessoa e o grupo.'); return; }
-    if (await acaoIemanja('adicionar', { grupoId, chave })) toast('Pessoa adicionada ao grupo.');
-  },
   async iemassociar(el) {
     const chave = val('iem-p-' + el.dataset.g);
     if (!chave) { toast('Escolha a pessoa.'); return; }
