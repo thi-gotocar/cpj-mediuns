@@ -21,10 +21,11 @@ const ui = {
   pedir: null,              // janela de confirmação: { itemId, quantidade }
   exportar: null,           // número do pedido escolhido para exportar
   img: null,                // imagem gerada: { chave, blob, url, nome }
+  zoom: null,               // id do item com a foto aberta em tela cheia
 };
 export function limpar() {
   ui.abertos.clear(); ui.feitos.clear();
-  Object.assign(ui, { grupoRen: null, item: null, qtd: {}, pedir: null, exportar: null });
+  Object.assign(ui, { grupoRen: null, item: null, qtd: {}, pedir: null, exportar: null, zoom: null });
   if (ui.img) URL.revokeObjectURL(ui.img.url);
   ui.img = null;
 }
@@ -49,8 +50,10 @@ const totalDe = (linhas) => linhas.reduce((a, l) => a + l.valor * l.quantidade, 
 const itensDe = (linhas) => linhas.reduce((a, l) => a + l.quantidade, 0);
 
 // ---------- pessoa ----------
-function fotoItem(i, cls = 'gi-foto') {
-  return `<div class="${cls}">${i.foto ? `<img src="${dataUrl(i.foto)}" alt="" loading="lazy">` : '<span aria-hidden="true">📿</span>'}</div>`;
+// zoom: tocar na foto abre em tela cheia (só no item já salvo, não na prévia do formulário).
+function fotoItem(i, cls = 'gi-foto', zoom = false) {
+  const abre = zoom && i.foto && i.id ? ` data-act="guiazoom" data-id="${i.id}" role="button" tabindex="0" aria-label="Ver foto de ${esc(i.descricao)}"` : '';
+  return `<div class="${cls}${abre ? ' zoom' : ''}"${abre}>${i.foto ? `<img src="${dataUrl(i.foto)}" alt="" loading="lazy">` : '<span aria-hidden="true">📿</span>'}</div>`;
 }
 
 function cardItens(G) {
@@ -65,7 +68,7 @@ function cardItens(G) {
       const acao = i.quantidade < 1 ? '<span class="badge re">Esgotado</span>'
         : `<select data-act="guiaqtd" data-id="${i.id}" aria-label="Quantidade de ${esc(i.descricao)}" ${fechado ? 'disabled' : ''}>${Array.from({ length: max }, (_, k) => `<option value="${k + 1}" ${k + 1 === q ? 'selected' : ''}>${k + 1}</option>`).join('')}</select>
            <button class="btn primary small" data-act="guiapedir" data-id="${i.id}" ${fechado ? 'disabled' : ''}>Pedir</button>`;
-      return `<div class="gi-item">${fotoItem(i)}
+      return `<div class="gi-item">${fotoItem(i, 'gi-foto', true)}
         <div class="gi-info"><b>${esc(i.descricao)}</b><span class="gi-valor">${R(i.valor)}</span>
           <span class="muted gi-disp">${i.quantidade < 1 ? 'Sem estoque' : plural(i.quantidade, 'disponível', 'disponíveis')}</span></div>
         <div class="gi-acao">${acao}</div></div>`;
@@ -132,7 +135,7 @@ function grupoAdmin(g) {
     h += `<form id="f-guia-ren" class="row" data-id="${g.id}" autocomplete="off"><label class="field" style="flex:1">Descrição do grupo<input type="text" id="gg-ren" maxlength="80" value="${esc(g.descricao)}" required></label>
       <button class="btn primary" type="submit">Salvar</button><button type="button" class="btn" data-act="guiarenomear" data-id="">Cancelar</button></form>`;
   }
-  h += g.itens.length ? `<div class="gi-lista">${g.itens.map((i) => `<div class="gi-item gi-adm${i.visivel ? '' : ' oculto'}">${fotoItem(i)}
+  h += g.itens.length ? `<div class="gi-lista">${g.itens.map((i) => `<div class="gi-item gi-adm${i.visivel ? '' : ' oculto'}">${fotoItem(i, 'gi-foto', true)}
       <div class="gi-info"><b>${esc(i.descricao)}</b><span class="gi-valor">${R(i.valor)}</span><span class="muted gi-disp">${plural(i.quantidade, 'disponível', 'disponíveis')}</span>
         <label class="of-sw"><input type="checkbox" role="switch" data-act="guiaitemvis" data-id="${i.id}" ${i.visivel ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><span class="muted">Visível</span></label></div>
       <div class="gi-acao gi-acao-adm"><button class="btn small" data-act="guiaeditaritem" data-id="${i.id}" aria-label="Editar ${esc(i.descricao)}">✎</button>
@@ -228,25 +231,35 @@ function cardExportar(G) {
     </div>` : '<p class="muted" style="margin:0">Este pedido não tem nenhuma linha.</p>'}</div>`;
 }
 
+// Foto do item em tela cheia (mesmo visual da aba Fotos); tocar em qualquer lugar fecha.
+function telaFoto() {
+  const i = ui.zoom && acharItem(ui.zoom);
+  if (!i?.foto) return '';
+  return `<div class="ft-luz" role="dialog" aria-modal="true" aria-label="Foto de ${esc(i.descricao)}" data-act="guiazoomfechar">
+    <div class="ft-luz-topo"><span class="ft-luz-tit">${esc(i.descricao)}</span><button class="btn small" data-act="guiazoomfechar" aria-label="Fechar">✕</button></div>
+    <div class="ft-luz-img"><img src="${dataUrl(i.foto)}" alt=""></div>
+    <div class="ft-luz-rodape"><b>${R(i.valor)}</b><span class="muted">${plural(i.quantidade, 'disponível', 'disponíveis')}</span></div></div>`;
+}
+
 export function render() {
   if (estado.guias === null) { carregarGuias(); return '<div class="loading">Carregando as compras…</div>'; }
   const G = estado.guias;
   let h = '<section class="panel">';
   if (admin()) h += cardTopo(G);
-  h += cardItens(G) + cardMeus(G);
+  h += cardMeus(G) + cardItens(G);
   if (admin()) h += cardGrupos(G) + cardPainel(G) + cardExportar(G) + cardFeitos(G);
-  return h + janelaPedir() + '</section>';
+  return h + janelaPedir() + telaFoto() + '</section>';
 }
 
 // ---------- foto ----------
-// O maior lado vira 480 px, em JPEG: pequena para guardar no banco.
+// O maior lado vira 900 px (para ver em tela cheia), em JPEG: pequena para guardar no banco.
 async function reduzirFoto(arquivo) {
   let img;
   try { img = await createImageBitmap(arquivo, { imageOrientation: 'from-image' }); } catch {
     const url = URL.createObjectURL(arquivo);
     try { img = new Image(); img.src = url; await img.decode(); } finally { URL.revokeObjectURL(url); }
   }
-  const k = Math.min(1, 480 / Math.max(img.width, img.height));
+  const k = Math.min(1, 900 / Math.max(img.width, img.height));
   const c = document.createElement('canvas');
   c.width = Math.round(img.width * k);
   c.height = Math.round(img.height * k);
@@ -307,6 +320,8 @@ export const cliques = {
     avisar();
   },
   guiapedircancel() { ui.pedir = null; avisar(); },
+  guiazoom(el) { ui.zoom = el.dataset.id; avisar(); },
+  guiazoomfechar() { ui.zoom = null; avisar(); },
   async guiapedirok() {
     const P = ui.pedir;
     ui.pedir = null;
