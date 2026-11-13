@@ -126,7 +126,7 @@ function cardMeusCompromissos() {
       <span class="of-meus-data"><span class="eyebrow">${dataBR(of.data)}</span><span class="ent">${esc(Dia(of.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="vercomp" data-id="${of.id}">${esc(of.titulo)} ›</button>
       ${linha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>` })), ...(iem ? [iem] : [])].sort((a, b) => a.data.localeCompare(b.data));
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}x</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>` })), ...(iem ? [iem] : [])].sort((a, b) => a.data.localeCompare(b.data));
   const h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${blocos.length ? `<span class="count">${blocos.length}</span>` : ''}</div>`;
   if (!blocos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
   return h + blocos.map((b) => b.html).join('') + '</div>';
