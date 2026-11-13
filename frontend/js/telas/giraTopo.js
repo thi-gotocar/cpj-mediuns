@@ -4,7 +4,7 @@ import { estado, pode, carregarOferendas, acaoOracoes, avisar } from '../estado.
 import { esc, dDM, toast, hoje, pd } from '../util.js';
 import { eventosDoTopo, proximosEventos, orixasDoDia, dataCurta, TIPO_EVENTO_LABEL, aniversariantesDoDia } from '/shared/eventos.js';
 import { corDaFaixa } from './curimba.js';
-import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe } from '/shared/oferendas.js';
+import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe, qtdTxt } from '/shared/oferendas.js';
 import { abertos, cabDobra, ICONE_WHATS } from './giraComum.js';
 
 // Aba Gira: gira dos próximos 30 dias, evento e aviso todos os futuros, amaci só da semana.
@@ -127,6 +127,6 @@ export function cardCompromissos() {
   return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos nas oferendas</h2></div>
     ${grupos.map(({ of, itens, linha }) => `<div class="comp-of-g"><div><b>${esc(of.titulo)}</b> <span class="muted">· ${dataBR(of.data)}</span></div>
       ${linha ? `<div class="comp-of-med"><span><span class="muted">Pagamento:</span> ${etq(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etq(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li>${esc(i.nome)} <b>${q}</b> <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('')}
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li>${esc(i.nome)} <b>${qtdTxt(q, i.unidade)}</b> <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('')}
     <button class="btn link small" data-act="goto" data-tab="oferendas">Ver oferendas ›</button></div>`;
 }

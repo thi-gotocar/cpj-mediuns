@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 103;  // v103: aba Pedidos de Guias (grupos, itens à venda e pedidos numerados)
+export const VERSAO = 104;  // v104: unidade do item das oferendas e da Iemanjá
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3721,5 +3721,103 @@ export const MIGRACOES = [
      end if;
      return r;
    end;
+   $$`,
+  // ================================================== v104: unidade do item das oferendas e da Iemanjá (vazio = sem unidade, como antes)
+  `alter table oferenda_itens add column if not exists unidade text not null default ''`,
+  `alter table iemanja_itens add column if not exists unidade text not null default ''`,
+  `create or replace function oferenda_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_doado int;
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into oferenda_itens (oferenda_id, nome, quantidade, unidade, entrega)
+       values ((p ->> 'oferendaId')::uuid, btrim(p ->> 'nome'), (p ->> 'quantidade')::int, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
+     else
+       select coalesce(sum(quantidade), 0) into v_doado from oferenda_doacoes where item_id = (p ->> 'id')::uuid;
+       if (p ->> 'quantidade')::int < v_doado then
+         raise exception 'Já foram prometidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update oferenda_itens set nome = btrim(p ->> 'nome'), quantidade = (p ->> 'quantidade')::int,
+              unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
+       where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_doado int;
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into iemanja_itens (grupo_id, nome, categoria, quantidade, unidade, entrega)
+       values ((p ->> 'grupoId')::uuid, p ->> 'nome', coalesce(p ->> 'categoria', ''), (p ->> 'quantidade')::int, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
+     else
+       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = (p ->> 'id')::uuid;
+       if (p ->> 'quantidade')::int < v_doado then
+         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update iemanja_itens set nome = p ->> 'nome', categoria = coalesce(p ->> 'categoria', ''), quantidade = (p ->> 'quantidade')::int,
+                                unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
+       where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
+       'responsavelId', o.responsavel_id,
+       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
+                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
+       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'grupos', to_jsonb(o.grupos),
+       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
+           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
+           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
+           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
+           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
+           union all
+           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
+           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
+           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
+           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
+                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
+                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
+                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
+       'detalhes', e.detalhes,
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
+                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo,
+               'lista', case when m.chave like 'a:%'
+                               then coalesce((select t.nome from alunos a join turmas_alunos t on t.id = a.turma_id where a.id::text = substr(m.chave, 3)), 'Alunos sem turma')
+                             when (select pe.funcao from pessoas pe where pe.id::text = substr(m.chave, 3)) = 'curimba' then 'Curimba'
+                             else 'Corrente' end) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
    $$`,
 ];

@@ -1,7 +1,7 @@
 // Peças comuns às listas de oferendas e à Iemanjá: campos e linha do item, compartilhar.
 // As ações que gravam levam o prefixo da tela (c.p): '' nas listas e 'iem' na Iemanjá.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, UNIDADES, qtdTxt, previaItem, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
 import { estado, avisar } from '../estado.js';
 import { esc, hoje, dLong, toast } from '../util.js';
 
@@ -12,14 +12,26 @@ export const Dia = (s) => { const t = dLong(s); return t.charAt(0).toUpperCase()
 // A categoria que o item já tinha continua na lista mesmo se saiu da do evento.
 export function camposItem(i = {}, categorias = null) {
   const porData = !!i.entrega;
+  // Item novo começa em "unidades"; item antigo sem unidade pede para escolher.
+  const unidade = i.id || i.nome ? (i.unidade || '') : (i.unidade || 'unidade');
   const atual = i.categoria || '';
   const ops = [...(categorias || [])];
   if (atual && !ops.some((c) => c.toLocaleLowerCase('pt-BR') === atual.toLocaleLowerCase('pt-BR'))) ops.push(atual);
   const categoria = ops.length ? `<label class="field" style="flex:1 1 100%">Categoria<select name="categoria"><option value="">— sem categoria —</option>${ops.map((c) => `<option ${c.toLocaleLowerCase('pt-BR') === atual.toLocaleLowerCase('pt-BR') ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>` : '';
   return `${categoria}<label class="field grow">Item<input type="text" name="nome" maxlength="80" required value="${esc(i.nome || '')}" placeholder="Ex.: Rosas brancas"></label>
     <label class="field" style="flex:0 1 110px">Quantidade<input type="number" name="qtd" min="1" max="10000" step="1" required value="${esc(i.quantidade || 1)}" inputmode="numeric"></label>
+    <label class="field" style="flex:1 1 140px">Unidade<select name="unidade">${unidade ? '' : '<option value="" selected>— escolha —</option>'}${UNIDADES.map(([u, pl]) => `<option value="${u}" ${u === unidade ? 'selected' : ''}>${pl}</option>`).join('')}</select></label>
     <label class="field" style="flex:1 1 170px">Entrega<select name="modo" data-act="modoentrega"><option value="evento" ${porData ? '' : 'selected'}>No dia do evento</option><option value="data" ${porData ? 'selected' : ''}>Escolher data</option></select></label>
-    <label class="field" style="flex:1 1 150px" ${porData ? '' : 'hidden'}>Data da entrega<input type="date" name="entrega" value="${esc(i.entrega || '')}"></label>`;
+    <label class="field" style="flex:1 1 150px" ${porData ? '' : 'hidden'}>Data da entrega<input type="date" name="entrega" value="${esc(i.entrega || '')}"></label>
+    <p class="of-previa"><span class="muted">A corrente vai ver:</span> <b data-previa>${esc(previaItem({ ...i, quantidade: i.quantidade || 1, unidade }))}</b></p>`;
+}
+
+// Atualiza a prévia do cadastro enquanto o admin preenche.
+export function atualizarPrevia(form) {
+  const el = form?.querySelector('[data-previa]');
+  if (!el) return;
+  const v = (n) => form.elements[n]?.value ?? '';
+  el.textContent = previaItem({ nome: v('nome'), quantidade: v('qtd'), unidade: v('unidade'), entrega: v('modo') === 'data' ? v('entrega') : '' });
 }
 
 // Admin: cada doador com − / + e excluir; e cadastrar a doação de outra pessoa.
@@ -66,24 +78,26 @@ function linhaItem(i, c) {
   // Tocar na linha mostra o resto e tocar de novo recolhe.
   const aberto = (U().itensAbertos || []).includes(i.id);
   const resp = i.doacoes.length ? i.doacoes.map((d) => esc(d.nome)).join(', ') : 'Ninguém ainda';
+  const qtdLinha = s.completo ? qtdTxt(i.quantidade, i.unidade) : `faltam ${s.falta} de ${qtdTxt(i.quantidade, i.unidade)}`;
   // Entrega: caixinha vazia (admin toca e confirma; liberada a partir da data de entrega) e marcada quando entregue.
   const ok = i.entregue ? `<span class="of-check feito" role="img" aria-label="Entregue" title="Entregue">${CHECK_FEITO}</span>`
     : c.admin ? `<button class="of-check" data-act="${c.p}askentregue" data-id="${i.id}" aria-label="Marcar ${esc(i.nome)} como entregue" ${libera ? 'title="Marcar como entregue"' : `disabled title="Libera em ${dataBR(dataEntrega(i, c.ref))}"`}>${CHECK_VAZIO}</button>` : '';
   const cab = `<div class="of-top of-item-l"><button class="of-item-cab" data-act="dobraritem" data-id="${i.id}" aria-expanded="${aberto}">
       <span class="dot ${s.completo ? 'ok' : 'pend'}" title="${s.completo ? 'Completo' : 'Faltam doadores'}"></span>
-      <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${i.doacoes.length ? '' : ' muted'}">${resp}</span></span>
+      <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${i.doacoes.length ? '' : ' muted'}">${qtdLinha} · ${resp}</span></span>
       <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>${ok}</div>`;
   if (!aberto) return `<div class="of-item recolhido${s.completo ? ' completo' : ''}">${cab}</div>`;
   const entregaTxt = `Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}`;
-  const doadores = i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === c.eu?.chave ? 'eu' : ''}">${esc(d.nome)} (${d.quantidade})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
+  const doadores = i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === c.eu?.chave ? 'eu' : ''}">${esc(d.nome)} (${qtdTxt(d.quantidade, i.unidade)})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
   let h = `<div class="of-item${s.completo ? ' completo' : ''}">${cab}
-    <div class="muted of-sub">${entregaTxt} · <b>${s.doado} de ${i.quantidade}</b>${s.completo ? '' : ` · faltam <b>${s.falta}</b>`}</div>
+    <div class="muted of-sub">${entregaTxt} · <b>${s.doado} de ${qtdTxt(i.quantidade, i.unidade)}</b>${s.completo ? '' : ` · faltam <b>${s.falta}</b>`}</div>
     ${c.admin ? doadoresAdmin(i, s, c) : doadores}`;
   if (!i.entregue && c.podeDoar && (max > 0 || minha > 0)) {
-    h += `<div class="of-doar"><span class="muted">Vou doar:</span>
+    const palavra = i.unidade ? qtdTxt(minha, i.unidade).replace(/^\S+ /, '') : '';
+    h += `<div class="of-doar"><span class="muted">Vou levar:</span>
       <button class="btn small" data-act="${c.p}ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>
       <span class="n">${minha}</span>
-      <button class="btn small ${minha ? '' : 'primary'}" data-act="${c.p}ofmais" data-id="${i.id}" ${minha >= max ? 'disabled' : ''} aria-label="Mais ${esc(i.nome)}">+</button></div>`;
+      <button class="btn small ${minha ? '' : 'primary'}" data-act="${c.p}ofmais" data-id="${i.id}" ${minha >= max ? 'disabled' : ''} aria-label="Mais ${esc(i.nome)}">+</button>${palavra ? `<span class="muted">${palavra}</span>` : ''}</div>`;
   }
   if (c.admin) {
     // A caixinha de entregue fica na linha do item; aqui só o desfazer.

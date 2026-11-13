@@ -287,6 +287,7 @@ main.addEventListener('change', (e) => {
   if (t.id === 'l-email') { login.ajustarCampoSenha(ehAcessoGrupo(t.value)); return; }
   if (t.id === 'f-ent') { gira.mudancas.entidade(t); return; }
   if (t.classList?.contains('cd-resp-txt')) { gira.mudancas.cdresp(t); return; }
+  if (prefs.tab === 'oferendas' && t.form?.querySelector('[data-previa]')) TELAS.oferendas?.atualizarPrevia(t.form);
   if (t.id === 'f-import' && t.files && t.files[0]) { const f = t.files[0]; t.value = ''; telaDe('hist').then((m) => m.restaurar(f)); return; }
   const tela = TELAS[prefs.tab];
   const fn = t.dataset.act && tela?.mudancas && tela.mudancas[t.dataset.act];
@@ -383,6 +384,7 @@ main.addEventListener('input', (e) => {
   if (prefs.tab === 'perfil' && (e.target.dataset.act === 'pfinfo' || e.target.dataset.act === 'pfnome' || e.target.dataset.act === 'anaresp')) TELAS.perfil.digitando(e.target);
   if (prefs.tab === 'ervas' && e.target.dataset.compra) TELAS.ervas.digitando(e.target);
   if (prefs.tab === 'guias' && e.target.dataset.guia) TELAS.guias.digitando(e.target);
+  if (prefs.tab === 'oferendas' && e.target.form?.querySelector('[data-previa]')) TELAS.oferendas?.atualizarPrevia(e.target.form);
 });
 
 main.addEventListener('submit', async (e) => {

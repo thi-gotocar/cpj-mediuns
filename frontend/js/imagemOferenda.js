@@ -1,6 +1,6 @@
 // Imagem PNG da lista de uma oferenda (para mandar no grupo do WhatsApp).
 
-import { situacao, dataBR, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria } from '/shared/oferendas.js';
+import { situacao, dataBR, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria, qtdTxt } from '/shared/oferendas.js';
 
 const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5', verde: '#2f9e5b', amarelo: '#e3b021', ok: '#24785a' };
 const FD = '"Alegreya",Georgia,serif';
@@ -131,7 +131,7 @@ function desenhar(ctx, of, pintar) {
     ctx.beginPath(); ctx.arc(x + 6, meio, 6, 0, Math.PI * 2); ctx.fill();
     // À direita: "X de Y" e ✓ quando entregue.
     fonte(700, 18); ctx.fillStyle = s.completo ? C.ok : C.ink;
-    const qt = `${s.doado} de ${i.quantidade}${i.entregue ? ' ✓' : ''}`;
+    const qt = `${s.doado} de ${qtdTxt(i.quantidade, i.unidade)}${i.entregue ? ' ✓' : ''}`;
     const wq = ctx.measureText(qt).width;
     const xFim = P + CW - 18;
     ctx.fillText(qt, xFim - wq, meio - 10);
@@ -142,7 +142,7 @@ function desenhar(ctx, of, pintar) {
     const nome = cortar(ctx, i.nome, max - xt);
     ctx.fillText(nome, xt, meio - 11);
     xt += ctx.measureText(nome).width + 10;
-    const extra = [...(i.entrega ? [`entrega ${dataBR(i.entrega).slice(0, 5)}`] : []), ...(i.doacoes.length ? [i.doacoes.map((d) => `${d.nome} (${d.quantidade})`).join(', ')] : [])].join(' · ');
+    const extra = [...(i.entrega ? [`entrega ${dataBR(i.entrega).slice(0, 5)}`] : []), ...(i.doacoes.length ? [i.doacoes.map((d) => `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ')] : [])].join(' · ');
     fonte(400, 16); ctx.fillStyle = C.muted;
     if (extra && max - xt > 40) ctx.fillText(cortar(ctx, extra, max - xt), xt, meio - 9);
   }

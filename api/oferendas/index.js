@@ -17,7 +17,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 import { respostaGuias, acaoGuias } from '../_lib/guias.js';
 
@@ -53,6 +53,12 @@ function texto(v, oque, max) {
   const s = String(v ?? '').replace(/\s+/g, ' ').trim();
   if (!s || s.length > max) throw new HttpError(400, `Informe ${oque}.`);
   return s;
+}
+// Unidade do item: uma da lista ou vazio (sem unidade).
+function unidade(v) {
+  const u = String(v ?? '').trim();
+  if (!unidadeValida(u)) throw new HttpError(400, 'Unidade inválida.');
+  return u;
 }
 function validarGrupos(v) {
   if (!Array.isArray(v) || !v.length || v.some((g) => !grupoOferendaValido(g))) throw new HttpError(400, 'Escolha de quais grupos vêm as pessoas.');
@@ -132,6 +138,7 @@ export default rota({
           oferendaId: b.id ? null : validarId(b.oferendaId, 'Oferenda'),
           nome: texto(b.nome, 'o item', 80),
           quantidade: inteiro(b.quantidade, 'Quantidade', 1, 10000),
+          unidade: unidade(b.unidade),
           entrega: b.entrega ? validarData(String(b.entrega)) : '',
         });
         break;

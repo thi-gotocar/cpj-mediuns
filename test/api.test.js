@@ -1787,3 +1787,18 @@ test('pedidos de guias: aba escondida até publicar; grupos, itens, pedir baixa 
   await gu(ADMIN, { op: 'publicar', publicada: false });
   assert.equal((await ler(USER)).status, 403);
 });
+
+test('oferendas: o item tem unidade (da lista); sem unidade continua valendo', async () => {
+  const of = (b) => api('POST', '/api/oferendas', ADMIN, b);
+  let r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Oferenda com unidade', data: '2026-12-20' })).json;
+  const o = r.oferendas.find((x) => x.titulo === 'Oferenda com unidade');
+  assert.equal((await of({ acao: 'item', oferendaId: o.id, nome: 'Rosas', quantidade: 24, unidade: 'balde' })).status, 400, 'unidade fora da lista');
+  r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Rosas', quantidade: 24, unidade: 'unidade' })).json;
+  const rosas = r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.nome === 'Rosas');
+  assert.equal(rosas.unidade, 'unidade');
+  r = (await of({ acao: 'item', id: rosas.id, nome: 'Rosas', quantidade: 2, unidade: 'dúzia' })).json;
+  assert.equal(r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === rosas.id).unidade, 'dúzia');
+  r = (await of({ acao: 'item', oferendaId: o.id, nome: 'Velas', quantidade: 3 })).json;
+  assert.equal(r.oferendas.find((x) => x.id === o.id).itens.find((i) => i.nome === 'Velas').unidade, '', 'sem unidade, como antes');
+  await of({ acao: 'excluir', id: o.id });
+});

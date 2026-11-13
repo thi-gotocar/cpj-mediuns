@@ -134,6 +134,22 @@ function semana(s) {
 }
 export const textoEntrega = (item) => (item.entrega ? dataBR(item.entrega) : 'no dia do evento');
 
+// Unidade do item (singular, plural). Vazio = sem unidade (itens antigos): a quantidade aparece só com o número.
+export const UNIDADES = [['unidade', 'unidades'], ['dúzia', 'dúzias'], ['maço', 'maços'], ['pacote', 'pacotes'], ['caixa', 'caixas'], ['kg', 'kg'], ['litro', 'litros'], ['garrafa', 'garrafas']];
+export const unidadeValida = (u) => !u || UNIDADES.some(([s]) => s === u);
+// "24 unidades", "1 pacote"; sem unidade, só o número.
+export function qtdTxt(n, unidade) {
+  const u = UNIDADES.find(([s]) => s === unidade);
+  return u ? `${n} ${Number(n) === 1 ? u[0] : u[1]}` : String(n);
+}
+// Antes do nome do item: "2 pacotes" ou, sem unidade, "2x".
+export const qtdAntes = (n, unidade) => (unidade ? qtdTxt(n, unidade) : `${n}x`);
+// Prévia do cadastro: o que a corrente vai ver.
+export function previaItem({ nome, quantidade, unidade, entrega }) {
+  const q = Number(quantidade) > 0 ? qtdTxt(Number(quantidade), unidade) : '?';
+  return `${String(nome || '').trim() || '(nome do item)'} · ${q} · ${entrega ? `entregar até ${dataBR(entrega).slice(0, 5)}` : 'entrega no dia do evento'}`;
+}
+
 // Texto para o WhatsApp: itens, quantidade, responsáveis e data de entrega.
 // detalhes: o texto da sub-aba, logo abaixo do cabeçalho.
 export function textoOferenda(of, detalhes = '') {
@@ -154,10 +170,10 @@ export function textoOferenda(of, detalhes = '') {
     if (cat) L.push(`*${cat.toUpperCase()}*`);
     itens.forEach((i) => {
       const s = situacao(i);
-      L.push(`${s.completo ? '🟢' : '🟡'} *${i.nome}* · ${s.doado} de ${i.quantidade}${i.entregue ? ' · ✅ entregue' : ''}`);
+      L.push(`${s.completo ? '🟢' : '🟡'} *${i.nome}* · ${s.doado} de ${qtdTxt(i.quantidade, i.unidade)}${i.entregue ? ' · ✅ entregue' : ''}`);
       L.push(`   Entrega: ${textoEntrega(i)}`);
-      if (i.doacoes.length) L.push(`   ${i.doacoes.map((d) => `${d.nome} (${d.quantidade})`).join(', ')}`);
-      if (!s.completo) L.push(`   Faltam ${s.falta}`);
+      if (i.doacoes.length) L.push(`   ${i.doacoes.map((d) => `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ')}`);
+      if (!s.completo) L.push(`   Faltam ${qtdTxt(s.falta, i.unidade)}`);
       L.push('');
     });
   });

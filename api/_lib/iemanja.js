@@ -7,7 +7,7 @@ import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 import { normalizarPerfil } from '../../shared/perfil.js';
 import { sortearIemanja, pctItens, nomeGrupoValido, listasDoSorteio, LISTA_CURIMBA, NOME_EVENTO_PADRAO } from '../../shared/iemanja.js';
-import { limparDetalhes, detalhesOk, DETALHES_LINHAS } from '../../shared/oferendas.js';
+import { limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida } from '../../shared/oferendas.js';
 
 const ehRoot = (eu) => pode(eu, 'usuarios:gerenciar');
 const chaveDe = (eu) => (eu.alunoId ? 'a:' + eu.alunoId : chavePessoa(eu));
@@ -183,7 +183,9 @@ export async function acaoIemanja(eu, b) {
         if (!daLista) throw new HttpError(400, 'Escolha uma categoria da lista do evento.');
         categoria = daLista;
       }
-      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, categoria, quantidade: quantidade(b.quantidade, 1), entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
+      const unidade = String(b.unidade ?? '').trim();
+      if (!unidadeValida(unidade)) throw new HttpError(400, 'Unidade inválida.');
+      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, categoria, quantidade: quantidade(b.quantidade, 1), unidade, entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
     }
     case 'entregue':
       if (!item) throw new HttpError(404, 'Item não encontrado.');

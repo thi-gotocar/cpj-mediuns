@@ -1,10 +1,11 @@
 // Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
 
-import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa } from '/shared/oferendas.js';
+import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
-import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes } from './oferendaComum.js';
+import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes, atualizarPrevia } from './oferendaComum.js';
+export { atualizarPrevia };
 import * as iemanja from './iemanja.js';
 
 const opcoesPessoas = (atual) => `<option value="">— escolha —</option>${pessoasOrd().map((p) => `<option value="${p.id}" ${p.id === atual ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}`;
@@ -126,7 +127,7 @@ function cardMeusCompromissos() {
       <span class="of-meus-data"><span class="eyebrow">${dataBR(of.data)}</span><span class="ent">${esc(Dia(of.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="vercomp" data-id="${of.id}">${esc(of.titulo)} ›</button>
       ${linha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${q}x</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>` })), ...(iem ? [iem] : [])].sort((a, b) => a.data.localeCompare(b.data));
+      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${qtdAntes(q, i.unidade)}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>` })), ...(iem ? [iem] : [])].sort((a, b) => a.data.localeCompare(b.data));
   const h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${blocos.length ? `<span class="count">${blocos.length}</span>` : ''}</div>`;
   if (!blocos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
   return h + blocos.map((b) => b.html).join('') + '</div>';
@@ -328,7 +329,7 @@ export function render() {
 function janelaEntregue() {
   const { of, item } = U().confEntregue ? achar(U().confEntregue) : {};
   if (!item) return '';
-  const resp = item.doacoes.map((d) => `${esc(d.nome)} (${d.quantidade})`).join(', ');
+  const resp = item.doacoes.map((d) => `${esc(d.nome)} (${qtdTxt(d.quantidade, item.unidade)})`).join(', ');
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ent-t"><div class="modal">
     <h3 id="ent-t">Confirmar entrega</h3>
     <p style="margin:0">Confirma que <b>${esc(item.nome)}</b> da ${esc(of.titulo)} foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}</p>
@@ -416,11 +417,12 @@ export const cliques = {
     const minha = item.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0;
     if (minha >= minha + situacao(item).falta) return;
     doarItem(item.id, minha + 1);
+    avisoLevar(item, minha + 1);
   },
   ofmenos(el) {
     const { item } = achar(el.dataset.id);
     const minha = item.doacoes.find((d) => d.chave === estado.oferendas.eu.chave)?.quantidade || 0;
-    if (minha > 0) doarItem(item.id, minha - 1);
+    if (minha > 0) { doarItem(item.id, minha - 1); avisoLevar(item, minha - 1); }
   },
   async pormais(el) { await porAlguem(el, +1); },
   async pormenos(el) { await porAlguem(el, -1); },
@@ -560,6 +562,12 @@ export const mudancas = {
   },
 };
 
+// Depois de tocar em + / − no item: o que a pessoa vai levar.
+export function avisoLevar(item, q) {
+  const ate = item.entrega ? ` até ${dataBR(item.entrega).slice(0, 5)}` : '';
+  toast(q > 0 ? `Você vai levar ${qtdTxt(q, item.unidade)}: ${item.nome}${ate}.` : `Você não vai mais levar ${item.nome}.`);
+}
+
 // Formulários (criar oferenda, editar, adicionar/editar item).
 export async function enviar(form) {
   if (form.dataset.form?.startsWith('iem')) return iemanja.enviar(form);
@@ -601,7 +609,8 @@ export async function enviar(form) {
   }
   const entrega = v('modo') === 'data' ? v('entrega') : '';
   if (v('modo') === 'data' && !entrega) { toast('Escolha a data da entrega.'); return; }
-  const dados = { nome: v('nome'), quantidade: Number(v('qtd')), entrega };
+  if (!v('unidade')) { toast('Escolha a unidade.'); return; }
+  const dados = { nome: v('nome'), quantidade: Number(v('qtd')), unidade: v('unidade'), entrega };
   if (form.dataset.form === 'item') {
     U().novoItem = form.dataset.of;
     U().abertas = [...new Set([...(U().abertas || []), form.dataset.of])];   // continua aberta para cadastrar mais

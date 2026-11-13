@@ -5,7 +5,7 @@ import { esc, toast, baixar } from '../util.js';
 import { ORIXAS } from '/shared/regras.js';
 import { NOMES_ENTIDADES, LISTA_CURIMBA, porListaIemanja } from '/shared/iemanja.js';
 import { gerarImagemPessoas, gerarImagemOferenda } from '../imagemOferenda.js';
-import { dataBR, faixaPct, textoEntrega } from '/shared/oferendas.js';
+import { dataBR, faixaPct, textoEntrega, qtdTxt, qtdAntes } from '/shared/oferendas.js';
 import { U, Dia, camposItem, listaItens, textoCompartilhar, blocoDetalhes, salvarDetalhes } from './oferendaComum.js';
 import { ICONE_WHATS } from './giraComum.js';
 
@@ -138,7 +138,7 @@ export function compromisso() {
   return { data: ev.data, html: `<div class="of-meus-g"><span class="of-meus-data"><span class="eyebrow">${dataBR(ev.data)}</span><span class="ent">${esc(Dia(ev.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="iemver" data-g="${g.id}">${esc(ev.nome)} ›</button>
       <div class="of-meus-med"><span><span class="muted">Grupo:</span> <b>${esc(nomeGrupo(g))}</b></span><span><span class="muted">Responsável:</span> <b>${g.responsavel ? esc(g.responsavel) : '—'}</b></span></div>
-      ${meus.length ? `<ul>${meus.map(({ i, q }) => `<li><b>${q}x</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0;font-size:.9rem">Nenhum item assumido. Abra o grupo e toque em + no item.</p>'}</div>` };
+      ${meus.length ? `<ul>${meus.map(({ i, q }) => `<li><b>${qtdAntes(q, i.unidade)}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0;font-size:.9rem">Nenhum item assumido. Abra o grupo e toque em + no item.</p>'}</div>` };
 }
 
 const grupoDe = (id) => {
@@ -272,7 +272,7 @@ function textosJanela(j) {
   if (j.t === 'entregue') {
     const i = itemDe(j.i);
     if (!i) return null;
-    const resp = i.doacoes.map((d) => `${esc(d.nome)} (${d.quantidade})`).join(', ');
+    const resp = i.doacoes.map((d) => `${esc(d.nome)} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ');
     return ['Confirmar entrega', `Confirma que <b>${esc(i.nome)}</b> foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}`, 'OK', 'primary', 'Cancelar'];
   }
   if (!j.g) return [...TEXTOS[j.t], 'primary'];
@@ -285,7 +285,7 @@ function textosJanela(j) {
   }
   if (j.t === 'excluirGrupo') return ['Excluir este grupo?', `<b>${esc(nomeGrupo(g))}</b>: os itens, as doações e as pessoas deste grupo saem do evento. Não dá para desfazer.`, 'Excluir grupo', 'danger'];
   const r = ui.rascunho[j.g];
-  return ['Adicionar este item?', `${r.categoria ? `${esc(r.categoria)}: ` : ''}<b>${esc(r.quantidade)}</b> × ${esc(r.nome)} no grupo <b>${esc(nomeGrupo(g))}</b>.<br><span class="muted">Entrega: ${textoEntrega(r)}</span>`, 'Adicionar', 'primary'];
+  return ['Adicionar este item?', `${r.categoria ? `${esc(r.categoria)}: ` : ''}<b>${esc(qtdTxt(r.quantidade, r.unidade))}</b> · ${esc(r.nome)} no grupo <b>${esc(nomeGrupo(g))}</b>.<br><span class="muted">Entrega: ${textoEntrega(r)}</span>`, 'Adicionar', 'primary'];
 }
 function janela() {
   const t = ui.janela && textosJanela(ui.janela);
@@ -436,8 +436,14 @@ export const cliques = {
 };
 
 function assumirMeu(itemId, delta) {
-  const minha = itemDe(itemId).doacoes.find((d) => d.chave === estado.iemanja.eu?.chave)?.quantidade || 0;
-  acaoIemanja('assumir', { itemId, quantidade: Math.max(0, minha + delta) });
+  const item = itemDe(itemId);
+  const minha = item.doacoes.find((d) => d.chave === estado.iemanja.eu?.chave)?.quantidade || 0;
+  const q = Math.max(0, minha + delta);
+  acaoIemanja('assumir', { itemId, quantidade: q }).then((ok) => {
+    if (!ok) return;
+    const ate = item.entrega ? ` até ${dataBR(item.entrega).slice(0, 5)}` : '';
+    toast(q > 0 ? `Você vai levar ${qtdTxt(q, item.unidade)}: ${item.nome}${ate}.` : `Você não vai mais levar ${item.nome}.`);
+  });
 }
 
 function assumirDe(el, delta) {
@@ -460,7 +466,8 @@ export async function enviar(form) {
   }
   const entrega = v('modo') === 'data' ? v('entrega') : '';
   if (v('modo') === 'data' && !entrega) { toast('Escolha a data da entrega.'); return; }
-  const dados = { categoria: v('categoria').trim(), nome: v('nome').trim(), quantidade: v('qtd'), entrega };
+  if (!v('unidade')) { toast('Escolha a unidade.'); return; }
+  const dados = { categoria: v('categoria').trim(), nome: v('nome').trim(), quantidade: v('qtd'), unidade: v('unidade'), entrega };
   if (form.dataset.form === 'iemitem') {
     ui.rascunho[form.dataset.of] = dados;
     ui.janela = { t: 'item', g: form.dataset.of };
