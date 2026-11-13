@@ -1,8 +1,8 @@
 // Imagem PNG da lista de uma oferenda (para mandar no grupo do WhatsApp).
 
-import { situacao, dataBR, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria, qtdTxt } from '/shared/oferendas.js';
+import { situacao, dataBR, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria, qtdTxt, corItem, CORES_ITEM } from '/shared/oferendas.js';
 
-const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5', verde: '#2f9e5b', amarelo: '#e3b021', ok: '#24785a' };
+const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5', verde: '#2f9e5b', amarelo: '#e3b021', vermelho: '#d9534f', cinza: '#8a94a3', ok: '#24785a' };
 const FD = '"Alegreya",Georgia,serif';
 const FB = '"Alegreya Sans",system-ui,sans-serif';
 const W = 720;
@@ -87,12 +87,12 @@ function desenhar(ctx, of, pintar) {
     }
     y += h + 12;
   }
-  // Itens: uma linha por item — bolinha (verde completo, amarela falta), o item, quem doa (cortado se não couber),
+  // Itens: uma linha por item — bolinha (cor pelo quanto já tem doador), o item, quem doa (cortado se não couber),
   // a entrega quando tem data própria e, à direita, "X de Y". Um cartão por categoria, com o título acima.
   if (!of.itens.length) return y + P - 12;
   if (pintar) {
     fonte(500, 16); ctx.fillStyle = C.muted;
-    const legenda = [[C.verde, 'completo'], [C.amarelo, 'falta doação']];
+    const legenda = CORES_ITEM.map(([k, , t]) => [COR_ITEM[k], t]);
     let x = P + 4;
     legenda.forEach(([cor, t]) => {
       ctx.fillStyle = cor; ctx.beginPath(); ctx.arc(x + 6, y + 9, 6, 0, Math.PI * 2); ctx.fill();
@@ -127,7 +127,7 @@ function desenhar(ctx, of, pintar) {
     const x = P + 18;
     const meio = yy + LH / 2;
     if (k) { ctx.fillStyle = C.line; ctx.fillRect(x, yy, CW - 36, 1); }
-    ctx.fillStyle = s.completo ? C.verde : C.amarelo;
+    ctx.fillStyle = COR_ITEM[corItem(i)];
     ctx.beginPath(); ctx.arc(x + 6, meio, 6, 0, Math.PI * 2); ctx.fill();
     // À direita: "X de Y" e ✓ quando entregue.
     fonte(700, 18); ctx.fillStyle = s.completo ? C.ok : C.ink;
@@ -147,6 +147,9 @@ function desenhar(ctx, of, pintar) {
     if (extra && max - xt > 40) ctx.fillText(cortar(ctx, extra, max - xt), xt, meio - 9);
   }
 }
+
+// Bolinha do item: cinza ninguém doou, vermelho abaixo de 50%, amarelo de 50% a 99%, verde completo.
+const COR_ITEM = { nada: C.cinza, baixo: C.vermelho, meio: C.amarelo, cheio: C.verde };
 
 // Corta o texto com "…" para caber na largura.
 function cortar(ctx, t, max) {

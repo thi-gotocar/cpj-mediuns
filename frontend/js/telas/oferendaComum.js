@@ -1,7 +1,7 @@
 // Peças comuns às listas de oferendas e à Iemanjá: campos e linha do item, compartilhar.
 // As ações que gravam levam o prefixo da tela (c.p): '' nas listas e 'iem' na Iemanjá.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, UNIDADES, qtdTxt, previaItem, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, UNIDADES, qtdTxt, previaItem, corItem, CORES_ITEM, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
 import { estado, avisar } from '../estado.js';
 import { esc, hoje, dLong, toast } from '../util.js';
 
@@ -83,7 +83,7 @@ function linhaItem(i, c) {
   const ok = i.entregue ? `<span class="of-check feito" role="img" aria-label="Entregue" title="Entregue">${CHECK_FEITO}</span>`
     : c.admin ? `<button class="of-check" data-act="${c.p}askentregue" data-id="${i.id}" aria-label="Marcar ${esc(i.nome)} como entregue" ${libera ? 'title="Marcar como entregue"' : `disabled title="Libera em ${dataBR(dataEntrega(i, c.ref))}"`}>${CHECK_VAZIO}</button>` : '';
   const cab = `<div class="of-top of-item-l"><button class="of-item-cab" data-act="dobraritem" data-id="${i.id}" aria-expanded="${aberto}">
-      <span class="dot ${s.completo ? 'ok' : 'pend'}" title="${s.completo ? 'Completo' : 'Faltam doadores'}"></span>
+      <span class="dot ${corItem(i)}" title="${CORES_ITEM.find(([k]) => k === corItem(i))[2]}"></span>
       <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${i.doacoes.length ? '' : ' muted'}">${qtdLinha} · ${resp}</span></span>
       <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>${ok}</div>`;
   if (!aberto) return `<div class="of-item recolhido${s.completo ? ' completo' : ''}">${cab}</div>`;
@@ -114,7 +114,7 @@ function linhaItem(i, c) {
 export function listaItens(itens, c) {
   const ordenar = (l) => [...l].sort((a, b) => Number(situacao(a).completo) - Number(situacao(b).completo));
   const blocos = c.categorias ? porCategoria(itens, c.categorias) : [['', itens]];
-  return `${itens.length ? '<p class="muted legenda"><span class="dot pend"></span> falta doação <span class="dot ok"></span> completo</p>' : ''}
+  return `${itens.length ? `<p class="muted legenda">${CORES_ITEM.map(([k, , t]) => `<span class="leg-i"><span class="dot ${k}"></span> ${t}</span>`).join('')}</p>` : ''}
     ${blocos.map(([cat, l]) => `${cat ? `<h4 class="of-cat">${esc(cat)} <span class="muted">· ${l.length}</span></h4>` : ''}<div class="of-itens">${ordenar(l).map((i) => linhaItem(i, c)).join('')}</div>`).join('')}`;
 }
 

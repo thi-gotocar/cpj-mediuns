@@ -105,6 +105,15 @@ export function situacao(item) {
   return { doado, falta: Math.max(0, item.quantidade - doado), completo: doado >= item.quantidade };
 }
 
+// Cor do item pelo quanto já tem doador: cinza ninguém doou, vermelho abaixo de 50%, amarelo de 50% a 99%, verde 100%.
+export function corItem(item) {
+  const { doado } = situacao(item);
+  if (!doado) return 'nada';
+  return faixaPct(Math.floor((doado * 100) / item.quantidade));
+}
+// Na ordem da legenda: [cor, emoji do WhatsApp, texto].
+export const CORES_ITEM = [['nada', '⚪', 'ninguém doou'], ['baixo', '🔴', 'menos de 50%'], ['meio', '🟡', 'de 50% a 99%'], ['cheio', '🟢', 'completo']];
+
 // Quanto da oferenda já tem doador (0 a 100), somando todos os itens (o que passa do pedido não conta).
 export function percentualDoado(of) {
   const total = (of.itens || []).reduce((s, i) => s + i.quantidade, 0);
@@ -170,7 +179,7 @@ export function textoOferenda(of, detalhes = '') {
     if (cat) L.push(`*${cat.toUpperCase()}*`);
     itens.forEach((i) => {
       const s = situacao(i);
-      L.push(`${s.completo ? '🟢' : '🟡'} *${i.nome}* · ${s.doado} de ${qtdTxt(i.quantidade, i.unidade)}${i.entregue ? ' · ✅ entregue' : ''}`);
+      L.push(`${CORES_ITEM.find(([k]) => k === corItem(i))[1]} *${i.nome}* · ${s.doado} de ${qtdTxt(i.quantidade, i.unidade)}${i.entregue ? ' · ✅ entregue' : ''}`);
       L.push(`   Entrega: ${textoEntrega(i)}`);
       if (i.doacoes.length) L.push(`   ${i.doacoes.map((d) => `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ')}`);
       if (!s.completo) L.push(`   Faltam ${qtdTxt(s.falta, i.unidade)}`);

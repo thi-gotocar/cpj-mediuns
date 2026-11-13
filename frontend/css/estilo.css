@@ -335,8 +335,13 @@ input[type=date]{min-width:0}
 .dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none;vertical-align:-1px}
 .dot.ok{background:#2f9e5b}
 .dot.pend{background:#e3b021}
-.legenda{margin:0;font-size:.85rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.legenda .dot{margin-left:8px}
+/* Cor do item: cinza ninguém doou, vermelho abaixo de 50%, amarelo de 50% a 99%, verde completo */
+.dot.nada{background:#8a94a3}
+.dot.baixo{background:#d9534f}
+.dot.meio{background:#e3b021}
+.dot.cheio{background:#2f9e5b}
+.legenda{margin:0;font-size:.85rem;display:flex;gap:4px 14px;align-items:center;flex-wrap:wrap}
+.legenda .leg-i{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .of-itens{display:grid;gap:6px}
 .of-cat{margin:10px 0 0;font-size:.8rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent)}
 .of-cat .muted{font-weight:500;letter-spacing:0}
