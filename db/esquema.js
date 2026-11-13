@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 102;  // v102: pessoas do grupo da Iemanjá com a lista (corrente, curimba ou turma)
+export const VERSAO = 103;  // v103: aba Pedidos de Guias (grupos, itens à venda e pedidos numerados)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3506,5 +3506,220 @@ export const MIGRACOES = [
          ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
      ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
      from iemanja_eventos e
+   $$`,
+  // ================================================== v103: aba Pedidos de Guias — grupos, itens à venda e pedidos numerados
+  // A aba começa escondida (só quem administra vê) até o admin ligar "Visível para todos".
+  `insert into sistema (chave, valor) values ('guias_publicada', 'false') on conflict (chave) do nothing`,
+  `create or replace function guias_publicada(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(coalesce((select valor = 'true' from sistema where chave = 'guias_publicada'), false))
+   $$`,
+  `create or replace function guias_publicar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('guias_publicada', case when (p ->> 'publicada')::boolean then 'true' else 'false' end)
+     on conflict (chave) do update set valor = excluded.valor;
+     return guias_publicada();
+   end;
+   $$`,
+  // Todos os perfis veem a aba (menos o Admin curimba); só o root e o Admin administram. O que o root mudar depois fica.
+  `update perfis set abas = abas || jsonb_build_object('guias', jsonb_build_object('ver', chave <> 'admin_curimba', 'editar', chave in ('root', 'admin')))
+   where not abas ? 'guias'`,
+  `create table if not exists guias_grupos (
+     id         uuid primary key default gen_random_uuid(),
+     descricao  text not null check (length(btrim(descricao)) between 1 and 80),
+     visivel    boolean not null default true,
+     criado_em  timestamptz not null default now()
+   )`,
+  // foto: JPEG pequeno em base64 (como a foto do Perfil); quantidade = o que ainda está disponível.
+  `create table if not exists guias_itens (
+     id          uuid primary key default gen_random_uuid(),
+     grupo_id    uuid not null references guias_grupos(id) on delete cascade,
+     descricao   text not null check (length(btrim(descricao)) between 1 and 120),
+     foto        text,
+     quantidade  int not null default 0 check (quantidade >= 0),
+     valor       numeric(10, 2) not null default 0 check (valor >= 0),
+     visivel     boolean not null default true,
+     criado_em   timestamptz not null default now()
+   )`,
+  // Cada pedido tem um número sequencial; no máximo um aberto (encerrado_em nulo) recebe os pedidos.
+  `create table if not exists guias_pedidos (
+     numero        int primary key,
+     criado_em     timestamptz not null default now(),
+     encerrado_em  timestamptz
+   )`,
+  `insert into guias_pedidos (numero) values (1) on conflict (numero) do nothing`,
+  // Linha = o que uma pessoa pediu de um item num pedido. Descrição e valor ficam gravados (o item pode mudar ou sair).
+  `create table if not exists guias_linhas (
+     id          uuid primary key default gen_random_uuid(),
+     pedido      int not null references guias_pedidos(numero),
+     item_id     uuid references guias_itens(id) on delete set null,
+     descricao   text not null,
+     valor       numeric(10, 2) not null,
+     quantidade  int not null check (quantidade > 0),
+     chave       text not null,
+     nome        text not null,
+     ok          boolean not null default false,
+     criado_em   timestamptz not null default now()
+   )`,
+  `create index if not exists guias_linhas_pedido on guias_linhas (pedido)`,
+  `create or replace function guias_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'publicada', guias_publicada(),
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'descricao', g.descricao, 'visivel', g.visivel,
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'descricao', i.descricao, 'foto', i.foto, 'quantidade', i.quantidade,
+                       'valor', i.valor, 'visivel', i.visivel) order by i.criado_em), '[]'::jsonb)
+                     from guias_itens i where i.grupo_id = g.id)) order by g.criado_em), '[]'::jsonb)
+                  from guias_grupos g),
+       'pedidos', (select coalesce(jsonb_agg(jsonb_build_object('numero', pe.numero, 'criadoEm', pe.criado_em, 'encerradoEm', pe.encerrado_em,
+           'linhas', (select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'descricao', l.descricao, 'valor', l.valor,
+                       'quantidade', l.quantidade, 'chave', l.chave, 'nome', l.nome, 'ok', l.ok, 'criadoEm', l.criado_em) order by lower(l.nome), l.criado_em), '[]'::jsonb)
+                      from guias_linhas l where l.pedido = pe.numero)) order by pe.numero desc), '[]'::jsonb)
+                   from guias_pedidos pe))
+   $$`,
+  `create or replace function guia_grupo_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := nullif(p ->> 'id', '')::uuid;
+   begin
+     if v_id is null then
+       insert into guias_grupos (descricao, visivel) values (p ->> 'descricao', coalesce((p ->> 'visivel')::boolean, true));
+     else
+       update guias_grupos set
+         descricao = case when p ? 'descricao' then p ->> 'descricao' else descricao end,
+         visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end
+       where id = v_id;
+       if not found then raise exception 'Grupo não encontrado.'; end if;
+     end if;
+     return guias_estado();
+   end;
+   $$`,
+  `create or replace function guia_grupo_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from guias_grupos where id = (p ->> 'id')::uuid;
+     return guias_estado();
+   end;
+   $$`,
+  `create or replace function guia_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := nullif(p ->> 'id', '')::uuid;
+   begin
+     if v_id is null then
+       if not exists (select 1 from guias_grupos where id = (p ->> 'grupoId')::uuid) then raise exception 'Grupo não encontrado.'; end if;
+       insert into guias_itens (grupo_id, descricao, foto, quantidade, valor, visivel)
+       values ((p ->> 'grupoId')::uuid, p ->> 'descricao', nullif(p ->> 'foto', ''), (p ->> 'quantidade')::int, (p ->> 'valor')::numeric,
+               coalesce((p ->> 'visivel')::boolean, true));
+     else
+       update guias_itens set
+         descricao = case when p ? 'descricao' then p ->> 'descricao' else descricao end,
+         foto = case when p ? 'foto' then nullif(p ->> 'foto', '') else foto end,
+         quantidade = case when p ? 'quantidade' then (p ->> 'quantidade')::int else quantidade end,
+         valor = case when p ? 'valor' then (p ->> 'valor')::numeric else valor end,
+         visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end
+       where id = v_id;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return guias_estado();
+   end;
+   $$`,
+  `create or replace function guia_item_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from guias_itens where id = (p ->> 'id')::uuid;
+     return guias_estado();
+   end;
+   $$`,
+  // Pedir: só no pedido aberto, item e grupo visíveis, sem passar do disponível (que já baixa).
+  // A mesma pessoa pedindo de novo o mesmo item no mesmo pedido soma na linha que já existe.
+  `create or replace function guia_pedir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_pedido int;
+     v_item guias_itens%rowtype;
+     v_qtd int := (p ->> 'quantidade')::int;
+     v_linha uuid;
+   begin
+     select numero into v_pedido from guias_pedidos where encerrado_em is null order by numero desc limit 1;
+     if v_pedido is null then raise exception 'Os pedidos estão fechados no momento.'; end if;
+     select i.* into v_item from guias_itens i join guias_grupos g on g.id = i.grupo_id
+      where i.id = (p ->> 'itemId')::uuid and i.visivel and g.visivel for update of i;
+     if not found then raise exception 'Este item não está disponível.'; end if;
+     if v_item.quantidade < 1 then raise exception 'Este item esgotou.'; end if;
+     if v_qtd < 1 or v_qtd > v_item.quantidade then raise exception 'Só restam % deste item.', v_item.quantidade; end if;
+     update guias_itens set quantidade = quantidade - v_qtd where id = v_item.id;
+     select id into v_linha from guias_linhas
+      where pedido = v_pedido and item_id = v_item.id and chave = p ->> 'chave' and valor = v_item.valor limit 1;
+     if v_linha is not null then
+       update guias_linhas set quantidade = quantidade + v_qtd, nome = p ->> 'nome', ok = false where id = v_linha;
+     else
+       insert into guias_linhas (pedido, item_id, descricao, valor, quantidade, chave, nome)
+       values (v_pedido, v_item.id, v_item.descricao, v_item.valor, v_qtd, p ->> 'chave', p ->> 'nome');
+     end if;
+     return guias_estado();
+   end;
+   $$`,
+  // Cancelar (só o admin): a quantidade volta para o item, se ele ainda existir.
+  `create or replace function guia_linha_cancelar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v guias_linhas%rowtype;
+   begin
+     delete from guias_linhas where id = (p ->> 'id')::uuid returning * into v;
+     if not found then raise exception 'Pedido não encontrado.'; end if;
+     if v.item_id is not null then update guias_itens set quantidade = quantidade + v.quantidade where id = v.item_id; end if;
+     return guias_estado();
+   end;
+   $$`,
+  `create or replace function guia_linha_ok(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update guias_linhas set ok = (p ->> 'ok')::boolean where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Pedido não encontrado.'; end if;
+     return guias_estado();
+   end;
+   $$`,
+  `create or replace function guia_pedido_encerrar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update guias_pedidos set encerrado_em = now() where encerrado_em is null;
+     if not found then raise exception 'Não há pedido aberto.'; end if;
+     return guias_estado();
+   end;
+   $$`,
+  `create or replace function guia_pedido_novo(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   declare v int;
+   begin
+     select numero into v from guias_pedidos where encerrado_em is null limit 1;
+     if v is not null then raise exception 'O pedido nº % ainda está aberto. Encerre antes de começar outro.', v; end if;
+     insert into guias_pedidos (numero) select coalesce(max(numero), 0) + 1 from guias_pedidos;
+     return guias_estado();
+   end;
+   $$`,
+  // Abertura: também se a aba Pedidos de Guias está visível para todos.
+  `create or replace function inicio_dados(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_versao text := versao_dados();
+     r jsonb;
+   begin
+     if coalesce(p ->> 'versao', '') = v_versao then
+       return jsonb_build_object('versao', v_versao, 'semMudanca', true);
+     end if;
+     r := jsonb_build_object('versao', v_versao, 'pessoas', pessoas_listar('{"todas": true}'::jsonb),
+                             'giras', giras_listar('{}'::jsonb), 'config', config_casa('{}'::jsonb));
+     begin r := r || jsonb_build_object('eventos', eventos_listar('{}'::jsonb)); exception when others then null; end;
+     begin r := r || jsonb_build_object('oracoes', oracoes_listar('{}'::jsonb)); exception when others then null; end;
+     begin r := r || jsonb_build_object('entidadesApelidos', entidades_apelidos_listar('{}'::jsonb)); exception when others then null; end;
+     if nullif(p ->> 'pessoaId', '') is not null then
+       begin r := r || jsonb_build_object('minhaCurimba', curimba_minha(jsonb_build_object('pessoaId', p ->> 'pessoaId'))); exception when others then null; end;
+     end if;
+     if coalesce((p ->> 'me')::boolean, false) then
+       r := r || jsonb_build_object('abasOferendas', oferenda_abas_listar('{}'::jsonb), 'videosPublicada', videos_publicada('{}'::jsonb),
+                                    'ervasPublicada', ervas_publicada('{}'::jsonb), 'guiasPublicada', guias_publicada('{}'::jsonb),
+                                    'iemanja', iemanja_resumo('{}'::jsonb));
+     end if;
+     return r;
+   end;
    $$`,
 ];

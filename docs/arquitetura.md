@@ -93,6 +93,8 @@ A escala colada em texto (Histórico → Cadastrar escala) é lida no navegador 
 
 A foto de cada pessoa (aba Perfil) fica no próprio banco (`pessoas_fotos`, JPEG em base64 de uns 25 KB): é pequena e não depende do R2 das fotos dos álbuns. Quem está logado vê (a aba Gira mostra a foto de com quem cada um trabalha); trocar ou tirar, só a própria pessoa e o admin do perfil (`/api/auth/foto`).
 
+Os Pedidos de Guias (aba Guias) ficam em `guias_grupos` → `guias_itens` e `guias_pedidos` (número sequencial) → `guias_linhas`. A linha guarda descrição e valor da hora do pedido e só aponta para o item (`item_id`, nulo se o item for excluído), para o pedido não mudar depois. A foto do item é JPEG pequeno em base64 no próprio banco, como a do Perfil. A API fica em `api/oferendas` (`?lista=guias` e `acao: 'guias'`, lógica em `api/_lib/guias.js`), para não criar função nova.
+
 Os vídeos (aba Vídeos) ficam na tabela `videos`, sem ligação com `giras`/`eventos` (o evento é texto livre). A API fica em `api/giras` (`?lista=videos` e ações `video`/`excluirVideo`).
 
 Outras tabelas: `sistema` (chave/valor: segredo de sessão, marcadores de migração), `login_falhas`, `eventos`.

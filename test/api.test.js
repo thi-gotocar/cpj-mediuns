@@ -1735,3 +1735,55 @@ test('gestão de conduta e risco: interruptor do root; só o root lê; quem abri
   assert.equal((await ativar(ADMIN, false)).json.relatos.length, 3);
   assert.deepEqual((await api('GET', '/api/giras?lista=conduta', USER)).json, { ativa: false, relatos: [] });
 });
+
+test('pedidos de guias: aba escondida até publicar; grupos, itens, pedir baixa o estoque, encerrar e novo número', async () => {
+  const gu = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'guias', ...b });
+  const ler = (tok) => api('GET', '/api/oferendas?lista=guias', tok);
+  assert.equal((await ler(USER)).status, 403, 'aba começa escondida para quem não administra');
+  assert.equal((await gu(USER, { op: 'publicar', publicada: true })).status, 403);
+  let G = (await gu(ADMIN, { op: 'grupo', descricao: '  Guias  de  Oxóssi ' })).json;
+  const g = G.grupos.find((x) => x.descricao === 'Guias de Oxóssi');
+  assert.ok(g?.visivel);
+  assert.equal((await gu(ADMIN, { op: 'item', grupoId: g.id, descricao: 'Guia verde', quantidade: 3, valor: 'abc' })).status, 400);
+  G = (await gu(ADMIN, { op: 'item', grupoId: g.id, descricao: 'Guia verde', quantidade: 3, valor: '25,50' })).json;
+  const it = G.grupos.find((x) => x.id === g.id).itens[0];
+  assert.equal(it.valor, 25.5);
+  G = (await gu(ADMIN, { op: 'item', grupoId: g.id, descricao: 'Guia oculta', quantidade: 5, valor: 10, visivel: false })).json;
+  const oculto = G.grupos.find((x) => x.id === g.id).itens.find((i) => i.descricao === 'Guia oculta');
+  assert.equal(G.aberto, 1, 'o pedido nº 1 já começa aberto');
+  assert.equal((await gu(ADMIN, { op: 'publicar', publicada: true })).json.publicada, true);
+  assert.equal((await api('GET', '/api/auth/me', USER)).json.guiasPublicada, true);
+
+  let U = (await ler(USER)).json;
+  assert.equal(U.admin, false);
+  assert.equal(U.pedidos, undefined, 'quem não administra não recebe os pedidos dos outros');
+  assert.deepEqual(U.grupos.find((x) => x.id === g.id).itens.map((i) => i.descricao), ['Guia verde'], 'item oculto não aparece');
+  assert.equal((await gu(USER, { op: 'pedir', itemId: oculto.id, quantidade: 1 })).status, 400);
+  assert.equal((await gu(USER, { op: 'pedir', itemId: it.id, quantidade: 4 })).status, 400, 'não passa do disponível');
+  U = (await gu(USER, { op: 'pedir', itemId: it.id, quantidade: 2 })).json;
+  assert.equal(U.grupos.find((x) => x.id === g.id).itens[0].quantidade, 1, 'estoque baixou');
+  U = (await gu(USER, { op: 'pedir', itemId: it.id, quantidade: 1 })).json;
+  assert.deepEqual(U.meus.map((l) => [l.pedido, l.descricao, l.quantidade, l.valor]), [[1, 'Guia verde', 3, 25.5]], 'pedir de novo soma na mesma linha');
+  assert.equal((await gu(USER, { op: 'pedir', itemId: it.id, quantidade: 1 })).status, 400, 'esgotou');
+  assert.equal((await gu(USER, { op: 'cancelar', id: U.meus[0].id })).status, 403, 'cancelar só pelo admin');
+
+  G = (await ler(ADMIN)).json;
+  const linha = G.pedidos[0].linhas[0];
+  G = (await gu(ADMIN, { op: 'ok', id: linha.id, ok: true })).json;
+  assert.equal(G.pedidos[0].linhas[0].ok, true);
+  assert.equal((await gu(ADMIN, { op: 'novo' })).status, 400, 'já há um pedido aberto');
+  G = (await gu(ADMIN, { op: 'encerrar' })).json;
+  assert.equal(G.aberto, null);
+  assert.equal((await gu(ADMIN, { op: 'encerrar' })).status, 400);
+  G = (await gu(ADMIN, { op: 'cancelar', id: linha.id })).json;
+  assert.equal(G.grupos.find((x) => x.id === g.id).itens.find((i) => i.id === it.id).quantidade, 3, 'cancelar devolve ao estoque');
+  G = (await gu(ADMIN, { op: 'novo' })).json;
+  assert.equal(G.aberto, 2);
+  assert.deepEqual(G.pedidos.map((p) => p.numero), [2, 1]);
+
+  await gu(ADMIN, { op: 'grupo', id: g.id, visivel: false });
+  assert.equal((await ler(USER)).json.grupos.some((x) => x.id === g.id), false, 'grupo oculto some para a corrente');
+  assert.equal((await gu(ADMIN, { op: 'excluirGrupo', id: g.id })).json.grupos.some((x) => x.id === g.id), false);
+  await gu(ADMIN, { op: 'publicar', publicada: false });
+  assert.equal((await ler(USER)).status, 403);
+});

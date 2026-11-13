@@ -9,6 +9,7 @@
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
 //                excluirItem { id } · entregue { id, entregue }
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
+// Aba Pedidos de Guias: GET ?lista=guias e POST { acao: 'guias', op, ... } (veja api/_lib/guias.js).
 // Quem não administra as oferendas vê as publicadas (e doa nelas) e as bloqueadas (sem os itens).
 //                doarPor { itemId, pessoaId | chave, quantidade }  — doação de outra pessoa (0 = exclui)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
@@ -18,6 +19,7 @@ import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
+import { respostaGuias, acaoGuias } from '../_lib/guias.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 async function resposta(oferendas, eu) {
@@ -60,6 +62,7 @@ function validarGrupos(v) {
 export default rota({
   GET: async (req) => {
     if (req.query.lista === 'iemanja') return respostaIemanja(await exigir(req));
+    if (req.query.lista === 'guias') return respostaGuias(await exigir(req));
     const eu = await exigir(req, 'oferendas:doar');
     // Já inclui os novos cadastrados nas listas por pessoa.
     return resposta(await db.rpc('oferendas_sincronizar'), eu);
@@ -67,6 +70,7 @@ export default rota({
   POST: async (req) => {
     const b = corpo(req);
     if (b.acao === 'iemanja') return acaoIemanja(await exigir(req), b);
+    if (b.acao === 'guias') return acaoGuias(await exigir(req), b);
     const eu = await exigir(req, 'oferendas:doar');
     if (b.acao === 'doar') {
       if (!pode(eu, 'oferendas:gerenciar')) {

@@ -8,6 +8,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - presença, entidade do dia, **sorteio de cambones e médiuns de passe** com rodízio, remanejamento de faltas, ajuste manual, publicação da escala e exportação para o **WhatsApp** (texto e imagem PNG);
 - perfil de cada pessoa (informações, orixás, guias, guias de atendimento, afinidades);
 - eventos da casa, oferendas, compra coletiva de ervas, histórico e estatísticas;
+- venda de guias (aba Guias): o admin cadastra grupos e itens com foto, estoque e valor; a corrente pede e o admin fecha cada pedido numerado, marca ok e exporta;
 - aulas de curimba (aba à parte): alunos da corrente ou de fora, aulas, presença e gráfico de presença;
 - vídeos do YouTube das giras (aba Vídeos: o admin publica para toda a corrente ou deixa só para os admins), por mês e classificados por orixá/linha;
 - álbum de fotos por gira/evento (aba Fotos): todos veem, quem entrou com senha envia; os arquivos ficam no Cloudflare R2 gratuito.
@@ -49,6 +50,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 - **Guia da Corrente (PDF) desatualizado:** ainda fala de "Sua presença no ano" (saiu da aba Gira) e não fala das Orações.
 - **Aba Vídeos não foi testada no banco.** A migração v58 não rodou (sem Postgres local); a tela foi conferida com uma API falsa. Conferir no app publicado.
 - **Afinidade de passe do At. Extra** só existe na aba Pessoas (não no Perfil dele) e não entra na Sugestão Mi/Mãe Vê.
+- **Pedidos de Guias não foram testados no banco.** A migração v103 (tabelas `guias_*`, perfis com a aba nova, `inicio_dados` refeita) e o teste novo de `test/api.test.js` só rodam no CI; a tela foi conferida com uma API falsa (sem Postgres local). A foto do item não foi testada num celular.
 - **Testes no Windows.** `npm test` depende de Linux (`runuser`) e de Postgres local; na pasta atual não roda.
 - O doc `claude/regras-sort-mediuns.md` do Project é antigo (out/2026); [regras.md](regras.md) é a referência atual.
 

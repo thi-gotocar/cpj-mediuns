@@ -20,6 +20,7 @@ export const estado = {
   ervasFechar: false,  // janela "Fechar a lista?" aberta
   ervasNova: null,     // janela Nova compra: { passo: 'aviso' } (tem certeza?) ou { passo: 'escolher' } (encerrar ou descartar)
   ervasHist: null,     // Histórico de compras (admin): lista, undefined = carregando, { erro }
+  guias: null,         // aba Pedidos de Guias (GET /api/oferendas?lista=guias)
   ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,
   confirm: null,       // item aguardando "Confirmar"
@@ -712,6 +713,27 @@ export async function acaoErvas(acao, dados = {}) {
     return true;
   } catch (e) {
     toast(e.message);
+    return false;
+  }
+}
+
+// ---------- Pedidos de Guias ----------
+// Aba: quem administra sempre vê; as pessoas com a aba no perfil, quando o admin liga "Visível para todos".
+export const veGuias = () => !['alunos', 'curimba'].includes(visaoAtiva())
+  && (pode('guias:gerenciar') || (pode('guias:pedir') && !!estado.me?.guiasPublicada));
+export async function carregarGuias() {
+  try { estado.guias = await api('GET', '/oferendas?lista=guias'); } catch (e) { toast(e.message); estado.guias = estado.guias || { grupos: [], pedidos: [], meus: [], aberto: null }; }
+  avisar();
+}
+export async function acaoGuias(op, dados = {}) {
+  try {
+    estado.guias = await api('POST', '/oferendas', { acao: 'guias', op, ...dados });
+    if (op === 'publicar') estado.me = { ...estado.me, guiasPublicada: !!estado.guias.publicada };
+    avisar();
+    return true;
+  } catch (e) {
+    toast(e.message);
+    avisar();
     return false;
   }
 }

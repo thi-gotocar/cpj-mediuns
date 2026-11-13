@@ -12,6 +12,7 @@ export const ABAS = [
   { k: 'hist', nome: 'Histórico', ver: 'Histórico, estatísticas e a presença completa na Gira.', editar: 'Excluir giras, backup e restauração.' },
   { k: 'ervas', nome: 'Ervas', ver: 'Escolher as próprias ervas.', editar: 'Ervas, preços, frete, pedidos e cobrança.' },
   { k: 'oferendas', nome: 'Oferendas', ver: 'Escolher o que doar.', editar: 'Criar oferendas, itens e marcar entregas.' },
+  { k: 'guias', nome: 'Pedidos de Guias', ver: 'Ver os itens à venda e fazer os próprios pedidos.', editar: 'Grupos e itens, encerrar e começar pedidos, marcar ok e exportar.' },
   { k: 'eventos', nome: 'Eventos', ver: 'O bloco Eventos na aba Gira (a lista do mês).', editar: 'Cadastrar, editar e excluir eventos.' },
   { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás, guias e a própria Anamnese).', editar: 'Admin do perfil: ver o perfil de todos e as pendências, e a Anamnese (cadastrar perguntas, ver as respostas de todos e compartilhar).' },
   { k: 'curimba', nome: 'Curimba', ver: 'A aba Curimba: alunos, aulas e presença.', editar: 'Cadastrar alunos e aulas e marcar presença.' },
@@ -27,6 +28,7 @@ const MAPA = {
   hist: { ver: ['historico:ver', 'escala:completa'], editar: ['giras:excluir', 'dados:importar'] },
   ervas: { ver: ['ervas:escolher'], editar: ['ervas:gerenciar'] },
   oferendas: { ver: ['oferendas:doar'], editar: ['oferendas:gerenciar'] },
+  guias: { ver: ['guias:pedir'], editar: ['guias:gerenciar'] },
   perfil: { ver: ['perfil:ver'], editar: ['perfil:corrente'] },
   eventos: { ver: ['eventos:ver'], editar: ['eventos:editar'] },
   curimba: { ver: ['curimba:ver'], editar: ['curimba:editar'] },
@@ -69,13 +71,13 @@ export const PERFIS_PADRAO = [
   // A aba Curimba é um controle à parte. O Admin curimba também administra os vídeos.
   { chave: 'admin', nome: 'Admin', ordem: 1, abas: abasDe(Object.fromEntries(ABA_KEYS.filter((k) => k !== 'curimba' && k !== 'videos').map((k) => [k, tudo(true, true)]))) },
   // Fotos: todos veem e enviam; os perfis de admin também apagam a foto de qualquer pessoa.
-  { chave: 'usuario', nome: 'Usuário', ordem: 2, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true) }) },
-  { chave: 'admin_oferendas', nome: 'Admin oferendas', ordem: 3, abas: abasDe({ gira: tudo(true), alunos: tudo(true, true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true, true), perfil: tudo(true), fotos: tudo(true, true) }) },
-  { chave: 'admin_ervas', nome: 'Admin ervas', ordem: 4, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true, true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true, true) }) },
+  { chave: 'usuario', nome: 'Usuário', ordem: 2, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true), guias: tudo(true), perfil: tudo(true), fotos: tudo(true) }) },
+  { chave: 'admin_oferendas', nome: 'Admin oferendas', ordem: 3, abas: abasDe({ gira: tudo(true), alunos: tudo(true, true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true, true), guias: tudo(true), perfil: tudo(true), fotos: tudo(true, true) }) },
+  { chave: 'admin_ervas', nome: 'Admin ervas', ordem: 4, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true, true), oferendas: tudo(true), guias: tudo(true), perfil: tudo(true), fotos: tudo(true, true) }) },
   { chave: 'admin_curimba', nome: 'Admin curimba', ordem: 5, abas: abasDe({ gira: tudo(true), perfil: tudo(true), curimba: tudo(true, true), videos: tudo(true, true), fotos: tudo(true, true) }) },
   // Admin do perfil: o que a corrente vê e, na aba Perfil, o perfil de todos e a Anamnese (perguntas e respostas).
-  { chave: 'admin_perfil', nome: 'Admin perfil', ordem: 6, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true, true), fotos: tudo(true, true) }) },
-  { chave: 'corrente', nome: 'Corrente', ordem: 99, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), perfil: tudo(true), fotos: tudo(true) }) },
+  { chave: 'admin_perfil', nome: 'Admin perfil', ordem: 6, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), guias: tudo(true), perfil: tudo(true, true), fotos: tudo(true, true) }) },
+  { chave: 'corrente', nome: 'Corrente', ordem: 99, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), guias: tudo(true), perfil: tudo(true), fotos: tudo(true) }) },
 ];
 // Perfis do sistema: não podem ser excluídos (o root e o acesso da corrente também não mudam de nome).
 export const PERFIS_SISTEMA = PERFIS_PADRAO.map((p) => p.chave);
