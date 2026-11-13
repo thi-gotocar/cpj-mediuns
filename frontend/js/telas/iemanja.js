@@ -122,7 +122,10 @@ function blocoSorteio(ev) {
     <div class="cp-bts"><button class="btn" data-act="iemadicionar">${icone('＋', 'Adicionar')}</button>${ev.sorteado
       ? `<button class="btn" data-act="iemjanela" data-t="cancelar">${icone('✕', 'Cancelar sorteio')}</button>`
       : `<button class="btn primary" data-act="iemjanela" data-t="sortear">${icone('🎲', 'Sortear')}</button>`}</div>`;
-  return `<div class="card adm iem-sorteio">${cab}${totais}${ev.sorteado ? '' : escolha + listas}${adicionar}</div>`;
+  // WhatsApp: a "Lista pessoas" de todos os grupos de uma vez (uma imagem por grupo).
+  const comGente = gruposComGente(ev).length;
+  const todas = `<div class="iem-wa-bts iem-wa-uma"><button class="btn wa-bt" data-act="iemtodaspessoas" ${comGente ? '' : 'disabled title="Nenhum grupo tem pessoas ainda"'}><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Listas de pessoas · todos os grupos</button></div>`;
+  return `<div class="card adm iem-sorteio">${cab}${totais}${todas}${ev.sorteado ? '' : escolha + listas}${adicionar}</div>`;
 }
 
 // Entrada em "Seus compromissos": nasce do grupo em que a pessoa foi escalada.
@@ -152,6 +155,50 @@ function compartilharPng(blob, nome, titulo) {
     baixar(blob, nome);
     toast('Imagem salva no aparelho.');
   }
+}
+
+// Dados da imagem "Lista pessoas" de um grupo (a mesma do botão do grupo e do "todos os grupos" do Sorteio).
+const dadosPessoas = (ev, g) => ({ titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel,
+  listas: porListaIemanja(g.membros).map(([lista, ms]) => [lista, ms.map((m) => m.nome)]) });
+
+// ---------- Sorteio: "Listas de pessoas" de todos os grupos — uma imagem por grupo, compartilhadas de uma vez ----------
+// As imagens são feitas quando a janela abre: o compartilhar do celular só funciona logo depois de um toque.
+const gruposComGente = (ev) => ev.grupos.filter((g) => g.membros.length);
+const chaveTodas = (ev) => JSON.stringify(gruposComGente(ev).map((g) => dadosPessoas(ev, g)));
+const todasProntas = (ev) => !!(ui.todas?.imgs && ui.todas.key === chaveTodas(ev));
+async function prepararTodas(ev) {
+  if (!ev || todasProntas(ev) || ui.todas.gerando) return;
+  ui.todas.gerando = true;
+  const key = chaveTodas(ev);
+  try {
+    const imgs = [];
+    for (const g of gruposComGente(ev)) {
+      const blob = await gerarImagemPessoas(dadosPessoas(ev, g));
+      imgs.push({ blob, url: URL.createObjectURL(blob), nome: `pessoas-${arquivo(g)}-${ev.data}.png`, grupo: nomeGrupo(g) });
+    }
+    (ui.todas.imgs || []).forEach((i) => URL.revokeObjectURL(i.url));
+    ui.todas.imgs = imgs;
+    ui.todas.key = key;
+  } catch (e) { toast(e.message); }
+  ui.todas.gerando = false;
+  avisar();
+}
+const arquivosTodas = () => ui.todas.imgs.map((i) => new File([i.blob], i.nome, { type: 'image/png' }));
+function podeCompartilharTodas(ev) {
+  try { return !!(todasProntas(ev) && navigator.canShare && navigator.canShare({ files: arquivosTodas() })); } catch { return false; }
+}
+function janelaTodas() {
+  const ev = ui.todas?.aberta ? eventoAberto() : null;
+  if (!ev) return '';
+  const pronta = todasProntas(ev);
+  const n = gruposComGente(ev).length;
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="iem-todas-t"><div class="modal or-modal">
+    <h3 id="iem-todas-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Listas de pessoas</h3>
+    <p class="muted" style="margin:0;font-size:.88rem">${n} ${n === 1 ? 'grupo' : 'grupos'} · uma imagem para cada grupo, enviadas juntas.</p>
+    ${pronta ? `<div class="or-previa iem-todas">${ui.todas.imgs.map((i) => `<figure><img src="${i.url}" alt="Lista de pessoas do grupo ${esc(i.grupo)}"><figcaption>${esc(i.grupo)}</figcaption></figure>`).join('')}</div>` : '<div class="loading">Preparando as imagens…</div>'}
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="iemtodasfechar">Fechar</button>
+      ${pronta ? `<button class="btn" data-act="iemtodassalvar">Salvar imagens</button>${podeCompartilharTodas(ev) ? '<button class="btn primary" data-act="iemtodascompartilhar">Compartilhar</button>' : ''}` : ''}</div>
+  </div></div>`;
 }
 
 // Janela do "Lista de itens": texto (abre o WhatsApp) ou imagem.
@@ -256,7 +303,7 @@ export function conteudo() {
     <div class="cp-bts"><button class="btn primary" data-act="iemnovo">${icone('＋', 'Novo evento')}</button></div></div>` : '';
   // Detalhes do evento em andamento, acima do bloco do evento (ADMIN).
   const det = aberto ? blocoDetalhes(aberto.id, aberto.detalhes, comoAdmin(aberto), 'iemdetsalvar') : '';
-  return `${novo}${det}${aberto ? blocoEvento(aberto) : ''}${blocoHistorico(I.eventos.filter((e) => e.encerradoEm))}${janela()}${janelaItens()}`;
+  return `${novo}${det}${aberto ? blocoEvento(aberto) : ''}${blocoHistorico(I.eventos.filter((e) => e.encerradoEm))}${janela()}${janelaItens()}${janelaTodas()}`;
 }
 
 // Oferenda criada ou excluída durante a edição: mantém o que já foi escolhido nas outras.
@@ -307,10 +354,23 @@ export const cliques = {
     const { ev, g } = grupoDe(el.dataset.g);
     if (!g) return;
     try {
-      const blob = await gerarImagemPessoas({ titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel,
-        listas: porListaIemanja(g.membros).map(([lista, ms]) => [lista, ms.map((m) => m.nome)]) });
-      compartilharPng(blob, `pessoas-${arquivo(g)}-${ev.data}.png`, `${ev.nome} · ${nomeGrupo(g)}`);
+      compartilharPng(await gerarImagemPessoas(dadosPessoas(ev, g)), `pessoas-${arquivo(g)}-${ev.data}.png`, `${ev.nome} · ${nomeGrupo(g)}`);
     } catch (e) { toast(e.message); }
+  },
+  // Sorteio: "Listas de pessoas" de todos os grupos — abre a janela e já prepara as imagens.
+  iemtodaspessoas() { ui.todas = { ...(ui.todas || {}), aberta: true }; avisar(); prepararTodas(eventoAberto()); },
+  iemtodasfechar() { ui.todas.aberta = false; avisar(); },
+  iemtodassalvar() {
+    if (!todasProntas(eventoAberto())) return;
+    ui.todas.imgs.forEach((i, k) => setTimeout(() => baixar(i.blob, i.nome), k * 400));
+    toast(ui.todas.imgs.length > 1 ? 'Imagens salvas. Abra o WhatsApp e anexe no grupo.' : 'Imagem salva. Abra o WhatsApp e anexe no grupo.');
+  },
+  iemtodascompartilhar() {
+    const ev = eventoAberto();
+    if (!todasProntas(ev)) return;
+    navigator.share({ files: arquivosTodas(), title: `${ev.nome} · listas de pessoas` })
+      .then(() => cliques.iemtodasfechar())
+      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagens.'); });
   },
   // "Lista de itens": abre a janela para escolher texto (WhatsApp) ou imagem.
   iemcompitens(el) { ui.compItens = el.dataset.g; avisar(); },

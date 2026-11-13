@@ -279,6 +279,12 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .iem-wa-bts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .iem-wa-bts .btn{width:100%;min-width:0;margin:0;height:48px;padding:4px 8px;box-sizing:border-box;border-width:1px;border-radius:10px;font-size:.9rem;line-height:1.15;white-space:normal;text-align:center;text-decoration:none;gap:6px}
 .iem-wa-bts .wa-ico svg{width:18px;height:18px;flex:none}
+.iem-wa-bts.iem-wa-uma{grid-template-columns:1fr}
+/* Prévia das imagens de todos os grupos (uma embaixo da outra, com o nome do grupo). */
+.iem-todas{display:grid;gap:10px;padding:8px;background:var(--bg)}
+.iem-todas figure{margin:0;display:grid;gap:4px}
+.iem-todas img{border-radius:8px}
+.iem-todas figcaption{font-size:.8rem;font-weight:700;color:var(--muted);text-align:center}
 .iem-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
 .iem-add select,.iem-add input{width:100%;min-width:0;min-height:44px;box-sizing:border-box}
 .iem-add .btn{min-height:44px}
