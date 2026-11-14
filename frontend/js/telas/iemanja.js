@@ -43,7 +43,9 @@ function opcoesPessoas(C, ja = new Set()) {
 function blocoPessoas(g, ev, adm) {
   const k = 'p:' + g.id;
   const retira = adm && !ev.encerradoEm;
-  const pessoa = (m) => `<div class="iem-p"><span>${esc(m.nome)}</span>${retira ? `<button class="btn small" data-act="iemretirar" data-g="${g.id}" data-c="${esc(m.chave)}" aria-label="Retirar ${esc(m.nome)} do grupo">✕</button>` : ''}</div>`;
+  // Admin: borda verde-limão em quem já escolheu item para levar nesta oferenda; vermelha em quem ainda não tem.
+  const temItem = (m) => g.itens.some((i) => i.doacoes.some((d) => d.chave === m.chave));
+  const pessoa = (m) => `<div class="iem-p${adm ? (temItem(m) ? ' com-item' : ' sem-item') : ''}" ${adm ? `title="${temItem(m) ? 'Já escolheu item' : 'Ainda sem item'}"` : ''}><span>${esc(m.nome)}</span>${retira ? `<button class="btn small" data-act="iemretirar" data-g="${g.id}" data-c="${esc(m.chave)}" aria-label="Retirar ${esc(m.nome)} do grupo">✕</button>` : ''}</div>`;
   const listas = porListaIemanja(g.membros).map(([lista, ms]) => {
     const kl = `pl:${g.id}:${lista}`;   // presente = minimizada
     const min = ui.abertos.has(kl);
@@ -143,14 +145,16 @@ function quadradinhos(ev) {
 // Quem está nos grupos e já assumiu algum item (verde) e quem ainda não assumiu nada (vermelho).
 // Tocar no quadrado mostra os nomes com a oferenda (grupo) de cada um.
 function totaisItens(ev) {
-  const pessoas = ev.grupos.flatMap((g) => g.membros.map((m) => ({ nome: m.nome, oferenda: nomeGrupo(g),
+  const pessoas = ev.grupos.flatMap((g) => g.membros.map((m) => ({ nome: m.nome, lista: m.lista, oferenda: nomeGrupo(g),
     comItem: g.itens.some((i) => i.doacoes.some((d) => d.chave === m.chave)) })))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const com = pessoas.filter((p) => p.comItem);
   const sem = pessoas.filter((p) => !p.comItem);
   const quadro = (k, cls, lista, rotulo) => `<button class="iem-tot-n ${cls}" data-act="iemdobra" data-k="${k}" aria-expanded="${ui.abertos.has(k) && !!lista.length}" ${lista.length ? '' : 'disabled'}><b>${lista.length}</b><span>${rotulo} ${lista.length ? seta(k) : ''}</span></button>`;
-  const nomes = (k, lista, titulo) => (ui.abertos.has(k) && lista.length ? `<div class="iem-semg"><div class="iem-pg-l"><h4 class="iem-pg-t">${titulo} <span>· ${lista.length}</span></h4>
-    <div class="iem-itens-nomes">${lista.map((p) => `<div class="iem-p"><span>${esc(p.nome)}</span><small class="muted">${esc(p.oferenda)}</small></div>`).join('')}</div></div></div>` : '');
+  // Os nomes vêm separados pelo cadastro (Corrente, Curimba, cada turma), como em Pessoas do grupo.
+  const nomes = (k, lista, titulo) => (ui.abertos.has(k) && lista.length ? `<div class="iem-semg"><p class="iem-tot-tit">${titulo} <span>· ${lista.length}</span></p>
+    ${porListaIemanja(lista).map(([cad, ps]) => `<div class="iem-pg-l"><h4 class="iem-pg-t">${esc(cad)} <span>· ${ps.length}</span></h4>
+    <div class="iem-itens-nomes">${ps.map((p) => `<div class="iem-p"><span>${esc(p.nome)}</span><small class="muted">${esc(p.oferenda)}</small></div>`).join('')}</div></div>`).join('')}</div>` : '');
   return `<div class="iem-tot">${quadro('comitem', 'com-item', com, 'com itens')}${quadro('semitem', 'sem-item', sem, 'sem itens')}</div>
     ${nomes('comitem', com, 'Com itens')}${nomes('semitem', sem, 'Sem itens')}`;
 }

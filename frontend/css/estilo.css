@@ -1664,3 +1664,8 @@ button.iem-tot-n{cursor:pointer}
 .iem-pg-t.dobra{display:flex;align-items:center;gap:6px;width:100%;padding:4px 0;background:none;border:0;cursor:pointer;text-align:left;font-family:var(--f-body)}
 .iem-pg-t.dobra .seta{margin-left:auto;color:var(--accent);letter-spacing:0}
 .card.adm.adm-oferendas::before{content:"ADMIN OFERENDAS"}
+/* Pessoas do grupo (admin): borda verde-limão = já escolheu item; vermelha = ainda não */
+.iem-pg-nomes .iem-p.com-item{border-color:#9be81f}
+.iem-pg-nomes .iem-p.sem-item{border-color:var(--off)}
+.iem-tot-tit{margin:0;font-size:.85rem;font-weight:700;color:var(--ink)}
+.iem-tot-tit span{color:var(--muted);font-weight:500}
