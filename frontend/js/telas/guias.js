@@ -15,6 +15,7 @@ const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`;
 const ui = {
   abertos: new Set(),       // grupos expandidos (admin)
   feitos: new Set(),        // pedidos encerrados expandidos
+  minimizados: new Set(),   // blocos de itens (grupos) que a pessoa minimizou
   grupoRen: null,           // id do grupo com o ✎ aberto
   item: null,               // formulário de item: { grupoId, id?, descricao, quantidade, valor, visivel, foto?: b64 | null }
   qtd: {},                  // quantidade escolhida por item (antes de Pedir)
@@ -24,7 +25,7 @@ const ui = {
   zoom: null,               // id do item com a foto aberta em tela cheia
 };
 export function limpar() {
-  ui.abertos.clear(); ui.feitos.clear();
+  ui.abertos.clear(); ui.feitos.clear(); ui.minimizados.clear();
   Object.assign(ui, { grupoRen: null, item: null, qtd: {}, pedir: null, exportar: null, zoom: null });
   if (ui.img) URL.revokeObjectURL(ui.img.url);
   ui.img = null;
@@ -61,7 +62,13 @@ function cardItens(G) {
   const fechado = !G.aberto;
   let h = fechado ? '<div class="card"><p class="gi-aviso">Os pedidos estão fechados no momento.</p></div>' : '';
   if (!grupos.length) return h + '<div class="card"><p class="muted" style="margin:0">Nenhum item à venda no momento.</p></div>';
-  return h + grupos.map((g) => `<div class="card"><div class="grp-h"><h2>${esc(g.descricao)}</h2></div><div class="gi-lista">
+  // Cada bloco pode ser minimizado (começa aberto); minimizado, mostra quantos itens tem.
+  return h + grupos.map((g) => {
+    const min = ui.minimizados.has(g.id);
+    const cab = `<button class="grp-h dobra" data-act="guiaminimizar" data-id="${g.id}" aria-expanded="${!min}"><h2>${esc(g.descricao)}</h2>
+      <span class="count">${min ? plural(g.itens.length, 'item', 'itens') + ' ' : ''}<span class="seta" aria-hidden="true">${min ? '▸' : '▾'}</span></span></button>`;
+    if (min) return `<div class="card">${cab}</div>`;
+    return `<div class="card">${cab}<div class="gi-lista">
     ${g.itens.map((i) => {
       const max = Math.min(i.quantidade, 20);
       const q = Math.min(ui.qtd[i.id] || 1, Math.max(max, 1));
@@ -72,7 +79,8 @@ function cardItens(G) {
         <div class="gi-info"><b>${esc(i.descricao)}</b><span class="gi-valor">${R(i.valor)}</span>
           <span class="muted gi-disp">${i.quantidade < 1 ? 'Sem estoque' : plural(i.quantidade, 'disponível', 'disponíveis')}</span></div>
         <div class="gi-acao">${acao}</div></div>`;
-    }).join('')}</div></div>`).join('');
+    }).join('')}</div></div>`;
+  }).join('');
 }
 
 function cardMeus(G) {
@@ -301,6 +309,7 @@ const valorCampo = (v) => Number(v).toFixed(2).replace('.', ',');
 
 export const cliques = {
   guiadobrar(el) { const id = el.dataset.id; if (ui.abertos.has(id)) ui.abertos.delete(id); else ui.abertos.add(id); avisar(); },
+  guiaminimizar(el) { const id = el.dataset.id; if (ui.minimizados.has(id)) ui.minimizados.delete(id); else ui.minimizados.add(id); avisar(); },
   guiafeito(el) { const n = Number(el.dataset.n); if (ui.feitos.has(n)) ui.feitos.delete(n); else ui.feitos.add(n); avisar(); },
   guiarenomear(el) { ui.grupoRen = el.dataset.id || null; avisar(); },
   async guiaexcluirgrupo(el) { if (await fazer('excluirGrupo', { id: el.dataset.id })) { ui.abertos.delete(el.dataset.id); toast('Grupo excluído.'); } },

@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 104;  // v104: unidade do item das oferendas e da Iemanjá
+export const VERSAO = 105;  // v105: quantidade quebrada (kg e litro) e troca de pessoas entre grupos da Iemanjá
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3819,5 +3819,141 @@ export const MIGRACOES = [
          ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
      ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
      from iemanja_eventos e
+   $$`,
+  // ================================================== v105: quantidade quebrada (kg e litro: 1,5 kg) e troca de pessoas entre grupos da Iemanjá
+  // A quantidade do item e da doação passa a aceitar até 2 casas; a API só deixa fração nas unidades kg e litro.
+  // O gatilho "update of quantidade" impede trocar o tipo da coluna: sai antes e volta depois.
+  `drop trigger if exists oferenda_itens_completa on oferenda_itens`,
+  `alter table oferenda_itens drop constraint if exists oferenda_itens_quantidade_check`,
+  `alter table oferenda_itens alter column quantidade type numeric(10, 2)`,
+  `alter table oferenda_itens add constraint oferenda_itens_quantidade_check check (quantidade > 0 and quantidade <= 10000)`,
+  `alter table oferenda_doacoes drop constraint if exists oferenda_doacoes_quantidade_check`,
+  `alter table oferenda_doacoes alter column quantidade type numeric(10, 2)`,
+  `alter table oferenda_doacoes add constraint oferenda_doacoes_quantidade_check check (quantidade > 0 and quantidade <= 10000)`,
+  `alter table iemanja_itens drop constraint if exists iemanja_itens_quantidade_check`,
+  `alter table iemanja_itens alter column quantidade type numeric(10, 2)`,
+  `alter table iemanja_itens add constraint iemanja_itens_quantidade_check check (quantidade > 0 and quantidade <= 9999)`,
+  `alter table iemanja_doacoes drop constraint if exists iemanja_doacoes_quantidade_check`,
+  `alter table iemanja_doacoes alter column quantidade type numeric(10, 2)`,
+  `alter table iemanja_doacoes add constraint iemanja_doacoes_quantidade_check check (quantidade > 0)`,
+  `create trigger oferenda_itens_completa after insert or update of quantidade or delete on oferenda_itens
+   for each row execute function oferenda_completa_trg()`,
+  `create or replace function oferenda_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_doado numeric;
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into oferenda_itens (oferenda_id, nome, quantidade, unidade, entrega)
+       values ((p ->> 'oferendaId')::uuid, btrim(p ->> 'nome'), (p ->> 'quantidade')::numeric, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
+     else
+       select coalesce(sum(quantidade), 0) into v_doado from oferenda_doacoes where item_id = (p ->> 'id')::uuid;
+       if (p ->> 'quantidade')::numeric < v_doado then
+         raise exception 'Já foram prometidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update oferenda_itens set nome = btrim(p ->> 'nome'), quantidade = (p ->> 'quantidade')::numeric,
+              unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
+       where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_doado numeric;
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into iemanja_itens (grupo_id, nome, categoria, quantidade, unidade, entrega)
+       values ((p ->> 'grupoId')::uuid, p ->> 'nome', coalesce(p ->> 'categoria', ''), (p ->> 'quantidade')::numeric, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
+     else
+       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = (p ->> 'id')::uuid;
+       if (p ->> 'quantidade')::numeric < v_doado then
+         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update iemanja_itens set nome = p ->> 'nome', categoria = coalesce(p ->> 'categoria', ''), quantidade = (p ->> 'quantidade')::numeric,
+                                unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
+       where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return iemanja_estado();
+   end;
+   $$`,
+  `create or replace function oferenda_doar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_item uuid := (p ->> 'itemId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_qtd numeric := (p ->> 'quantidade')::numeric;
+     v_total numeric; v_entregue boolean; v_outros numeric;
+     v_completa timestamptz; v_resp uuid;
+   begin
+     select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
+     if not found then raise exception 'Item não encontrado.'; end if;
+     if not coalesce((p ->> 'forcar')::boolean, false)
+        and (select o.status from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item) <> 'publicado' then
+       raise exception 'Esta oferenda não está aberta para doações.';
+     end if;
+     if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
+     -- v36: completa há mais de um dia → só o responsável altera (o admin altera pelo "doação por alguém").
+     if not coalesce((p ->> 'forcar')::boolean, false) then
+       select o.completa_em, o.responsavel_id into v_completa, v_resp
+       from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item;
+       if v_completa is not null and v_completa <= now() - interval '1 day' and v_chave is distinct from 'p:' || v_resp::text then
+         raise exception 'Esta oferenda está completa há mais de um dia: as doações estão fechadas. Só o responsável%pode alterar.',
+           coalesce(' (' || (select nome from pessoas where id = v_resp) || ') ', ' ');
+       end if;
+     end if;
+     select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
+     if v_qtd > 0 and v_outros + v_qtd > v_total then
+       if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;
+       raise exception 'Só faltam % deste item.', v_total - v_outros;
+     end if;
+     -- Uma alteração só (sem apagar e inserir), para não reiniciar a contagem do "completa há um dia".
+     if v_qtd > 0 then
+       insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
+       values (v_item, v_chave, btrim(p ->> 'nome'), v_qtd)
+       on conflict (item_id, pessoa_chave) do update set quantidade = excluded.quantidade, pessoa_nome = excluded.pessoa_nome, atualizado_em = now();
+     else
+       delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function iemanja_assumir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_item uuid := (p ->> 'itemId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_qtd numeric := (p ->> 'quantidade')::numeric;
+     v_pedido numeric;
+   begin
+     select quantidade into v_pedido from iemanja_itens where id = v_item for update;
+     if v_qtd = 0 then
+       delete from iemanja_doacoes where item_id = v_item and chave = v_chave;
+     else
+       if v_qtd + (select coalesce(sum(quantidade), 0) from iemanja_doacoes where item_id = v_item and chave <> v_chave) > v_pedido then
+         raise exception 'Este item já tem responsável para toda a quantidade.';
+       end if;
+       insert into iemanja_doacoes (item_id, chave, nome, quantidade) values (v_item, v_chave, p ->> 'nome', v_qtd)
+       on conflict (item_id, chave) do update set quantidade = excluded.quantidade;
+     end if;
+     return iemanja_estado();
+   end;
+   $$`,
+  // Troca duas pessoas de grupos diferentes do mesmo evento (cada uma vai para o grupo da outra).
+  `create or replace function iemanja_trocar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_ga uuid; v_gb uuid;
+   begin
+     select m.grupo_id into v_ga from iemanja_membros m join iemanja_grupos g on g.id = m.grupo_id
+      where g.evento_id = (p ->> 'id')::uuid and m.chave = p ->> 'a';
+     select m.grupo_id into v_gb from iemanja_membros m join iemanja_grupos g on g.id = m.grupo_id
+      where g.evento_id = (p ->> 'id')::uuid and m.chave = p ->> 'b';
+     if v_ga is null or v_gb is null then raise exception 'Pessoa não encontrada nos grupos deste evento.'; end if;
+     if v_ga = v_gb then raise exception 'Escolha pessoas de oferendas diferentes.'; end if;
+     update iemanja_membros set grupo_id = case when grupo_id = v_ga then v_gb else v_ga end
+      where (grupo_id = v_ga and chave = p ->> 'a') or (grupo_id = v_gb and chave = p ->> 'b');
+     return iemanja_estado();
+   end;
    $$`,
 ];

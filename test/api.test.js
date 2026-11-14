@@ -1821,3 +1821,44 @@ test('iemanjá: com algum item assumido, o sorteio não pode mais ser cancelado'
   await iem({ op: 'excluirItem', itemId: item.id });
   await iem({ op: 'retirar', grupoId: g.id, chave });
 });
+
+test('iemanjá: trocar duas pessoas de oferenda; não troca no mesmo grupo nem quem já assumiu item', async () => {
+  const iem = (b) => api('POST', '/api/oferendas', ADMIN, { acao: 'iemanja', ...b });
+  const lido = (await api('GET', '/api/oferendas?lista=iemanja', ADMIN)).json;
+  const ev = lido.eventos.find((e) => !e.encerradoEm);
+  const [g0, g1] = ev.grupos;
+  const [p1, p2, p3] = lido.candidatos.corrente.slice(-3).map((p) => p.chave);
+  await iem({ op: 'adicionar', grupoId: g0.id, chave: p1 });
+  await iem({ op: 'adicionar', grupoId: g0.id, chave: p3 });
+  await iem({ op: 'adicionar', grupoId: g1.id, chave: p2 });
+  assert.equal((await iem({ op: 'trocar', id: ev.id, a: p1, b: p3 })).status, 400, 'mesmo grupo');
+  const r = await iem({ op: 'trocar', id: ev.id, a: p1, b: p2 });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const gs = r.json.eventos.find((e) => e.id === ev.id).grupos;
+  assert.ok(gs.find((g) => g.id === g1.id).membros.some((m) => m.chave === p1), 'p1 foi para o grupo 1');
+  assert.ok(gs.find((g) => g.id === g0.id).membros.some((m) => m.chave === p2), 'p2 foi para o grupo 0');
+  const it = (await iem({ op: 'item', grupoId: g1.id, nome: 'Item da troca', quantidade: 1, unidade: 'unidade' })).json.eventos.find((e) => e.id === ev.id).grupos.find((g) => g.id === g1.id).itens.find((i) => i.nome === 'Item da troca');
+  await iem({ op: 'assumirPor', itemId: it.id, chave: p1, quantidade: 1 });
+  assert.equal((await iem({ op: 'trocar', id: ev.id, a: p1, b: p2 })).status, 400, 'quem assumiu item não troca');
+  await iem({ op: 'assumirPor', itemId: it.id, chave: p1, quantidade: 0 });
+  await iem({ op: 'excluirItem', itemId: it.id });
+  await iem({ op: 'retirar', grupoId: g1.id, chave: p1 });
+  await iem({ op: 'retirar', grupoId: g0.id, chave: p2 });
+  await iem({ op: 'retirar', grupoId: g0.id, chave: p3 });
+});
+
+test('oferendas: kg e litro aceitam quantidade quebrada; as outras unidades só inteira', async () => {
+  const of = (b) => api('POST', '/api/oferendas', ADMIN, b);
+  let r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Oferenda em kg', data: '2026-12-21' })).json;
+  const o = r.oferendas.find((x) => x.titulo === 'Oferenda em kg');
+  assert.equal((await of({ acao: 'item', oferendaId: o.id, nome: 'Velas', quantidade: 1.5, unidade: 'pacote' })).status, 400);
+  r = await of({ acao: 'item', oferendaId: o.id, nome: 'Arroz', quantidade: '1,5', unidade: 'kg' });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const arroz = r.json.oferendas.find((x) => x.id === o.id).itens.find((i) => i.nome === 'Arroz');
+  assert.equal(Number(arroz.quantidade), 1.5);
+  r = await of({ acao: 'doarPor', itemId: arroz.id, pessoaId: RESP(), quantidade: 0.5 });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(Number(r.json.oferendas.find((x) => x.id === o.id).itens.find((i) => i.id === arroz.id).doacoes[0].quantidade), 0.5);
+  assert.equal((await of({ acao: 'doarPor', itemId: arroz.id, pessoaId: RESP(), quantidade: 2 })).status, 400, 'não passa do que falta');
+  await of({ acao: 'excluir', id: o.id });
+});

@@ -17,7 +17,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida } from '../../shared/oferendas.js';
+import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida, quantidadeValida, aceitaFracao } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 import { respostaGuias, acaoGuias } from '../_lib/guias.js';
 
@@ -44,11 +44,6 @@ async function resposta(oferendas, eu) {
   };
 }
 
-function inteiro(v, oque, min, max) {
-  const n = Number(v);
-  if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${oque} inválida.`);
-  return n;
-}
 function texto(v, oque, max) {
   const s = String(v ?? '').replace(/\s+/g, ' ').trim();
   if (!s || s.length > max) throw new HttpError(400, `Informe ${oque}.`);
@@ -59,6 +54,12 @@ function unidade(v) {
   const u = String(v ?? '').trim();
   if (!unidadeValida(u)) throw new HttpError(400, 'Unidade inválida.');
   return u;
+}
+// Quantidade do item (min 1) ou da doação (min 0): inteira; quebrada (até 2 casas) só em kg e litro e nas doações.
+function qtd(v, un, min) {
+  const n = quantidadeValida(v, un, min);
+  if (n === null) throw new HttpError(400, min && !aceitaFracao(un) ? 'Quantidade inválida (número inteiro; fração só em kg e litro).' : 'Quantidade inválida.');
+  return n;
 }
 function validarGrupos(v) {
   if (!Array.isArray(v) || !v.length || v.some((g) => !grupoOferendaValido(g))) throw new HttpError(400, 'Escolha de quais grupos vêm as pessoas.');
@@ -85,7 +86,7 @@ export default rota({
       }
       const estado = await db.rpc('oferenda_doar', {
         itemId: validarId(b.itemId, 'Item'), chave: chavePessoa(eu), nome: eu.nome,
-        quantidade: inteiro(b.quantidade, 'Quantidade', 0, 10000),
+        quantidade: qtd(b.quantidade, '', 0),
       });
       return resposta(estado, eu);
     }
@@ -137,14 +138,14 @@ export default rota({
           id: b.id ? validarId(b.id, 'Item') : null,
           oferendaId: b.id ? null : validarId(b.oferendaId, 'Oferenda'),
           nome: texto(b.nome, 'o item', 80),
-          quantidade: inteiro(b.quantidade, 'Quantidade', 1, 10000),
+          quantidade: qtd(b.quantidade, unidade(b.unidade), 1),
           unidade: unidade(b.unidade),
           entrega: b.entrega ? validarData(String(b.entrega)) : '',
         });
         break;
       case 'doarPor': {
         const itemId = validarId(b.itemId, 'Item');
-        const quantidade = inteiro(b.quantidade, 'Quantidade', 0, 10000);
+        const quantidade = qtd(b.quantidade, '', 0);
         let chave, nome;
         if (typeof b.pessoaId === 'string' && b.pessoaId.startsWith('a:')) {
           // Aluno da CPJ

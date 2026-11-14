@@ -97,12 +97,14 @@ export function porCategoria(itens, ordem = []) {
   return [...usados, ...(sem.length ? [['Outros', sem]] : [])];
 }
 
-export const somaDoado =(item) => (item.doacoes || []).reduce((a, d) => a + (Number(d.quantidade) || 0), 0);
+// Quantidades com até 2 casas (kg e litro aceitam fração): arredonda para não sobrar 0,30000000004.
+export const arred = (n) => Math.round(Number(n) * 100) / 100;
+export const somaDoado = (item) => arred((item.doacoes || []).reduce((a, d) => a + (Number(d.quantidade) || 0), 0));
 
 // { doado, falta, completo }
 export function situacao(item) {
   const doado = somaDoado(item);
-  return { doado, falta: Math.max(0, item.quantidade - doado), completo: doado >= item.quantidade };
+  return { doado, falta: Math.max(0, arred(item.quantidade - doado)), completo: doado >= Number(item.quantidade) };
 }
 
 // Cor do item pelo quanto já tem doador: cinza ninguém doou, vermelho abaixo de 50%, amarelo de 50% a 99%, verde 100%.
@@ -146,13 +148,27 @@ export const textoEntrega = (item) => (item.entrega ? dataBR(item.entrega) : 'no
 // Unidade do item (singular, plural). Vazio = sem unidade (itens antigos): a quantidade aparece só com o número.
 export const UNIDADES = [['unidade', 'unidades'], ['dúzia', 'dúzias'], ['maço', 'maços'], ['pacote', 'pacotes'], ['caixa', 'caixas'], ['kg', 'kg'], ['litro', 'litros'], ['garrafa', 'garrafas']];
 export const unidadeValida = (u) => !u || UNIDADES.some(([s]) => s === u);
+// Unidades que aceitam quantidade quebrada (1,5 kg; 0,5 litro). As outras só inteiras.
+export const UNIDADES_FRACAO = ['kg', 'litro'];
+export const aceitaFracao = (u) => UNIDADES_FRACAO.includes(u);
+// Quantidade válida para a unidade (até 2 casas nas que aceitam fração), ou null. min: 1 no cadastro, 0 na doação.
+export function quantidadeValida(v, unidade, min, max = 10000) {
+  const n = Number(String(v ?? '').replace(',', '.'));
+  if (!Number.isFinite(n) || n < min || n > max || String(v ?? '').trim() === '') return null;
+  if (aceitaFracao(unidade) || min === 0) return arred(n) === n && (min > 0 || n === 0 || n >= 0.01) ? n : null;
+  return Number.isInteger(n) ? n : null;
+}
+// Número na tela: 1,5 · 24 (sem casas quando inteiro).
+export const fmtQtd = (n) => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+// Passo do + / − de quem vai levar: 1, ou o que falta quando é menos de 1 (0,5 kg).
+export const passoLevar = (falta) => (falta > 0 && falta < 1 ? falta : 1);
 // "24 unidades", "1 pacote"; sem unidade, só o número.
 export function qtdTxt(n, unidade) {
   const u = UNIDADES.find(([s]) => s === unidade);
-  return u ? `${n} ${Number(n) === 1 ? u[0] : u[1]}` : String(n);
+  return u ? `${fmtQtd(n)} ${Number(n) === 1 ? u[0] : u[1]}` : fmtQtd(n);
 }
 // Antes do nome do item: "2 pacotes" ou, sem unidade, "2x".
-export const qtdAntes = (n, unidade) => (unidade ? qtdTxt(n, unidade) : `${n}x`);
+export const qtdAntes = (n, unidade) => (unidade ? qtdTxt(n, unidade) : `${fmtQtd(n)}x`);
 // Prévia do cadastro: o que a corrente vai ver.
 export function previaItem({ nome, quantidade, unidade, entrega }) {
   const q = Number(quantidade) > 0 ? qtdTxt(Number(quantidade), unidade) : '?';
@@ -179,7 +195,7 @@ export function textoOferenda(of, detalhes = '') {
     if (cat) L.push(`*${cat.toUpperCase()}*`);
     itens.forEach((i) => {
       const s = situacao(i);
-      L.push(`${CORES_ITEM.find(([k]) => k === corItem(i))[1]} *${i.nome}* · ${s.doado} de ${qtdTxt(i.quantidade, i.unidade)}${i.entregue ? ' · ✅ entregue' : ''}`);
+      L.push(`${CORES_ITEM.find(([k]) => k === corItem(i))[1]} *${i.nome}* · ${fmtQtd(s.doado)} de ${qtdTxt(i.quantidade, i.unidade)}${i.entregue ? ' · ✅ entregue' : ''}`);
       L.push(`   Entrega: ${textoEntrega(i)}`);
       if (i.doacoes.length) L.push(`   ${i.doacoes.map((d) => `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ')}`);
       if (!s.completo) L.push(`   Faltam ${qtdTxt(s.falta, i.unidade)}`);

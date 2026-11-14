@@ -375,10 +375,12 @@ button.of-check:disabled{opacity:.4;cursor:not-allowed}
 .of-novo summary,.anteriores summary{cursor:pointer;color:var(--accent);font-weight:700;padding:4px 0}
 .of-novo form{margin-top:8px}
 /* Detalhes da sub-aba: até 10 linhas; o admin escreve, todos leem (com as quebras de linha). */
-.of-det .grp-h.dobra[aria-expanded=true]{margin-bottom:8px}
-.of-det-in{font-family:var(--f-body);font-size:.95rem;line-height:1.4;min-height:0;height:calc(10lh + 20px);resize:none}
-.of-det-rod{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;font-size:.82rem}
-.of-det-rod .btn{flex:none}
+/* Detalhes: sempre aberto e compacto */
+.card.of-det{padding:10px 14px;gap:6px}
+.of-det-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.of-det-h .btn{flex:none}
+.of-det-tit{font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.of-det-in{font-family:var(--f-body);font-size:.92rem;line-height:1.4;min-height:0;resize:none;padding:6px 10px}
 .of-det-txt{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.95rem;line-height:1.45}
 .anteriores{display:grid;gap:12px}
 .datehead .dia.of-titulo{text-transform:none}
@@ -1642,3 +1644,23 @@ button.iem-tot-n{cursor:pointer}
 .iem-itens-nomes .iem-p{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:0;padding:6px 10px}
 .iem-itens-nomes .iem-p small{text-align:right;overflow-wrap:anywhere}
 .iem-trava{margin:0;font-size:.85rem}
+
+/* Iemanjá: ⚙️ Configurações (associar, trocar, listas por oferenda) */
+.iem-add2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.iem-cfg{display:grid;gap:12px}
+.iem-cfg>.grp-h.dobra h2{margin:0}
+.iem-cfg-sec{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.iem-dica{margin:0;font-size:.85rem}
+.iem-escolha{display:grid;gap:8px;max-height:55dvh;overflow:auto}
+.iem-escolha .btn{justify-content:flex-start;text-align:left;min-height:44px}
+/* Itens da oferenda: botão bem visível (o pessoal não achava o rótulo pequeno) */
+.iem-itens-bt{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;min-height:48px;padding:10px 14px;border:2px solid var(--accent);border-radius:12px;background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--ink);font:700 1.02rem var(--f-body);cursor:pointer;box-sizing:border-box}
+.iem-itens-bt[aria-expanded=true]{margin-bottom:8px}
+.iem-itens-n{display:inline-block;min-width:24px;padding:0 7px;margin-left:4px;border-radius:12px;background:var(--accent);color:var(--bg);font-size:.85rem;text-align:center}
+.iem-itens-acao{font-size:.85rem;font-weight:600;color:var(--accent);white-space:nowrap}
+/* Categorias e subtítulos das listas de pessoas: tocar minimiza e expande */
+.of-cat.dobra{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;margin:10px 0 4px;padding:6px 2px;background:none;border:0;border-bottom:1px solid var(--line);font:700 .8rem var(--f-body);letter-spacing:.05em;text-transform:uppercase;color:var(--accent);cursor:pointer;text-align:left}
+.of-cat.dobra .seta{color:var(--accent)}
+.iem-pg-t.dobra{display:flex;align-items:center;gap:6px;width:100%;padding:4px 0;background:none;border:0;cursor:pointer;text-align:left;font-family:var(--f-body)}
+.iem-pg-t.dobra .seta{margin-left:auto;color:var(--accent);letter-spacing:0}
+.card.adm.adm-oferendas::before{content:"ADMIN OFERENDAS"}

@@ -7,7 +7,7 @@ import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 import { normalizarPerfil } from '../../shared/perfil.js';
 import { sortearIemanja, pctItens, nomeGrupoValido, listasDoSorteio, LISTA_CURIMBA, NOME_EVENTO_PADRAO } from '../../shared/iemanja.js';
-import { limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida } from '../../shared/oferendas.js';
+import { limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida, quantidadeValida, aceitaFracao } from '../../shared/oferendas.js';
 
 const ehRoot = (eu) => pode(eu, 'usuarios:gerenciar');
 const chaveDe = (eu) => (eu.alunoId ? 'a:' + eu.alunoId : chavePessoa(eu));
@@ -80,9 +80,10 @@ const limpar = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
 const maiuscula = (c) => c.charAt(0).toLocaleUpperCase('pt-BR') + c.slice(1);
 const mesma = (a, b) => a.toLocaleLowerCase('pt-BR') === b.toLocaleLowerCase('pt-BR');
 
-const quantidade = (v, min) => {
-  const n = Number(v);
-  if (!Number.isInteger(n) || n < min || n > 9999) throw new HttpError(400, 'Quantidade inválida.');
+// Item (min 1): inteira, ou quebrada (até 2 casas) em kg e litro. Doação (min 0): até 2 casas.
+const quantidade = (v, min, unidade = '') => {
+  const n = quantidadeValida(v, unidade, min, 9999);
+  if (n === null) throw new HttpError(400, min && !aceitaFracao(unidade) ? 'Quantidade inválida (número inteiro; fração só em kg e litro).' : 'Quantidade inválida.');
   return n;
 };
 
@@ -164,7 +165,9 @@ export async function acaoIemanja(eu, b) {
       const fora = b.fora ? [...new Set([...ev.fora, chave])] : ev.fora.filter((x) => x !== chave);
       return devolver(await db.rpc('iemanja_evento_salvar', { id: ev.id, fora }));
     }
+    // Associar e trocar pessoas de grupo: só o root.
     case 'adicionar': {
+      if (!ehRoot(eu)) throw new HttpError(403, 'Só o admin root associa pessoas às oferendas.');
       if (!grupo) throw new HttpError(400, 'Escolha o grupo.');
       const c = await candidatos();
       const pessoa = [...c.corrente, ...c.curimba, ...c.turmas.flatMap((t) => t.pessoas), ...c.semTurma].find((x) => x.chave === b.chave);
@@ -187,7 +190,7 @@ export async function acaoIemanja(eu, b) {
       }
       const unidade = String(b.unidade ?? '').trim();
       if (!unidadeValida(unidade)) throw new HttpError(400, 'Unidade inválida.');
-      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, categoria, quantidade: quantidade(b.quantidade, 1), unidade, entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
+      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, categoria, quantidade: quantidade(b.quantidade, 1, unidade), unidade, entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
     }
     case 'entregue':
       if (!item) throw new HttpError(404, 'Item não encontrado.');
@@ -222,6 +225,19 @@ export async function acaoIemanja(eu, b) {
         turmas: [listas.includes(LISTA_CURIMBA) ? c.curimba : [], ...c.turmas.filter((t) => listas.includes(t.id)).map((t) => t.pessoas)].map((l) => l.filter(entra)),
       });
       return devolver(await db.rpc('iemanja_sorteio_gravar', { id: ev.id, grupos: ev.grupos.map((g) => ({ id: g.id, membros: [...fixosNovos[g.id], ...sorteados[g.id].map((p) => ({ ...p, fixo: false }))] })) }));
+    }
+    // Troca duas pessoas de oferendas (grupos) diferentes: cada uma vai para o grupo da outra.
+    // Quem já assumiu item não troca (o item ficaria com alguém de fora do grupo).
+    case 'trocar': {
+      if (!ehRoot(eu)) throw new HttpError(403, 'Só o admin root troca pessoas de oferenda.');
+      const a = String(b.a || ''), c = String(b.b || '');
+      const ga = ev.grupos.find((g) => g.membros.some((m) => m.chave === a));
+      const gb = ev.grupos.find((g) => g.membros.some((m) => m.chave === c));
+      if (!ga || !gb) throw new HttpError(400, 'Escolha duas pessoas que estão nos grupos.');
+      if (ga.id === gb.id) throw new HttpError(400, 'Escolha pessoas de oferendas diferentes.');
+      const comItem = [[a, ga], [c, gb]].find(([k, g]) => g.itens.some((i) => i.doacoes.some((d) => d.chave === k)));
+      if (comItem) throw new HttpError(400, `${comItem[1].membros.find((m) => m.chave === comItem[0]).nome} já assumiu item na oferenda dela: tire o item antes de trocar.`);
+      return devolver(await db.rpc('iemanja_trocar', { id: ev.id, a, b: c }));
     }
     case 'cancelarSorteio':
       // Depois que alguém assumiu um item, o sorteio não pode mais ser desfeito.

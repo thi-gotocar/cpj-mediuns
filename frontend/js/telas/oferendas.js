@@ -1,10 +1,10 @@
 // Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
 
-import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes } from '/shared/oferendas.js';
+import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes, arred, passoLevar } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
-import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes, atualizarPrevia } from './oferendaComum.js';
+import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes, atualizarPrevia, dobrarCategoria } from './oferendaComum.js';
 export { atualizarPrevia };
 import * as iemanja from './iemanja.js';
 
@@ -350,6 +350,7 @@ const achar = (id) => {
 
 export const cliques = {
   ...iemanja.cliques,
+  catdobra: dobrarCategoria,
   iemver(el) { U().aba = subabas().find((a) => a.iemanja)?.id; iemanja.cliques.iemver(el); },
   ofaba(el) { U().aba = el.dataset.id; U().novaAberta = undefined; U().novaRascunho = null; avisar(); },
   ofnovanao() { U().novaConfirma = false; avisar(); },
@@ -392,12 +393,6 @@ export const cliques = {
     if (await acaoOferendas('abaExcluir', { id })) toast('Sub-aba excluída.');
     avisar();
   },
-  dobrardet(el) {
-    const set = new Set(U().detAbertos || []);
-    if (set.has(el.dataset.id)) set.delete(el.dataset.id); else set.add(el.dataset.id);
-    U().detAbertos = [...set];
-    avisar();
-  },
   ofdetsalvar(el) { return salvarDetalhes((detalhes) => acaoOferendas('abaDetalhes', { id: el.dataset.id, detalhes })); },
   // Ao abrir, recarrega as turmas (uma turma nova no cadastro já aparece nos grupos).
   dobrarnova() {
@@ -415,14 +410,16 @@ export const cliques = {
     const { item } = achar(el.dataset.id);
     const eu = estado.oferendas.eu;
     const minha = item.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0;
-    if (minha >= minha + situacao(item).falta) return;
-    doarItem(item.id, minha + 1);
-    avisoLevar(item, minha + 1);
+    const falta = situacao(item).falta;
+    if (falta <= 0) return;
+    const q = arred(minha + passoLevar(falta));
+    doarItem(item.id, q);
+    avisoLevar(item, q);
   },
   ofmenos(el) {
     const { item } = achar(el.dataset.id);
     const minha = item.doacoes.find((d) => d.chave === estado.oferendas.eu.chave)?.quantidade || 0;
-    if (minha > 0) { doarItem(item.id, minha - 1); avisoLevar(item, minha - 1); }
+    if (minha > 0) { const q = arred(Math.max(0, minha - 1)); doarItem(item.id, q); avisoLevar(item, q); }
   },
   async pormais(el) { await porAlguem(el, +1); },
   async pormenos(el) { await porAlguem(el, -1); },
@@ -526,8 +523,9 @@ async function porAlguem(el, delta) {
   const { item } = achar(el.dataset.item);
   const d = item?.doacoes.find((x) => x.chave === el.dataset.chave);
   if (!d) return;
-  const q = d.quantidade + delta;
-  if (q < 0 || (delta > 0 && situacao(item).falta <= 0)) return;
+  const falta = situacao(item).falta;
+  if (delta > 0 && falta <= 0) return;
+  const q = arred(Math.max(0, Number(d.quantidade) + (delta > 0 ? passoLevar(falta) : -1)));
   await acaoOferendas('doarPor', { itemId: item.id, chave: d.chave, quantidade: q });
 }
 
@@ -597,7 +595,7 @@ export async function enviar(form) {
     const pessoa = v('pessoa');
     const qtd = Number(v('qtd'));
     if (!pessoa) { toast('Escolha a pessoa.'); return; }
-    if (!Number.isInteger(qtd) || qtd < 1) { toast('Informe a quantidade.'); return; }
+    if (!(qtd > 0)) { toast('Informe a quantidade.'); return; }
     if (await acaoOferendas('doarPor', { itemId: form.dataset.item, pessoaId: pessoa, quantidade: qtd })) toast(`Doação de ${nomeDe(pessoa)} registrada.`);
     return;
   }

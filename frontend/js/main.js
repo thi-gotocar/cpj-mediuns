@@ -374,6 +374,7 @@ main.addEventListener('input', (e) => {
     const linhas = e.target.value.split('\n');
     if (linhas.length > 10) e.target.value = linhas.slice(0, 10).join('\n');
     estado.ofUi.detRascunho = { id: e.target.dataset.id, texto: e.target.value };
+    e.target.rows = Math.min(10, Math.max(2, e.target.value.split('\n').length));   // o campo cresce com o texto
   }
   if (e.target.id === 'gira-titulo') estado.tituloTxt = { data: e.target.dataset.d, texto: e.target.value };
   // Texto colado da escala (Histórico): guardado já, para um redesenho não apagar antes de tocar em "Ler escala".
