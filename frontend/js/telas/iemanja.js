@@ -399,10 +399,20 @@ function janela() {
     <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" data-act="iemjanelanao">${voltar}</button><button class="btn ${cor}" data-act="iemjanelasim">${bt}</button></div></div></div>`;
 }
 
+// Ao abrir a aba, a oferenda (grupo) de quem está logado já vem expandida; uma vez por abertura,
+// para não reabrir se a pessoa fechar.
+let abriuMeu = false;
+export function aoAbrirAba() { abriuMeu = false; }
+
 export function conteudo() {
   const I = estado.iemanja;
   if (I.erro) return `<div class="card"><p class="muted" style="margin:0">${esc(I.erro)}</p></div>`;
   const aberto = I.eventos.find((e) => !e.encerradoEm);
+  if (!abriuMeu && aberto) {
+    const meu = aberto.grupos.find((g) => g.meu && g.abre);
+    if (meu) ui.abertos.add('g:' + meu.id);
+    abriuMeu = true;
+  }
   const novo = !aberto && souRoot() ? `<div class="card adm"><div class="grp-h"><h2>Novo evento</h2></div><label class="field">Nome do evento<input type="text" id="iem-nova-nome" maxlength="80" placeholder="Oferenda de Iemanjá"></label><label class="field">Data do evento<input type="date" id="iem-nova-data"></label>
     <div class="cp-bts"><button class="btn primary" data-act="iemnovo">${icone('＋', 'Novo evento')}</button></div></div>` : '';
   // Detalhes do evento em andamento, acima do bloco do evento (ADMIN).
