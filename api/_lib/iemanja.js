@@ -116,6 +116,8 @@ export async function acaoIemanja(eu, b) {
     return devolver(await db.rpc('iemanja_assumir', { itemId: item.id, chave, nome: eu.nome, quantidade: quantidade(b.quantidade, 0) }));
   }
   if (!adminDe(eu, ev)) throw new HttpError(403, 'Só os admins deste evento fazem isso.');
+  // Bloco ADMIN ROOT: o sorteio (listas, tirar do sorteio, sortear, cancelar) é só do root, como associar e trocar.
+  if (['listas', 'fora', 'sortear', 'cancelarSorteio'].includes(b.op) && !ehRoot(eu)) throw new HttpError(403, 'Só o admin root mexe no sorteio.');
 
   switch (b.op) {
     case 'visivel':

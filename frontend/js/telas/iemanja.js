@@ -108,7 +108,7 @@ function blocoSorteio(ev) {
   const C = estado.iemanja.candidatos;
   if (!C) return '';
   const k = 'sorteio';
-  // Bloco ADMIN ROOT: sorteio e, só para o root, associar, trocar pessoas e Novo evento.
+  // Bloco ADMIN ROOT (só o root vê): sorteio, associar, trocar pessoas e Novo evento.
   const cab = `<button class="grp-h dobra" data-act="iemdobra" data-k="${k}" aria-expanded="${ui.abertos.has(k)}"><h2>🎲 Sorteio</h2><span class="count">${ev.sorteado ? 'realizado' : 'a fazer'} ${seta(k)}</span></button>`;
   if (!ui.abertos.has(k)) return `<div class="card adm root iem-sorteio">${cab}</div>`;
   const presos = new Set(ev.grupos.flatMap((g) => g.membros.map((m) => m.chave)));
@@ -128,7 +128,7 @@ function blocoSorteio(ev) {
   // WhatsApp: a "Lista pessoas" de todos os grupos de uma vez (uma imagem por grupo).
   const comGente = gruposComGente(ev).length;
   const todas = `<div class="iem-wa-bts iem-wa-uma"><button class="btn wa-bt" data-act="iemtodaspessoas" ${comGente ? '' : 'disabled title="Nenhum grupo tem pessoas ainda"'}><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Listas de pessoas · todos os grupos</button></div>`;
-  const soRoot = souRoot() ? `${blocoAssociar(ev)}${blocoTrocar(ev)}<div class="iem-cfg-sec"><div class="cp-bts iem-uma"><button class="btn" data-act="iemnovoaviso">${icone('＋', 'Novo evento')}</button></div></div>` : '';
+  const soRoot = `${blocoAssociar(ev)}${blocoTrocar(ev)}<div class="iem-cfg-sec"><div class="cp-bts iem-uma"><button class="btn" data-act="iemnovoaviso">${icone('＋', 'Novo evento')}</button></div></div>`;
   return `<div class="card adm root iem-sorteio">${cab}${todas}${ev.sorteado ? '' : escolha + listas}${botao}${soRoot}</div>`;
 }
 
@@ -282,7 +282,7 @@ function blocoEvento(ev) {
   return `${blocoConfig(ev)}<div class="card iem-topo">${cabecalho}
     <div class="of-sec"><h2><span aria-hidden="true">🕯️</span> Oferendas</h2><span class="of-sec-n">${ev.grupos.length}</span></div>
     ${grupos}</div>
-    ${blocoSorteio(ev)}`;
+    ${souRoot() ? blocoSorteio(ev) : ''}`;
 }
 
 // Bloco ADMIN OFERENDAS (⚙️ Configurações do evento): começa minimizado; abre sozinho enquanto edita ou mexe nas categorias.
