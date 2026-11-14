@@ -240,7 +240,7 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .iem-topo{gap:14px}
 .iem-topo .of-sec{margin-top:2px}
 .iem-grupos{display:grid;gap:10px;min-width:0}
-.iem-grupo{gap:12px;padding:14px}
+.iem-grupo{gap:12px;padding:14px;border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
 .iem-cab{align-items:center;gap:10px;flex-wrap:nowrap;min-height:40px}
 .iem-tit{flex:1 1 auto;display:grid;gap:1px;min-width:0;overflow-wrap:anywhere;line-height:1.25}
 .iem-tit small{font-size:.82rem}

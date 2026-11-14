@@ -49,7 +49,7 @@ function blocoPessoas(g, ev, adm) {
     const min = ui.abertos.has(kl);
     return `<div class="iem-pg-l"><button class="iem-pg-t dobra" data-act="iemdobra" data-k="${esc(kl)}" aria-expanded="${!min}">${esc(lista)} <span>· ${ms.length}</span> <span class="seta" aria-hidden="true">${min ? '▸' : '▾'}</span></button>${min ? '' : `<div class="iem-pg-nomes">${ms.map(pessoa).join('')}</div>`}</div>`;
   }).join('');
-  return `<div class="iem-mini"><button class="grp-h dobra" data-act="iemdobra" data-k="${k}" aria-expanded="${ui.abertos.has(k)}"><h3>Pessoas do grupo</h3><span class="count">${g.membros.length} ${seta(k)}</span></button>
+  return `<div class="iem-mini"><button class="iem-itens-bt" data-act="iemdobra" data-k="${k}" aria-expanded="${ui.abertos.has(k)}"><span><span aria-hidden="true">👥</span> Pessoas do grupo <span class="iem-itens-n">${g.membros.length}</span></span><span class="iem-itens-acao">${ui.abertos.has(k) ? 'Fechar ▾' : 'Ver pessoas ▸'}</span></button>
     ${ui.abertos.has(k) ? (listas ? `<div class="iem-pg">${listas}</div>` : '<p class="muted" style="margin:0">Ninguém no grupo ainda.</p>') : ''}</div>`;
 }
 
