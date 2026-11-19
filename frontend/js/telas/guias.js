@@ -27,9 +27,10 @@ const ui = {
   minimizados: new Set(),   // blocos que a pessoa minimizou: id do grupo de itens ou 'meus' (Seus pedidos)
   grupoRen: null,           // id do grupo com o ✎ aberto
   item: null,               // formulário de item: { grupoId, id?, descricao, quantidade, valor, visivel, cpj, doacao, foto?: b64 | null }
-  qtd: {},                  // quantidade escolhida por item (antes de Pedir)
+  carPos: {},               // grupo → rolagem do carrossel (o redesenho recria a tela e voltaria ao primeiro item)
+  pagar: null,              // janela de pagamento: { ids das cobranças, novo: aberta logo depois de pedir }
   doa: {},                  // valor digitado por item de doação (antes de Doar)
-  pedir: null,              // janela de confirmação: { itemId, quantidade }
+  pedir: null,              // janela de confirmação: { itemId, quantidade (sempre 1; doação: valor) }
   exportar: null,           // pedido escolhido para exportar ('número:grupo')
   img: null,                // imagem gerada: { chave, blob, url, nome }
   zoom: null,               // id do item com a foto aberta em tela cheia
@@ -40,7 +41,7 @@ const ui = {
 };
 export function limpar() {
   ui.abertos.clear(); ui.feitos.clear(); ui.minimizados.clear(); ui.painel.clear(); ui.painelSel = {}; ui.blocos.clear(); ui.itemSel = {};
-  Object.assign(ui, { grupoRen: null, item: null, qtd: {}, pedir: null, exportar: null, zoom: null, pix: null, gerando: false, cpf: '', ocupado: null });
+  Object.assign(ui, { grupoRen: null, item: null, carPos: {}, pagar: null, pedir: null, exportar: null, zoom: null, pix: null, gerando: false, cpf: '', ocupado: null });
   if (ui.img) URL.revokeObjectURL(ui.img.url);
   ui.img = null;
 }
@@ -77,43 +78,72 @@ function fotoItem(i, cls = 'gi-foto', zoom = false) {
   return `<div class="${cls}${abre ? ' zoom' : ''}"${abre}>${src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async">` : '<span aria-hidden="true">📿</span>'}</div>`;
 }
 
+// Um carrossel por grupo: um cartão por item (foto grande, valor e Pedir), arrastando para o lado; o próximo cartão
+// aparece pela metade para mostrar que há mais. Quantidade sempre 1 (quem quer dois pede de novo).
+function cartaoItem(i, fechado) {
+  // Doação: três balões de valor (tocar já pede a confirmação) ou Outro valor, digitado com centavos (o valor do item
+  // vem como sugestão no campo). Doação não tem estoque.
+  if (i.doacao) {
+    const balao = (v) => `<button type="button" class="gi-doa-b" data-act="guiadoarvalor" data-id="${i.id}" data-v="${v}" ${fechado ? 'disabled' : ''}>${R(v)}</button>`;
+    return `<div class="gi-card gi-doa">${fotoItem(i, 'gi-foto gi-card-foto', true)}
+      <div class="gi-info"><b>${esc(i.descricao)}${seloCpj(i)}</b><span class="muted gi-disp">Doação · você escolhe o valor</span></div>
+      <div class="gi-doa-bs">${VALORES_DOACAO.map(balao).join('')}</div>
+      <div class="gi-doa-outro"><label class="gi-doa-v"><span>Outro: R$</span><input type="text" inputmode="decimal" data-guia="doacao" data-id="${i.id}" maxlength="10" placeholder="${esc(Number(i.valor) > 0 ? valorCampo(i.valor) : '0,00')}" value="${esc(ui.doa[i.id] || '')}" aria-label="Outro valor de doação para ${esc(i.descricao)}" ${fechado ? 'disabled' : ''}></label>
+        <button class="btn primary small" data-act="guiadoar" data-id="${i.id}" ${fechado ? 'disabled' : ''}>Doar</button></div></div>`;
+  }
+  const esgotado = i.quantidade < 1;
+  return `<div class="gi-card">${fotoItem(i, 'gi-foto gi-card-foto', true)}
+    <div class="gi-info"><b>${esc(i.descricao)}${seloCpj(i)}</b>
+      <span class="muted gi-disp">${esgotado ? 'Sem estoque' : plural(i.quantidade, 'disponível', 'disponíveis')}</span></div>
+    <button class="btn primary gi-pedir" data-act="guiapedir" data-id="${i.id}" ${fechado || esgotado ? 'disabled' : ''}>${esgotado ? 'Esgotado' : `Pedir · ${R(i.valor)}`}</button></div>`;
+}
+
 function cardItens(G) {
   const grupos = gruposVisiveis(G);
   // Cada grupo tem o seu pedido: o que está fechado mostra o aviso e não deixa pedir.
   const tudoFechado = grupos.length && grupos.every((g) => !g.aberto);
   let h = tudoFechado ? '<div class="card"><p class="gi-aviso">Os pedidos estão fechados no momento.</p></div>' : '';
   if (!grupos.length) return h + '<div class="card"><p class="muted" style="margin:0">Nenhum item à venda no momento.</p></div>';
-  // Cada bloco pode ser minimizado (começa aberto); minimizado, mostra quantos itens tem.
+  // Cada bloco pode ser minimizado (começa aberto).
   return h + grupos.map((g) => {
     const fechado = !g.aberto;
     const min = ui.minimizados.has(g.id);
+    const n = g.itens.length;
     const cab = `<button class="grp-h dobra" data-act="guiaminimizar" data-id="${g.id}" aria-expanded="${!min}"><h2>${esc(g.descricao)}</h2>
-      <span class="count">${min ? plural(g.itens.length, 'item', 'itens') + ' ' : ''}<span class="seta" aria-hidden="true">${min ? '▸' : '▾'}</span></span></button>`;
+      <span class="count">${plural(n, 'item', 'itens')} <span class="seta" aria-hidden="true">${min ? '▸' : '▾'}</span></span></button>`;
     if (min) return `<div class="card">${cab}</div>`;
-    return `<div class="card">${cab}${fechado && !tudoFechado ? '<p class="gi-aviso">Os pedidos deste grupo estão fechados no momento.</p>' : ''}<div class="gi-lista">
-    ${g.itens.map((i) => {
-      const max = Math.min(i.quantidade, 20);
-      const q = Math.min(ui.qtd[i.id] || 1, Math.max(max, 1));
-      // Doação: três balões de valor (tocar já pede a confirmação) ou Outro valor, digitado com centavos (o valor do item
-      // vem como sugestão no campo). Doação não tem estoque.
-      if (i.doacao) {
-        const balao = (v) => `<button type="button" class="gi-doa-b" data-act="guiadoarvalor" data-id="${i.id}" data-v="${v}" ${fechado ? 'disabled' : ''}>${R(v)}</button>`;
-        return `<div class="gi-item gi-doa">
-        <div class="gi-doa-h">${fotoItem(i, 'gi-foto', true)}<div class="gi-info"><b>${esc(i.descricao)}${seloCpj(i)}</b><span class="muted gi-disp">Doação · você escolhe o valor</span></div></div>
-        <div class="gi-doa-bs">${VALORES_DOACAO.map(balao).join('')}</div>
-        <div class="gi-doa-outro"><label class="gi-doa-v"><span>Outro valor: R$</span><input type="text" inputmode="decimal" data-guia="doacao" data-id="${i.id}" maxlength="10" placeholder="${esc(Number(i.valor) > 0 ? valorCampo(i.valor) : '0,00')}" value="${esc(ui.doa[i.id] || '')}" aria-label="Outro valor de doação para ${esc(i.descricao)}" ${fechado ? 'disabled' : ''}></label>
-          <button class="btn primary small" data-act="guiadoar" data-id="${i.id}" ${fechado ? 'disabled' : ''}>Doar</button></div></div>`;
-      }
-      const acao = i.quantidade < 1 ? '<span class="badge re">Esgotado</span>'
-        : `<select data-act="guiaqtd" data-id="${i.id}" aria-label="Quantidade de ${esc(i.descricao)}" ${fechado ? 'disabled' : ''}>${Array.from({ length: max }, (_, k) => `<option value="${k + 1}" ${k + 1 === q ? 'selected' : ''}>${k + 1}</option>`).join('')}</select>
-           <button class="btn primary small" data-act="guiapedir" data-id="${i.id}" ${fechado ? 'disabled' : ''}>Pedir</button>`;
-      return `<div class="gi-item">${fotoItem(i, 'gi-foto', true)}
-        <div class="gi-info"><b>${esc(i.descricao)}${seloCpj(i)}</b><span class="gi-valor">${R(i.valor)}</span>
-          <span class="muted gi-disp">${i.quantidade < 1 ? 'Sem estoque' : plural(i.quantidade, 'disponível', 'disponíveis')}</span></div>
-        <div class="gi-acao">${acao}</div></div>`;
-    }).join('')}</div></div>`;
+    // Com mais de um item: setas e "1 de N" (arrastar também passa; a posição atualiza ao rolar).
+    const nav = n > 1 ? `<div class="gi-car-nav"><button type="button" class="btn small" data-act="guiacar" data-g="${g.id}" data-d="-1" aria-label="Item anterior">‹</button>
+      <span class="muted" data-car-n="${g.id}">1 de ${n}</span>
+      <button type="button" class="btn small" data-act="guiacar" data-g="${g.id}" data-d="1" aria-label="Próximo item">›</button></div>` : '';
+    return `<div class="card">${cab}${fechado && !tudoFechado ? '<p class="gi-aviso">Os pedidos deste grupo estão fechados no momento.</p>' : ''}
+      <div class="gi-car${n === 1 ? ' gi-car-1' : ''}" data-car="${g.id}">${g.itens.map((i) => cartaoItem(i, fechado)).join('')}</div>${nav}</div>`;
   }).join('');
 }
+
+// O redesenho recria o carrossel no começo: devolve a rolagem de antes e acerta o "N de M".
+function contarCarrossel(el) {
+  const cards = el.children;
+  if (!cards.length) return;
+  const passo = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : el.clientWidth;
+  const k = Math.min(cards.length, Math.round(el.scrollLeft / Math.max(passo, 1)) + 1);
+  const rot = document.querySelector(`[data-car-n="${el.dataset.car}"]`);
+  if (rot) rot.textContent = `${k} de ${cards.length}`;
+}
+function restaurarCarrosseis() {
+  document.querySelectorAll('.gi-car[data-car]').forEach((el) => {
+    const pos = ui.carPos[el.dataset.car];
+    if (pos) el.scrollLeft = pos;
+    contarCarrossel(el);
+  });
+}
+// A rolagem não sobe pelo DOM: escuta na fase de captura, uma vez só.
+document.addEventListener('scroll', (e) => {
+  const el = e.target;
+  if (!(el instanceof Element) || !el.matches('.gi-car[data-car]')) return;
+  ui.carPos[el.dataset.car] = el.scrollLeft;
+  contarCarrossel(el);
+}, { capture: true, passive: true });
 
 // Situação de pagamento da linha (só existe com o Pix): é o que avisa quem comprou.
 const SELO = { pendente: ['Aguardando pagamento', 'new'], vencida: ['Link vencido', 're'], cancelada: ['Link cancelado', 're'], estornada: ['Estornado', 're'] };
@@ -123,22 +153,31 @@ const selo = (l) => {
   return s ? ` <span class="badge ${s[1]}">${s[0]}</span>` : '';
 };
 
+// Uma cobrança pendente, na janela de pagamento: link, QR, copia e cola e vencimento.
+function cobrancaPix(c) {
+  const cc = 'gp-cc-' + c.id;
+  return `<div class="gi-pix">
+    <div class="gi-pix-h"><b>Pagamento · pedido nº ${c.pedido}</b><b>${R(c.valor)}</b></div>
+    ${c.itens?.length ? `<span class="muted">${esc(c.itens.join(', '))}</span>` : ''}
+    ${c.link ? `<a class="btn primary" href="${esc(c.link)}" target="_blank" rel="noopener">Pagar pelo link (Pix)</a>` : ''}
+    ${c.pixImagem ? `<img class="gi-pix-qr" src="data:image/png;base64,${c.pixImagem}" alt="QR Code do Pix de ${R(c.valor)}">` : ''}
+    ${c.pixPayload ? `<label class="field">Pix copia e cola<textarea id="${cc}" readonly rows="3">${esc(c.pixPayload)}</textarea></label>
+      <div class="cp-bts"><button class="btn" data-act="guiapixcopiar" data-cc="${cc}"><span aria-hidden="true">📋</span> Copiar código Pix</button></div>` : ''}
+    ${c.vencimento ? `<span class="muted">Vence em ${dia(c.vencimento + 'T12:00:00')}.</span>` : ''}
+    <p class="muted" style="margin:0">Depois de pagar, a confirmação chega sozinha do banco (pode levar alguns minutos).</p>
+    <button class="btn small" data-act="guiapixatualizar">${rot('atualizar', '↻ Já paguei, atualizar', 'Atualizando…')}</button></div>`;
+}
+
 // Link de pagamento: cobranças pendentes (link, QR e copia e cola) e, para o que ficou sem link
 // (o ASAAS falhou no Pedir, ou o link venceu ou foi cancelado), o botão para gerar de novo.
 function blocoPix(G) {
   if (!G.pix) return '';
   const M = G.meus || [];
   const pendentes = (G.cobrancas || []).filter((c) => c.status === 'pendente');
-  let h = pendentes.map((c) => `<div class="gi-pix" id="gi-pix-${c.id}">
-    <div class="gi-pix-h"><b>Pagamento · pedido nº ${c.pedido}</b><b>${R(c.valor)}</b></div>
-    ${c.itens?.length ? `<span class="muted">${esc(c.itens.join(', '))}</span>` : ''}
-    ${c.link ? `<a class="btn primary" href="${esc(c.link)}" target="_blank" rel="noopener">Pagar pelo link (Pix)</a>` : ''}
-    ${c.pixImagem ? `<img class="gi-pix-qr" src="data:image/png;base64,${c.pixImagem}" alt="QR Code do Pix de ${R(c.valor)}">` : ''}
-    ${c.pixPayload ? `<label class="field">Pix copia e cola<textarea id="gp-cc-${c.id}" readonly rows="3">${esc(c.pixPayload)}</textarea></label>
-      <div class="cp-bts"><button class="btn" data-act="guiapixcopiar" data-id="${c.id}"><span aria-hidden="true">📋</span> Copiar código Pix</button></div>` : ''}
-    ${c.vencimento ? `<span class="muted">Vence em ${dia(c.vencimento + 'T12:00:00')}.</span>` : ''}
-    <p class="muted" style="margin:0">Depois de pagar, a confirmação chega sozinha do banco (pode levar alguns minutos).</p>
-    <button class="btn small" data-act="guiapixatualizar">${rot('atualizar', '↻ Já paguei, atualizar', 'Atualizando…')}</button></div>`).join('');
+  // No bloco, uma linha por link (o QR e o copia e cola abrem na janela, para não empurrar os itens para baixo).
+  let h = pendentes.map((c) => `<div class="gi-pix-linha"><span><b>Pedido nº ${c.pedido} · ${R(c.valor)}</b>
+      ${c.itens?.length ? `<span class="muted">${esc(c.itens.join(', '))}</span>` : ''}</span>
+    <button class="btn primary small" data-act="guiapagarabrir" data-id="${c.id}">Pagar</button></div>`).join('');
   // O que ainda não está pago nem num link pendente, por pedido. Linha "pendente" sem link na tela é a reserva
   // de uma tentativa em que o ASAAS demorou: o botão aparece e o servidor confere no ASAAS antes de gerar outro.
   const comLink = new Set(pendentes.map((c) => c.pedido));
@@ -172,8 +211,31 @@ function cardMeus(G) {
   const cab = `<button class="grp-h dobra" data-act="guiaminimizar" data-id="meus" aria-expanded="${!min}"><h2>Seus pedidos</h2>
     <span class="count">${min && M.length ? `${plural(itensDe(M), 'item', 'itens')} · ${R(totalDe(M))} ` : ''}<span class="seta" aria-hidden="true">${min ? '▸' : '▾'}</span></span></button>`;
   if (min) return `<div class="card">${cab}</div>`;
-  return `<div class="card">${cab}${lista}${blocoPix(G)}
+  return `<div class="card">${cab}${lista}
     <p class="gi-suporte">* Para cancelar, entre em contato com o suporte.</p></div>`;
+}
+
+// 💳 Falta pagar: no topo da aba, só quando há link aguardando pagamento ou pedido sem link (com o Pix ligado).
+function cardPagar(G) {
+  const pix = blocoPix(G);
+  if (!pix) return '';
+  return `<div class="card gi-pagar" id="gi-pagar"><div class="grp-h"><h2>💳 Falta pagar</h2></div>${pix}</div>`;
+}
+
+// Janela aberta logo depois de pedir (ou de gerar o link): o pagamento ali mesmo, sem procurar na tela.
+// Fechar não perde nada: o pagamento continua no Falta pagar.
+function janelaPagar() {
+  if (!ui.pagar || !estado.guias) return '';
+  const C = ui.pagar.ids.map((id) => (estado.guias.cobrancas || []).find((c) => c.id === id)).filter(Boolean);
+  const pend = C.filter((c) => c.status === 'pendente');
+  const pagas = C.filter((c) => c.status === 'paga');
+  if (!pend.length && !pagas.length) return '';
+  return `<div class="modal-fundo gi-pagar-fundo" role="dialog" aria-modal="true" aria-labelledby="gpm-t"><div class="modal gi-pagar-modal">
+    <h3 id="gpm-t">${!pend.length ? 'Pagamento confirmado' : ui.pagar.novo ? 'Pedido feito! Agora é só pagar' : 'Pagamento'}</h3>
+    ${pagas.map((c) => `<p style="margin:0">✅ Pedido nº ${c.pedido} · ${R(c.valor)} pago.</p>`).join('')}
+    ${pend.map((c) => cobrancaPix(c)).join('')}
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-act="guiapagarfechar">${pend.length ? 'Pagar depois' : 'Fechar'}</button></div>
+  </div></div>`;
 }
 
 function janelaPedir() {
@@ -182,7 +244,7 @@ function janelaPedir() {
   if (!i) return '';
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="gp-t"><div class="modal">
     <h3 id="gp-t">${P.valor ? 'Confirmar doação?' : 'Confirmar pedido?'}</h3>
-    <p style="margin:0">${P.valor ? `<b>${esc(i.descricao)}</b> · ${R(P.valor)}` : `<b>${P.quantidade}x ${esc(i.descricao)}</b> · ${R(i.valor * P.quantidade)}`}</p>
+    <p style="margin:0"><b>${esc(i.descricao)}</b> · ${R(P.valor || i.valor)}</p>
     ${estado.guias.pix ? `<p class="muted" style="margin:0">Ao confirmar, geramos o link de pagamento Pix (ASAAS). O pedido aparece como pago quando o banco confirmar.</p>
       ${estado.guias.pixPrecisaCpf ? campoCpf('gp-cpf-pedir') : ''}` : ''}
     <p class="muted" style="margin:0">Para cancelar depois, só entrando em contato com o suporte.</p>
@@ -485,9 +547,11 @@ export function render() {
   const G = estado.guias;
   let h = `<section class="panel gi-tela${ui.ocupado ? ' gi-ocupado' : ''}" aria-busy="${!!ui.ocupado}">`;
   if (admin()) h += cardTopo(G);
-  h += cardMeus(G) + cardItens(G);
+  // Primeiro o que falta pagar (se houver), depois o que dá para comprar; os pedidos feitos ficam no fim, como histórico.
+  h += cardPagar(G) + cardItens(G) + cardMeus(G);
   if (admin()) h += cardGrupos(G) + cardPainel(G) + cardExportar(G) + cardFeitos(G);
-  return h + janelaPedir() + telaFoto() + '</section>';
+  setTimeout(restaurarCarrosseis, 0);
+  return h + janelaPedir() + janelaPagar() + telaFoto() + '</section>';
 }
 
 // ---------- foto ----------
@@ -537,24 +601,25 @@ export function digitando(t) {
   if (ui.item && t.dataset.guia) ui.item[t.dataset.guia] = t.value;
 }
 
-// Depois de gerar: abre Seus pedidos e sobe (ou desce) a tela até o link mais novo, para a pessoa ver que ele já existe.
-function irParaLink() {
-  const novo = (estado.guias?.cobrancas || []).filter((c) => c.status === 'pendente')
-    .sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)))[0];
-  if (!novo) return;
-  if (ui.minimizados.delete('meus')) avisar();
-  document.getElementById('gi-pix-' + novo.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+// Depois de pedir ou de gerar o link: abre a janela com as cobranças novas (pedido com venda e doação gera duas).
+// Sem cobrança nova (o ASAAS falhou), sobe até o Falta pagar, onde está o Gerar link.
+const pendentesIds = () => new Set((estado.guias?.cobrancas || []).filter((c) => c.status === 'pendente').map((c) => c.id));
+function abrirPagamento(antes) {
+  const novas = [...pendentesIds()].filter((id) => !antes.has(id));
+  if (novas.length) { ui.pagar = { ids: novas, novo: true }; avisar(); return; }
+  setTimeout(() => document.getElementById('gi-pagar')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
 }
 
 async function gerarPix(pedido, cpf) {
   if (ui.gerando) return;
   ui.gerando = true;
   avisar();
+  const antes = pendentesIds();
   const ok = await fazer('pix', cpf ? { pedido, cpf } : { pedido });
   ui.gerando = false;
-  if (ok) { ui.pix = null; ui.cpf = ''; toast('Link de pagamento gerado.'); }
+  if (ok) { ui.pix = null; ui.cpf = ''; }
   avisar();
-  if (ok) irParaLink();
+  if (ok) abrirPagamento(antes);
 }
 
 export async function enviar(form) {
@@ -609,7 +674,8 @@ export const cliques = {
   guiapedir(el) {
     const i = acharItem(el.dataset.id);
     if (!i) return;
-    ui.pedir = { itemId: i.id, quantidade: Math.min(ui.qtd[i.id] || 1, i.quantidade) };
+    if (i.quantidade < 1) return;
+    ui.pedir = { itemId: i.id, quantidade: 1 };
     avisar();
   },
   // Doar: o valor digitado (aceita 25, 25,50 ou 1.250,00); vazio, a sugestão do item (se houver).
@@ -642,8 +708,18 @@ export const cliques = {
     avisar();
     try { await carregarGuias(true); } finally { ui.ocupado = null; avisar(); }
   },
+  guiapagarfechar() { ui.pagar = null; avisar(); },
+  guiapagarabrir(el) { ui.pagar = { ids: [el.dataset.id], novo: false }; avisar(); },
+  // Setas do carrossel: passa um cartão.
+  guiacar(el) {
+    const car = document.querySelector(`.gi-car[data-car="${el.dataset.g}"]`);
+    const c = car?.children;
+    if (!c?.length) return;
+    const passo = c.length > 1 ? c[1].offsetLeft - c[0].offsetLeft : car.clientWidth;
+    car.scrollBy({ left: Number(el.dataset.d) * passo, behavior: 'smooth' });
+  },
   guiapixcopiar(el) {
-    const t = document.getElementById('gp-cc-' + el.dataset.id);
+    const t = document.getElementById(el.dataset.cc);
     const fb = () => { t.focus(); t.select(); toast('Código selecionado. Copie com o menu do aparelho.'); };
     try { navigator.clipboard.writeText(t.value).then(() => toast('Código Pix copiado.'), fb); } catch { fb(); }
   },
@@ -655,18 +731,19 @@ export const cliques = {
     const cpf = document.getElementById('gp-cpf-pedir')?.value;
     ui.gerando = true;
     avisar();
+    const antes = pendentesIds();
     const ok = await fazer('pedir', cpf ? { ...P, cpf } : P);
     ui.gerando = false;
     if (ok) {
       ui.pedir = null;
       ui.cpf = '';
-      delete ui.qtd[P.itemId];
       delete ui.doa[P.itemId];
       const G = estado.guias;
-      toast(G.aviso || (G.pix ? `${P.valor ? 'Doação registrada' : 'Pedido feito'}. Pague pelo link em Seus pedidos.` : P.valor ? 'Doação registrada.' : 'Pedido feito.'));
+      // Com o Pix, a janela de pagamento abre em seguida (o aviso só aparece quando o ASAAS falhou).
+      if (G.aviso || !G.pix) toast(G.aviso || (P.valor ? 'Doação registrada.' : 'Pedido feito.'));
     }
     avisar();
-    if (ok && estado.guias.pix) irParaLink();
+    if (ok && estado.guias.pix) abrirPagamento(antes);
   },
   async guiacancelar(el) { if (await confirmado('gl:' + el.dataset.id, 'cancelar', { id: el.dataset.id })) toast('Pedido cancelado.'); },
   async guiaencerrar(el) { if (await confirmado('genc:' + el.dataset.id, 'encerrar', { grupoId: el.dataset.id })) toast('Pedido do grupo encerrado.'); },
@@ -698,7 +775,6 @@ export const mudancas = {
   guiaitemvisform(t) { if (ui.item) ui.item.visivel = t.checked; },
   guiaitemcpjform(t) { if (ui.item) ui.item.cpj = t.checked; },
   guiaitemdoacaoform(t) { if (ui.item) { ui.item.doacao = t.checked; avisar(); } },
-  guiaqtd(t) { ui.qtd[t.dataset.id] = Number(t.value); },
   guiaexportar(t) { ui.exportar = t.value; avisar(); },
   // Trocar o grupo leva ao pedido mais recente dele (o aberto, se houver).
   guiaexpgrupo(t) { const r = rodadasExportar(estado.guias).find((x) => String(x.grupoId) === t.value); ui.exportar = r ? r.chave : null; avisar(); },

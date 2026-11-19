@@ -1766,6 +1766,25 @@ button.iem-tot-n{cursor:pointer}
 .gi-meu-desc .muted{font-size:.82rem}
 .gi-meu-val{white-space:nowrap;font-variant-numeric:tabular-nums}
 .gi-suporte{margin:0;font-size:.85rem;color:var(--muted);font-style:italic}
+/* Carrossel de itens por grupo: o próximo cartão aparece pela metade, para mostrar que dá para arrastar. */
+.gi-car{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;padding-bottom:4px;scrollbar-width:thin}
+.gi-card{flex:0 0 78%;scroll-snap-align:start;display:grid;align-content:start;gap:8px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0}
+.gi-car-1 .gi-card{flex-basis:100%}
+.gi-tela .gi-foto.gi-card-foto{width:100%;height:auto;aspect-ratio:4/3;font-size:2.4rem}
+.gi-card .gi-info b{font-size:1rem}
+.gi-pedir{width:100%;min-height:44px}
+.gi-card>*{min-width:0}
+.gi-card .gi-doa-bs{gap:6px}
+.gi-card .gi-doa-b{min-width:0;padding:0 2px;font-size:.82rem}
+.gi-car-nav{display:flex;align-items:center;justify-content:center;gap:12px}
+.gi-car-nav .btn{min-width:44px;font-size:1.1rem}
+.gi-car-nav .muted{font-size:.85rem;font-variant-numeric:tabular-nums}
+.gi-tela>.card.gi-pagar{border-left-color:var(--warn)}
+.gi-pix-linha{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.gi-pix-linha>span{display:grid;min-width:0}
+.gi-pix-linha .muted{font-size:.82rem;overflow-wrap:anywhere}
+.gi-pagar-fundo{align-items:flex-start;overflow-y:auto}
+.gi-pagar-modal{max-height:none}
 /* Aba Compras: blocos mais juntos e mais compactos (cabem mais coisas no celular), mas bem separados —
    sombra leve, faixa colorida à esquerda nos blocos da pessoa e uma linha entre o título e o conteúdo. */
 section.panel.gi-tela{gap:12px}
