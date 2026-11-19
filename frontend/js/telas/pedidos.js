@@ -1,8 +1,8 @@
 // Sub-aba "Pedidos" (aba Compras): só quem administra a aba Compras (o root e o Admin; o servidor confere).
 // Bloco "Pedidos em andamento": uma linha por pedido (cada linha das Compras, sem as doações e sem o grupo Axé) com quem
 // pediu, pagamento (Pago / Pendente) e andamento. Agrupadas pelo andamento e, dentro dele, pelo modelo (o item): a foto
-// pequena e o nome do modelo aparecem uma vez, com as pessoas embaixo; tocar na foto abre em tela cheia e tocar no nome
-// minimiza (ou abre) as pessoas daquele modelo.
+// e o nome do modelo aparecem uma vez, com as pessoas embaixo (começam minimizadas); tocar na foto abre em tela cheia e
+// tocar no nome abre (ou minimiza) as pessoas daquele modelo.
 // No topo, os quadradinhos com o total de pedidos Pendentes, Em confecção e com Falta matéria-prima.
 // O andamento muda no combo da própria linha.
 // Quem tem cobrança vencida no ASAAS (última leitura do CPJ - Pgto atrasado) ganha o selo vermelho "pendências R$ X".
@@ -25,10 +25,10 @@ const QUADROS = [['pendente', 'pd-q-pend'], ['em_confeccao', 'pd-q-conf'], ['fal
 const fotoUrl = (l) => `/api/oferendas?lista=guiaFoto&id=${encodeURIComponent(l.itemId)}&v=${encodeURIComponent(l.fotoV)}`;
 // Modelo da linha: o item (o que foi excluído do cadastro fica pela descrição gravada na linha).
 const modeloDe = (l) => l.itemId || 'd:' + l.descricao;
-// fechados: grupos minimizados (Entregue começa assim); modFechados: modelos minimizados ('andamento|modelo');
-// salvando: id da linha indo ao servidor; zoom: modelo com a foto aberta.
-const ui = { fechados: new Set(['entregue']), modFechados: new Set(), salvando: null, zoom: null };
-export function limpar() { ui.fechados = new Set(['entregue']); ui.modFechados = new Set(); ui.salvando = null; ui.zoom = null; }
+// fechados: grupos minimizados (Entregue começa assim); modAbertos: modelos com as pessoas à mostra ('andamento|modelo';
+// começam minimizados); salvando: id da linha indo ao servidor; zoom: modelo com a foto aberta.
+const ui = { fechados: new Set(['entregue']), modAbertos: new Set(), salvando: null, zoom: null };
+export function limpar() { ui.fechados = new Set(['entregue']); ui.modAbertos = new Set(); ui.salvando = null; ui.zoom = null; }
 
 function foto(l) {
   if (!l.fotoV || !l.itemId) return '<div class="gi-foto pd-foto"><span aria-hidden="true">📿</span></div>';
@@ -46,15 +46,15 @@ function telaFoto(lista) {
     <div class="ft-luz-rodape"><b>${R(l.valor)}</b><span class="muted">${esc(l.grupo || '')}</span></div></div>`;
 }
 
-// Uma pessoa dentro do modelo: nome, quantidade, número do pedido, valor, pagamento, pendências e o combo do andamento.
+// Uma pessoa dentro do modelo: nome (com a quantidade, se for mais de uma) e o pagamento do lado; embaixo, só quando há
+// cobrança vencida no ASAAS, "Existem pendências" com o total; e o combo do andamento.
 function linha(l, pend) {
   const p = pend[l.chave] || 0;
   const opcoes = ANDAMENTOS.map(([k, rot]) => `<option value="${k}"${l.andamento === k ? ' selected' : ''}>${rot}</option>`).join('');
   return `<li class="pd-l">
-    <div class="pd-l1"><span class="pd-nome">${l.quantidade > 1 ? `<b>${l.quantidade}x</b> ` : ''}${esc(l.nome)}</span><span class="pd-v">${R(l.valor * l.quantidade)}</span></div>
-    <div class="pd-l2"><span class="muted pd-n">nº ${l.pedido}</span>
-      ${l.pago ? '<span class="badge pleno">Pago</span>' : '<span class="badge pd-pend">Pendente</span>'}
-      ${p > 0 ? `<span class="badge pd-divida" title="Cobranças vencidas no ASAAS">pendências ${R(p)}</span>` : ''}</div>
+    <div class="pd-l1"><span class="pd-nome">${l.quantidade > 1 ? `<b>${l.quantidade}x</b> ` : ''}${esc(l.nome)}</span>
+      ${l.pago ? '<span class="badge pleno">Pago</span>' : '<span class="badge pd-pend">Pendente</span>'}</div>
+    ${p > 0 ? `<div class="pd-l2"><span class="muted">Existem pendências:</span><span class="badge pd-divida" title="Cobranças vencidas no ASAAS">pendências ${R(p)}</span></div>` : ''}
     <select class="pd-and" data-act="pdandamento" data-id="${esc(l.id)}" aria-label="Andamento do pedido de ${esc(l.nome)}"${ui.salvando === l.id ? ' disabled' : ''}>${opcoes}</select>
   </li>`;
 }
@@ -70,7 +70,7 @@ function porModelo(L, pend) {
       ls.sort((a, b) => b.pedido - a.pedido || a.nome.localeCompare(b.nome, 'pt-BR'));
       const n = qtd(ls);
       const chave = ls[0].andamento + '|' + modeloDe(ls[0]);
-      const aberto = !ui.modFechados.has(chave);
+      const aberto = ui.modAbertos.has(chave);
       return `<div class="pd-mod${aberto ? '' : ' fechado'}"><div class="pd-mod-h">${foto(ls[0])}
         <button type="button" class="pd-mod-t" data-act="pdmodelo" data-k="${esc(chave)}" aria-expanded="${aberto}"><b>${esc(ls[0].descricao)}</b>
         <small class="muted">${n} ${n === 1 ? 'unidade' : 'unidades'} · ${ls.length} ${ls.length === 1 ? 'pedido' : 'pedidos'}</small>
@@ -106,7 +106,7 @@ export function render() {
 
 export const cliques = {
   pddobrar(el) { const k = el.dataset.k; if (ui.fechados.has(k)) ui.fechados.delete(k); else ui.fechados.add(k); avisar(); },
-  pdmodelo(el) { const k = el.dataset.k; if (ui.modFechados.has(k)) ui.modFechados.delete(k); else ui.modFechados.add(k); avisar(); },
+  pdmodelo(el) { const k = el.dataset.k; if (ui.modAbertos.has(k)) ui.modAbertos.delete(k); else ui.modAbertos.add(k); avisar(); },
   pdzoom(el) { ui.zoom = el.dataset.m; avisar(); },
   pdzoomfechar() { ui.zoom = null; avisar(); },
   pdrecarregar() { estado.pedidos = null; avisar(); },

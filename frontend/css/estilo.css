@@ -1553,7 +1553,7 @@ button.eu-av{cursor:zoom-in}
 .pd-grupo h3{margin:0;font-size:1.02rem}
 .pd-mod{display:grid;gap:8px;min-width:0;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .pd-mod-h{display:flex;align-items:center;gap:10px;min-width:0}
-.gi-foto.pd-foto{flex:none;width:52px;height:52px;font-size:1.3rem}
+.gi-foto.pd-foto{flex:none;width:76px;height:76px;font-size:1.7rem}
 .pd-mod-t{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;align-items:center;flex:1;min-width:0;padding:4px 0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .pd-mod-t b,.pd-mod-t small{grid-column:1}
 .pd-mod-t .seta{grid-column:2;grid-row:1 / span 2;color:var(--muted)}
@@ -1561,7 +1561,8 @@ button.eu-av{cursor:zoom-in}
 .pd-mod-t small{font-size:.8rem}
 .pd-lista{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .pd-l{display:grid;gap:6px;min-width:0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
-.pd-l1{display:flex;align-items:baseline;gap:8px;min-width:0}
+.pd-l1{display:flex;align-items:center;gap:8px;min-width:0}
+.pd-l1 .badge{flex:none;font-size:.7rem}
 .pd-nome{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-size:.92rem;font-weight:600}
 .pd-v{flex:none;font-weight:700;font-size:.9rem;font-variant-numeric:tabular-nums}
 .pd-l2{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;font-size:.88rem}

@@ -21,7 +21,7 @@ const ui = {
   abertos: new Set(),       // grupos expandidos (admin)
   feitos: new Set(),        // pedidos encerrados expandidos ('número:grupo')
   painel: new Set(),        // grupos abertos no Painel de pedidos (começam minimizados)
-  blocos: new Set(),        // blocos de admin abertos ('grupos', 'exportar'); começam minimizados
+  blocos: new Set(),        // blocos de admin abertos ('grupos', 'painel', 'exportar'); começam minimizados
   painelSel: {},            // grupo → 'todos' quando a lista completa por pessoa está aberta no Painel
   itemSel: {},              // grupo → { item, k: 'paga' | 'pend' }: o quadradinho de item aberto no Painel
   minimizados: new Set(),   // blocos que a pessoa minimizou: id do grupo de itens ou 'meus' (Seus pedidos)
@@ -423,6 +423,9 @@ function itensDoPedido(g, linhas) {
 // (o quanto falta pagar ficava longo demais no celular). Aberto: Encerrar / Novo pedido do grupo e a lista por pessoa.
 function cardPainel(G) {
   if (!G.grupos.length) return '';
+  // Começa minimizado (como o Cadastro e o Exportar), toda vez que a aba abre.
+  const cab = cabBloco('painel', 'Painel de pedidos', plural(G.grupos.length, 'grupo', 'grupos'));
+  if (!ui.blocos.has('painel')) return `<div class="card adm">${cab}</div>`;
   const R0 = rodadas(G);
   const prox = proximoNumero(G);
   const blocos = G.grupos.map((g) => {
@@ -456,7 +459,7 @@ function cardPainel(G) {
     }
     return h + '</div></div>';
   }).join('');
-  return `<div class="card adm"><div class="grp-h"><h2>Painel de pedidos</h2><span class="count">${plural(G.grupos.length, 'grupo', 'grupos')}</span></div><div class="gp-grupos">${blocos}</div></div>`;
+  return `<div class="card adm">${cab}<div class="gp-grupos">${blocos}</div></div>`;
 }
 
 // Pedidos encerrados: por grupo e número, do mais recente para o mais antigo; cada um começa minimizado.
