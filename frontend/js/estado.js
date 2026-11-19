@@ -125,7 +125,10 @@ function definirGiras(lista) {
 }
 
 export async function carregarTudo() {
-  const r = await api('GET', '/auth/inicio');
+  ultimaAtualizacao = Date.now();   // o foco logo depois da abertura não busca tudo de novo
+  const vis = visitasPendentes();
+  const r = await api('GET', '/auth/inicio' + (vis.length ? '?visitas=' + vis.join(',') : ''));
+  visitasEnviadas(vis);
   const { me } = r;
   definirConfig(r.config);
   estado.me = me;
@@ -232,11 +235,13 @@ export async function mudarVisaoRoot(visao) {
 }
 
 // Busca o que outras pessoas mudaram (ao voltar para a aba do app).
+// No máximo a cada 5 min: o Neon desliga 5 min depois do último pedido, e cada volta ao app (no celular, trocar de
+// app o tempo todo) o acordava de novo.
+const INTERVALO_ATUALIZAR = 5 * 60 * 1000;
 let ultimaAtualizacao = 0;
 export async function atualizarDoServidor() {
   if (!estado.pronto || estado.salvando || Object.keys(pendente).length) return;
-  // Evita buscar de novo a cada foco (no celular, abrir e fechar o seletor de data dispara foco).
-  if (Date.now() - ultimaAtualizacao < 15000) return;
+  if (Date.now() - ultimaAtualizacao < INTERVALO_ATUALIZAR) return;
   ultimaAtualizacao = Date.now();
   try {
     if (estado.me?.grupo === 'alunos') {
@@ -247,7 +252,10 @@ export async function atualizarDoServidor() {
     // A versão que o app já tem: sem mudança no servidor, a resposta é só { semMudanca } e as listas ficam como estão.
     // Uma gravação feita daqui também muda a versão: na volta seguinte, baixa tudo uma vez.
     const versao = estado.me?.grupo ? '' : estado.versaoDados || '';
-    const r = await api('GET', '/auth/inicio?atualizar=1' + (versao ? '&versao=' + encodeURIComponent(versao) : ''));
+    const vis = visitasPendentes();
+    const r = await api('GET', '/auth/inicio?atualizar=1' + (versao ? '&versao=' + encodeURIComponent(versao) : '')
+      + (vis.length ? '&visitas=' + vis.join(',') : ''));
+    visitasEnviadas(vis);
     if (r.semMudanca) { await atualizarAbaAberta(); return; }
     if (r.versao) estado.versaoDados = r.versao;
     if (r.config) definirConfig(r.config);
@@ -263,18 +271,18 @@ export async function atualizarDoServidor() {
   } catch { /* silencioso: tenta de novo na próxima vez */ }
 }
 
-// O que não entra na versão dos dados (oferendas, ervas, Iemanjá, relatos): só da aba aberta, como antes.
+// O que não entra na versão dos dados (oferendas, Iemanjá): só quando a aba Oferendas está aberta.
+// Relatos, atrasos e ervas (blocos de Geral e Gira) e os compromissos das oferendas nessas abas não são buscados
+// na volta ao app: eram 2 a 3 pedidos a mais a cada volta, quase sempre sem mudança. Vêm de novo ao abrir o app.
 async function atualizarAbaAberta() {
-  if (estado.conduta !== null && prefs.tab === 'gira') estado.conduta = await api('GET', '/giras?lista=conduta').catch(() => estado.conduta);
-  if (estado.atrasos !== null && prefs.tab === 'gira') estado.atrasos = await api('GET', '/giras?lista=atrasos').catch(() => estado.atrasos);
-  // Oferendas: pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
-  // Geral e Gira mostram os compromissos das oferendas; atualizar quando qualquer uma estiver aberta.
-  if (estado.oferendas !== null && (prefs.tab === 'oferendas' || prefs.tab === 'gira' || prefs.tab === 'agenda') && !Object.values(timersDoacao).some(Boolean)) {
-    estado.oferendas = await api('GET', '/oferendas').catch(() => estado.oferendas);
-  }
-  // Bloco "Pedir ervas" da aba Gira: mostra se o pedido ainda está aberto.
-  if (estado.ervas !== null && prefs.tab === 'agenda') estado.ervas = await api('GET', '/ervas').catch(() => estado.ervas);
-  if (estado.iemanja !== null && prefs.tab === 'oferendas') estado.iemanja = await api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja);
+  if (prefs.tab !== 'oferendas') return;
+  // Pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
+  const [oferendas, iemanja] = await Promise.all([
+    estado.oferendas !== null && !Object.values(timersDoacao).some(Boolean) ? api('GET', '/oferendas').catch(() => estado.oferendas) : estado.oferendas,
+    estado.iemanja !== null ? api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja) : estado.iemanja,
+  ]);
+  estado.oferendas = oferendas;
+  estado.iemanja = iemanja;
   avisar();
 }
 
@@ -1144,15 +1152,28 @@ export function atualizarAoAbrir(chave, rota) {
   else estado[chave] = null;
 }
 // ---------- quem entrou nas abas ----------
-// Ao abrir uma aba, avisa o servidor (sem esperar nem mostrar erro). A mesma aba de novo só conta depois de 5 min.
-// O root e o "Ver como" não contam (o servidor também confere).
-const visitasAvisadas = new Map();
+// Ao abrir uma aba, ela fica anotada no aparelho e vai ao servidor de carona no próximo /auth/inicio (abertura ou
+// volta ao app): um pedido só para isso acordava o banco. Guardada com o fim do token, para não passar para quem
+// entrar depois no mesmo aparelho. O root e o "Ver como" não contam (o servidor também confere).
+const CHAVE_VISITAS = 'cpj.visitas';
+function visitasGuardadas() {
+  try {
+    const v = JSON.parse(localStorage.getItem(CHAVE_VISITAS) || 'null');
+    return v && v.t === String(token() || '').slice(-16) && Array.isArray(v.abas) ? v.abas : [];
+  } catch { return []; }
+}
+function guardarVisitas(abas) {
+  try {
+    if (abas.length) localStorage.setItem(CHAVE_VISITAS, JSON.stringify({ t: String(token() || '').slice(-16), abas }));
+    else localStorage.removeItem(CHAVE_VISITAS);
+  } catch { /* sem armazenamento: a visita só não conta */ }
+}
+function visitasPendentes() { return emDemo() ? [] : visitasGuardadas().filter(abaValida); }
+function visitasEnviadas(abas) { if (abas.length) guardarVisitas(visitasGuardadas().filter((a) => !abas.includes(a))); }
 export function registrarVisita(aba) {
   if (!estado.me || estado.verComo || ehRootReal() || !abaValida(aba)) return;
-  const agora = Date.now();
-  if (agora - (visitasAvisadas.get(aba) || 0) < 5 * 60 * 1000) return;
-  visitasAvisadas.set(aba, agora);
-  api('POST', '/auth/visita', { aba }).catch(() => visitasAvisadas.delete(aba));
+  const abas = visitasGuardadas();
+  if (!abas.includes(aba)) guardarVisitas([...abas, aba]);
 }
 // Bloco do Admin root: [{ chave, aba, dia, nome, grupo, vezes, ultima }] dos últimos 3 dias (null = ainda não carregou).
 export async function carregarVisitas() {

@@ -223,6 +223,14 @@ async function listasDoGrupo(eu) {
   return { eventos, oracoes: ora ? await oracoes(eu, ora) : undefined, minhaCurimba, config: await config };
 }
 
+async function registrarVisitas(eu, texto) {
+  if (!texto || eu.verComo || pode(eu, 'usuarios:gerenciar')) return;
+  const abas = [...new Set(String(texto).split(','))].filter(abaValida).slice(0, 20);
+  const nome = String(eu.nome || '').trim();
+  await Promise.all(abas.map((aba) => db.rpc('visita_registrar', { chave: chavePessoa(eu), aba, nome })))
+    .catch((e) => console.error('[visitas]', e));
+}
+
 // Corrente e usuários: tudo de uma vez no banco (inicio_dados). Com a versão que o app já tem e nada mudado,
 // volta só { versao, semMudanca }. extras: o que decide as abas, quando me = true.
 async function listasIniciais(eu, { versao = '', me = false } = {}) {
@@ -249,6 +257,9 @@ const acoes = {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
     const u = await exigir(req);
     const atualizar = !!req.query.atualizar;
+    // ?visitas=gira,ervas: abas abertas desde o último pedido, que pegam carona aqui em vez de um pedido só para isso
+    // (cada pedido avulso acordava o banco). Falha não atrapalha a abertura.
+    await registrarVisitas(u, req.query.visitas);
     // Aluno: as listas e o "me" vão ao banco ao mesmo tempo.
     if (u.grupo) {
       if (atualizar) return listasDoGrupo(u);
@@ -266,6 +277,7 @@ const acoes = {
   },
 
   // Abriu uma aba: soma uma entrada de hoje (o banco guarda só os últimos 3 dias). O root e o "Ver como" não contam.
+  // O app atual manda as visitas junto com o /auth/inicio; esta rota fica para o aparelho uma versão atrás.
   async visita(req) {
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const eu = await exigir(req);
