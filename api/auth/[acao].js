@@ -33,6 +33,8 @@ import { abaIemanja } from '../_lib/iemanja.js';
 import { ocultarSorteios } from '../_lib/escala.js';
 import { oracoes } from '../_lib/oracoes.js';
 import { eventosDe } from '../_lib/eventos.js';
+import { condutas } from '../_lib/conduta.js';
+import { atrasos } from '../_lib/atrasos.js';
 import { rotaCpf, cifrar, hashCpf, cadastroPorCpf } from '../_lib/cpf.js';
 import { dadosAluno } from '../_lib/alunos.js';
 import { randomUUID } from 'node:crypto';
@@ -223,6 +225,15 @@ async function listasDoGrupo(eu) {
   return { eventos, oracoes: ora ? await oracoes(eu, ora) : undefined, minhaCurimba, config: await config };
 }
 
+// Blocos da aba Geral (relatos e atrasos) que vinham em pedidos à parte logo depois da abertura: vão juntos nela.
+// undefined = não veio (sem acesso, falhou ou a leitura do ASAAS venceu) e o app busca pela rota própria.
+function blocosGeral(u) {
+  return Promise.all([
+    u.grupo ? undefined : opcional(condutas(u)),
+    u.grupo && u.grupo !== 'alunos' ? undefined : opcional(atrasos(u, false, { soCache: true })).then((a) => a ?? undefined),
+  ]);
+}
+
 async function registrarVisitas(eu, texto) {
   if (!texto || eu.verComo || pode(eu, 'usuarios:gerenciar')) return;
   const abas = [...new Set(String(texto).split(','))].filter(abaValida).slice(0, 20);
@@ -263,17 +274,20 @@ const acoes = {
     // Aluno: as listas e o "me" vão ao banco ao mesmo tempo.
     if (u.grupo) {
       if (atualizar) return listasDoGrupo(u);
-      const [listas, me] = await Promise.all([listasDoGrupo(u), dadosDoMe(u)]);
-      return { me, ...listas };
+      const [listas, me, [, atrasosAluno]] = await Promise.all([listasDoGrupo(u), dadosDoMe(u), blocosGeral(u)]);
+      return { me, ...listas, atrasos: atrasosAluno };
     }
     // Ao voltar ao app, ?versao= é a que ele já tem: sem mudança, a resposta é só { versao, semMudanca }.
     // Na abertura, "a Transparência está visível?" e o mesmo do Diário vão ao banco junto com as listas
     // (sem uma ida a mais em fila depois delas).
     const transparencia = atualizar ? null : db.rpc('transparencia_publicada').catch(() => false);
     const diarioPub = atualizar ? null : db.rpc('diario_publicada').catch(() => false);
+    const blocos = atualizar ? null : blocosGeral(u);
     const { listas, extras } = await listasIniciais(u, { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar });
     if (atualizar) return listas;
-    return { me: await dadosDoMe(u, extras && { ...extras, transparenciaPublicada: await transparencia, diarioPublicada: await diarioPub }), ...listas };
+    const [conduta, atrasosEu] = await blocos;
+    return { me: await dadosDoMe(u, extras && { ...extras, transparenciaPublicada: await transparencia, diarioPublicada: await diarioPub }), ...listas,
+      conduta, atrasos: atrasosEu };
   },
 
   // Abriu uma aba: soma uma entrada de hoje (o banco guarda só os últimos 3 dias). O root e o "Ver como" não contam.
@@ -343,7 +357,7 @@ const acoes = {
 
   // Foto da pessoa: todos que estão logados veem (a aba Gira mostra com quem cada um trabalha);
   // trocar ou tirar, só a própria pessoa ou quem vê o perfil de todos (admin).
-  async foto(req) {
+  async foto(req, res) {
     const eu = await exigir(req);
     if (eu.grupo === 'alunos') {
       exigirSenhaAluno(eu);
@@ -355,7 +369,12 @@ const acoes = {
     }
     if (eu.grupo) throw new HttpError(403, 'Este acesso não tem fotos de perfil.');
     const pessoaId = validarId(String((req.method === 'GET' ? req.query.pessoaId : corpo(req).pessoaId) || eu.pessoaId || ''), 'Pessoa');
-    if (req.method === 'GET') return { foto: await db.rpc('pessoa_foto_ler', { pessoaId }) };
+    if (req.method === 'GET') {
+      // Com ?v= (versão da foto, fotoV da lista de pessoas) o endereço muda quando a foto muda: o aparelho guarda a resposta
+      // e não volta ao banco. private: só no aparelho, nunca no cache da Vercel.
+      if (req.query.v) res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+      return { foto: await db.rpc('pessoa_foto_ler', { pessoaId }) };
+    }
     if (pessoaId !== eu.pessoaId && !pode(eu, 'perfil:corrente')) throw new HttpError(403, 'Só um admin mexe na foto de outra pessoa.');
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const { foto } = corpo(req);
@@ -624,12 +643,12 @@ const acoes = {
 };
 
 export default rota({
-  GET: (req) => despachar(req),
-  POST: (req) => despachar(req),
+  GET: (req, res) => despachar(req, res),
+  POST: (req, res) => despachar(req, res),
 });
 
-function despachar(req) {
+function despachar(req, res) {
   const fn = Object.prototype.hasOwnProperty.call(acoes, req.query.acao) ? acoes[req.query.acao] : null;
   if (!fn) throw new HttpError(404, 'Rota não encontrada.');
-  return fn(req);
+  return fn(req, res);
 }

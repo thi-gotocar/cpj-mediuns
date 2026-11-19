@@ -68,7 +68,9 @@ async function buscarNoAsaas(k, porHash, renovar) {
   });
 }
 
-export async function atrasos(eu, atualizar) {
+// soCache: a abertura do app (/auth/inicio) não espera o ASAAS; com a leitura vencida, devolve null e o app busca
+// pela rota própria, que lê o ASAAS.
+export async function atrasos(eu, atualizar, { soCache = false } = {}) {
   if (eu.grupo && eu.grupo !== 'alunos') throw new HttpError(403, 'Este acesso não tem pagamentos.');
   // Visão de todos (ADMIN FINANCEIRO): quem vê a aba ASAAS (root e Admin financeiro).
   const root = pode(eu, 'asaas:ver');
@@ -82,6 +84,7 @@ export async function atrasos(eu, atualizar) {
   let erro;
   const idade = s.atualizadoEm ? Date.now() - Date.parse(s.atualizadoEm) : Infinity;
   const forcar = !!atualizar && (root || idade > INTERVALO_PESSOA_MS);
+  if (soCache && idade > VALIDADE_MS) return null;
   if (forcar || idade > VALIDADE_MS) {
     // Cada conta é lida e guardada sozinha: se uma falhar, a outra continua atualizada.
     const porHash = await pessoasPorHashCpf();

@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 153;  // v153: versão dos dados só muda quando algo muda de fato
+export const VERSAO = 154;  // v154: foto das pessoas com versão (o aparelho guarda e não volta ao banco)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -6518,5 +6518,30 @@ export const MIGRACOES = [
      select (select last_value from versao_dados_seq)::text
          || '-' || to_char(now() at time zone 'America/Sao_Paulo', 'YYYYMMDD')
          || '-' || (select count(*) from oracoes where now() >= oracao_expira(criado_em))::text;
+   $$`,
+
+  // ================================================== v154: foto das pessoas com versão
+  // A foto pequena do "Você nesta gira" e do Perfil vinha do banco a cada abertura do app, uma ida por pessoa.
+  // Agora a lista de pessoas leva a versão (fotoV, coluna gerada como nas Compras; nula = sem foto, nem busca) e o
+  // endereço com ?v= fica guardado no aparelho. Trocar a foto sobe a versão dos dados, para a lista nova chegar.
+  `alter table pessoas_fotos add column if not exists foto_v text generated always as (substr(md5(foto), 1, 10)) stored`,
+  `drop trigger if exists versao_dados on pessoas_fotos`,
+  `create trigger versao_dados after insert or update or delete on pessoas_fotos for each row execute function versao_dados_subir()`,
+  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
+       select pe.id, pe.nome, pe.funcao, pe.experiente, pe.linhas, pe.limpeza, pe.entrada, pe.saida,
+              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
+                        from licencas l where l.pessoa_id = pe.id), '[]'::jsonb) as licencas,
+              coalesce(pe.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento",
+              nullif(pe.perfil -> 'guias' -> 'chefe' ->> 'linha', '') as "guiaChefe",
+              nullif(pe.perfil -> 'guias' -> 'frente' ->> 'linha', '') as "guiaFrente",
+              pe.afinidade_extra as "afinidadeExtra", pe.afinidade_passe as "afinidadePasse",
+              case when (pe.perfil -> 'info' ->> 'nascimento') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                   then substring(pe.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario,
+              (select f.foto_v from pessoas_fotos f where f.pessoa_id = pe.id) as "fotoV"
+       from pessoas pe
+       where pe.saida is null or coalesce((p ->> 'todas')::boolean, false)
+     ) x;
    $$`,
 ];

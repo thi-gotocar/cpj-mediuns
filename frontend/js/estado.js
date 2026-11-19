@@ -132,8 +132,9 @@ export async function carregarTudo() {
   const { me } = r;
   definirConfig(r.config);
   estado.me = me;
-  estado.conduta = null;   // relatos são de quem está logado: busca de novo
-  estado.atrasos = null;   // idem para os pagamentos em atraso
+  // Relatos e atrasos são de quem está logado: vêm junto na abertura; o que não vier, a aba Geral busca pela rota própria.
+  estado.conduta = r.conduta ?? null;
+  estado.atrasos = r.atrasos ?? null;
   if (!estado.verComo) estado.visaoRoot = 'root';
   if (me.grupo === 'alunos') {
     estado.eventos = r.eventos;
@@ -1016,10 +1017,15 @@ export async function salvarAfinidade(tipo, linhas) {
 }
 
 // Foto da pessoa (aba Perfil): busca uma vez e guarda em estado.fotosPessoa.
+// A lista de pessoas traz a versão da foto (fotoV): sem foto, nem busca; com ela, o endereço com ?v= fica guardado
+// no aparelho e a próxima abertura do app não vai ao banco. Lista sem fotoV (servidor antigo, demo): busca como antes.
 const dataUrl = (b64) => (b64 ? 'data:image/jpeg;base64,' + b64 : '');
 export async function carregarFoto(pessoaId) {
+  const cad = estado.pessoas.find((x) => x.id === pessoaId);
+  if (cad && 'fotoV' in cad && !cad.fotoV) { estado.fotosPessoa[pessoaId] = ''; return; }
   estado.fotosPessoa[pessoaId] = null;
-  try { estado.fotosPessoa[pessoaId] = dataUrl((await api('GET', '/auth/foto?pessoaId=' + encodeURIComponent(pessoaId))).foto); } catch { estado.fotosPessoa[pessoaId] = ''; }
+  const v = cad?.fotoV ? '&v=' + encodeURIComponent(cad.fotoV) : '';
+  try { estado.fotosPessoa[pessoaId] = dataUrl((await api('GET', '/auth/foto?pessoaId=' + encodeURIComponent(pessoaId) + v)).foto); } catch { estado.fotosPessoa[pessoaId] = ''; }
   avisar();
 }
 // foto = JPEG em base64 (ou null para tirar).
