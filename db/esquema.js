@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 151;  // v151: quem entrou em cada aba (Admin root, últimos 3 dias)
+export const VERSAO = 152;  // v152: galeria do Diário e sub-aba Pedidos sem ler todas as fotos a cada listagem
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -6464,5 +6464,36 @@ export const MIGRACOES = [
      left join alunos al on v.chave like 'a:%' and al.id::text = substr(v.chave, 3)
      left join turmas_alunos t on t.id = al.turma_id
      where v.dia >= (now() at time zone 'America/Sao_Paulo')::date - 2
+   $$`,
+
+  // ================================================== v152: galeria do Diário mais leve
+  // A versão da foto (v) era um md5 da foto inteira, calculado a cada listagem: o banco lia todas as fotos.
+  // Agora é uma coluna gerada, calculada só quando a foto é gravada (o mesmo valor de antes: os links não mudam).
+  `alter table diario_fotos add column if not exists foto_v text generated always as (substr(md5(foto), 1, 10)) stored`,
+  `create or replace function diario_fotos(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     perform diario_fotos_limpar();
+     return coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'nome', f.nome, 'descricao', f.descricao, 'criadoEm', f.criado_em,
+              'v', f.foto_v,
+              'curtidas', (select count(*) from diario_curtidas c where c.foto_id = f.id),
+              'curti', exists (select 1 from diario_curtidas c where c.foto_id = f.id and c.chave = p ->> 'chave'),
+              'minha', f.chave = p ->> 'chave') order by f.criado_em desc)
+       from diario_fotos f), '[]'::jsonb);
+   end;
+   $$`,
+  // Sub-aba Pedidos (Compras): a mesma coisa, com a coluna que as Compras já têm desde a v144 (aqui tinha ficado o md5).
+  `create or replace function guias_pedidos_andamento(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'pedido', l.pedido, 'descricao', l.descricao, 'quantidade', l.quantidade,
+              'valor', l.valor::float8, 'chave', l.chave, 'nome', l.nome, 'pago', l.pago_em is not null, 'andamento', l.andamento, 'criadoEm', l.criado_em,
+              'itemId', l.item_id, 'fotoV', i.foto_v,
+              'grupoId', l.grupo_id, 'grupo', g.descricao)
+              order by l.criado_em, lower(l.nome)), '[]'::jsonb)
+       from guias_linhas l
+       left join guias_itens i on i.id = l.item_id
+       left join guias_grupos g on g.id = l.grupo_id
+      where not coalesce(i.doacao, false)
+        and translate(lower(btrim(coalesce(g.descricao, ''))), 'áàâãéêíóôõúç', 'aaaaeeiooouc') <> 'axe'
    $$`,
 ];
