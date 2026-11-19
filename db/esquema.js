@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 152;  // v152: galeria do Diário e sub-aba Pedidos sem ler todas as fotos a cada listagem
+export const VERSAO = 153;  // v153: versão dos dados só muda quando algo muda de fato
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -6495,5 +6495,28 @@ export const MIGRACOES = [
        left join guias_grupos g on g.id = l.grupo_id
       where not coalesce(i.doacao, false)
         and translate(lower(btrim(coalesce(g.descricao, ''))), 'áàâãéêíóôõúç', 'aaaaeeiooouc') <> 'axe'
+   $$`,
+
+  // ================================================== v153: versão dos dados só muda quando algo muda de fato
+  // A volta ao app quase nunca dava "sem mudança" e baixava tudo de novo (o banco montava todas as giras), por dois motivos:
+  // 1) a leitura dos atrasos do ASAAS grava a hora em sistema ('asaas2_atualizado') até a cada 10 min, e sistema tem o
+  //    gatilho da versão: agora essa chave não conta (os atrasos nem vão na abertura);
+  // 2) a versão levava a hora, só por causa das orações que vencem: agora leva o dia e quantas orações já venceram
+  //    (muda quando uma vence e de novo quando ela é apagada na leitura).
+  `create or replace function versao_dados_subir()
+   returns trigger language plpgsql as $$
+   begin
+     if tg_table_name = 'sistema' then
+       if coalesce(new.chave, old.chave) = 'asaas2_atualizado' then return null; end if;
+     end if;
+     perform nextval('versao_dados_seq');
+     return null;
+   end;
+   $$`,
+  `create or replace function versao_dados()
+   returns text language sql volatile as $$
+     select (select last_value from versao_dados_seq)::text
+         || '-' || to_char(now() at time zone 'America/Sao_Paulo', 'YYYYMMDD')
+         || '-' || (select count(*) from oracoes where now() >= oracao_expira(criado_em))::text;
    $$`,
 ];
