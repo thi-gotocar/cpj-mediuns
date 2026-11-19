@@ -4,7 +4,7 @@
 //           (com o Pix ligado, pedir { ..., cpf? } já gera o link de pagamento; pix { pedido, cpf? } tenta de novo — veja api/_lib/asaas.js)
 //   admin:  publicar { publicada } · grupo { id?, descricao?, visivel? } · excluirGrupo { id }
 //           item { id?, grupoId, descricao?, foto? (base64 JPEG | null tira), quantidade?, valor?, visivel?, cpj?, doacao? (cobrado na conta B) } · excluirItem { id }
-//           cancelar { id } (a quantidade volta para o item) · ok { id, ok } · encerrar { grupoId } · novo { grupoId } (próximo número)
+//           cancelar { id } (a quantidade volta para o item) · encerrar { grupoId } · novo { grupoId } (próximo número)
 //           andamento { id, andamento } → o mesmo de GET ?lista=pedidos
 // Sub-aba Pedidos (só quem administra a aba Compras): GET /api/oferendas?lista=pedidos
 //   → { pedidos: [{ id, pedido, descricao, quantidade, valor, chave, nome, pago, andamento, itemId, fotoV, grupoId, grupo }], pendencias: { chave: total }, pendenciasEm }
@@ -55,10 +55,14 @@ function paraTela(estado, eu) {
   };
 }
 
-// Junto com a tela, o Pix da pessoa (se o root ligou na aba ASAAS).
-const comPix = async (tela, eu) => ({ ...tela, ...(await pixDaPessoa(eu)) });
 // Estado da aba: quem não administra recebe do banco só os próprios pedidos e linhas (o histórico de todos fica de fora).
 const estadoPara = (eu) => db.rpc('guias_estado', ehAdmin(eu) ? {} : { chave: chavePessoa(eu) });
+
+// Estado da tela e Pix da pessoa numa ida só ao banco (guias_tela), depois de pedir ou gerar o link.
+async function telaCompleta(eu) {
+  const t = await db.rpc('guias_tela', { chave: chavePessoa(eu), admin: ehAdmin(eu) });
+  return { ...paraTela(t.estado, eu), ...pixDe(t.ativo, t.minhas) };
+}
 
 // Abertura da aba: tudo numa ida só ao banco (guias_tela). Só volta ao banco (e ao ASAAS) se houver um link que
 // ficou sem resposta do ASAAS numa tentativa anterior, para conferir (sem travar a tela se falhar).
@@ -88,7 +92,9 @@ export async function fotoGuia(req, res) {
   res.statusCode = 200;
   res.setHeader('Content-Type', 'image/jpeg');
   res.setHeader('Content-Length', String(buf.length));
-  res.setHeader('Cache-Control', req.query.v ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
+  // s-maxage: a Vercel também guarda e entrega a foto a todos, sem chamar a função nem acordar o banco (o endereço
+  // com ?v= muda quando a foto muda, então nunca fica foto velha).
+  res.setHeader('Cache-Control', req.query.v ? 'public, max-age=31536000, s-maxage=31536000, immutable' : 'public, max-age=300');
   res.end(buf);
 }
 
@@ -152,30 +158,35 @@ export async function acaoGuias(eu, b) {
       if (item?.cpj) throw new HttpError(400, 'Este item não está disponível.');
     }
     const pix = await pixAntesDePedir(eu, b.cpf);
-    let estado = await db.rpc('guia_pedir', p);
+    const feito = await db.rpc('guia_pedir', p);
     // Com o Pix ligado, o pedido já gera o link de pagamento. Se o ASAAS falhar, o pedido fica
     // e a tela mostra "Gerar link de pagamento" para tentar de novo.
     let aviso;
     if (pix) {
       try {
-        await gerarPix(eu, { pedido: estado.pedidoFeito, cpf: b.cpf });
-        estado = await estadoPara(eu);
+        await gerarPix(eu, { pedido: feito.pedidoFeito, cpf: b.cpf });
       } catch (e) {
         if (!(e instanceof HttpError)) console.error('[asaas] pedir', e);
         aviso = 'Pedido feito, mas o link de pagamento não foi gerado' + (e instanceof HttpError ? ': ' + e.message.replace(/[.!]?$/, '.') : '.') + ' Toque em Gerar link de pagamento.';
       }
     }
-    return { ...(await comPix(paraTela(estado, eu), eu)), ...(aviso ? { aviso } : {}) };
+    return { ...(await telaCompleta(eu)), ...(aviso ? { aviso } : {}) };
   }
   if (b.op === 'pix') {
     await gerarPix(eu, b);
-    return comPix(paraTela(await estadoPara(eu), eu), eu);
+    return telaCompleta(eu);
   }
   if (!ehAdmin(eu)) throw new HttpError(403, 'Só quem administra a aba Compras pode fazer isso.');
   if (b.op === 'andamento') {
     if (!ANDAMENTOS.includes(b.andamento)) throw new HttpError(400, 'Andamento inválido.');
     return telaPedidos(await db.rpc('guia_linha_andamento', { id: validarId(b.id, 'Pedido'), andamento: b.andamento }));
   }
+  // O Pix de quem administra não muda com estas ações: vai ao banco junto com a gravação, não depois.
+  const [estado, pixAdmin] = await Promise.all([gravarAdmin(b), pixDaPessoa(eu)]);
+  return { ...paraTela(estado, eu), ...pixAdmin };
+}
+
+async function gravarAdmin(b) {
   let estado;
   switch (b.op) {
     case 'publicar':
@@ -212,9 +223,6 @@ export async function acaoGuias(eu, b) {
     case 'cancelar':
       estado = await db.rpc('guia_linha_cancelar', { id: validarId(b.id, 'Pedido') });
       break;
-    case 'ok':
-      estado = await db.rpc('guia_linha_ok', { id: validarId(b.id, 'Pedido'), ok: booleano(b.ok, 'está ok') });
-      break;
     case 'encerrar':
       estado = await db.rpc('guia_pedido_encerrar', { grupoId: validarId(b.grupoId, 'Grupo') });
       break;
@@ -224,5 +232,5 @@ export async function acaoGuias(eu, b) {
     default:
       throw new HttpError(400, 'Ação inválida.');
   }
-  return comPix(paraTela(estado, eu), eu);
+  return estado;
 }

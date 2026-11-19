@@ -2101,8 +2101,8 @@ test('pedidos de guias: aba escondida até publicar; grupos, itens, pedir baixa 
   assert.equal(sql(`select jsonb_array_length(guias_estado('{"chave":"ninguem"}') -> 'pedidos')`), '0', 'sem linhas, sem pedidos');
   assert.equal(sql(`select jsonb_array_length(guias_estado(jsonb_build_object('chave', '${linha.chave}')) -> 'pedidos' -> 0 -> 'linhas')`), '1');
   assert.equal(sql(`select jsonb_array_length(guias_estado() -> 'pedidos')`), String(G.pedidos.length));
-  G = (await gu(ADMIN, { op: 'ok', id: linha.id, ok: true })).json;
-  assert.equal(G.pedidos[0].linhas[0].ok, true);
+  // A caixinha de ok saiu do Painel: a operação não existe mais.
+  assert.equal((await gu(ADMIN, { op: 'ok', id: linha.id, ok: true })).status, 400);
   // Sub-aba Pedidos: só quem administra; uma entrada por linha, com pagamento e andamento (começa pendente).
   assert.equal((await api('GET', '/api/oferendas?lista=pedidos', USER)).status, 403);
   assert.equal((await gu(USER, { op: 'andamento', id: linha.id, andamento: 'entregue' })).status, 403);

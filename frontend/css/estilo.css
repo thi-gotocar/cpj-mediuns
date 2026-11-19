@@ -1564,9 +1564,7 @@ button.eu-av{cursor:zoom-in}
 .pd-l1{display:flex;align-items:center;gap:8px;min-width:0}
 .pd-l1 .badge{flex:none;font-size:.7rem}
 .pd-nome{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-size:.92rem;font-weight:600}
-.pd-v{flex:none;font-weight:700;font-size:.9rem;font-variant-numeric:tabular-nums}
 .pd-l2{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0;font-size:.88rem}
-.pd-n{font-size:.8rem}
 .pd-l2 .badge{font-size:.7rem}
 .badge.pd-pend{background:var(--warn-soft);color:var(--warn)}
 .badge.pd-divida{background:var(--falta);color:#fff}
@@ -1750,7 +1748,6 @@ button.iem-tot-n{cursor:pointer}
 .gi-info .of-sw{margin-top:2px}
 .gi-acao{display:flex;flex-direction:column;align-items:stretch;gap:6px}
 .gi-item.gi-doa,.gi-tela .gi-item.gi-doa{grid-template-columns:minmax(0,1fr);align-items:stretch;gap:10px}
-.gi-doa-h{display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;align-items:center;min-width:0}
 .gi-doa-bs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .gi-doa-b{min-height:44px;border:1px solid color-mix(in srgb,var(--ok) 45%,var(--line));border-radius:22px;background:color-mix(in srgb,var(--ok) 10%,var(--bg));color:var(--ink);font:700 .95rem var(--f-body);cursor:pointer}
 .gi-doa-b:disabled{opacity:.5;cursor:default}
