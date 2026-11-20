@@ -14,6 +14,8 @@ export function criarCompras({ euChave, euNome, pessoas, ErroDemo }) {
   const chave = (n) => 'p:' + id(n);
   let seq = 5000;
   const novoId = () => id(++seq);
+  // Aba ASAAS → Cartão de crédito: quem gera link com Pix ou cartão (uma pessoa de exemplo).
+  const credito = [{ chave: chave(3), nome: nomeDe(3), aluno: false, em: new Date().toISOString(), por: 'Teste CPJ', cpf: '•••.•••.•••-42' }];
 
   const G1 = id(2001), G2 = id(2002), G3 = id(2003), G4 = id(2004);
   const grupos = [
@@ -273,11 +275,18 @@ export function criarCompras({ euChave, euNome, pessoas, ErroDemo }) {
         return { ...e, nome: d.nome || null, pedido: d.pedido ?? null, itens: d.itens || [], descricao: c ? `CPJ · Compras · pedido nº ${d.pedido}` : '' };
       }),
       config: { chave: true, token: true, ambiente: 'Sandbox (testes)' },
+      credito: [...credito].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      candidatos: pessoas.filter((p) => !p.saida && !credito.some((k) => k.chave === 'p:' + p.id)).map((p) => ({ chave: 'p:' + p.id, nome: p.nome, aluno: false })),
     };
   }
 
   function acaoAsaas(b) {
     if (b.op === 'ativar') ativo = !!b.ativo;
+    else if (b.op === 'credito') {
+      const i = credito.findIndex((k) => k.chave === b.chave);
+      if (b.remover) { if (i >= 0) credito.splice(i, 1); }
+      else if (i < 0) credito.push({ chave: b.chave, nome: pessoas.find((p) => 'p:' + p.id === b.chave)?.nome || '?', aluno: false, em: new Date().toISOString(), por: euNome, cpf: '' });
+    }
     else if (b.op === 'cancelar') {
       const c = cobrancas.find((x) => x.id === b.id);
       if (c && c.status === 'pendente') { c.status = 'cancelada'; evento(c, 'PAYMENT_DELETED', 'DELETED', 'Link cancelado na aba ASAAS.'); }

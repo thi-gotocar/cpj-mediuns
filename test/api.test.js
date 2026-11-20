@@ -2295,9 +2295,10 @@ test('ASAAS: Pedir gera o link de pagamento; só o webhook conferido no ASAAS ma
       if (falso.falhar) return json(400, { errors: [{ description: 'Serviço indisponível no teste.' }] });
       const b = JSON.parse(op.body);
       falso.value = b.value;
+      falso.forma = b.billingType;
       const id = 'pay_' + (++falso.n);
       falso.valores[id] = b.value;
-      const pg = { id, value: b.value, dueDate: b.dueDate, invoiceUrl: 'https://sandbox.asaas.com/i/' + id, externalReference: b.externalReference };
+      const pg = { id, value: b.value, dueDate: b.dueDate, invoiceUrl: 'https://sandbox.asaas.com/i/' + id, externalReference: b.externalReference, billingType: b.billingType };
       falso.refs[b.externalReference] = pg;
       if (falso.demorar) return json(503, {});
       return json(200, pg);
@@ -2404,6 +2405,23 @@ test('ASAAS: Pedir gera o link de pagamento; só o webhook conferido no ASAAS ma
     assert.equal(umaGuia().pix, 'cancelada');
     G = (await gu(ADMIN, { op: 'pix', pedido: n })).json;
     assert.equal(umaGuia().pix, 'pendente', 'gerou outro link');
+    assert.equal(falso.forma, 'PIX', 'fora da lista do cartão, só Pix');
+
+    // Cartão de crédito (aba ASAAS): quem está na lista gera o link em que escolhe Pix ou cartão (UNDEFINED).
+    assert.equal((await as(USER, { op: 'credito', chave: 'p:' + RESP() })).status, 403, 'só quem tem ASAAS → Editar');
+    assert.equal((await as(ADMIN, { op: 'credito', chave: 'x:1' })).status, 400);
+    A = (await as(ADMIN, { op: 'credito', chave: 'p:' + RESP() })).json;
+    assert.ok(A.credito.some((k) => k.chave === 'p:' + RESP()), 'entrou na lista');
+    assert.ok(!A.candidatos.some((k) => k.chave === 'p:' + RESP()), 'sai dos candidatos');
+    assert.ok(!JSON.stringify(A.credito).includes('cifrado'), 'o CPF cifrado não sai da API');
+    A = (await as(ADMIN, { op: 'credito', chave: 'p:' + RESP(), remover: true })).json;
+    assert.ok(!A.credito.some((k) => k.chave === 'p:' + RESP()));
+    const minhaChave = sql(`select chave from asaas_cobrancas where pedido = ${n} limit 1`);
+    sql(`insert into asaas_credito (chave, nome) values ('${minhaChave}', 'Admin') on conflict do nothing`);
+    G = (await gu(ADMIN, { op: 'pedir', itemId: it.id, quantidade: 1 })).json;
+    assert.equal(falso.forma, 'UNDEFINED', 'na lista: Pix ou cartão');
+    assert.ok(G.cobrancas.some((x) => x.status === 'pendente' && x.forma === 'UNDEFINED'));
+    sql(`delete from asaas_credito where chave = '${minhaChave}'`);
 
     // ASAAS fora do ar no Pedir: o pedido fica, com aviso, e o link é gerado depois.
     falso.falhar = true;

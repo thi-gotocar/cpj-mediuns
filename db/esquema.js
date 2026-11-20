@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 156;  // v156: responsável Todos no cadastro e na edição do item (oferenda por pessoa) e na Iemanjá
+export const VERSAO = 157;  // v157: quem gera link com cartão de crédito e Pix (aba ASAAS)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -6874,5 +6874,94 @@ export const MIGRACOES = [
      end if;
      return iemanja_estado();
    end;
+   $$`,
+  // ================================================== v157: quem gera link com cartão de crédito (aba ASAAS)
+  // Lista de pessoas (corrente ou aluno, pela chave p:/a:) que, nas Compras (conta A), geram a cobrança com a forma
+  // "cliente escolhe" do ASAAS (UNDEFINED): na fatura, Pix ou cartão de crédito (e o que mais estiver ligado na conta).
+  // Os outros continuam só com Pix; doação (conta B) é sempre Pix. forma guarda como a cobrança foi gerada.
+  `create table if not exists asaas_credito (
+     chave  text primary key,
+     nome   text not null default '',
+     por    text not null default '',
+     em     timestamptz not null default now()
+   )`,
+  `alter table asaas_cobrancas add column if not exists forma text not null default 'PIX'`,
+  // p = { chave, por } inclui (a pessoa ativa da corrente ou o aluno ativo; o nome vem do cadastro); { chave, remover: true } tira.
+  `create or replace function asaas_credito_salvar(p jsonb)
+   returns jsonb language plpgsql as $
+   declare v_nome text;
+   begin
+     if coalesce((p ->> 'remover')::boolean, false) then
+       delete from asaas_credito where chave = p ->> 'chave';
+       return jsonb_build_object('ok', true);
+     end if;
+     select nome into v_nome from pessoas where 'p:' || id::text = p ->> 'chave' and saida is null;
+     if v_nome is null then select nome into v_nome from alunos where 'a:' || id::text = p ->> 'chave' and saida is null; end if;
+     if v_nome is null then raise exception 'Pessoa não encontrada no cadastro.'; end if;
+     insert into asaas_credito (chave, nome, por) values (p ->> 'chave', v_nome, coalesce(p ->> 'por', ''))
+     on conflict (chave) do nothing;
+     return jsonb_build_object('ok', true);
+   end;
+   $`,
+  `create or replace function asaas_cobranca_criada(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update asaas_cobrancas set status = 'pendente', asaas_id = p ->> 'asaasId', link = p ->> 'link',
+       pix_payload = p ->> 'payload', pix_imagem = p ->> 'imagem', vencimento = nullif(p ->> 'vencimento', '')::date,
+       forma = coalesce(nullif(p ->> 'forma', ''), forma)
+      where id = (p ->> 'id')::uuid and status = 'criando';
+     return jsonb_build_object('ok', true);
+   end;
+   $$`,
+  `create or replace function asaas_minhas(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'cliente', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'A'),
+       'clienteB', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'B'),
+       'credito', exists (select 1 from asaas_credito where chave = p ->> 'chave'),
+       'cobrancas', coalesce((select jsonb_agg(x.j order by x.ordem) from (
+           select row_number() over (order by (c.status = 'pendente') desc, c.criado_em desc) as ordem,
+                  jsonb_build_object('id', c.id, 'conta', c.conta, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status, 'link', c.link, 'forma', c.forma,
+                    'pixPayload', case when c.status = 'pendente' then c.pix_payload end,
+                    'pixImagem', case when c.status = 'pendente' then c.pix_imagem end,
+                    'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
+                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
+             from asaas_cobrancas c where c.chave = p ->> 'chave' and c.status <> 'criando'
+            order by (c.status = 'pendente') desc, c.criado_em desc limit 10) x), '[]'::jsonb))
+   $$`,
+  `create or replace function asaas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'ativo', asaas_ativo(),
+       -- Quem gera link com cartão de crédito e Pix (conta A), com o CPF cifrado para a API mostrar só o final.
+       'credito', coalesce((select jsonb_agg(jsonb_build_object('chave', k.chave, 'nome', coalesce(pe.nome, al.nome, k.nome),
+                       'aluno', k.chave like 'a:%', 'em', k.em, 'por', k.por,
+                       'cifrado', case when pe.id is not null then (select pc.cifrado from pessoas_cpf pc where pc.pessoa_id = pe.id)
+                                       else (select ac.cifrado from alunos_cpf ac where ac.aluno_id = al.id) end) order by lower(coalesce(pe.nome, al.nome, k.nome)))
+                   from asaas_credito k
+                   left join pessoas pe on k.chave = 'p:' || pe.id::text and pe.saida is null
+                   left join alunos al on k.chave = 'a:' || al.id::text and al.saida is null), '[]'::jsonb),
+       -- Para escolher no cadastro: a corrente e os alunos (sem os grupos escondidos), quem ainda não está na lista.
+       'candidatos', coalesce((select jsonb_agg(x.j order by x.grupo, lower(x.nome)) from (
+           select 1 as grupo, pe.nome, jsonb_build_object('chave', 'p:' || pe.id::text, 'nome', pe.nome, 'aluno', false) as j
+             from pessoas pe where pe.saida is null and not exists (select 1 from asaas_credito k where k.chave = 'p:' || pe.id::text)
+           union all
+           select 2, al.nome, jsonb_build_object('chave', 'a:' || al.id::text, 'nome', al.nome, 'aluno', true)
+             from alunos al where al.saida is null and al.turma_id is distinct from (select turma_consulentes_id())
+              and al.turma_id is distinct from (select turma_oferenda_id())
+              and not exists (select 1 from asaas_credito k where k.chave = 'a:' || al.id::text)) x), '[]'::jsonb),
+       'cobrancas', coalesce((select jsonb_agg(x.j order by x.criado_em desc) from (
+           select c.criado_em, jsonb_build_object('id', c.id, 'conta', c.conta, 'nome', c.nome, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status, 'forma', c.forma,
+                    'asaasId', c.asaas_id, 'link', c.link, 'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
+                    'grupos', (select coalesce(jsonb_agg(distinct g.descricao), '[]'::jsonb) from guias_linhas l join guias_grupos g on g.id = l.grupo_id where l.cobranca_id = c.id),
+                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
+             from asaas_cobrancas c where c.status <> 'criando' order by c.criado_em desc limit 100) x), '[]'::jsonb),
+       'eventos', coalesce((select jsonb_agg(x.j order by x.recebido_em desc) from (
+           select e.recebido_em, jsonb_build_object('id', e.id, 'evento', e.evento, 'recebidoEm', e.recebido_em, 'resultado', e.resultado,
+                    'paymentId', e.dados -> 'payment' ->> 'id', 'valor', e.dados -> 'payment' ->> 'value',
+                    'status', e.dados -> 'payment' ->> 'status', 'descricao', e.dados -> 'payment' ->> 'description',
+                    'nome', c.nome, 'pedido', c.pedido, 'conta', c.conta,
+                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
+             from asaas_eventos e left join asaas_cobrancas c on c.id = e.cobranca_id order by e.recebido_em desc limit 50) x), '[]'::jsonb))
    $$`,
 ];

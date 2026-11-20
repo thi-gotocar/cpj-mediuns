@@ -159,7 +159,7 @@ function cobrancaPix(c) {
   return `<div class="gi-pix">
     <div class="gi-pix-h"><b>Pagamento · pedido nº ${c.pedido}</b><b>${R(c.valor)}</b></div>
     ${c.itens?.length ? `<span class="muted">${esc(c.itens.join(', '))}</span>` : ''}
-    ${c.link ? `<a class="btn primary" href="${esc(c.link)}" target="_blank" rel="noopener">Pagar pelo link (Pix)</a>` : ''}
+    ${c.link ? `<a class="btn primary" href="${esc(c.link)}" target="_blank" rel="noopener">${c.forma === 'UNDEFINED' ? 'Pagar pelo link (Pix ou cartão de crédito)' : 'Pagar pelo link (Pix)'}</a>` : ''}
     ${c.pixImagem ? `<img class="gi-pix-qr" src="data:image/png;base64,${c.pixImagem}" alt="QR Code do Pix de ${R(c.valor)}">` : ''}
     ${c.pixPayload ? `<label class="field">Pix copia e cola<textarea id="${cc}" readonly rows="3">${esc(c.pixPayload)}</textarea></label>
       <div class="cp-bts"><button class="btn" data-act="guiapixcopiar" data-cc="${cc}"><span aria-hidden="true">📋</span> Copiar código Pix</button></div>` : ''}

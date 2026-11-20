@@ -16,8 +16,8 @@ const editar = () => pode('asaas:editar');
 const badge = (s) => { const [t, c] = STATUS[s] || [s, '']; return `<span class="badge ${c}">${esc(t)}</span>`; };
 
 // Todos os blocos e sub-blocos começam minimizados.
-const ui = { conexao: false, cobrancas: false, eventos: false, cobSel: {}, evValores: new Set() };   // cobSel: grupo → quadradinho aberto
-export function limpar() { ui.conexao = false; ui.cobrancas = false; ui.eventos = false; ui.cobSel = {}; ui.evValores.clear(); }
+const ui = { conexao: false, credito: false, cobrancas: false, eventos: false, cobSel: {}, evValores: new Set() };   // cobSel: grupo → quadradinho aberto
+export function limpar() { ui.conexao = false; ui.credito = false; ui.cobrancas = false; ui.eventos = false; ui.cobSel = {}; ui.evValores.clear(); }
 
 // Primeiro bloco, minimizado: o toggle do Pix e a configuração. Minimizado, mostra se o Pix está ligado e o ambiente.
 function cardConexao(A) {
@@ -39,6 +39,29 @@ function cardConexao(A) {
     <p class="muted" style="margin:0">As chaves ficam só nas variáveis da Vercel; o app nunca mostra o valor delas.</p></div>`;
 }
 
+// Quem gera link com cartão de crédito e Pix (nas Compras, conta A): os outros só têm Pix; doação é sempre Pix.
+// Começa minimizado; quem tem ASAAS → Editar inclui (escolhendo do cadastro) e tira (✕, com confirmação).
+function cardCredito(A) {
+  const L = A.credito || [];
+  const cab = `<button class="grp-h dobra" data-act="asaasdobrar" data-k="credito" aria-expanded="${ui.credito}"><h2><span aria-hidden="true">💳</span> Cartão de crédito</h2>
+    <span class="count">${L.length} ${L.length === 1 ? 'pessoa' : 'pessoas'} <span class="seta" aria-hidden="true">${ui.credito ? '▾' : '▸'}</span></span></button>`;
+  if (!ui.credito) return `<div class="card adm adm-financeiro">${cab}</div>`;
+  const C = A.candidatos || [];
+  const ops = (aluno) => C.filter((x) => x.aluno === aluno).map((x) => `<option value="${esc(x.chave)}">${esc(x.nome)}</option>`).join('');
+  const add = editar() && C.length ? `<form class="of-por as-cred-add" data-form="asaascredito" autocomplete="off">
+      <select name="pessoa" aria-label="Pessoa que pode pagar com cartão"><option value="">+ escolher do cadastro…</option>
+        ${ops(false) ? `<optgroup label="Corrente">${ops(false)}</optgroup>` : ''}${ops(true) ? `<optgroup label="Alunos">${ops(true)}</optgroup>` : ''}</select>
+      <button class="btn small primary" type="submit">Adicionar</button></form>` : '';
+  const linha = (k) => `<li><span class="as-l1"><b>${esc(k.nome)}</b>${k.aluno ? ' <span class="tag of-aluno">aluno</span>' : ''}
+      ${editar() ? (estado.confirm === 'acr:' + k.chave ? `<button class="btn small danger" data-act="asaascreditodel" data-chave="${esc(k.chave)}">Tirar</button>`
+        : `<button class="btn small lock-x" data-act="askdel" data-k="acr:${esc(k.chave)}" aria-label="Tirar ${esc(k.nome)} da lista do cartão">✕</button>`) : ''}</span>
+      <span class="as-l2 muted">${k.cpf ? 'CPF ' + esc(k.cpf) : 'Sem CPF no Perfil'}</span></li>`;
+  return `<div class="card adm adm-financeiro">${cab}
+    <p class="muted" style="margin:0;font-size:.88rem">Quem está aqui gera, nas Compras, o link em que escolhe <b>Pix ou cartão de crédito</b> (o que mais estiver ligado na conta A do ASAAS também aparece). Os outros continuam só com Pix; doação é sempre Pix. Vale para os próximos links.</p>
+    ${add}
+    ${L.length ? `<ul class="as-lista">${L.map(linha).join('')}</ul>` : '<p class="muted" style="margin:0">Ninguém cadastrado: todos pagam só com Pix.</p>'}</div>`;
+}
+
 // Sub-bloco que abre e fecha (começa minimizado), dentro de Pedidos e pagamentos e de Retorno do ASAAS.
 function sub(conjunto, k, titulo, resumo, corpo) {
   const aberto = ui[conjunto].has(k);
@@ -55,7 +78,7 @@ function juntar(lista, chave) {
 
 function linhaCobranca(c) {
   return `<li>
-    <span class="as-l1"><b>${esc(c.nome)}</b>${c.conta === 'B' ? ' <span class="badge new" title="Conta B do ASAAS">Doação · conta B</span>' : ''}${badge(c.status)}</span>
+    <span class="as-l1"><b>${esc(c.nome)}</b>${c.conta === 'B' ? ' <span class="badge new" title="Conta B do ASAAS">Doação · conta B</span>' : ''}${c.forma === 'UNDEFINED' ? ' <span class="badge new" title="A pessoa escolhe na fatura">Pix ou cartão</span>' : ''}${badge(c.status)}</span>
     ${c.itens?.length ? `<span class="as-l2">${esc(c.itens.join(', '))}</span>` : ''}
     <span class="as-l2 muted">Pedido nº ${c.pedido} · gerado ${quando(c.criadoEm)}${c.pagoEm ? ' · pago ' + quando(c.pagoEm) : c.status === 'pendente' && c.vencimento ? ' · vence ' + new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : ''}${c.link ? ` · <a href="${esc(c.link)}" target="_blank" rel="noopener">link</a>` : ''}</span>
     <span class="as-l3"><b>${R(c.valor)}</b>${c.status === 'pendente' && editar()
@@ -138,7 +161,7 @@ export function render() {
   if (estado.asaas === null) { carregarAsaas(); return '<div class="loading">Carregando o ASAAS…</div>'; }
   const A = estado.asaas;
   if (A.erro) return `<section class="panel"><div class="card"><p class="erro">${esc(A.erro)}</p><button class="btn" data-act="asaasatualizar">Tentar de novo</button></div></section>`;
-  return `<section class="panel">${cardConexao(A)}${cardCobrancas(A)}${cardEventos(A)}</section>`;
+  return `<section class="panel">${cardConexao(A)}${cardCredito(A)}${cardCobrancas(A)}${cardEventos(A)}</section>`;
 }
 
 export const cliques = {
@@ -146,6 +169,7 @@ export const cliques = {
   asaasquadro(el) { const g = el.dataset.g; ui.cobSel[g] = ui.cobSel[g] === el.dataset.k ? null : el.dataset.k; avisar(); },
   asaassub(el) { const s = ui[el.dataset.c]; const k = el.dataset.k; if (s.has(k)) s.delete(k); else s.add(k); avisar(); },
   asaasatualizar() { estado.asaas = null; avisar(); },
+  async asaascreditodel(el) { estado.confirm = null; if (await acaoAsaas('credito', { chave: el.dataset.chave, remover: true })) toast('Saiu da lista do cartão: os próximos links são só Pix.'); },
   async asaascancelar(el) { if (await acaoAsaas('cancelar', { id: el.dataset.id })) toast('Cobrança cancelada.'); },
   asaascopiar(el) {
     const b = el?.dataset?.b === '1';
@@ -153,6 +177,14 @@ export const cliques = {
     try { navigator.clipboard.writeText(b ? URL_WEBHOOK_B : URL_WEBHOOK).then(() => toast('Copiado.'), fb); } catch { fb(); }
   },
 };
+
+// Formulário do bloco Cartão de crédito: inclui a pessoa escolhida.
+export async function enviar(form) {
+  const chave = form.elements.pessoa?.value;
+  if (!chave) { toast('Escolha a pessoa.'); return; }
+  const nome = form.elements.pessoa.selectedOptions[0]?.textContent || '';
+  if (await acaoAsaas('credito', { chave })) toast(`${nome} já pode pagar com cartão de crédito ou Pix.`);
+}
 
 export const mudancas = {
   async asaasativo(t) { if (!(await acaoAsaas('ativar', { ativo: t.checked }))) t.checked = !t.checked; },

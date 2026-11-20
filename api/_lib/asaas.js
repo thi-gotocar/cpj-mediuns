@@ -9,6 +9,8 @@
 //   POST { acao: 'guias', op: 'pix', pedido, cpf? } — a pessoa gera o Pix do que pediu (cpf só na 1ª vez)
 //   GET  ?lista=asaas                            — aba ASAAS (root e quem tem a aba no perfil): situação, cobranças e eventos recebidos
 //   POST { acao: 'asaas', op: 'ativar', ativo } · { acao: 'asaas', op: 'cancelar', id }   (root)
+//        { acao: 'asaas', op: 'credito', chave: 'p:<pessoa>' | 'a:<aluno>', remover? }  — quem gera link com cartão de crédito e Pix
+// Quem está nessa lista gera, na conta A, a cobrança com a forma "cliente escolhe" (UNDEFINED): Pix ou cartão na fatura.
 //
 // Variáveis (só no servidor): ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN e ASAAS_API_URL (sem ela, usa o sandbox).
 // Item de doação (caixinha no item, v142): cobrado na conta B (ASAAS2_API_KEY, ASAAS2_API_URL), com o webhook dela em
@@ -18,7 +20,7 @@ import { db } from './db.js';
 import { iguaisSeguro } from './senhas.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { cpfValido } from '../../shared/perfil.js';
+import { cpfValido, cpfMascarado } from '../../shared/perfil.js';
 import { hashCpf, decifrar } from './cpf.js';
 
 const SANDBOX = 'https://api-sandbox.asaas.com/v3';
@@ -163,6 +165,8 @@ export async function gerarPix(eu, b) {
 async function gerarNaConta(eu, chave, pedido, conta, b) {
   const pref = PREFIXO[conta];
   const minhas = await db.rpc('asaas_minhas', { chave });
+  // Cadastrado na aba ASAAS: Pix ou cartão de crédito (só nas Compras; doação é sempre Pix).
+  const forma = conta === 'A' && minhas.credito ? 'UNDEFINED' : 'PIX';
   let cliente = conta === 'B' ? minhas.clienteB : minhas.cliente;
   if (!cliente) {
     const outra = conta === 'B' ? { conta: 'A', cliente: minhas.cliente } : { conta: 'B', cliente: minhas.clienteB };
@@ -176,7 +180,7 @@ async function gerarNaConta(eu, chave, pedido, conta, b) {
   let pg;
   try {
     pg = await chamarAsaas(pref, 'POST', '/payments', {
-      customer: cliente, billingType: 'PIX', value: Number(c.valor), dueDate: amanhaBR(),
+      customer: cliente, billingType: forma, value: Number(c.valor), dueDate: amanhaBR(),
       description: `CPJ · ${conta === 'B' ? 'Doação' : 'Compras'} · pedido nº ${pedido}`, externalReference: c.id,
     });
   } catch (e) {
@@ -199,7 +203,7 @@ async function gravarCobranca(id, pg, conta = 'A') {
   try { qr = await chamarAsaas(PREFIXO[conta], 'GET', `/payments/${encodeURIComponent(pg.id)}/pixQrCode`, null, 4000); } catch { /* o QR pode vir depois: a tela mostra o link */ }
   await db.rpc('asaas_cobranca_criada', {
     id, asaasId: pg.id, link: pg.invoiceUrl || null,
-    payload: qr?.payload || null, imagem: qr?.encodedImage || null, vencimento: pg.dueDate || null,
+    payload: qr?.payload || null, imagem: qr?.encodedImage || null, vencimento: pg.dueDate || null, forma: pg.billingType || 'PIX',
   });
 }
 
@@ -261,10 +265,20 @@ function exigirEditar(eu) {
   if (!pode(eu, 'asaas:editar')) throw new HttpError(403, 'Seu perfil só pode olhar a aba ASAAS.');
 }
 
-async function respostaRoot() {
+// CPF de quem está na lista do cartão: só o final (o cifrado não sai da API). Sem a CPF_CHAVE, fica sem.
+function mascarar(k) {
+  const { cifrado, ...resto } = k;
+  let cpf = '';
+  if (cifrado) { try { cpf = cpfMascarado(decifrar(cifrado, k.chave.slice(2))); } catch { cpf = 'guardado'; } }
+  return { ...resto, cpf };
+}
+async function respostaRoot(eu) {
   const e = await db.rpc('asaas_estado');
   return {
     ...e,
+    credito: e.credito.map(mascarar),
+    // A lista para escolher só vai para quem pode mexer nela.
+    candidatos: pode(eu, 'asaas:editar') ? e.candidatos : [],
     cobrancas: e.cobrancas.map((c) => ({ ...c, valor: Number(c.valor) })),
     config: {
       chave: !!process.env.ASAAS_API_KEY,
@@ -280,7 +294,7 @@ async function respostaRoot() {
 
 export async function respostaAsaas(eu) {
   exigirVer(eu);
-  return respostaRoot();
+  return respostaRoot(eu);
 }
 
 export async function acaoAsaas(eu, b) {
@@ -289,6 +303,11 @@ export async function acaoAsaas(eu, b) {
     if (typeof b.ativo !== 'boolean') throw new HttpError(400, 'Informe se o Pix fica ligado.');
     if (b.ativo && !configurado()) throw new HttpError(400, 'Configure ASAAS_API_KEY e ASAAS_WEBHOOK_TOKEN na Vercel antes de ligar.');
     await db.rpc('asaas_ativar', { ativo: b.ativo });
+  } else if (b.op === 'credito') {
+    const chave = String(b.chave || '');
+    if (!/^[pa]:/.test(chave)) throw new HttpError(400, 'Escolha a pessoa.');
+    validarId(chave.slice(2), 'Pessoa');
+    await db.rpc('asaas_credito_salvar', b.remover === true ? { chave, remover: true } : { chave, por: eu.nome || '' });
   } else if (b.op === 'cancelar') {
     const id = validarId(b.id, 'Cobrança');
     const c = await db.rpc('asaas_cobranca', { id });
@@ -299,5 +318,5 @@ export async function acaoAsaas(eu, b) {
   } else {
     throw new HttpError(400, 'Ação inválida.');
   }
-  return respostaRoot();
+  return respostaRoot(eu);
 }
