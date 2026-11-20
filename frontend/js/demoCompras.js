@@ -80,7 +80,7 @@ export function criarCompras({ euChave, euNome, pessoas, ErroDemo }) {
   };
   const todasLinhas = () => pedidos.flatMap((p) => p.linhas.map((l) => ({ ...l, pedido: p.numero })));
   const linhasDe = (c) => todasLinhas().filter((l) => c.linhas.includes(l.id));
-  const valorCob = (c) => linhasDe(c).reduce((s, l) => s + l.valor * l.quantidade, 0);
+  const valorCob = (c) => (c.valorCancelado ?? linhasDe(c).reduce((s, l) => s + l.valor * l.quantidade, 0));
   cobrancas.forEach((c) => {
     evento(c, 'PAYMENT_CREATED', 'PENDING', 'Cobrança registrada.', c.criadoEm);
     if (c.status === 'paga') evento(c, 'PAYMENT_RECEIVED', 'RECEIVED', 'Conferido no ASAAS: marcado como pago.', c.pagoEm);
@@ -255,14 +255,17 @@ export function criarCompras({ euChave, euNome, pessoas, ErroDemo }) {
     return tela();
   }
 
+  // Pessoa, pedido, itens e grupos de uma cobrança (a cancelada, pelo que guardou).
+  function porCobranca(c) {
+    const nomeGrupo = Object.fromEntries(grupos.map((g) => [g.id, g.descricao]));
+    const ls = linhasDe(c);
+    if (!ls.length && c.itensCancelados) return { nome: c.nome || '', pedido: c.pedido, itens: c.itensCancelados, grupos: c.gruposCancelados || [] };
+    return { nome: ls[0]?.nome || '', pedido: ls[0]?.pedido, itens: ls.map((l) => `${l.quantidade}x ${l.descricao}`),
+      grupos: [...new Set(ls.map((l) => nomeGrupo[l.grupoId]).filter(Boolean))] };
+  }
   function asaas() {
     sincronizar();
-    const nomeGrupo = Object.fromEntries(grupos.map((g) => [g.id, g.descricao]));
-    const porCob = (c) => {
-      const ls = linhasDe(c);
-      return { nome: ls[0]?.nome || '', pedido: ls[0]?.pedido, itens: ls.map((l) => `${l.quantidade}x ${l.descricao}`),
-        grupos: [...new Set(ls.map((l) => nomeGrupo[l.grupoId]).filter(Boolean))] };
-    };
+    const porCob = porCobranca;
     return {
       ativo,
       cobrancas: [...cobrancas].sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).map((c) => ({
@@ -289,7 +292,18 @@ export function criarCompras({ euChave, euNome, pessoas, ErroDemo }) {
     }
     else if (b.op === 'cancelar') {
       const c = cobrancas.find((x) => x.id === b.id);
-      if (c && c.status === 'pendente') { c.status = 'cancelada'; evento(c, 'PAYMENT_DELETED', 'DELETED', 'Link cancelado na aba ASAAS.'); }
+      if (c && c.status === 'pendente') {
+        // Como no app: os itens da cobrança saem do pedido e o estoque volta; a cobrança guarda o que tinha.
+        const d = porCobranca(c);
+        Object.assign(c, { status: 'cancelada', itensCancelados: d.itens, gruposCancelados: d.grupos, nome: d.nome, pedido: d.pedido, valorCancelado: valorCob(c) });
+        pedidos.forEach((p) => { p.linhas = p.linhas.filter((l) => {
+          if (!c.linhas.includes(l.id)) return true;
+          const item = grupos.flatMap((g) => g.itens).find((i) => i.id === l.itemId);
+          if (item) item.quantidade += l.quantidade;
+          return false;
+        }); });
+        evento(c, 'PAYMENT_DELETED', 'DELETED', 'Cobrança e itens cancelados na aba ASAAS.');
+      }
     } else throw new ErroDemo(400, 'Modo demonstração: esta ação não é salva.');
     return asaas();
   }

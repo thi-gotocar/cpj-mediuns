@@ -2392,18 +2392,25 @@ test('ASAAS: Pedir gera o link de pagamento; só o webhook conferido no ASAAS ma
     assert.match((await gu(ADMIN, { op: 'cancelar', id: linhaId })).json.erro, /já foi pago/);
     assert.equal(sql("select count(*) from asaas_eventos where id = 'evt_2'"), '1');
 
-    // O root acompanha na aba ASAAS e cancela o link pendente: a pessoa vê "cancelado" e pode gerar outro.
+    // O root acompanha na aba ASAAS e cancela a cobrança pendente: os itens dela saem do pedido e o estoque volta
+    // (não fica nada no Falta pagar); a cobrança cancelada continua legível, com os itens e o grupo.
     falso.status = 'PENDING';
     A = (await api('GET', '/api/oferendas?lista=asaas', ADMIN)).json;
     const c2 = A.cobrancas.find((x) => x.status === 'pendente');
     assert.deepEqual([c2.valor, c2.itens, c2.link], [12.5, ['1x Pix teste · Guia Pix'], 'https://sandbox.asaas.com/i/pay_2']);
-    assert.equal((await as(ADMIN, { op: 'cancelar', id: c2.id })).json.cobrancas.find((x) => x.id === c2.id).status, 'cancelada');
+    const estoque = () => G.grupos.find((x) => x.id === g.id).itens[0].quantidade;
+    G = (await api('GET', '/api/oferendas?lista=guias', ADMIN)).json;
+    const estoqueAntes = estoque();
+    const cancelada = (await as(ADMIN, { op: 'cancelar', id: c2.id })).json.cobrancas.find((x) => x.id === c2.id);
+    assert.deepEqual([cancelada.status, cancelada.itens, cancelada.grupos], ['cancelada', ['1x Pix teste · Guia Pix'], ['Pix teste']]);
     assert.ok(falso.pedidos.some((x) => x[0] === 'DELETE' && x[1] === '/payments/pay_2'));
     assert.deepEqual(A.eventos.map((e) => [e.id, e.resultado]), [['evt_2', 'paga'], ['evt_1', 'não liberado: no ASAAS está PENDING']]);
     const umaGuia = () => G.meus.find((l) => l.pedido === n && l.descricao === 'Pix teste · Guia Pix' && l.quantidade === 1);
     G = (await api('GET', '/api/oferendas?lista=guias', ADMIN)).json;
-    assert.equal(umaGuia().pix, 'cancelada');
-    G = (await gu(ADMIN, { op: 'pix', pedido: n })).json;
+    assert.equal(umaGuia(), undefined, 'o item saiu do pedido');
+    assert.equal(estoque(), estoqueAntes + 1, 'o estoque voltou');
+    // Pede de novo: linha nova, com link novo.
+    G = (await gu(ADMIN, { op: 'pedir', itemId: it.id, quantidade: 1 })).json;
     assert.equal(umaGuia().pix, 'pendente', 'gerou outro link');
     assert.equal(falso.forma, 'PIX', 'fora da lista do cartão, só Pix');
 

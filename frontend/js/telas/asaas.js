@@ -82,7 +82,7 @@ function linhaCobranca(c) {
     ${c.itens?.length ? `<span class="as-l2">${esc(c.itens.join(', '))}</span>` : ''}
     <span class="as-l2 muted">Pedido nº ${c.pedido} · gerado ${quando(c.criadoEm)}${c.pagoEm ? ' · pago ' + quando(c.pagoEm) : c.status === 'pendente' && c.vencimento ? ' · vence ' + new Date(c.vencimento + 'T12:00:00').toLocaleDateString('pt-BR') : ''}${c.link ? ` · <a href="${esc(c.link)}" target="_blank" rel="noopener">link</a>` : ''}</span>
     <span class="as-l3"><b>${R(c.valor)}</b>${c.status === 'pendente' && editar()
-      ? (estado.confirm === 'asc:' + c.id ? `<button class="btn small danger" data-act="asaascancelar" data-id="${c.id}">Confirmar cancelamento</button>` : `<button class="btn small danger" data-act="askdel" data-k="asc:${c.id}">Cancelar</button>`)
+      ? (estado.confirm === 'asc:' + c.id ? `<button class="btn small danger" data-act="asaascancelar" data-id="${c.id}">Cancelar link e itens</button>` : `<button class="btn small danger" data-act="askdel" data-k="asc:${c.id}">Cancelar</button>`)
       : ''}</span></li>`;
 }
 
@@ -170,7 +170,7 @@ export const cliques = {
   asaassub(el) { const s = ui[el.dataset.c]; const k = el.dataset.k; if (s.has(k)) s.delete(k); else s.add(k); avisar(); },
   asaasatualizar() { estado.asaas = null; avisar(); },
   async asaascreditodel(el) { estado.confirm = null; if (await acaoAsaas('credito', { chave: el.dataset.chave, remover: true })) toast('Saiu da lista do cartão: os próximos links são só Pix.'); },
-  async asaascancelar(el) { if (await acaoAsaas('cancelar', { id: el.dataset.id })) toast('Cobrança cancelada.'); },
+  async asaascancelar(el) { if (await acaoAsaas('cancelar', { id: el.dataset.id })) toast('Cobrança cancelada: os itens saíram do pedido e o estoque voltou.'); },
   asaascopiar(el) {
     const b = el?.dataset?.b === '1';
     const fb = () => { const t = document.getElementById(b ? 'as-url-b' : 'as-url'); t.focus(); t.select(); toast('URL selecionada. Copie com o menu do aparelho.'); };
