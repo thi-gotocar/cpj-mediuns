@@ -6888,7 +6888,7 @@ export const MIGRACOES = [
   `alter table asaas_cobrancas add column if not exists forma text not null default 'PIX'`,
   // p = { chave, por } inclui (a pessoa ativa da corrente ou o aluno ativo; o nome vem do cadastro); { chave, remover: true } tira.
   `create or replace function asaas_credito_salvar(p jsonb)
-   returns jsonb language plpgsql as $
+   returns jsonb language plpgsql as $$
    declare v_nome text;
    begin
      if coalesce((p ->> 'remover')::boolean, false) then
@@ -6902,7 +6902,7 @@ export const MIGRACOES = [
      on conflict (chave) do nothing;
      return jsonb_build_object('ok', true);
    end;
-   $`,
+   $$`,
   `create or replace function asaas_cobranca_criada(p jsonb)
    returns jsonb language plpgsql as $$
    begin
