@@ -246,10 +246,11 @@ function cardOferenda(of, admin) {
   // Cadastrar item fica no topo da lista (também na oferenda com uma linha por pessoa, que aceita o item de Todos).
   if (admin) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
-      <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
+      <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem({}, null, of.porMedium ? 'Todos da lista' : '')}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
   const eu = estado.oferendas.eu;
-  h += listaItens(of.itens, { p: '', eu, admin, ref: of, podeDoar: of.status === 'publicado' && pode('oferendas:doar') && !travadaPara(of, eu.chave), opcoesDoador });
+  h += listaItens(of.itens, { p: '', eu, admin, ref: of, podeDoar: of.status === 'publicado' && pode('oferendas:doar') && !travadaPara(of, eu.chave), opcoesDoador,
+    ...(of.porMedium ? { todosRotulo: 'Todos da lista', todosN: (of.mediuns || []).length } : {}) });
   return h + rodapeOferenda(of, admin) + recolher + `</div>`;
 }
 
@@ -640,7 +641,8 @@ export async function enviar(form) {
   const entrega = v('modo') === 'data' ? v('entrega') : '';
   if (v('modo') === 'data' && !entrega) { toast('Escolha a data da entrega.'); return; }
   if (!v('unidade')) { toast('Escolha a unidade.'); return; }
-  const dados = { nome: v('nome'), quantidade: Number(v('qtd')), unidade: v('unidade'), entrega };
+  const dados = { nome: v('nome'), quantidade: Number(v('qtd')), unidade: v('unidade'), entrega,
+    ...(form.elements.todos ? { todos: form.elements.todos.checked } : {}) };
   if (form.dataset.form === 'item') {
     U().novoItem = form.dataset.of;
     U().abertas = [...new Set([...(U().abertas || []), form.dataset.of])];   // continua aberta para cadastrar mais

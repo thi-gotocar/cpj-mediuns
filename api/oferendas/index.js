@@ -6,7 +6,7 @@
 //        admin:  salvar { id?, titulo, data, responsavelId, abaId?, porMedium? (só ao criar) } · excluir { id }
 //                abaDetalhes { id, detalhes }  (texto da sub-aba, até 10 linhas)
 //                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? } · resumo { id, noResumo }  (oferenda com uma linha por médium)
-//                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
+//                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento), todos? (oferenda por pessoa) }
 //                excluirItem { id } · entregue { id, entregue } · itemTodos { id, todos }  (item de todos da lista, só na oferenda por pessoa)
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
 // Aba Compras: GET ?lista=guias e POST { acao: 'guias', op, ... } (veja api/_lib/guias.js).
@@ -155,6 +155,7 @@ export default rota({
           quantidade: qtd(b.quantidade, unidade(b.unidade), 1),
           unidade: unidade(b.unidade),
           entrega: b.entrega ? validarData(String(b.entrega)) : '',
+          ...(typeof b.todos === 'boolean' ? { todos: b.todos } : {}),
         });
         break;
       case 'doarPor': {

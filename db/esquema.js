@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 155;  // v155: item "de todos" na oferenda por pessoa e o grupo Oferenda (cadastro pelo login)
+export const VERSAO = 156;  // v156: responsável Todos no cadastro e na edição do item (oferenda por pessoa) e na Iemanjá
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -6755,5 +6755,124 @@ export const MIGRACOES = [
                                 where d.item_id = i.id), '[]'::jsonb)
          ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
      ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
+   $$`,
+  // ================================================== v156: responsável Todos no cadastro e na edição do item
+  // p.todos (opcional, só na oferenda com uma linha por pessoa): true deixa o item de todos da lista (as doações saem),
+  // false volta à escolha por pessoa; sem p.todos, o item fica como está. Tudo numa ida só ao banco.
+  `create or replace function oferenda_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_doado numeric;
+     v_id uuid := nullif(p ->> 'id', '')::uuid;
+     v_todos boolean := (p ->> 'todos')::boolean;
+   begin
+     if v_todos and not exists (select 1 from oferendas o
+                                 where o.por_medium and o.id = coalesce(nullif(p ->> 'oferendaId', '')::uuid,
+                                                                       (select oferenda_id from oferenda_itens where id = v_id))) then
+       raise exception 'Todos só vale na oferenda com uma linha por pessoa.';
+     end if;
+     if v_id is null then
+       insert into oferenda_itens (oferenda_id, nome, quantidade, unidade, entrega, todos)
+       values ((p ->> 'oferendaId')::uuid, btrim(p ->> 'nome'), (p ->> 'quantidade')::numeric, coalesce(p ->> 'unidade', ''),
+               nullif(p ->> 'entrega', '')::date, coalesce(v_todos, false));
+     else
+       if v_todos then delete from oferenda_doacoes where item_id = v_id; end if;
+       select coalesce(sum(quantidade), 0) into v_doado from oferenda_doacoes where item_id = v_id;
+       if (p ->> 'quantidade')::numeric < v_doado then
+         raise exception 'Já foram prometidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update oferenda_itens set nome = btrim(p ->> 'nome'), quantidade = (p ->> 'quantidade')::numeric,
+              unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date,
+              todos = coalesce(v_todos, todos)
+       where id = v_id;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  // Iemanjá: o mesmo responsável Todos, valendo para cada pessoa do grupo (oferenda) do item.
+  `alter table iemanja_itens add column if not exists todos boolean not null default false`,
+  // Itens com o campo todos (igual à v104).
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
+       'detalhes', e.detalhes,
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
+                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo,
+               'lista', case when m.chave like 'a:%'
+                               then coalesce((select t.nome from alunos a join turmas_alunos t on t.id = a.turma_id where a.id::text = substr(m.chave, 3)), 'Alunos sem turma')
+                             when (select pe.funcao from pessoas pe where pe.id::text = substr(m.chave, 3)) = 'curimba' then 'Curimba'
+                             else 'Corrente' end) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue, 'todos', i.todos,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
+   $$`,
+  `create or replace function iemanja_item_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_doado numeric;
+     v_id uuid := nullif(p ->> 'id', '')::uuid;
+     v_todos boolean := (p ->> 'todos')::boolean;
+   begin
+     if v_id is null then
+       insert into iemanja_itens (grupo_id, nome, categoria, quantidade, unidade, entrega, todos)
+       values ((p ->> 'grupoId')::uuid, p ->> 'nome', coalesce(p ->> 'categoria', ''), (p ->> 'quantidade')::numeric, coalesce(p ->> 'unidade', ''),
+               nullif(p ->> 'entrega', '')::date, coalesce(v_todos, false));
+     else
+       if v_todos then delete from iemanja_doacoes where item_id = v_id; end if;
+       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = v_id;
+       if (p ->> 'quantidade')::numeric < v_doado then
+         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
+       end if;
+       update iemanja_itens set nome = p ->> 'nome', categoria = coalesce(p ->> 'categoria', ''), quantidade = (p ->> 'quantidade')::numeric,
+                                unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date, todos = coalesce(v_todos, todos)
+       where id = v_id;
+       if not found then raise exception 'Item não encontrado.'; end if;
+     end if;
+     return iemanja_estado();
+   end;
+   $$`,
+  // p = { id, todos }. Todos apaga quem tinha assumido o item.
+  `create or replace function iemanja_item_todos(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_todos boolean := coalesce((p ->> 'todos')::boolean, false);
+   begin
+     if v_todos then delete from iemanja_doacoes where item_id = (p ->> 'id')::uuid; end if;
+     update iemanja_itens set todos = v_todos where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Item não encontrado.'; end if;
+     return iemanja_estado();
+   end;
+   $$`,
+  // Item de todos do grupo não é assumido por ninguém (nem pelo admin): tire o Todos antes.
+  `create or replace function iemanja_assumir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_item uuid := (p ->> 'itemId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_qtd numeric := (p ->> 'quantidade')::numeric;
+     v_pedido numeric; v_todos boolean;
+   begin
+     select quantidade, todos into v_pedido, v_todos from iemanja_itens where id = v_item for update;
+     if v_todos and v_qtd > 0 then raise exception 'Este item é de todos do grupo.'; end if;
+     if v_qtd = 0 then
+       delete from iemanja_doacoes where item_id = v_item and chave = v_chave;
+     else
+       if v_qtd + (select coalesce(sum(quantidade), 0) from iemanja_doacoes where item_id = v_item and chave <> v_chave) > v_pedido then
+         raise exception 'Este item já tem responsável para toda a quantidade.';
+       end if;
+       insert into iemanja_doacoes (item_id, chave, nome, quantidade) values (v_item, v_chave, p ->> 'nome', v_qtd)
+       on conflict (item_id, chave) do update set quantidade = excluded.quantidade;
+     end if;
+     return iemanja_estado();
+   end;
    $$`,
 ];

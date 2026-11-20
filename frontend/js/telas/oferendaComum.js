@@ -10,7 +10,8 @@ export const Dia = (s) => { const t = dLong(s); return t.charAt(0).toUpperCase()
 
 // categorias: a lista do evento (só a Iemanjá passa). Vazia e o item sem categoria: o campo não aparece.
 // A categoria que o item já tinha continua na lista mesmo se saiu da do evento.
-export function camposItem(i = {}, categorias = null) {
+// todos: o rótulo do responsável Todos ('Todos da lista' na oferenda por pessoa, 'Todos do grupo' na Iemanjá); vazio, sem ele.
+export function camposItem(i = {}, categorias = null, todos = '') {
   const porData = !!i.entrega;
   // Item novo começa em "unidades"; item antigo sem unidade pede para escolher.
   const unidade = i.id || i.nome ? (i.unidade || '') : (i.unidade || 'unidade');
@@ -23,6 +24,7 @@ export function camposItem(i = {}, categorias = null) {
     <label class="field" style="flex:1 1 140px">Unidade<select name="unidade">${unidade ? '' : '<option value="" selected>— escolha —</option>'}${UNIDADES.map(([u, pl]) => `<option value="${u}" ${u === unidade ? 'selected' : ''}>${pl}</option>`).join('')}</select></label>
     <label class="field" style="flex:1 1 170px">Entrega<select name="modo" data-act="modoentrega"><option value="evento" ${porData ? '' : 'selected'}>No dia do evento</option><option value="data" ${porData ? 'selected' : ''}>Escolher data</option></select></label>
     <label class="field" style="flex:1 1 150px" ${porData ? '' : 'hidden'}>Data da entrega<input type="date" name="entrega" value="${esc(i.entrega || '')}"></label>
+    ${todos ? `<label class="chip of-todos"><input type="checkbox" name="todos" ${i.todos ? 'checked' : ''}> Responsável: <b>${esc(todos)}</b> <span class="muted">(cada pessoa leva)</span></label>` : ''}
     <p class="of-previa"><span class="muted">A corrente vai ver:</span> <b data-previa>${esc(previaItem({ ...i, quantidade: i.quantidade || 1, unidade }))}</b></p>`;
 }
 
@@ -47,11 +49,11 @@ export function atualizarPrevia(form) {
 // Admin: cada doador com − / + e excluir; e cadastrar a doação de outra pessoa.
 function doadoresAdmin(i, s, c) {
   let h = `<div class="of-doad-adm">`;
-  // Item de todos: cada pessoa da lista é responsável; o ✕ volta o item para a escolha por pessoa.
+  // Item de todos: cada pessoa da lista (ou do grupo) é responsável; o ✕ volta o item para a escolha por pessoa.
   if (i.todos) {
     const conf = estado.confirm === 'ot:' + i.id;
-    const n = (c.ref.mediuns || []).length;
-    return h + `<div class="of-doador"><span><b>Todos da lista</b> <span class="muted">· ${n} pessoa${n === 1 ? '' : 's'}</span></span>
+    const n = c.todosN || 0;
+    return h + `<div class="of-doador"><span><b>${esc(responsaveisItem(i))}</b> <span class="muted">· ${n} pessoa${n === 1 ? '' : 's'}</span></span>
       ${conf ? `<button class="btn small danger" data-act="${c.p}todosdel" data-item="${i.id}">Confirmar</button>`
         : `<button class="btn small" data-act="askdel" data-k="ot:${i.id}" aria-label="Tirar o Todos de ${esc(i.nome)}">✕</button>`}</div></div>`;
   }
@@ -69,7 +71,7 @@ function doadoresAdmin(i, s, c) {
     const opcoes = c.opcoesDoador(new Set(i.doacoes.map((d) => d.chave)));
     if (opcoes) {
       h += `<form class="of-por" data-form="${c.p}porpessoa" data-item="${i.id}" autocomplete="off">
-        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>${c.ref.porMedium ? '<option value="todos">Todos (cada pessoa da lista)</option>' : ''}${opcoes}</select>
+        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>${c.todosRotulo ? `<option value="todos">${esc(c.todosRotulo)} (cada pessoa leva)</option>` : ''}${opcoes}</select>
         <input type="number" name="qtd" min="${s.falta < 1 ? s.falta : 1}" max="${s.falta}" step="${aceitaFracao(i.unidade) ? '0.01' : '1'}" value="${s.falta < 1 ? s.falta : 1}" inputmode="${aceitaFracao(i.unidade) ? 'decimal' : 'numeric'}" aria-label="Quantidade">
         <button class="btn small primary" type="submit">Adicionar</button></form>`;
     }
@@ -80,13 +82,14 @@ function doadoresAdmin(i, s, c) {
 const CHECK_VAZIO = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
 const CHECK_FEITO = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="6" fill="currentColor"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-// c: { p: prefixo das ações, eu, admin, ref: { data do evento }, podeDoar, opcoesDoador(jaDoaram) }
+// c: { p: prefixo das ações, eu, admin, ref: { data do evento }, podeDoar, opcoesDoador(jaDoaram),
+//      todosRotulo e todosN: o responsável Todos e quantas pessoas ele cobre (sem todosRotulo, não há Todos) }
 function linhaItem(i, c) {
   const s = situacao(i);
   const minha = i.doacoes.find((d) => d.chave === c.eu?.chave)?.quantidade || 0;
   const max = minha + s.falta;
   if (c.admin && U().editarItem === i.id) {
-    return `<div class="of-item"><form class="row" data-form="${c.p}itemed" data-id="${i.id}" autocomplete="off">${camposItem(i, c.categorias)}
+    return `<div class="of-item"><form class="row" data-form="${c.p}itemed" data-id="${i.id}" autocomplete="off">${camposItem(i, c.categorias, c.todosRotulo || '')}
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelaritem">Cancelar</button></form></div>`;
   }
   const conf = estado.confirm === 'oi:' + i.id;
@@ -107,7 +110,7 @@ function linhaItem(i, c) {
       <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>${ok}</div>`;
   if (!aberto) return `<div class="of-item recolhido${s.completo ? ' completo' : ''}">${cab}</div>`;
   const entregaTxt = `Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}`;
-  const doadores = i.todos ? '<div class="of-doadores">Todos da lista (cada pessoa leva)</div>' : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === c.eu?.chave ? 'eu' : ''}">${esc(d.nome)} (${qtdTxt(d.quantidade, i.unidade)})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
+  const doadores = i.todos ? `<div class="of-doadores">${esc(responsaveisItem(i))} (cada pessoa leva)</div>` : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === c.eu?.chave ? 'eu' : ''}">${esc(d.nome)} (${qtdTxt(d.quantidade, i.unidade)})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
   let h = `<div class="of-item${s.completo ? ' completo' : ''}">${cab}
     <div class="muted of-sub">${entregaTxt} · <b>${fmtQtd(s.doado)} de ${qtdTxt(i.quantidade, i.unidade)}</b>${s.completo ? '' : ` · faltam <b>${fmtQtd(s.falta)}</b>`}</div>
     ${c.admin ? doadoresAdmin(i, s, c) : doadores}`;

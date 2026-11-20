@@ -1898,6 +1898,7 @@ section.panel.gi-tela{gap:12px}
 .gi-foto.zoom{cursor:zoom-in}
 
 /* Cadastro do item da oferenda: prévia do que a corrente vai ver */
+.of-todos{flex:1 1 100%;align-self:flex-start;min-height:40px;box-sizing:border-box;border-radius:8px}
 .of-previa{flex:1 1 100%;margin:0;font-size:.88rem;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;overflow-wrap:anywhere}
 /* Iemanjá, Sorteio: pessoas dos grupos com item assumido (verde) e sem nenhum (vermelho) */
 .iem-tot-n.com-item{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}

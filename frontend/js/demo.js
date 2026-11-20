@@ -167,6 +167,26 @@ function respostaIemanja() {
   return { eventos: [{ ...ev, transportes: copia(transportesIem) }], root: false, eu: { chave: EU_CHAVE }, publica: true };
 }
 function acaoIemanja(b) {
+  // Admin do evento na demo: cadastrar/editar item (com Todos), Todos e doação por alguém do grupo.
+  if (['item', 'itemTodos', 'assumirPor'].includes(b.op)) {
+    const itens = iemanja.grupos.flatMap((x) => x.itens);
+    const i = itens.find((x) => x.id === b.itemId);
+    if (b.op === 'item') {
+      const dados = { nome: b.nome, categoria: b.categoria || '', quantidade: Number(b.quantidade), unidade: b.unidade, entrega: b.entrega || '' };
+      if (typeof b.todos === 'boolean') dados.todos = b.todos;
+      if (i) { Object.assign(i, dados); if (i.todos) i.doacoes = []; }
+      else iemanja.grupos.find((x) => x.id === b.grupoId).itens.push({ id: 'demo-' + Date.now(), entregue: false, todos: false, doacoes: [], ...dados });
+    } else if (b.op === 'itemTodos') {
+      i.todos = b.todos === true;
+      if (i.todos) i.doacoes = [];
+    } else {
+      if (i.todos && Number(b.quantidade) > 0) throw new ErroDemo(400, 'Este item é de todos do grupo.');
+      const m = iemanja.grupos.find((x) => x.itens.includes(i)).membros.find((x) => x.chave === b.chave);
+      i.doacoes = i.doacoes.filter((d) => d.chave !== b.chave);
+      if (Number(b.quantidade) > 0) i.doacoes.push({ chave: b.chave, nome: m?.nome || '?', quantidade: Number(b.quantidade) });
+    }
+    return respostaIemanja();
+  }
   if (b.op !== 'assumir') throw new ErroDemo(400, AVISO_DEMO);
   const g = iemanja.grupos.find((x) => x.itens.some((i) => i.id === b.itemId));
   if (!g?.meu) throw new ErroDemo(403, 'Só quem é do grupo assume este item.');
@@ -429,7 +449,8 @@ function acaoOferendaDemo(b) {
   const nomeDe = (pid) => (String(pid).startsWith('a:') ? [...db.alunos, ...GRUPO_OFERENDA].find((a) => 'a:' + a.id === pid)?.nome : db.pessoas.find((p) => p.id === pid)?.nome) || '?';
   if (b.acao === 'item') {
     const dados = { nome: b.nome, quantidade: Number(b.quantidade), unidade: b.unidade, entrega: b.entrega || '' };
-    if (b.id) Object.assign(item(b.id), dados);
+    if (typeof b.todos === 'boolean') dados.todos = b.todos;
+    if (b.id) { const i = Object.assign(item(b.id), dados); if (i.todos) i.doacoes = []; }
     else ofs.find((o) => o.id === b.oferendaId).itens.push({ id: 'demo-' + Date.now(), entregue: false, todos: false, doacoes: [], ...dados });
   } else if (b.acao === 'itemTodos') {
     const i = item(b.id);

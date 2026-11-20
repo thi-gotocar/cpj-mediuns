@@ -2161,6 +2161,32 @@ test('oferendas: o item tem unidade (da lista); sem unidade continua valendo', a
   await of({ acao: 'excluir', id: o.id });
 });
 
+test('iemanjá: item de Todos do grupo (no cadastro ou no combo) não é assumido por ninguém', async () => {
+  const iem = (b) => api('POST', '/api/oferendas', ADMIN, { acao: 'iemanja', ...b });
+  const lido = (await api('GET', '/api/oferendas?lista=iemanja', ADMIN)).json;
+  const ev = lido.eventos.find((e) => !e.encerradoEm);
+  const g = ev.grupos[0];
+  const { chave } = lido.candidatos.corrente[0];
+  await iem({ op: 'adicionar', grupoId: g.id, chave });
+  const grupo = (r) => r.json.eventos.find((e) => e.id === ev.id).grupos.find((x) => x.id === g.id);
+  let r = await iem({ op: 'item', grupoId: g.id, nome: 'Vela de todos', quantidade: 1, unidade: 'unidade', todos: true });
+  const vela = grupo(r).itens.find((i) => i.nome === 'Vela de todos');
+  assert.equal(vela.todos, true);
+  assert.equal((await iem({ op: 'assumirPor', itemId: vela.id, chave, quantidade: 1 })).status, 400, 'item de todos não é assumido');
+  r = await iem({ op: 'item', grupoId: g.id, nome: 'Rosa do combo', quantidade: 2, unidade: 'unidade' });
+  const rosa = grupo(r).itens.find((i) => i.nome === 'Rosa do combo');
+  await iem({ op: 'assumirPor', itemId: rosa.id, chave, quantidade: 1 });
+  r = await iem({ op: 'itemTodos', itemId: rosa.id, todos: true });
+  const rosaTodos = grupo(r).itens.find((i) => i.id === rosa.id);
+  assert.equal(rosaTodos.todos, true);
+  assert.deepEqual(rosaTodos.doacoes, [], 'quem tinha assumido sai');
+  r = await iem({ op: 'itemTodos', itemId: rosa.id, todos: false });
+  assert.equal(grupo(r).itens.find((i) => i.id === rosa.id).todos, false);
+  await iem({ op: 'excluirItem', itemId: vela.id });
+  await iem({ op: 'excluirItem', itemId: rosa.id });
+  await iem({ op: 'retirar', grupoId: g.id, chave });
+});
+
 test('iemanjá: com algum item assumido, o sorteio não pode mais ser cancelado', async () => {
   const iem = (b) => api('POST', '/api/oferendas', ADMIN, { acao: 'iemanja', ...b });
   const lido = (await api('GET', '/api/oferendas?lista=iemanja', ADMIN)).json;
@@ -2999,10 +3025,17 @@ test('grupo Oferenda: vê as oferendas sem doar; o item de Todos vira compromiss
     const vista = (await api('GET', '/api/oferendas', tok)).json;
     const minha = vista.oferendas.find((o) => o.id === of.id);
     assert.equal(compromissosDe([minha], vista.eu.chave, '2030-01-01')[0].itens[0].q, 2, 'o item de todos é compromisso de quem está na lista');
+    // Todos direto no cadastro do item; desmarcar na edição volta à escolha por pessoa.
+    r = (await api('POST', '/api/oferendas', ADMIN, { acao: 'item', oferendaId: of.id, nome: 'Flores', quantidade: 1, unidade: 'maço', entrega: '', todos: true })).json;
+    const flores = r.oferendas.find((o) => o.id === of.id).itens.find((i) => i.nome === 'Flores');
+    assert.equal(flores.todos, true);
+    r = (await api('POST', '/api/oferendas', ADMIN, { acao: 'item', id: flores.id, nome: 'Flores', quantidade: 1, unidade: 'maço', entrega: '', todos: false })).json;
+    assert.equal(r.oferendas.find((o) => o.id === of.id).itens.find((i) => i.id === flores.id).todos, false);
     // Todos só vale na oferenda por pessoa.
     const comum = (await api('POST', '/api/oferendas', ADMIN, { acao: 'salvar', responsavelId: RESP(), titulo: 'Comum todos', data: '2040-02-03' })).json.oferendas.find((o) => o.titulo === 'Comum todos');
     const ic = (await api('POST', '/api/oferendas', ADMIN, { acao: 'item', oferendaId: comum.id, nome: 'Rosa', quantidade: 1, unidade: 'unidade', entrega: '' })).json.oferendas.find((o) => o.id === comum.id).itens[0];
     assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'itemTodos', id: ic.id, todos: true })).status, 400);
+    assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'item', oferendaId: comum.id, nome: 'Cravo', quantidade: 1, unidade: 'unidade', entrega: '', todos: true })).status, 400);
     await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: comum.id });
 
     await api('POST', '/api/pessoas', ADMIN, { acao: 'excluirAluno', id: novo.id });

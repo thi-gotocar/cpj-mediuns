@@ -5,7 +5,7 @@ import { esc, toast, baixar } from '../util.js';
 import { ORIXAS } from '/shared/regras.js';
 import { NOMES_ENTIDADES, LISTA_CURIMBA, porListaIemanja } from '/shared/iemanja.js';
 import { gerarImagemPessoas, gerarImagemOferenda, gerarImagemResumo } from '../imagemOferenda.js';
-import { dataBR, faixaPct, textoEntrega, qtdTxt, qtdAntes, situacao, arred, passoLevar } from '/shared/oferendas.js';
+import { dataBR, faixaPct, textoEntrega, qtdTxt, qtdAntes, situacao, arred, passoLevar, responsaveisItem } from '/shared/oferendas.js';
 import { U, Dia, camposItem, listaItens, textoCompartilhar, blocoDetalhes, salvarDetalhes } from './oferendaComum.js';
 import { ICONE_WHATS } from './giraComum.js';
 
@@ -23,7 +23,12 @@ const icone = (i, t) => `<span aria-hidden="true">${i}</span> ${t}`;
 const nomeGrupo = (g) => g.nome || `Grupo ${g.ordem}`;
 // Categorias do evento: valem para todas as oferendas (grupos) e dão a ordem dos itens.
 const categoriasDe = (ev) => ev.categorias || [];
-const paraCompartilhar = (ev, g) => ({ id: g.id, titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel, porMedium: false, itens: g.itens, categorias: categoriasDe(ev), detalhes: ev.detalhes || '' });
+// Item de todos: cada pessoa do grupo é responsável (aparece como 'Todos do grupo').
+const TODOS_GRUPO = 'Todos do grupo';
+const itensDe = (g) => g.itens.map((i) => (i.todos ? { ...i, todosRotulo: TODOS_GRUPO } : i));
+// A pessoa tem item no grupo: assumiu algum ou há item de todos.
+const temItemNo = (g, chave) => g.itens.some((i) => i.todos || i.doacoes.some((d) => d.chave === chave));
+const paraCompartilhar = (ev, g) => ({ id: g.id, titulo: `${ev.nome} · ${nomeGrupo(g)}`, data: ev.data, responsavel: g.responsavel, porMedium: false, itens: itensDe(g), categorias: categoriasDe(ev), detalhes: ev.detalhes || '' });
 
 function opcoesNome(atual) {
   const op = (n) => `<option ${n === atual ? 'selected' : ''}>${esc(n)}</option>`;
@@ -45,7 +50,7 @@ function blocoPessoas(g, ev, adm) {
   const k = 'p:' + g.id;
   const retira = adm && !ev.encerradoEm;
   // Admin: borda verde-limão em quem já escolheu item para levar nesta oferenda; vermelha em quem ainda não tem.
-  const temItem = (m) => g.itens.some((i) => i.doacoes.some((d) => d.chave === m.chave));
+  const temItem = (m) => temItemNo(g, m.chave);
   const pessoa = (m) => `<div class="iem-p${adm ? (temItem(m) ? ' com-item' : ' sem-item') : ''}" ${adm ? `title="${temItem(m) ? 'Já escolheu item' : 'Ainda sem item'}"` : ''}><span>${esc(m.nome)}</span>${retira ? `<button class="btn small" data-act="iemretirar" data-g="${g.id}" data-c="${esc(m.chave)}" aria-label="Retirar ${esc(m.nome)} do grupo">✕</button>` : ''}</div>`;
   const listas = porListaIemanja(g.membros).map(([lista, ms]) => {
     const kl = `pl:${g.id}:${lista}`;   // presente = minimizada
@@ -76,9 +81,9 @@ function cardGrupo(ev, g, adm) {
   // Itens: começam minimizados; tocar no título abre e fecha.
   const ki = 'i:' + g.id;
   const itensAbertos = ui.abertos.has(ki);
-  const itens = `<div class="ofg-sec"><button class="iem-itens-bt" data-act="iemdobra" data-k="${ki}" aria-expanded="${itensAbertos}"><span><span aria-hidden="true">📦</span> Itens <span class="iem-itens-n">${g.itens.length}</span></span><span class="iem-itens-acao">${itensAbertos ? 'Fechar ▾' : 'Ver itens ▸'}</span></button>${!itensAbertos ? '' : g.itens.length ? listaItens(g.itens, { p: 'iem', eu: estado.iemanja.eu, admin: pode, ref: ev, podeDoar: !ev.encerradoEm && g.meu, opcoesDoador, categorias: categoriasDe(ev), chave: g.id }) : '<p class="muted" style="margin:0">Nenhum item ainda.</p>'}</div>`;
+  const itens = `<div class="ofg-sec"><button class="iem-itens-bt" data-act="iemdobra" data-k="${ki}" aria-expanded="${itensAbertos}"><span><span aria-hidden="true">📦</span> Itens <span class="iem-itens-n">${g.itens.length}</span></span><span class="iem-itens-acao">${itensAbertos ? 'Fechar ▾' : 'Ver itens ▸'}</span></button>${!itensAbertos ? '' : g.itens.length ? listaItens(itensDe(g), { p: 'iem', eu: estado.iemanja.eu, admin: pode, ref: ev, podeDoar: !ev.encerradoEm && g.meu, opcoesDoador, categorias: categoriasDe(ev), chave: g.id, todosRotulo: TODOS_GRUPO, todosN: g.membros.length }) : '<p class="muted" style="margin:0">Nenhum item ainda.</p>'}</div>`;
   const novoItem = pode ? `<details class="of-novo"${U().novoItem === g.id ? ' open' : ''}><summary>+ Adicionar item</summary>
-      <form class="row" data-form="iemitem" data-of="${g.id}" autocomplete="off">${camposItem(ui.rascunho[g.id], categoriasDe(ev))}<button class="btn primary" type="submit">Adicionar</button></form></details>` : '';
+      <form class="row" data-form="iemitem" data-of="${g.id}" autocomplete="off">${camposItem(ui.rascunho[g.id], categoriasDe(ev), TODOS_GRUPO)}<button class="btn primary" type="submit">Adicionar</button></form></details>` : '';
   // Os botões de WhatsApp (Lista de pessoas / Lista de itens) ficam em ⚙️ Configurações, escolhendo a oferenda.
   // Excluir grupo fica oculto por enquanto (a ação continua no servidor).
   return `<div class="card iem-grupo" id="iem-g-${g.id}">${cab}${edicao}${barra}${novoItem}${itens}${blocoPessoas(g, ev, adm)}</div>`;
@@ -164,7 +169,7 @@ function quadradinhos(ev) {
 // Tocar no quadrado mostra os nomes com a oferenda (grupo) de cada um.
 function totaisItens(ev) {
   const pessoas = ev.grupos.flatMap((g) => g.membros.map((m) => ({ nome: m.nome, lista: m.lista, oferenda: nomeGrupo(g),
-    comItem: g.itens.some((i) => i.doacoes.some((d) => d.chave === m.chave)) })))
+    comItem: temItemNo(g, m.chave) })))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   const com = pessoas.filter((p) => p.comItem);
   const sem = pessoas.filter((p) => !p.comItem);
@@ -183,11 +188,11 @@ export function compromisso() {
   const g = ev?.grupos.find((x) => x.meu);
   if (!g) return null;
   const eu = estado.iemanja.eu?.chave;
-  const meus = g.itens.flatMap((i) => { const q = i.doacoes.find((d) => d.chave === eu)?.quantidade; return q && !i.entregue ? [{ i, q }] : []; });
+  const meus = g.itens.flatMap((i) => { const q = i.todos ? i.quantidade : i.doacoes.find((d) => d.chave === eu)?.quantidade; return q && !i.entregue ? [{ i, q }] : []; });
   return { data: ev.data, html: `<div class="of-meus-g"><span class="of-meus-data"><span class="eyebrow">${dataBR(ev.data)}</span><span class="ent">${esc(Dia(ev.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="iemver" data-g="${g.id}">${esc(ev.nome)} ›</button>
       <div class="of-meus-med"><span><span class="muted">Grupo:</span> <b>${esc(nomeGrupo(g))}</b></span><span><span class="muted">Responsável:</span> <b>${g.responsavel ? esc(g.responsavel) : '—'}</b></span></div>
-      ${meus.length ? `<ul>${meus.map(({ i, q }) => `<li><b>${qtdAntes(q, i.unidade)}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0;font-size:.9rem">Nenhum item assumido. Abra o grupo e toque em + no item.</p>'}</div>` };
+      ${meus.length ? `<ul>${meus.map(({ i, q }) => `<li><b>${qtdAntes(q, i.unidade)}</b> ${esc(i.nome)} <span class="muted">· ${i.todos ? 'com todos do grupo · ' : ''}entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : '<p class="muted" style="margin:0;font-size:.9rem">Nenhum item assumido. Abra o grupo e toque em + no item.</p>'}</div>` };
 }
 
 const grupoDe = (id) => {
@@ -448,7 +453,7 @@ function dadosResumo(ev) {
     titulo: ev.nome, data: ev.data, participantes: chaves.size,
     oferendas: ev.grupos.map((g) => ({
       nome: nomeGrupo(g), responsavel: g.responsavel || '', pessoas: g.membros.map((m) => m.nome),
-      contribuiram: g.membros.filter((m) => g.itens.some((i) => i.doacoes.some((d) => d.chave === m.chave))).length,
+      contribuiram: g.membros.filter((m) => temItemNo(g, m.chave)).length,
       itens: g.itens.length, entregues: g.itens.filter((i) => i.entregue).length,
     })),
     transportes: (ev.transportes || []).map((t) => ({ descricao: t.descricao, responsavel: t.responsavel || '', pessoas: t.pessoas.length })),
@@ -498,7 +503,7 @@ function textosJanela(j) {
   if (j.t === 'entregue') {
     const i = itemDe(j.i);
     if (!i) return null;
-    const resp = i.doacoes.map((d) => `${esc(d.nome)} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ');
+    const resp = esc(responsaveisItem(i.todos ? { ...i, todosRotulo: TODOS_GRUPO } : i, true));
     return ['Confirmar entrega', `Confirma que <b>${esc(i.nome)}</b> foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}`, 'OK', 'primary', 'Cancelar'];
   }
   if (j.t === 'excluirTransporte' || j.t === 'trRetirar') {
@@ -742,6 +747,7 @@ export const cliques = {
   iemofmenos(el) { assumirMeu(el.dataset.id, -1); },
   iempormais(el) { assumirDe(el, +1); },
   iempormenos(el) { assumirDe(el, -1); },
+  async iemtodosdel(el) { estado.confirm = null; if (await acaoIemanja('itemTodos', { itemId: el.dataset.item, todos: false })) toast('O item deixou de ser de todos.'); },
   async iempordel(el) { if (await acaoIemanja('assumirPor', { itemId: el.dataset.item, chave: el.dataset.chave, quantidade: 0 })) toast('Doação excluída.'); },
 };
 
@@ -774,13 +780,19 @@ export async function enviar(form) {
   }
   if (form.dataset.form === 'iemporpessoa') {
     if (!v('pessoa')) { toast('Escolha a pessoa.'); return; }
+    // Todos: cada pessoa do grupo fica responsável pelo item (sem quantidade por pessoa).
+    if (v('pessoa') === 'todos') {
+      if (await acaoIemanja('itemTodos', { itemId: form.dataset.item, todos: true })) toast('O item agora é de todos do grupo.');
+      return;
+    }
     if (await acaoIemanja('assumirPor', { itemId: form.dataset.item, chave: v('pessoa'), quantidade: v('qtd') })) toast('Doação registrada.');
     return;
   }
   const entrega = v('modo') === 'data' ? v('entrega') : '';
   if (v('modo') === 'data' && !entrega) { toast('Escolha a data da entrega.'); return; }
   if (!v('unidade')) { toast('Escolha a unidade.'); return; }
-  const dados = { categoria: v('categoria').trim(), nome: v('nome').trim(), quantidade: v('qtd'), unidade: v('unidade'), entrega };
+  const dados = { categoria: v('categoria').trim(), nome: v('nome').trim(), quantidade: v('qtd'), unidade: v('unidade'), entrega,
+    ...(form.elements.todos ? { todos: form.elements.todos.checked } : {}) };
   if (form.dataset.form === 'iemitem') {
     ui.rascunho[form.dataset.of] = dados;
     ui.janela = { t: 'item', g: form.dataset.of };

@@ -43,9 +43,10 @@ export const medConferido = (m) => m.pagamento === 'pago' && m.entrega === 'entr
 
 // Chave de quem está numa linha da oferenda por pessoa: 'p:<pessoa>' (corrente) ou 'a:<aluno>' (o pessoaId do aluno já vem com 'a:').
 export const chaveDaLinha = (m) => (m.aluno ? m.pessoaId : 'p:' + m.pessoaId);
-// Quem é responsável pelo item, em texto: 'Todos da lista' ou os nomes (com a quantidade de cada um, se comQtd).
+// Quem é responsável pelo item, em texto: 'Todos da lista' (na Iemanjá, 'Todos do grupo', pelo todosRotulo) ou os nomes
+// (com a quantidade de cada um, se comQtd).
 export function responsaveisItem(i, comQtd = false) {
-  if (i.todos) return 'Todos da lista';
+  if (i.todos) return i.todosRotulo || 'Todos da lista';
   return i.doacoes.map((d) => (comQtd ? `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})` : d.nome)).join(', ');
 }
 

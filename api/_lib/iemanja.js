@@ -1,5 +1,6 @@
 // Aba Iemanjá (rota: GET /api/oferendas?lista=iemanja · POST /api/oferendas { acao: 'iemanja', op, ... }).
 // Admin de cada evento: os roots e os responsáveis dos grupos daquele evento.
+// Item com todos: cada pessoa do grupo é responsável (op 'itemTodos' ou todos em op 'item'); ninguém assume.
 
 import { db } from './db.js';
 import { HttpError, validarId, validarData } from './http.js';
@@ -196,11 +197,17 @@ export async function acaoIemanja(eu, b) {
       }
       const unidade = String(b.unidade ?? '').trim();
       if (!unidadeValida(unidade)) throw new HttpError(400, 'Unidade inválida.');
-      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, categoria, quantidade: quantidade(b.quantidade, 1, unidade), unidade, entrega: b.entrega ? validarData(String(b.entrega)) : '' }));
+      // todos (opcional): cada pessoa do grupo fica responsável pelo item.
+      return devolver(await db.rpc('iemanja_item_salvar', { id: item?.id ?? '', grupoId: grupo?.id ?? '', nome, categoria, quantidade: quantidade(b.quantidade, 1, unidade), unidade, entrega: b.entrega ? validarData(String(b.entrega)) : '',
+        ...(typeof b.todos === 'boolean' ? { todos: b.todos } : {}) }));
     }
     case 'entregue':
       if (!item) throw new HttpError(404, 'Item não encontrado.');
       return devolver(await db.rpc('iemanja_item_entregue', { id: item.id, entregue: !!b.entregue }));
+    case 'itemTodos':
+      // Responsável Todos: cada pessoa do grupo (as doações do item saem); false volta à escolha por pessoa.
+      if (!item) throw new HttpError(404, 'Item não encontrado.');
+      return devolver(await db.rpc('iemanja_item_todos', { id: item.id, todos: b.todos === true }));
     case 'assumirPor': {
       if (!item) throw new HttpError(404, 'Item não encontrado.');
       const membro = ev.grupos.find((g) => g.itens.some((i) => i.id === item.id)).membros.find((m) => m.chave === b.chave);
