@@ -2210,6 +2210,8 @@ div.pf-of-total{cursor:default}
 .di-p-gira{background:var(--gold)}
 .di-p-dia{background:var(--di-lilas)}
 .di-p-evento{background:var(--accent)}
+.di-niver{font-style:normal;font-size:.62rem;line-height:1}
+.gira-cal-desc{display:grid;gap:2px}
 .gira-cal{--roxo:#8f6fdc;display:grid;gap:8px;width:100%;box-sizing:border-box;padding:12px;border-radius:20px;
   border:1px solid color-mix(in srgb,var(--roxo) 28%,var(--line));
   background:linear-gradient(165deg,color-mix(in srgb,var(--roxo) 22%,var(--surface)) 0%,color-mix(in srgb,var(--roxo) 6%,var(--surface)) 60%,var(--surface) 100%)}

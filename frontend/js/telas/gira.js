@@ -138,7 +138,8 @@ function cabecalhoGira(g) {
 
 // Calendário do mês (o mesmo do Diário) com as giras e os eventos marcados (os cadastrados na gira e os da agenda do
 // Admin root); tocar num dia abre esse dia.
-// Embaixo, o que há no dia escolhido: a gira/evento cadastrado e os eventos da agenda. Para todos, em qualquer estado.
+// Embaixo, o que há no dia escolhido, em linhas: o dia, a gira/evento cadastrado e os eventos da agenda e, se houver,
+// os aniversariantes (🎈 no dia do calendário, pelo dia/mês do Perfil). Para todos, em qualquer estado.
 // O mês mostrado segue o dia aberto até a pessoa trocar de mês nas setas do calendário.
 const cal = { mes: '', ref: '' };
 const mesDoCalendario = () => (cal.ref === prefs.data && cal.mes) || prefs.data.slice(0, 7);
@@ -149,22 +150,26 @@ function descricaoDoDia(g) {
     if (!itens.includes(esc(e.nome))) itens.push(`${esc(e.nome)} <span class="muted">(${esc(rotuloTipo(e))})</span>`);
   }
   const dia = esc(dLong(g.data).replace(/^./, (c) => c.toUpperCase()));
-  return `<p class="di-lua gira-cal-desc"><span aria-hidden="true">📅</span> <b>${dia}</b> · ${itens.length ? itens.join(' · ') : '<span class="muted">nenhuma gira ou evento</span>'}</p>`;
+  const niver = aniversariantesDoDia(estado.pessoas, g.data);
+  return `<div class="gira-cal-desc"><p class="di-lua"><span aria-hidden="true">📅</span> <b>${dia}</b></p>
+    <p class="di-lua">${itens.length ? itens.join(' · ') : '<span class="muted">Nenhuma gira ou evento</span>'}</p>
+    ${niver.length ? `<p class="di-lua"><span aria-hidden="true">🎈</span> Aniversário: ${niver.map((p) => esc(p.nome)).join(', ')}</p>` : ''}</div>`;
 }
 function seletorData(g) {
-  // Até dois pontos por dia: dourado se há gira (cadastrada ou na agenda) e azul se há evento.
+  // Até dois pontos por dia: dourado se há gira (cadastrada ou na agenda) e azul se há evento; 🎈 se alguém faz aniversário.
   const porDia = {};
   for (const e of estado.eventos || []) (porDia[e.data] ||= []).push(e);
+  const niver = new Set((estado.pessoas || []).filter((p) => !p.saida && p.aniversario).map((p) => p.aniversario));
   const marcas = (data) => {
     const x = estado.giras[data];
     const ag = porDia[data] || [];
     const gira = (x && !x.evento) || ag.some((e) => e.tipo === 'gira');
     const evento = !!x?.evento || ag.some((e) => e.tipo !== 'gira');
-    return `${gira ? '<i class="di-p di-p-gira"></i>' : ''}${evento ? '<i class="di-p di-p-evento"></i>' : ''}`;
+    return `${gira ? '<i class="di-p di-p-gira"></i>' : ''}${evento ? '<i class="di-p di-p-evento"></i>' : ''}${niver.has(data.slice(5)) ? '<i class="di-niver" aria-hidden="true">🎈</i>' : ''}`;
   };
   return `<div class="gira-cal">
     ${calendarioMes({ mes: mesDoCalendario(), sel: g.data, acaoDia: 'giradia', acaoMes: 'girames', marcas })}
-    <div class="di-leg muted"><span><i class="di-p di-p-gira"></i> gira</span><span><i class="di-p di-p-evento"></i> evento</span></div>
+    <div class="di-leg muted"><span><i class="di-p di-p-gira"></i> gira</span><span><i class="di-p di-p-evento"></i> evento</span><span><i class="di-niver" aria-hidden="true">🎈</i> aniversário</span></div>
     ${descricaoDoDia(g)}
   </div>`;
 }
