@@ -261,7 +261,8 @@ export function render() {
   if (prefs.tab === 'agenda') return renderGira();
   if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
   if (visaoAtiva() === 'alunos' && estado.me?.aguardando) return `<section class="panel">${cardAguardando()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
-  if (visaoAtiva() === 'alunos') return `<section class="panel">${cardAtrasos()}${cardAulaCurimba()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
+  // Grupo Oferenda: os compromissos que o admin atribuiu (cardCompromissos só aparece com oferendas:doar ou :ver).
+  if (visaoAtiva() === 'alunos') return `<section class="panel">${cardAtrasos()}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
   const g = giraAtual();
   const eu = estado.me?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
   return `<section class="panel">${cardAtrasos()}${eu}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;

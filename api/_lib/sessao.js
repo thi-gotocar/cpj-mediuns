@@ -4,7 +4,11 @@
 import { HttpError, validarId } from './http.js';
 import { db } from './db.js';
 import { lerToken } from './senhas.js';
-import { permissoesDe, permissoesConsulente, PERMISSOES_GRUPO } from '../../shared/permissoes.js';
+import { permissoesDe, permissoesConsulente, PERMISSOES_GRUPO, PERMISSOES_OFERENDA } from '../../shared/permissoes.js';
+
+// Aluno no grupo escondido Consulentes (perfil Consulentes, escolhido pelo root) ou Oferenda (Geral e Oferendas, sem doar).
+const papelAluno = (aluno) => (aluno.consulente ? ['Consulente', permissoesConsulente(aluno.abasConsulente)]
+  : aluno.grupoOferenda ? ['Oferenda', PERMISSOES_OFERENDA] : ['Aluno', PERMISSOES_GRUPO.alunos || []]);
 
 export async function exigir(req, permissao) {
   const h = req.headers.authorization || req.headers.Authorization || '';
@@ -24,12 +28,12 @@ export async function exigir(req, permissao) {
     if (sessao.grupo === 'alunos' && aluno.pinVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
     // Acesso bloqueado na aba Pessoas: a sessão aberta cai.
     if (sessao.grupo === 'alunos' && aluno.bloqueado) throw new HttpError(401, 'Seu acesso ao app está bloqueado. Fale com a administração.');
-    // Consulente (aluno na turma Consulentes): o que o perfil Consulentes vê, escolhido pelo root.
     const consulente = sessao.grupo === 'alunos' && !!aluno.consulente;
-    const permissoes = consulente ? permissoesConsulente(aluno.abasConsulente) : PERMISSOES_GRUPO[sessao.grupo] || [];
+    const grupoOferenda = sessao.grupo === 'alunos' && !!aluno.grupoOferenda;
+    const [papelNome, permissoes] = sessao.grupo === 'alunos' ? papelAluno(aluno) : ['Curimba', PERMISSOES_GRUPO[sessao.grupo] || []];
     const quem = {
-      id: null, nome: aluno.nome, email: '', papel: sessao.grupo, papelNome: consulente ? 'Consulente' : sessao.grupo === 'alunos' ? 'Aluno' : 'Curimba',
-      consulente,
+      id: null, nome: aluno.nome, email: '', papel: sessao.grupo, papelNome,
+      consulente, grupoOferenda,
       grupo: sessao.grupo, alunoId: sessao.grupo === 'alunos' ? aluno.id : null,
       turmaId: sessao.grupo === 'alunos' ? aluno.turmaId || null : null,
       curimbaAlunoId: sessao.grupo === 'curimba' ? aluno.id : null,
@@ -78,10 +82,10 @@ async function verComo(req, alvo, permissao) {
   } else if (tipo === 'a:') {
     const aluno = await db.rpc('aluno_acesso', { id: validarId(id, 'Aluno') });
     if (!aluno) throw new HttpError(404, 'Aluno não encontrado no cadastro.');
-    const consulente = !!aluno.consulente;
-    quem = { id: null, nome: aluno.nome, email: '', papel: 'alunos', papelNome: consulente ? 'Consulente' : 'Aluno', consulente,
+    const [papelNome, permissoes] = papelAluno(aluno);
+    quem = { id: null, nome: aluno.nome, email: '', papel: 'alunos', papelNome, consulente: !!aluno.consulente, grupoOferenda: !!aluno.grupoOferenda,
       grupo: 'alunos', alunoId: aluno.id, turmaId: aluno.turmaId || null, curimbaAlunoId: null, pessoaId: null, temSenha: !!aluno.temSenha,
-      permissoes: consulente ? permissoesConsulente(aluno.abasConsulente) : PERMISSOES_GRUPO.alunos || [] };
+      permissoes };
   } else {
     throw new HttpError(400, 'Visão inválida.');
   }

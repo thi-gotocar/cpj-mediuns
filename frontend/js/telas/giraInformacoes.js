@@ -5,7 +5,7 @@ import { esc, dDM } from '../util.js';
 import { abertos } from './giraComum.js';
 import { status, nomeEntidadeGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, linhaDaEntidade, usaLinhas, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
 import { banhosDaGira } from '/shared/banhos.js';
-import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM } from '/shared/oferendas.js';
+import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM, chaveDaLinha } from '/shared/oferendas.js';
 
 // Admin: tocar na turma abre a escolha manual da turma da vez.
 function escolhaTurma(g) {
@@ -135,26 +135,27 @@ export function blocoPedirErvas(g) {
 // Oferendas publicadas na mesma data da gira. Cada uma: nome, responsável, o que a pessoa assumiu e o que ainda falta doar.
 // "Visível para todos" desligado: só os admins das oferendas veem. A com uma linha por pessoa só aparece para quem está na lista dela.
 export function blocosOferenda(g) {
-  if (!pode('oferendas:doar')) return '';
+  if (!pode('oferendas:doar') && !pode('oferendas:ver')) return '';
   if (estado.oferendas === null) { carregarOferendas(); return ''; }
   const eu = estado.oferendas.eu || {};
   const visivel = (of) => of.status === 'publicado' || (of.status !== 'encerrado' && pode('oferendas:gerenciar'));
-  const estaNaLista = (of) => (of.mediuns || []).some((m) => 'p:' + m.pessoaId === eu.chave);
+  const estaNaLista = (of) => (of.mediuns || []).some((m) => chaveDaLinha(m) === eu.chave);
   return (estado.oferendas.oferendas || []).filter((of) => of.data === g.data && visivel(of) && (!of.porMedium || estaNaLista(of))).map((of) => blocoOferenda(of, eu)).join('');
 }
 
 function blocoOferenda(of, eu) {
   const publicada = of.status === 'publicado';
   const travada = !!eu.chave && travadaPara(of, eu.chave);
-  const podeDoar = !!eu.chave && publicada && !travada;
-  const minha = (i) => i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0;
+  const podeDoar = !!eu.chave && publicada && !travada && pode('oferendas:doar');
+  const m = of.porMedium ? (of.mediuns || []).find((x) => chaveDaLinha(x) === eu.chave) : null;
+  // Item de todos: quem está na lista leva (a quantidade do item, compartilhado com todos).
+  const minha = (i) => (i.todos ? (m ? i.quantidade : 0) : i.doacoes.find((d) => d.chave === eu.chave)?.quantidade || 0);
   const meus = eu.chave ? of.itens.filter(minha) : [];
   const faltam = of.itens.filter((i) => !i.entregue && situacao(i).falta > 0);
   const linhaMeu = (i) => `<div class="ofg-l"><span class="ofg-nome">${esc(i.nome)}<small class="muted">Entrega ${textoEntrega(i)}</small></span>
-    ${i.entregue ? '<span class="of-entregue">✓ Entregue</span>' : podeDoar ? `<span class="ofg-qtd"><button class="btn small" data-act="giraofmenos" data-id="${i.id}" aria-label="Menos ${esc(i.nome)}">−</button><b>${minha(i)}</b><button class="btn small" data-act="giraofmais" data-id="${i.id}" ${situacao(i).falta ? '' : 'disabled'} aria-label="Mais ${esc(i.nome)}">+</button></span>` : `<b>${minha(i)}</b>`}</div>`;
+    ${i.entregue ? '<span class="of-entregue">✓ Entregue</span>' : i.todos ? `<b>${minha(i)}</b> <small class="muted">com todos</small>` : podeDoar ? `<span class="ofg-qtd"><button class="btn small" data-act="giraofmenos" data-id="${i.id}" aria-label="Menos ${esc(i.nome)}">−</button><b>${minha(i)}</b><button class="btn small" data-act="giraofmais" data-id="${i.id}" ${situacao(i).falta ? '' : 'disabled'} aria-label="Mais ${esc(i.nome)}">+</button></span>` : `<b>${minha(i)}</b>`}</div>`;
   const linhaFalta = (i) => `<div class="ofg-l"><span class="ofg-nome">${esc(i.nome)}<small class="muted">Faltam ${situacao(i).falta} de ${i.quantidade}</small></span>
     ${podeDoar ? `<button class="btn small primary" data-act="giraofmais" data-id="${i.id}" aria-label="Vou doar ${esc(i.nome)}">Vou doar</button>` : ''}</div>`;
-  const m = of.porMedium ? (of.mediuns || []).find((x) => 'p:' + x.pessoaId === eu.chave) : null;
   const bloco = `<div class="limpeza oferenda"><b><span aria-hidden="true">🎁</span> Oferenda · ${esc(of.titulo)}</b>
     ${of.responsavel ? `<span><span class="muted">Responsável:</span> ${esc(of.responsavel)}</span>` : ''}
     ${m ? `<span class="ofg-med"><span><span class="muted">Pagamento:</span> <span class="st-med ${m.pagamento}">${ROTULO_MEDIUM[m.pagamento] || m.pagamento}</span></span><span><span class="muted">Entrega:</span> <span class="st-med ${m.entrega}">${ROTULO_MEDIUM[m.entrega] || m.entrega}</span></span></span>` : ''}

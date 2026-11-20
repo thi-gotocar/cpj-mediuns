@@ -8,6 +8,7 @@ import { prepararBanco, usarBancoLocal, sql } from './apoio.js';
 import { criarServidor } from '../scripts/servidor.js';
 import { emitirTokenCorrente, emitirTokenGrupo } from '../api/_lib/senhas.js';
 import { normalizarNome } from '../shared/ervas.js';
+import { compromissosDe } from '../shared/oferendas.js';
 import { MIGRACOES } from '../db/esquema.js';
 
 let srv, base;
@@ -2949,6 +2950,65 @@ test('cadastros pelo login: novo vira consulente; o consulente vê só o que o p
     await api('POST', '/api/pessoas', ADMIN, { acao: 'apagarAluno', id: novo.id });
   } finally {
     sql(`update perfis set abas = '${abasAntes.replace(/'/g, "''")}'::jsonb where chave = 'consulente'`);
+    if (chaveAntes === undefined) delete process.env.CPF_CHAVE; else process.env.CPF_CHAVE = chaveAntes;
+  }
+});
+
+test('grupo Oferenda: vê as oferendas sem doar; o item de Todos vira compromisso de cada pessoa da lista', async () => {
+  const chaveAntes = process.env.CPF_CHAVE;
+  process.env.CPF_CHAVE = 'chave-de-teste-do-cpf-com-32-letras-ou-mais';
+  let of;
+  try {
+    const cad = await api('POST', '/api/auth/cadastrar', null, { nome: 'Oferenda Teste', celular: '11977002200', email: 'grupo.oferenda@exemplo.com', cpf: '11144477735', senha: '13571357' });
+    assert.equal(cad.status, 200, JSON.stringify(cad.json));
+    let A = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json;
+    const novo = A.cadastros.novos.find((c) => c.nome === 'Oferenda Teste');
+    assert.ok(A.cadastros.turmaOferenda && !A.turmas.some((t) => t.id === A.cadastros.turmaOferenda), 'a turma do grupo Oferenda não aparece nas turmas');
+
+    // O admin põe no grupo Oferenda: sai dos Novos e da lista de alunos, e vai para a lista à parte.
+    assert.equal((await api('POST', '/api/pessoas', ADMIN, { acao: 'aluno', id: novo.id, turmaId: A.cadastros.turmaOferenda })).status, 200);
+    A = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json;
+    assert.ok(A.cadastros.oferenda.some((c) => c.id === novo.id), 'aparece no quadradinho Oferenda');
+    assert.ok(!A.alunos.some((a) => a.id === novo.id), 'não aparece entre os alunos');
+    assert.ok(A.grupoOferenda.some((a) => a.id === novo.id), 'vem na lista do grupo Oferenda');
+
+    // Entra e só lê as oferendas (Geral e Oferendas); doar é recusado.
+    const tok = (await api('POST', '/api/auth/entrar', null, { email: 'grupo.oferenda@exemplo.com', senha: '13571357' })).json.token;
+    const me = (await api('GET', '/api/auth/me', tok)).json;
+    assert.equal(me.grupoOferenda, true);
+    assert.equal(me.aguardando, undefined);
+    assert.deepEqual(me.permissoes.sort(), ['alunos:ver', 'oferendas:ver']);
+    assert.equal((await api('GET', '/api/oferendas', tok)).status, 200);
+    assert.equal((await api('GET', '/api/pessoas?lista=alunos', tok)).json.grupoOferenda, undefined, 'não recebe a lista do grupo');
+
+    // Oferenda para Alunos não leva o grupo Oferenda; o admin põe a pessoa na lista.
+    of = (await api('POST', '/api/oferendas', ADMIN, { acao: 'salvar', responsavelId: RESP(), titulo: 'Com o grupo', data: '2040-02-02', porMedium: true, grupos: ['alunos'] })).json.oferendas.find((o) => o.titulo === 'Com o grupo');
+    assert.ok(!of.mediuns.some((m) => m.pessoaId === 'a:' + novo.id), 'fora das oferendas dos alunos');
+    await api('POST', '/api/oferendas', ADMIN, { acao: 'incluirMedium', oferendaId: of.id, pessoaId: 'a:' + novo.id });
+    await api('POST', '/api/oferendas', ADMIN, { acao: 'status', id: of.id, status: 'publicado' });
+    // A oferenda por pessoa aceita item; Todos tira as doações e o item fica completo.
+    let r = (await api('POST', '/api/oferendas', ADMIN, { acao: 'item', oferendaId: of.id, nome: 'Vela', quantidade: 2, unidade: 'unidade', entrega: '' })).json;
+    const item = r.oferendas.find((o) => o.id === of.id).itens[0];
+    assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'doarPor', itemId: item.id, pessoaId: 'a:' + novo.id, quantidade: 1 })).status, 200, 'o admin atribui ao grupo Oferenda');
+    assert.equal((await api('POST', '/api/oferendas', tok, { acao: 'doar', itemId: item.id, quantidade: 1 })).status, 403, 'o grupo Oferenda não escolhe');
+    r = (await api('POST', '/api/oferendas', ADMIN, { acao: 'itemTodos', id: item.id, todos: true })).json;
+    const it = r.oferendas.find((o) => o.id === of.id).itens[0];
+    assert.equal(it.todos, true);
+    assert.deepEqual(it.doacoes, []);
+    assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'doarPor', itemId: item.id, pessoaId: 'a:' + novo.id, quantidade: 1 })).status, 400, 'item de todos não recebe doação');
+    const vista = (await api('GET', '/api/oferendas', tok)).json;
+    const minha = vista.oferendas.find((o) => o.id === of.id);
+    assert.equal(compromissosDe([minha], vista.eu.chave, '2030-01-01')[0].itens[0].q, 2, 'o item de todos é compromisso de quem está na lista');
+    // Todos só vale na oferenda por pessoa.
+    const comum = (await api('POST', '/api/oferendas', ADMIN, { acao: 'salvar', responsavelId: RESP(), titulo: 'Comum todos', data: '2040-02-03' })).json.oferendas.find((o) => o.titulo === 'Comum todos');
+    const ic = (await api('POST', '/api/oferendas', ADMIN, { acao: 'item', oferendaId: comum.id, nome: 'Rosa', quantidade: 1, unidade: 'unidade', entrega: '' })).json.oferendas.find((o) => o.id === comum.id).itens[0];
+    assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'itemTodos', id: ic.id, todos: true })).status, 400);
+    await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: comum.id });
+
+    await api('POST', '/api/pessoas', ADMIN, { acao: 'excluirAluno', id: novo.id });
+    await api('POST', '/api/pessoas', ADMIN, { acao: 'apagarAluno', id: novo.id });
+  } finally {
+    if (of) await api('POST', '/api/oferendas', ADMIN, { acao: 'excluir', id: of.id });
     if (chaveAntes === undefined) delete process.env.CPF_CHAVE; else process.env.CPF_CHAVE = chaveAntes;
   }
 });

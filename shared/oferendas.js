@@ -41,13 +41,23 @@ export function contagemMediuns(of) {
 // Linha "conferida": paga e entregue.
 export const medConferido = (m) => m.pagamento === 'pago' && m.entrega === 'entregue';
 
-// Compromissos de quem está logado (chave 'p:…'), da oferenda mais próxima à mais distante:
-// os itens que vai doar e ainda não foram entregues (só das oferendas de hoje em diante) e, na lista por pessoa,
+// Chave de quem está numa linha da oferenda por pessoa: 'p:<pessoa>' (corrente) ou 'a:<aluno>' (o pessoaId do aluno já vem com 'a:').
+export const chaveDaLinha = (m) => (m.aluno ? m.pessoaId : 'p:' + m.pessoaId);
+// Quem é responsável pelo item, em texto: 'Todos da lista' ou os nomes (com a quantidade de cada um, se comQtd).
+export function responsaveisItem(i, comQtd = false) {
+  if (i.todos) return 'Todos da lista';
+  return i.doacoes.map((d) => (comQtd ? `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})` : d.nome)).join(', ');
+}
+
+// Compromissos de quem está logado (chave 'p:…' ou 'a:…'), da oferenda mais próxima à mais distante:
+// os itens que vai doar (e os de todos, se está na lista) e ainda não foram entregues (só das oferendas de hoje em diante) e, na lista por pessoa,
 // a própria linha quando falta o pagamento ou a entrega (enquanto não for encerrada: o pagamento pode ficar para depois).
 export function compromissosDe(oferendas, chave, hoje) {
   return (oferendas || []).filter((of) => of.status !== 'encerrado').map((of) => {
-    const itens = of.data >= hoje ? of.itens.map((i) => ({ i, q: i.doacoes.find((d) => d.chave === chave)?.quantidade || 0 })).filter((x) => x.q && !x.i.entregue) : [];
-    const m = of.porMedium ? (of.mediuns || []).find((x) => 'p:' + x.pessoaId === chave) : null;
+    const m = of.porMedium ? (of.mediuns || []).find((x) => chaveDaLinha(x) === chave) : null;
+    // Item de todos: de cada pessoa da lista, com a quantidade do item (compartilhado).
+    const q = (i) => (i.todos ? (m ? Number(i.quantidade) : 0) : i.doacoes.find((d) => d.chave === chave)?.quantidade || 0);
+    const itens = of.data >= hoje ? of.itens.map((i) => ({ i, q: q(i), todos: !!i.todos })).filter((x) => x.q && !x.i.entregue) : [];
     return { of, itens, linha: m && (m.pagamento !== 'pago' || m.entrega !== 'entregue') ? m : null };
   }).filter((x) => x.itens.length || x.linha).sort((a, b) => a.of.data.localeCompare(b.of.data));
 }
@@ -101,9 +111,9 @@ export function porCategoria(itens, ordem = []) {
 export const arred = (n) => Math.round(Number(n) * 100) / 100;
 export const somaDoado = (item) => arred((item.doacoes || []).reduce((a, d) => a + (Number(d.quantidade) || 0), 0));
 
-// { doado, falta, completo }
+// { doado, falta, completo }. O item de todos (cada pessoa da lista) já está completo.
 export function situacao(item) {
-  const doado = somaDoado(item);
+  const doado = item.todos ? Number(item.quantidade) : somaDoado(item);
   return { doado, falta: Math.max(0, arred(item.quantidade - doado)), completo: doado >= Number(item.quantidade) };
 }
 
@@ -195,9 +205,9 @@ export function textoOferenda(of, detalhes = '') {
     if (cat) L.push(`*${cat.toUpperCase()}*`);
     itens.forEach((i) => {
       const s = situacao(i);
-      L.push(`${CORES_ITEM.find(([k]) => k === corItem(i))[1]} *${i.nome}* · ${fmtQtd(s.doado)} de ${qtdTxt(i.quantidade, i.unidade)}${i.entregue ? ' · ✅ entregue' : ''}`);
+      L.push(`${CORES_ITEM.find(([k]) => k === corItem(i))[1]} *${i.nome}* · ${i.todos ? qtdTxt(i.quantidade, i.unidade) : `${fmtQtd(s.doado)} de ${qtdTxt(i.quantidade, i.unidade)}`}${i.entregue ? ' · ✅ entregue' : ''}`);
       L.push(`   Entrega: ${textoEntrega(i)}`);
-      if (i.doacoes.length) L.push(`   ${i.doacoes.map((d) => `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ')}`);
+      if (i.todos || i.doacoes.length) L.push(`   ${responsaveisItem(i, true)}`);
       if (!s.completo) L.push(`   Faltam ${qtdTxt(s.falta, i.unidade)}`);
       L.push('');
     });

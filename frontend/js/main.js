@@ -138,6 +138,8 @@ function render() {
   if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: false, fotos: false, diario: veDiario(), gira: true, agenda: false };
   // Consulente: a Geral e as abas que o root marcou no perfil Consulentes (Perfil, Compras, Amaci, Vídeos).
   if (visao === 'alunos' && estado.me.consulente) Object.assign(VE, { oferendas: false, perfil: pode('perfil:ver'), guias: veGuias(), amaci: veAmaci(), videos: pode('videos:ver') || !!estado.me.videosPublicada });
+  // Grupo Oferenda: só a Geral e a aba Oferendas.
+  if (visao === 'alunos' && estado.me.grupoOferenda) VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: false, amaci: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, diario: false, gira: true, agenda: false };
   // Aluno sem turma (cadastro novo pelo login): só a Geral, até a administração colocá-lo numa turma.
   if (visao === 'alunos' && estado.me.aguardando) VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: false, guias: false, amaci: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, diario: false, gira: true, agenda: false };
   if (visao === 'curimba') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: false, guias: veGuias(), amaci: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, diario: false, gira: true, agenda: false };

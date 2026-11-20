@@ -7,13 +7,14 @@
 //                abaDetalhes { id, detalhes }  (texto da sub-aba, até 10 linhas)
 //                medium { oferendaId, pessoaId, pagamento?: 'pago'|'nao_pago', entrega?: 'pendente'|'entregue' } · excluirMedium { oferendaId, pessoaId } · incluirMedium { oferendaId, pessoaId } · atualizarMediuns { id, grupos? } · resumo { id, noResumo }  (oferenda com uma linha por médium)
 //                item { id?, oferendaId, nome, quantidade, entrega: 'AAAA-MM-DD' | '' (no dia do evento) }
-//                excluirItem { id } · entregue { id, entregue }
+//                excluirItem { id } · entregue { id, entregue } · itemTodos { id, todos }  (item de todos da lista, só na oferenda por pessoa)
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
 // Aba Compras: GET ?lista=guias e POST { acao: 'guias', op, ... } (veja api/_lib/guias.js).
 //              GET ?lista=guiaFoto&id=<item>&v=<versão> — a foto do item (JPEG, sem sessão, com cache longo).
 //              GET ?lista=pedidos — sub-aba Pedidos (só quem administra as Compras); o andamento muda em POST { acao: 'guias', op: 'andamento' }.
 // ASAAS (veja api/_lib/asaas.js): webhook sem sessão, com token, em POST ?webhook=asaas; aba ASAAS (root e quem tem a aba no perfil) em GET ?lista=asaas e POST { acao: 'asaas', op, ... }.
 // Quem não administra as oferendas vê as publicadas (e doa nelas) e as bloqueadas (sem os itens).
+// O grupo Oferenda (oferendas:ver) vê o mesmo, mas não doa: o admin é quem atribui.
 //                doarPor { itemId, pessoaId | chave, quantidade }  — doação de outra pessoa (0 = exclui)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
@@ -78,7 +79,8 @@ export default rota({
     if (req.query.lista === 'guiaFoto') return fotoGuia(req, res);
     if (req.query.lista === 'asaas') return respostaAsaas(await exigir(req));
     if (req.query.lista === 'pedidos') return respostaPedidos(await exigir(req));
-    const eu = await exigir(req, 'oferendas:doar');
+    const eu = await exigir(req);
+    if (!pode(eu, 'oferendas:doar') && !pode(eu, 'oferendas:ver')) throw new HttpError(403, 'Este acesso não tem permissão para isso.');
     // Já inclui os novos cadastrados nas listas por pessoa; as sub-abas vêm ao mesmo tempo (uma ida a menos ao banco).
     const [oferendas, abas] = await Promise.all([db.rpc('oferendas_sincronizar'), db.rpc('oferenda_abas_listar')]);
     return resposta(oferendas, eu, abas);
@@ -160,8 +162,9 @@ export default rota({
         const quantidade = qtd(b.quantidade, '', 0);
         let chave, nome;
         if (typeof b.pessoaId === 'string' && b.pessoaId.startsWith('a:')) {
-          // Aluno da CPJ
-          const aluno = (await db.rpc('alunos_estado')).alunos.find((a) => a.id === validarId(b.pessoaId.slice(2), 'Aluno'));
+          // Aluno da CPJ (ou do grupo Oferenda, que fica fora da lista de alunos)
+          const A = await db.rpc('alunos_estado');
+          const aluno = [...A.alunos, ...(A.grupoOferenda || [])].find((a) => a.id === validarId(b.pessoaId.slice(2), 'Aluno'));
           if (!aluno) throw new HttpError(400, 'Aluno não encontrado.');
           chave = 'a:' + aluno.id;
           nome = aluno.nome;
@@ -223,6 +226,9 @@ export default rota({
         break;
       case 'excluirItem':
         estado = await db.rpc('oferenda_item_excluir', { id: validarId(b.id, 'Item') });
+        break;
+      case 'itemTodos':
+        estado = await db.rpc('oferenda_item_todos', { id: validarId(b.id, 'Item'), todos: b.todos === true });
         break;
       case 'entregue':
         estado = await db.rpc('oferenda_item_entregue', { id: validarId(b.id, 'Item'), entregue: !!b.entregue });

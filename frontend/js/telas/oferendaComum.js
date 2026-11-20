@@ -1,7 +1,7 @@
 // Peças comuns às listas de oferendas e à Iemanjá: campos e linha do item, compartilhar.
 // As ações que gravam levam o prefixo da tela (c.p): '' nas listas e 'iem' na Iemanjá.
 
-import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, UNIDADES, qtdTxt, previaItem, corItem, CORES_ITEM, aceitaFracao, fmtQtd, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
+import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, UNIDADES, qtdTxt, previaItem, corItem, CORES_ITEM, responsaveisItem, aceitaFracao, fmtQtd, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
 import { estado, avisar } from '../estado.js';
 import { esc, hoje, dLong, toast } from '../util.js';
 
@@ -47,6 +47,14 @@ export function atualizarPrevia(form) {
 // Admin: cada doador com − / + e excluir; e cadastrar a doação de outra pessoa.
 function doadoresAdmin(i, s, c) {
   let h = `<div class="of-doad-adm">`;
+  // Item de todos: cada pessoa da lista é responsável; o ✕ volta o item para a escolha por pessoa.
+  if (i.todos) {
+    const conf = estado.confirm === 'ot:' + i.id;
+    const n = (c.ref.mediuns || []).length;
+    return h + `<div class="of-doador"><span><b>Todos da lista</b> <span class="muted">· ${n} pessoa${n === 1 ? '' : 's'}</span></span>
+      ${conf ? `<button class="btn small danger" data-act="${c.p}todosdel" data-item="${i.id}">Confirmar</button>`
+        : `<button class="btn small" data-act="askdel" data-k="ot:${i.id}" aria-label="Tirar o Todos de ${esc(i.nome)}">✕</button>`}</div></div>`;
+  }
   i.doacoes.forEach((d) => {
     const conf = estado.confirm === 'od:' + i.id + ':' + d.chave;
     h += `<div class="of-doador"><span class="${d.chave === c.eu.chave ? 'eu' : ''}">${esc(d.nome)}</span>
@@ -61,7 +69,7 @@ function doadoresAdmin(i, s, c) {
     const opcoes = c.opcoesDoador(new Set(i.doacoes.map((d) => d.chave)));
     if (opcoes) {
       h += `<form class="of-por" data-form="${c.p}porpessoa" data-item="${i.id}" autocomplete="off">
-        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>${opcoes}</select>
+        <select name="pessoa" aria-label="Pessoa que vai doar"><option value="">+ doação por alguém…</option>${c.ref.porMedium ? '<option value="todos">Todos (cada pessoa da lista)</option>' : ''}${opcoes}</select>
         <input type="number" name="qtd" min="${s.falta < 1 ? s.falta : 1}" max="${s.falta}" step="${aceitaFracao(i.unidade) ? '0.01' : '1'}" value="${s.falta < 1 ? s.falta : 1}" inputmode="${aceitaFracao(i.unidade) ? 'decimal' : 'numeric'}" aria-label="Quantidade">
         <button class="btn small primary" type="submit">Adicionar</button></form>`;
     }
@@ -87,22 +95,23 @@ function linhaItem(i, c) {
   // para o admin, a caixinha de entregue (liberada na data de entrega; pede confirmação numa janela).
   // Tocar na linha mostra o resto e tocar de novo recolhe.
   const aberto = (U().itensAbertos || []).includes(i.id);
-  const resp = i.doacoes.length ? i.doacoes.map((d) => esc(d.nome)).join(', ') : 'Ninguém ainda';
+  const temResp = i.todos || i.doacoes.length;
+  const resp = temResp ? esc(responsaveisItem(i)) : 'Ninguém ainda';
   const qtdLinha = s.completo ? qtdTxt(i.quantidade, i.unidade) : `faltam ${fmtQtd(s.falta)} de ${qtdTxt(i.quantidade, i.unidade)}`;
   // Entrega: caixinha vazia (admin toca e confirma; liberada a partir da data de entrega) e marcada quando entregue.
   const ok = i.entregue ? `<span class="of-check feito" role="img" aria-label="Entregue" title="Entregue">${CHECK_FEITO}</span>`
     : c.admin ? `<button class="of-check" data-act="${c.p}askentregue" data-id="${i.id}" aria-label="Marcar ${esc(i.nome)} como entregue" ${libera ? 'title="Marcar como entregue"' : `disabled title="Libera em ${dataBR(dataEntrega(i, c.ref))}"`}>${CHECK_VAZIO}</button>` : '';
   const cab = `<div class="of-top of-item-l"><button class="of-item-cab" data-act="dobraritem" data-id="${i.id}" aria-expanded="${aberto}">
       <span class="dot ${corItem(i)}" title="${CORES_ITEM.find(([k]) => k === corItem(i))[2]}"></span>
-      <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${i.doacoes.length ? '' : ' muted'}">${qtdLinha} · ${resp}</span></span>
+      <span class="of-item-tx"><span class="of-nome">${esc(i.nome)}</span><span class="of-resp-i${temResp ? '' : ' muted'}">${qtdLinha} · ${resp}</span></span>
       <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>${ok}</div>`;
   if (!aberto) return `<div class="of-item recolhido${s.completo ? ' completo' : ''}">${cab}</div>`;
   const entregaTxt = `Entrega: ${textoEntrega(i)}${i.entregue ? ' · <span class="badge new">✓ entregue</span>' : ''}`;
-  const doadores = i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === c.eu?.chave ? 'eu' : ''}">${esc(d.nome)} (${qtdTxt(d.quantidade, i.unidade)})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
+  const doadores = i.todos ? '<div class="of-doadores">Todos da lista (cada pessoa leva)</div>' : i.doacoes.length ? `<div class="of-doadores">${i.doacoes.map((d) => `<span class="${d.chave === c.eu?.chave ? 'eu' : ''}">${esc(d.nome)} (${qtdTxt(d.quantidade, i.unidade)})</span>`).join(', ')}</div>` : '<div class="muted of-sub">Ninguém se prontificou ainda.</div>';
   let h = `<div class="of-item${s.completo ? ' completo' : ''}">${cab}
     <div class="muted of-sub">${entregaTxt} · <b>${fmtQtd(s.doado)} de ${qtdTxt(i.quantidade, i.unidade)}</b>${s.completo ? '' : ` · faltam <b>${fmtQtd(s.falta)}</b>`}</div>
     ${c.admin ? doadoresAdmin(i, s, c) : doadores}`;
-  if (!i.entregue && c.podeDoar && (max > 0 || minha > 0)) {
+  if (!i.entregue && !i.todos && c.podeDoar && (max > 0 || minha > 0)) {
     const palavra = i.unidade ? qtdTxt(minha, i.unidade).replace(/^\S+ /, '') : '';
     h += `<div class="of-doar"><span class="muted">Vou levar:</span>
       <button class="btn small" data-act="${c.p}ofmenos" data-id="${i.id}" ${minha ? '' : 'disabled'} aria-label="Menos ${esc(i.nome)}">−</button>

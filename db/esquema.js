@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 154;  // v154: foto das pessoas com versão (o aparelho guarda e não volta ao banco)
+export const VERSAO = 155;  // v155: item "de todos" na oferenda por pessoa e o grupo Oferenda (cadastro pelo login)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -6543,5 +6543,217 @@ export const MIGRACOES = [
        from pessoas pe
        where pe.saida is null or coalesce((p ->> 'todas')::boolean, false)
      ) x;
+   $$`,
+
+  // ================================================== v155: item "de todos" na oferenda por pessoa e o grupo Oferenda
+  // 1) Na oferenda com uma linha por pessoa, o admin pode dar um item a Todos: cada pessoa da lista fica responsável por
+  //    ele (sem quantidade por pessoa; o item é compartilhado). O item de todos conta como completo e não recebe doação.
+  `alter table oferenda_itens add column if not exists todos boolean not null default false`,
+  `create or replace function oferenda_conferir_completa(v_of uuid)
+   returns void language plpgsql as $$
+   declare v_completa boolean;
+   begin
+     select exists (select 1 from oferenda_itens i where i.oferenda_id = v_of)
+        and not exists (select 1 from oferenda_itens i where i.oferenda_id = v_of and not i.todos
+                        and i.quantidade > coalesce((select sum(d.quantidade) from oferenda_doacoes d where d.item_id = i.id), 0))
+       into v_completa;
+     update oferendas set completa_em = case
+         when completa_em is not null and completa_em <= now() - interval '1 day' then completa_em
+         when v_completa then coalesce(completa_em, now())
+         else null end
+     where id = v_of;
+   end;
+   $$`,
+  `drop trigger if exists oferenda_itens_completa on oferenda_itens`,
+  `create trigger oferenda_itens_completa after insert or update of quantidade, todos or delete on oferenda_itens
+   for each row execute function oferenda_completa_trg()`,
+  // p = { id, todos }. Todos apaga as doações do item (ele passa a ser de cada pessoa da lista).
+  `create or replace function oferenda_item_todos(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_todos boolean := coalesce((p ->> 'todos')::boolean, false);
+   begin
+     if v_todos and not exists (select 1 from oferenda_itens i join oferendas o on o.id = i.oferenda_id
+                                 where i.id = (p ->> 'id')::uuid and o.por_medium) then
+       raise exception 'Todos só vale na oferenda com uma linha por pessoa.';
+     end if;
+     if v_todos then delete from oferenda_doacoes where item_id = (p ->> 'id')::uuid; end if;
+     update oferenda_itens set todos = v_todos where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Item não encontrado.'; end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  // Item de todos não recebe doação (nem pelo admin): para escolher uma pessoa, tire o Todos antes.
+  `create or replace function oferenda_doar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_item uuid := (p ->> 'itemId')::uuid;
+     v_chave text := p ->> 'chave';
+     v_qtd numeric := (p ->> 'quantidade')::numeric;
+     v_total numeric; v_entregue boolean; v_outros numeric; v_todos boolean;
+     v_completa timestamptz; v_resp uuid;
+   begin
+     select quantidade, entregue, todos into v_total, v_entregue, v_todos from oferenda_itens where id = v_item for update;
+     if not found then raise exception 'Item não encontrado.'; end if;
+     if v_todos and v_qtd > 0 then raise exception 'Este item é de todos da lista.'; end if;
+     if not coalesce((p ->> 'forcar')::boolean, false)
+        and (select o.status from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item) <> 'publicado' then
+       raise exception 'Esta oferenda não está aberta para doações.';
+     end if;
+     if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
+     if not coalesce((p ->> 'forcar')::boolean, false) then
+       select o.completa_em, o.responsavel_id into v_completa, v_resp
+       from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item;
+       if v_completa is not null and v_completa <= now() - interval '1 day' and v_chave is distinct from 'p:' || v_resp::text then
+         raise exception 'Esta oferenda está completa há mais de um dia: as doações estão fechadas. Só o responsável%pode alterar.',
+           coalesce(' (' || (select nome from pessoas where id = v_resp) || ') ', ' ');
+       end if;
+     end if;
+     select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
+     if v_qtd > 0 and v_outros + v_qtd > v_total then
+       if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;
+       raise exception 'Só faltam % deste item.', v_total - v_outros;
+     end if;
+     if v_qtd > 0 then
+       insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
+       values (v_item, v_chave, btrim(p ->> 'nome'), v_qtd)
+       on conflict (item_id, pessoa_chave) do update set quantidade = excluded.quantidade, pessoa_nome = excluded.pessoa_nome, atualizado_em = now();
+     else
+       delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
+     end if;
+     return oferendas_estado();
+   end;
+   $$`,
+  // 2) Grupo Oferenda: quem se cadastrou pelo login e o admin pôs no grupo Oferenda (turma escondida, como Consulentes).
+  //    Vê só a Geral e a aba Oferendas, não escolhe nada; o admin o põe nas oferendas. Fica fora das listas de alunos,
+  //    dos grupos "Alunos"/"Alunos sem turma" das oferendas, da Iemanjá e do Amaci.
+  `create or replace function turma_oferenda()
+   returns uuid language plpgsql as $$
+   declare v uuid;
+   begin
+     select t.id into v from sistema s join turmas_alunos t on t.id::text = s.valor where s.chave = 'turma_oferenda';
+     if v is null then
+       select id into v from turmas_alunos where lower(btrim(nome)) = 'grupo oferenda';
+       if v is null then insert into turmas_alunos (nome) values ('Grupo Oferenda') returning id into v; end if;
+       insert into sistema (chave, valor) values ('turma_oferenda', v::text)
+       on conflict (chave) do update set valor = excluded.valor;
+     end if;
+     return v;
+   end;
+   $$`,
+  `select turma_oferenda()`,
+  `create or replace function turma_oferenda_id()
+   returns uuid language sql stable as $$
+     select t.id from sistema s join turmas_alunos t on t.id::text = s.valor where s.chave = 'turma_oferenda'
+   $$`,
+  `create or replace function aluno_no_grupo(t uuid, g text[])
+   returns boolean language sql stable as $$
+     select coalesce((t is not null and ('turma:' || t::text) = any(g))
+       or (t is distinct from turma_consulentes_id() and t is distinct from turma_oferenda_id()
+           and ('alunos' = any(g) or (t is null and 'alunos:sem' = any(g)))), false)
+   $$`,
+  // A cada leitura da aba Oferendas: as turmas escondidas são lidas uma vez (antes, aluno_no_grupo buscava a turma
+  // escondida para cada par oferenda × aluno). Mesma regra de aluno_no_grupo.
+  `create or replace function oferendas_sincronizar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+     v_ocultas uuid[] := array_remove(array[turma_consulentes_id(), turma_oferenda_id()], null);
+   begin
+     insert into oferenda_mediuns (oferenda_id, pessoa_id)
+     select o.id, pe.id from oferendas o join pessoas pe on pe.funcao = any(o.grupos) and pe.saida is null
+     where o.por_medium and o.status <> 'encerrado' and o.data >= v_hoje
+     on conflict do nothing;
+     insert into oferenda_alunos (oferenda_id, aluno_id)
+     select o.id, a.id from oferendas o join alunos a on a.saida is null
+       and ((a.turma_id is not null and ('turma:' || a.turma_id::text) = any(o.grupos))
+            or ((a.turma_id is null or a.turma_id <> all(v_ocultas))
+                and ('alunos' = any(o.grupos) or (a.turma_id is null and 'alunos:sem' = any(o.grupos)))))
+     where o.por_medium and o.status <> 'encerrado' and o.data >= v_hoje
+     on conflict do nothing;
+     return oferendas_estado();
+   end;
+   $$`,
+  `create or replace function cadastros_login(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'turmaConsulentes', turma_consulentes_id(),
+       'turmaOferenda', turma_oferenda_id(),
+       'novos', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'nome', a.nome, 'em', a.autocadastro_em,
+                   'celular', coalesce(a.perfil -> 'info' ->> 'celular', ''), 'email', coalesce(a.perfil -> 'info' ->> 'email', ''))
+                   order by a.autocadastro_em desc)
+                 from alunos a where a.saida is null and a.autocadastro_em is not null and a.turma_id is null), '[]'::jsonb),
+       'consulentes', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'nome', a.nome, 'em', a.autocadastro_em,
+                   'celular', coalesce(a.perfil -> 'info' ->> 'celular', ''), 'email', coalesce(a.perfil -> 'info' ->> 'email', ''))
+                   order by lower(a.nome))
+                 from alunos a where a.saida is null and a.turma_id = (select turma_consulentes_id())), '[]'::jsonb),
+       'oferenda', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'nome', a.nome, 'em', a.autocadastro_em,
+                   'celular', coalesce(a.perfil -> 'info' ->> 'celular', ''), 'email', coalesce(a.perfil -> 'info' ->> 'email', ''))
+                   order by lower(a.nome))
+                 from alunos a where a.saida is null and a.turma_id = (select turma_oferenda_id())), '[]'::jsonb))
+   $$`,
+  `create or replace function amaci_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'publicada', amaci_publicada(),
+       'turmas', coalesce((select jsonb_agg(jsonb_build_object('id', t.id, 'nome', t.nome, 'orixas', coalesce(a.orixas, '[]'::jsonb)) order by lower(t.nome))
+                           from turmas_alunos t left join amaci_turmas a on a.turma_id = t.id
+                          where t.id is distinct from (select turma_oferenda_id())
+                            and (t.id is distinct from (select turma_consulentes_id())
+                                 or coalesce((select (abas -> 'amaci' ->> 'ver')::boolean or (abas -> 'amaci' ->> 'editar')::boolean
+                                              from perfis where chave = 'consulente'), false))), '[]'::jsonb),
+       'orientacoes', coalesce((select jsonb_object_agg(o.orixa, o.texto) from amaci_orientacoes o where o.texto <> ''), '{}'::jsonb))
+   $$`,
+  // A lista do grupo Oferenda vai à parte (grupoOferenda), para o admin das oferendas pôr essas pessoas numa oferenda.
+  `create or replace function alunos_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'turmas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome) order by lower(nome)) from turmas_alunos
+                           where id is distinct from (select turma_consulentes_id()) and id is distinct from (select turma_oferenda_id())), '[]'::jsonb),
+       'alunos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'turmaId', turma_id, 'bloqueado', bloqueado) order by lower(nome)) from alunos
+                           where saida is null and turma_id is distinct from (select turma_consulentes_id()) and turma_id is distinct from (select turma_oferenda_id())), '[]'::jsonb),
+       'grupoOferenda', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome) order by lower(nome)) from alunos
+                           where saida is null and turma_id = (select turma_oferenda_id())), '[]'::jsonb))
+   $$`,
+  `create or replace function aluno_acesso(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id, 'temSenha', a.pin_hash is not null, 'pinVersao', a.pin_versao,
+                               'consulente', a.turma_id is not distinct from turma_consulentes_id() and a.turma_id is not null,
+                               'grupoOferenda', a.turma_id is not distinct from turma_oferenda_id() and a.turma_id is not null,
+                               'abasConsulente', (select abas from perfis where chave = 'consulente'), 'bloqueado', a.bloqueado)
+     from alunos a where a.id = (p ->> 'id')::uuid and a.saida is null
+   $$`,
+  // Itens com o campo todos (igual à v132).
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
+       'responsavelId', o.responsavel_id,
+       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
+                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
+       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'grupos', to_jsonb(o.grupos),
+       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
+           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
+           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
+           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
+           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
+           union all
+           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
+           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
+           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
+           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue, 'todos', i.todos,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
+                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d
+                                left join usuarios u on u.id = case when d.pessoa_chave ~ '^u:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
+                                left join pessoas pe on pe.id = case when d.pessoa_chave ~ '^p:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
+                                left join alunos al on al.id = case when d.pessoa_chave ~ '^a:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
    $$`,
 ];

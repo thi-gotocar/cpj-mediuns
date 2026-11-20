@@ -1,6 +1,6 @@
 // Imagem PNG da lista de uma oferenda (para mandar no grupo do WhatsApp).
 
-import { situacao, dataBR, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria, qtdTxt, corItem, CORES_ITEM } from '/shared/oferendas.js';
+import { situacao, dataBR, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria, qtdTxt, corItem, CORES_ITEM, responsaveisItem } from '/shared/oferendas.js';
 import { quebrar } from './canvas.js';
 
 const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5', verde: '#2f9e5b', amarelo: '#e3b021', vermelho: '#d9534f', cinza: '#8a94a3', ok: '#24785a' };
@@ -132,7 +132,7 @@ function desenhar(ctx, of, pintar) {
     const nome = cortar(ctx, i.nome, max - xt);
     ctx.fillText(nome, xt, meio - 11);
     xt += ctx.measureText(nome).width + 10;
-    const extra = [...(i.entrega ? [`entrega ${dataBR(i.entrega).slice(0, 5)}`] : []), ...(i.doacoes.length ? [i.doacoes.map((d) => `${d.nome} (${qtdTxt(d.quantidade, i.unidade)})`).join(', ')] : [])].join(' · ');
+    const extra = [...(i.entrega ? [`entrega ${dataBR(i.entrega).slice(0, 5)}`] : []), ...(i.todos || i.doacoes.length ? [responsaveisItem(i, true)] : [])].join(' · ');
     fonte(400, 16); ctx.fillStyle = C.muted;
     if (extra && max - xt > 40) ctx.fillText(cortar(ctx, extra, max - xt), xt, meio - 9);
   }

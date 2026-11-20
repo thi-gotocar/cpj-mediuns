@@ -118,7 +118,7 @@ export function cardAulaCurimba() {
 // Na aba Gira: os itens das oferendas que a pessoa se comprometeu a doar e ainda não foram entregues,
 // e, na oferenda com uma linha por pessoa, o pagamento ou a entrega que faltam. Só aparece quando há algum.
 export function cardCompromissos() {
-  if (!pode('oferendas:doar')) return '';
+  if (!pode('oferendas:doar') && !pode('oferendas:ver')) return '';
   if (estado.oferendas === null) {
     carregarOferendas();
     return '';
@@ -131,6 +131,6 @@ export function cardCompromissos() {
   return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos nas oferendas</h2></div>
     ${grupos.map(({ of, itens, linha }) => `<div class="comp-of-g"><div><b>${esc(of.titulo)}</b> <span class="muted">· ${dataBR(of.data)}</span></div>
       ${linha ? `<div class="comp-of-med"><span><span class="muted">Pagamento:</span> ${etq(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etq(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li>${esc(i.nome)} <b>${qtdTxt(q, i.unidade)}</b> <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('')}
+      ${itens.length ? `<ul>${itens.map(({ i, q, todos }) => `<li>${esc(i.nome)} <b>${qtdTxt(q, i.unidade)}</b> <span class="muted">· ${todos ? 'com todos da lista · ' : ''}entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('')}
     <button class="btn link small" data-act="goto" data-tab="oferendas">Ver oferendas ›</button></div>`;
 }

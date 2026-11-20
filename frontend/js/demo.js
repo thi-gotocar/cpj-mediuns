@@ -116,7 +116,22 @@ db.oferendas = [{
     { id: id(1112), nome: 'Frutas variadas', quantidade: 3, unidade: 'kg', entrega: '', entregue: false, doacoes: [{ chave: 'p:' + EU_ID, nome: 'Teste CPJ', quantidade: 2 }] },
     { id: id(1113), nome: 'Vela verde', quantidade: 7, unidade: 'un', entrega: '', entregue: false, doacoes: [{ chave: 'p:' + id(2), nome: 'Rafael Moura', quantidade: 7 }] },
   ],
+}, {
+  // Uma linha por pessoa, com um item de Todos (cada pessoa da lista leva) e alguém do grupo Oferenda na lista.
+  id: id(1102), titulo: 'Oferenda para Ogum', data: dia(proximoSabado + 14), status: 'publicado', abaId: id(1150),
+  responsavelId: id(2), responsavel: 'Rafael Moura', porMedium: true, noResumo: false, grupos: ['medium'],
+  mediuns: [
+    { pessoaId: EU_ID, nome: 'Teste CPJ', pagamento: 'nao_pago', entrega: 'pendente' },
+    { pessoaId: id(5), nome: 'Beatriz Souza', pagamento: 'pago', entrega: 'pendente' },
+    { pessoaId: 'a:' + id(671), nome: 'Ivone Martins', pagamento: 'nao_pago', entrega: 'pendente', aluno: true },
+  ],
+  itens: [
+    { id: id(1121), nome: 'Vela vermelha', quantidade: 1, unidade: 'unidade', entrega: '', entregue: false, todos: true, doacoes: [] },
+    { id: id(1122), nome: 'Cerveja clara', quantidade: 2, unidade: 'garrafa', entrega: '', entregue: false, doacoes: [] },
+  ],
 }];
+// Grupo Oferenda (cadastros pelo login que o admin pôs no grupo): fora da lista de alunos.
+const GRUPO_OFERENDA = [{ id: id(671), nome: 'Ivone Martins' }];
 const ABAS_OFERENDA = [{ id: id(1150), nome: 'Oferendas', visivel: true, detalhes: '', ordem: 0 }, { id: 'iemanja', nome: 'Iemanjá', iemanja: true, visivel: true, ordem: 1 }];
 
 // Oferenda de Iemanjá: a pessoa de teste está no Grupo 1 e já assumiu itens (vista de quem participa, sem ser admin do evento).
@@ -407,6 +422,34 @@ function doar(b) {
   if (q) i.doacoes.push({ chave: 'p:' + EU_ID, nome: 'Teste CPJ', quantidade: q });
   return oferendas();
 }
+// Admin das oferendas na demo: cadastrar item, Todos, doação por alguém e pôr alguém na lista por pessoa.
+function acaoOferendaDemo(b) {
+  const ofs = db.oferendas;
+  const item = (iid) => ofs.flatMap((o) => o.itens).find((x) => x.id === iid) || (() => { throw new ErroDemo(404, 'Item não encontrado.'); })();
+  const nomeDe = (pid) => (String(pid).startsWith('a:') ? [...db.alunos, ...GRUPO_OFERENDA].find((a) => 'a:' + a.id === pid)?.nome : db.pessoas.find((p) => p.id === pid)?.nome) || '?';
+  if (b.acao === 'item') {
+    const dados = { nome: b.nome, quantidade: Number(b.quantidade), unidade: b.unidade, entrega: b.entrega || '' };
+    if (b.id) Object.assign(item(b.id), dados);
+    else ofs.find((o) => o.id === b.oferendaId).itens.push({ id: 'demo-' + Date.now(), entregue: false, todos: false, doacoes: [], ...dados });
+  } else if (b.acao === 'itemTodos') {
+    const i = item(b.id);
+    i.todos = b.todos === true;
+    if (i.todos) i.doacoes = [];
+  } else if (b.acao === 'doarPor') {
+    const i = item(b.itemId);
+    if (i.todos && Number(b.quantidade) > 0) throw new ErroDemo(400, 'Este item é de todos da lista.');
+    const chave = b.chave || (String(b.pessoaId).startsWith('a:') ? b.pessoaId : 'p:' + b.pessoaId);
+    const q = Math.max(0, Number(b.quantidade) || 0);
+    const ja = i.doacoes.find((d) => d.chave === chave);
+    i.doacoes = i.doacoes.filter((d) => d.chave !== chave);
+    if (q) i.doacoes.push({ chave, nome: ja?.nome || nomeDe(b.pessoaId), quantidade: q });
+  } else {
+    const of = ofs.find((o) => o.id === b.oferendaId);
+    const aluno = String(b.pessoaId).startsWith('a:');
+    of.mediuns.push({ pessoaId: b.pessoaId, nome: nomeDe(b.pessoaId), pagamento: 'nao_pago', entrega: 'pendente', ...(aluno ? { aluno: true } : {}) });
+  }
+  return oferendas();
+}
 const oferendas = () => ({ oferendas: copia(db.oferendas), eu: { chave: 'p:' + (pessoaVc() || EU_ID), nome: me().nome }, abas: copia(ABAS_OFERENDA), publica: true });
 
 
@@ -450,7 +493,8 @@ function lerGet(caminho, q) {
     if (lista === 'alunos') {
       // Cadastros pelo login (Criar cadastro): três novos, ainda sem destino, e um consulente.
       const cad = (n, nome, dias, celular, email) => ({ id: id(n), nome, em: new Date(Date.now() - dias * 864e5).toISOString(), celular, email });
-      return { turmas: copia(db.turmas), alunos: copia(db.alunos), cadastros: { turmaConsulentes: id(599),
+      return { turmas: copia(db.turmas), alunos: copia(db.alunos), grupoOferenda: copia(GRUPO_OFERENDA), cadastros: { turmaConsulentes: id(599), turmaOferenda: id(598),
+        oferenda: [cad(671, 'Ivone Martins', 10, '11943210987', 'ivone@exemplo.com')],
         novos: [cad(651, 'Daniela Matos', 1, '11987654321', 'daniela@exemplo.com'), cad(652, 'Eduardo Pires', 3, '11976543210', 'edu@exemplo.com'),
           cad(653, 'Gabriela Lopes', 6, '11965432109', 'gabi@exemplo.com')],
         consulentes: [cad(661, 'Henrique Dias', 20, '11954321098', 'henrique@exemplo.com')] } };
@@ -582,6 +626,7 @@ function escrever(metodo, caminho, b) {
   }
   if (caminho === '/pessoas' && b?.acao === 'amaci' && b.op === 'presenca') { marcarAmaci(b.eventoId, b.alunoId, b.status); return amaci(); }
   if (caminho === '/oferendas' && b?.acao === 'doar') return doar(b);
+  if (caminho === '/oferendas' && ['item', 'itemTodos', 'doarPor', 'incluirMedium'].includes(b?.acao)) return acaoOferendaDemo(b);
   if (caminho === '/auth/visita') return { ok: true };
   if (caminho === '/auth/perfil' && b?.perfil) {
     db.perfis[EU_ID] = normalizarPerfil(b.perfil);

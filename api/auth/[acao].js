@@ -53,8 +53,9 @@ function publico(u) {
   return { id: u.id, nome: u.nome, email: u.email, papel: u.papel, papelNome: u.papelNome || '', pessoaId: u.pessoaId || null,
     ...(u.grupo ? { grupo: u.grupo } : {}),
     ...(u.consulente ? { consulente: true } : {}),
+    ...(u.grupoOferenda ? { grupoOferenda: true } : {}),
     // Aluno sem turma (cadastro novo pelo login): só a aba Geral, com o aviso de que aguarda a administração.
-    ...(u.grupo === 'alunos' && !u.consulente && 'turmaId' in u && !u.turmaId ? { aguardando: true } : {}),
+    ...(u.grupo === 'alunos' && !u.consulente && !u.grupoOferenda && 'turmaId' in u && !u.turmaId ? { aguardando: true } : {}),
     permissoes: u.permissoes || permissoesDe(u.papel, u.abas) };
 }
 

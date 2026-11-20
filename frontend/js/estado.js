@@ -102,7 +102,8 @@ export const pode = (perm) => {
   return (estado.me.permissoes || []).includes(perm);
 };
 // Aba Oferendas: admins sempre; as pessoas, se houver sub-aba visível ou a Iemanjá.
-export const veOferendas = () => veIemanja() || (pode('oferendas:doar') && visaoAtiva() !== 'alunos' && (pode('oferendas:gerenciar') || !!(estado.oferendas?.publica ?? estado.me?.oferendasPublica)));
+// O grupo Oferenda (aluno com oferendas:ver) vê as listas, sem doar.
+export const veOferendas = () => veIemanja() || ((pode('oferendas:doar') || pode('oferendas:ver')) && (visaoAtiva() !== 'alunos' || !!estado.me?.grupoOferenda) && (pode('oferendas:gerenciar') || !!(estado.oferendas?.publica ?? estado.me?.oferendasPublica)));
 export const pessoasOrd = () => ordenarPessoas(estado.pessoas.filter((p) => !p.saida));
 // Inclui quem já saiu: só para giras e estatísticas, sempre filtrando pela data da gira (naCorrenteEm).
 export const pessoasComSaidas = () => ordenarPessoas(estado.pessoas);

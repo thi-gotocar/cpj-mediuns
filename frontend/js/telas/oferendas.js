@@ -1,6 +1,6 @@
 // Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
 
-import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes, arred, passoLevar } from '/shared/oferendas.js';
+import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes, arred, passoLevar, responsaveisItem } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva, veErvas } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
@@ -24,7 +24,8 @@ document.addEventListener('toggle', (e) => {
   } else if (d.classList.contains('anteriores')) U().anteriores = d.open;
 }, true);
 // Quem só tem a Iemanjá (alunos) não usa as listas de oferendas.
-const veLista = () => pode('oferendas:doar') && visaoAtiva() !== 'alunos';
+// O grupo Oferenda (oferendas:ver) vê as listas, mas não doa.
+const veLista = () => (pode('oferendas:doar') || pode('oferendas:ver')) && (visaoAtiva() !== 'alunos' || !!estado.me?.grupoOferenda);
 const souRoot = () => estado.me?.papel === 'root' && estado.visaoRoot === 'root';
 const ABA_IEMANJA = { id: 'iemanja', nome: 'Iemanjá', iemanja: true };
 function subabas() {
@@ -34,11 +35,14 @@ function subabas() {
 const abaAtiva = () => { const l = subabas(); return l.find((a) => a.id === U().aba) || l[0]; };
 const daAba = (aba) => estado.oferendas.oferendas.filter((o) => o.abaId === aba?.id);
 
-// Doação por outra pessoa: qualquer cadastrado, da corrente (com a curimba) ou aluno.
+// Grupo Oferenda (cadastros pelo login que o admin pôs no grupo): fora da lista de alunos, só entra pelo admin.
+const grupoOferendaLivres = (ja) => (estado.alunos?.grupoOferenda || []).filter((a) => !ja.has('a:' + a.id));
+const optGrupoOferenda = (l) => (l.length ? `<optgroup label="Grupo Oferenda">${l.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : '');
+// Doação por outra pessoa: qualquer cadastrado, da corrente (com a curimba), aluno ou do grupo Oferenda.
 function opcoesDoador(ja) {
   const livres = pessoasOrd().filter((p) => !ja.has('p:' + p.id));
   const alunosLivres = (estado.alunos?.alunos || []).filter((a) => !ja.has('a:' + a.id));
-  return `${livres.length ? `<optgroup label="Corrente">${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</optgroup>` : ''}${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}`;
+  return `${livres.length ? `<optgroup label="Corrente">${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</optgroup>` : ''}${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}${optGrupoOferenda(grupoOferendaLivres(ja))}`;
 }
 
 // Oferenda com uma linha por médium: a situação de cada um. O admin escolhe; a corrente só vê.
@@ -67,22 +71,24 @@ function formAddPessoa(of, ms) {
   const ja = new Set(ms.map((m) => m.pessoaId));
   const livres = pessoasOrd().filter((p) => !ja.has(p.id));
   const alunosLivres = (estado.alunos?.alunos || []).filter((a) => !ja.has('a:' + a.id));
-  if (!livres.length && !alunosLivres.length) return '';
+  const grupoLivres = grupoOferendaLivres(ja);
+  if (!livres.length && !alunosLivres.length && !grupoLivres.length) return '';
   return `<form class="of-por" data-form="addmedium" data-of="${of.id}" autocomplete="off">
     <select name="pessoa" aria-label="Pessoa do cadastro para adicionar na lista"><option value="">+ adicionar pessoa do cadastro…</option>
       ${livres.length ? `<optgroup label="Corrente">${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</optgroup>` : ''}
-      ${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}</select>
+      ${alunosLivres.length ? `<optgroup label="Alunos">${alunosLivres.map((a) => `<option value="a:${a.id}">${esc(a.nome)}</option>`).join('')}</optgroup>` : ''}${optGrupoOferenda(grupoLivres)}</select>
     <button class="btn small primary" type="submit">Adicionar</button></form>`;
 }
 function blocoMediuns(of, admin) {
   const ms = of.mediuns || [];
+  const doGrupo = new Set((estado.alunos?.grupoOferenda || []).map((a) => 'a:' + a.id));
   let h = `<div class="of-med"><div class="of-med-h"><b>Pessoas</b> <span class="muted">(${ms.length})</span>
     ${admin ? `<button class="btn link small" data-act="incluirmed" data-id="${of.id}" aria-expanded="${U().incluir === of.id}" title="Acrescenta quem foi cadastrado depois">↻ Incluir novos cadastrados</button>` : ''}</div>
     ${admin && U().incluir === of.id ? painelIncluir(of) : ''}
     ${admin ? formAddPessoa(of, ms) : ''}`;
   if (!ms.length) return h + `<p class="muted" style="margin:0;font-size:.88rem">Ninguém na lista.</p></div>`;
   // Um cartão por pessoa: o nome (e, para o admin, ✕ para tirar) e embaixo Pagamento e Entrega, na cor da situação.
-  h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${medConferido(m) ? 'ok' : m.pagamento === 'pago' || m.entrega === 'entregue' ? 'meio' : 'pend'}"><span class="nm">${esc(m.nome)}${m.aluno ? ' <span class="tag of-aluno">aluno</span>' : ''}</span>
+  h += `<div class="of-med-lista">${ms.map((m) => `<div class="of-med-l ${medConferido(m) ? 'ok' : m.pagamento === 'pago' || m.entrega === 'entregue' ? 'meio' : 'pend'}"><span class="nm">${esc(m.nome)}${m.aluno ? ` <span class="tag of-aluno">${doGrupo.has(m.pessoaId) ? 'oferenda' : 'aluno'}</span>` : ''}</span>
     ${admin ? `${estado.confirm === 'om:' + of.id + ':' + m.pessoaId
         ? `<button class="btn small danger" data-act="delmedium" data-of="${of.id}" data-p="${m.pessoaId}">Tirar</button>`
         : `<button class="btn small lock-x" data-act="askdel" data-k="om:${of.id}:${m.pessoaId}" title="Tirar ${esc(m.nome)} desta lista" aria-label="Tirar ${esc(m.nome)} desta lista">✕</button>`}
@@ -128,9 +134,9 @@ function cardMeusCompromissos() {
       <span class="of-meus-data"><span class="eyebrow">${dataBR(of.data)}</span><span class="ent">${esc(Dia(of.data))}</span></span>
       <button class="btn link of-meus-tit" data-act="vercomp" data-id="${of.id}">${esc(of.titulo)} ›</button>
       ${linha ? `<div class="of-meus-med"><span><span class="muted">Pagamento:</span> ${etqMed(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etqMed(linha.entrega)}</span></div>` : ''}
-      ${itens.length ? `<ul>${itens.map(({ i, q }) => `<li><b>${qtdAntes(q, i.unidade)}</b> ${esc(i.nome)} <span class="muted">· entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>` })), ...(iem ? [iem] : [])].sort((a, b) => a.data.localeCompare(b.data));
+      ${itens.length ? `<ul>${itens.map(({ i, q, todos }) => `<li><b>${qtdAntes(q, i.unidade)}</b> ${esc(i.nome)} <span class="muted">· ${todos ? 'com todos da lista · ' : ''}entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>` })), ...(iem ? [iem] : [])].sort((a, b) => a.data.localeCompare(b.data));
   const h = `<div class="card of-meus"><div class="grp-h"><h2><span aria-hidden="true">🙋</span> Seus compromissos</h2>${blocos.length ? `<span class="count">${blocos.length}</span>` : ''}</div>`;
-  if (!blocos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar. Para doar, abra a oferenda e toque em + no item.</p></div>`;
+  if (!blocos.length) return h + `<p class="muted" style="margin:0;font-size:.9rem">Você não tem nada para levar.${pode('oferendas:doar') ? ' Para doar, abra a oferenda e toque em + no item.' : ''}</p></div>`;
   return h + blocos.map((b) => b.html).join('') + '</div>';
 }
 
@@ -225,7 +231,7 @@ function cardOferenda(of, admin) {
     if (!aberta) return h + `</div>`;
     h += `
       ${!admin && of.status === 'rascunho' ? `<div class="of-topo">${etiqueta('rascunho')}</div>` : ''}
-      ${barraDoacoes(of, visivel ? `<span class="of-pct-sw">${visivel}</span>` : '')}
+      ${barraDoacoes(of, comBarra && visivel ? `<span class="of-pct-sw">${visivel}</span>` : '')}
       ${of.porMedium && !of.bloqueada ? barrasMediuns(of) : ''}
       ${!comBarra ? visivel : ''}
       ${admin && of.porMedium ? `<label class="of-sw"><input type="checkbox" role="switch" data-act="ofresumo" data-id="${of.id}" ${of.noResumo ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span>Exibir no resumo <span class="muted">(tabela Oferendas por pessoa)</span></label>` : ''}
@@ -237,13 +243,13 @@ function cardOferenda(of, admin) {
   const recolher = u.editar !== of.id ? `<button class="btn link small of-dobra" data-act="dobrarof" data-id="${of.id}" aria-expanded="true">▴ Recolher</button>` : '';
   if (bloqueada) return h + recolher + `</div>`;
   if (of.porMedium) h += blocoMediuns(of, admin);
-  // Cadastrar item fica no topo da lista (a oferenda com uma linha por pessoa não tem itens novos).
-  if (admin && !of.porMedium) {
+  // Cadastrar item fica no topo da lista (também na oferenda com uma linha por pessoa, que aceita o item de Todos).
+  if (admin) {
     h += `<details class="of-novo"${u.novoItem === of.id ? ' open' : ''}><summary>+ Adicionar item</summary>
       <form class="row" data-form="item" data-of="${of.id}" autocomplete="off">${camposItem()}<button class="btn primary" type="submit">Adicionar</button></form></details>`;
   }
   const eu = estado.oferendas.eu;
-  h += listaItens(of.itens, { p: '', eu, admin, ref: of, podeDoar: of.status === 'publicado' && !travadaPara(of, eu.chave), opcoesDoador });
+  h += listaItens(of.itens, { p: '', eu, admin, ref: of, podeDoar: of.status === 'publicado' && pode('oferendas:doar') && !travadaPara(of, eu.chave), opcoesDoador });
   return h + rodapeOferenda(of, admin) + recolher + `</div>`;
 }
 
@@ -346,7 +352,7 @@ export function barraParaErvas() {
 function janelaEntregue() {
   const { of, item } = U().confEntregue ? achar(U().confEntregue) : {};
   if (!item) return '';
-  const resp = item.doacoes.map((d) => `${esc(d.nome)} (${qtdTxt(d.quantidade, item.unidade)})`).join(', ');
+  const resp = esc(responsaveisItem(item, true));
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="ent-t"><div class="modal">
     <h3 id="ent-t">Confirmar entrega</h3>
     <p style="margin:0">Confirma que <b>${esc(item.nome)}</b> da ${esc(of.titulo)} foi entregue?${resp ? `<br><span class="muted">Responsáveis: ${resp}</span>` : ''}</p>
@@ -440,6 +446,10 @@ export const cliques = {
   },
   async pormais(el) { await porAlguem(el, +1); },
   async pormenos(el) { await porAlguem(el, -1); },
+  async todosdel(el) {
+    estado.confirm = null;
+    if (await acaoOferendas('itemTodos', { id: el.dataset.item, todos: false })) toast('O item deixou de ser de todos.');
+  },
   async pordel(el) {
     estado.confirm = null;
     if (await acaoOferendas('doarPor', { itemId: el.dataset.item, chave: el.dataset.chave, quantidade: 0 })) toast('Doação excluída.');
@@ -606,10 +616,15 @@ export async function enviar(form) {
     return;
   }
   // Pessoa da corrente (id) ou aluno ('a:' + id).
-  const nomeDe = (pessoa) => (pessoa.startsWith('a:') ? (estado.alunos?.alunos || []).find((a) => 'a:' + a.id === pessoa)?.nome || ''
+  const nomeDe = (pessoa) => (pessoa.startsWith('a:') ? [...(estado.alunos?.alunos || []), ...(estado.alunos?.grupoOferenda || [])].find((a) => 'a:' + a.id === pessoa)?.nome || ''
     : estado.pessoas.find((p) => p.id === pessoa)?.nome || '');
   if (form.dataset.form === 'porpessoa') {
     const pessoa = v('pessoa');
+    // Todos: cada pessoa da lista fica responsável pelo item (sem quantidade por pessoa).
+    if (pessoa === 'todos') {
+      if (await acaoOferendas('itemTodos', { id: form.dataset.item, todos: true })) toast('O item agora é de todos da lista.');
+      return;
+    }
     const qtd = Number(v('qtd'));
     if (!pessoa) { toast('Escolha a pessoa.'); return; }
     if (!(qtd > 0)) { toast('Informe a quantidade.'); return; }

@@ -21,8 +21,8 @@ import { chavePessoa } from '../../shared/ervas.js';
 import { normalizarDia } from '../../shared/diario.js';
 
 const ehRoot = (eu) => pode(eu, 'usuarios:gerenciar');
-// Galeria: corrente (acesso ligado a uma pessoa) e alunos; ex-alunos já não entram no app; consulentes ficam de fora.
-export const veGaleria = (eu) => ehRoot(eu) || (eu.grupo === 'alunos' ? !eu.consulente : !eu.grupo && !!eu.pessoaId);
+// Galeria: corrente (acesso ligado a uma pessoa) e alunos; ex-alunos já não entram no app; consulentes e o grupo Oferenda ficam de fora.
+export const veGaleria = (eu) => ehRoot(eu) || (eu.grupo === 'alunos' ? !eu.consulente && !eu.grupoOferenda : !eu.grupo && !!eu.pessoaId);
 export const GALERIA_FOTO_MAX = 900 * 1024;
 export const GALERIA_DESCRICAO_MAX = 200;
 

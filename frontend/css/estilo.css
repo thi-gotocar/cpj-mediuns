@@ -1242,6 +1242,7 @@ section.panel.pf-tela{gap:14px}
 .pessoas-tela .fn-cadastros{--fn:var(--warn)}
 .pessoas-tela .fn-cadnovos{--fn:var(--warn)}
 .pessoas-tela .fn-cadcons{--fn:var(--accent)}
+.pessoas-tela .fn-cadof{--fn:var(--ok)}
 .cad-lista{display:grid;gap:6px}
 .cad-l{display:grid;gap:6px;border:1px solid var(--line);border-radius:10px;padding:0;background:var(--bg);overflow:hidden}
 .cad-l.aberta{padding:0 10px 10px}

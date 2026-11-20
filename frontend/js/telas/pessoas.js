@@ -470,17 +470,18 @@ ${cardOferendasPendentes()}`;
 }
 
 // ---------- Cadastros pelo login ----------
-// Quem se cadastra pelo login entra sem destino (Novos). O admin decide para onde vai: uma turma de alunos, Consulentes
-// ou a corrente (UP CPJ, como Cambone). Os consulentes ficam no outro quadradinho e também podem mudar de destino.
-const QUADROS_CADASTRO = [['novos', 'Novos', 'fn-cadnovos'], ['consulentes', 'Consulentes', 'fn-cadcons']];
+// Quem se cadastra pelo login entra sem destino (Novos). O admin decide para onde vai: uma turma de alunos, Consulentes,
+// o grupo Oferenda ou a corrente (UP CPJ, como Cambone). Consulentes e Oferenda ficam nos outros quadradinhos e também
+// podem mudar de destino.
+const QUADROS_CADASTRO = [['novos', 'Novos', 'fn-cadnovos'], ['consulentes', 'Consulentes', 'fn-cadcons'], ['oferenda', 'Oferenda', 'fn-cadof']];
 function cardCadastrosLogin() {
   const C = estado.alunos?.cadastros;
   if (!pode('alunos:editar') || !C) return '';
-  // Sempre aberto: os dois quadradinhos ficam à vista; tocar num deles abre a lista.
+  // Sempre aberto: os quadradinhos ficam à vista; tocar num deles abre a lista.
   const n = C.novos.length;
   let h = `<div class="card pp-card fn-cadastros"><div class="grp-h"><h2>🪪 Cadastros pelo login</h2>${n ? `<span class="count">${n} novo${n === 1 ? '' : 's'}</span>` : ''}</div>`;
   const sel = C[estado.cadQuadro] ? estado.cadQuadro : null;
-  h += `<p class="muted" style="margin:0;font-size:.85rem">Quem se cadastrou pelo login (Criar cadastro). Decida para onde vai cada um: uma turma de alunos, Consulentes ou a corrente.</p>
+  h += `<p class="muted" style="margin:0;font-size:.85rem">Quem se cadastrou pelo login (Criar cadastro). Decida para onde vai cada um: uma turma de alunos, Consulentes, Oferenda (só vê as oferendas; o admin põe a pessoa nelas) ou a corrente.</p>
     <div class="pf-of-totais auto">${QUADROS_CADASTRO.map(([k, t, cls]) => `<button type="button" class="pf-of-total ${cls}${sel === k ? ' selecionado' : ''}" data-act="cadquadro" data-q="${k}" aria-expanded="${sel === k}" aria-label="${t}: ${C[k].length}"${C[k].length ? '' : ' disabled'}><b>${C[k].length}</b><span>${t}</span></button>`).join('')}</div>`;
   if (!sel) return h + '</div>';
   const turmas = (estado.alunos.turmas || []).map((t) => `<option value="t:${t.id}">Aluno · ${esc(t.nome)}</option>`).join('');
@@ -506,7 +507,7 @@ function cardCadastrosLogin() {
         <span class="cad-l1-d">${pode('usuarios:gerenciar') ? `<button class="btn small pp-bt pp-ico" type="button" data-act="senhaaluno" data-id="${c.id}" data-nome="${esc(c.nome)}" aria-label="Nova senha de ${esc(c.nome)}" title="Nova senha"><span aria-hidden="true">🔑</span></button>` : ''}
         <button class="btn small pp-bt pp-ico" type="button" data-act="cadeditar" data-id="${c.id}" aria-label="Editar os dados de ${esc(c.nome)}" title="Editar dados"><span aria-hidden="true">✎</span></button></span></div>
       ${cpf}
-      <div class="cad-acao"><select id="cad-${c.id}" aria-label="Para onde vai ${esc(c.nome)}"><option value="">— para onde vai? —</option>${turmas}${sel === 'novos' ? '<option value="consulente">Consulente</option>' : ''}<option value="corrente">Corrente (Cambone)</option></select>
+      <div class="cad-acao"><select id="cad-${c.id}" aria-label="Para onde vai ${esc(c.nome)}"><option value="">— para onde vai? —</option>${turmas}${sel !== 'consulentes' ? '<option value="consulente">Consulente</option>' : ''}${sel !== 'oferenda' ? '<option value="oferenda">Oferenda</option>' : ''}<option value="corrente">Corrente (Cambone)</option></select>
         <button class="btn small primary" data-act="cadmover" data-id="${c.id}" data-nome="${esc(c.nome)}">Mover</button></div></div>`;
   }).join('')}</div>`;
   return h + '</div>';
@@ -529,11 +530,11 @@ export const cliques = {
       if (!confirm(`Passar ${nome} para a corrente como Cambone? O cadastro, a senha e o CPF vão junto.`)) return;
       ok = await acaoAlunos('promoverAlunoCPJ', { id: el.dataset.id });
     } else {
-      const turmaId = destino === 'consulente' ? C.turmaConsulentes : destino.slice(2);
+      const turmaId = destino === 'consulente' ? C.turmaConsulentes : destino === 'oferenda' ? C.turmaOferenda : destino.slice(2);
       ok = await acaoAlunos('aluno', { id: el.dataset.id, turmaId });
     }
     if (!ok) return;
-    toast(destino === 'corrente' ? `${nome} agora é da corrente.` : destino === 'consulente' ? `${nome} agora é consulente.` : `${nome} foi para a turma.`);
+    toast(destino === 'corrente' ? `${nome} agora é da corrente.` : destino === 'consulente' ? `${nome} agora é consulente.` : destino === 'oferenda' ? `${nome} agora está no grupo Oferenda.` : `${nome} foi para a turma.`);
     carregarAlunos();   // os quadradinhos voltam com as contas novas
   },
   // Bloco Oferendas pendentes (vem da aba Perfil).

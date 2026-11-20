@@ -123,6 +123,10 @@ export function permissoesConsulente(abas) {
   return [...new Set(['alunos:ver', ...ABAS_CONSULENTE.filter((k) => a[k].ver).flatMap((k) => MAPA[k].ver)])];
 }
 
+// Grupo Oferenda (cadastro pelo login posto no grupo Oferenda, turma escondida): só a Geral e a aba Oferendas, sem doar
+// (oferendas:ver lê as oferendas; doar exige oferendas:doar). O que o admin atribui aparece nos compromissos dele.
+export const PERMISSOES_OFERENDA = ['alunos:ver', 'oferendas:ver'];
+
 // Senha (PIN) de quem entra pelo acesso da corrente: só números, de 4 a 8 (as antigas continuam valendo).
 export const PIN_VALIDO = /^\d{4,8}$/;
 // Senha nova (criar, cadastrar ou o root definir): de 6 a 8 números.
