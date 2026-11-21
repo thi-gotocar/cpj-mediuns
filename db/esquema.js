@@ -5,7 +5,7 @@
 // são idempotentes (podem rodar de novo sem estragar nada).
 //
 // Para mudar o esquema: acrescente comandos no fim e aumente VERSAO. Ao redefinir uma função,
-// apague a definição antiga se nenhum comando entre as duas a chama (só a última vale).
+// apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
 export const VERSAO = 161;  // v161: QR do Pix só pendente, oferendas sem gravar na leitura, giras em janela e versão própria
@@ -674,6 +674,23 @@ export const MIGRACOES = [
 
   // ================================================== v36: oferenda completa (100%) há mais de um dia: fecha as doações
   `alter table oferendas add column if not exists completa_em timestamptz`,
+  // Marca quando todos os itens ficaram completos (e desmarca se voltar a faltar),
+  // mas depois de fechada (um dia completa) continua fechada.
+  `create or replace function oferenda_conferir_completa(v_of uuid)
+   returns void language plpgsql as $$
+   declare v_completa boolean;
+   begin
+     select exists (select 1 from oferenda_itens i where i.oferenda_id = v_of)
+        and not exists (select 1 from oferenda_itens i where i.oferenda_id = v_of
+                        and i.quantidade > coalesce((select sum(d.quantidade) from oferenda_doacoes d where d.item_id = i.id), 0))
+       into v_completa;
+     update oferendas set completa_em = case
+         when completa_em is not null and completa_em <= now() - interval '1 day' then completa_em
+         when v_completa then coalesce(completa_em, now())
+         else null end
+     where id = v_of;
+   end;
+   $$`,
   `create or replace function oferenda_completa_trg()
    returns trigger language plpgsql as $$
    declare v_of uuid;
@@ -1814,6 +1831,23 @@ export const MIGRACOES = [
      quantidade int not null check (quantidade > 0),
      primary key (item_id, chave)
    )`,
+  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', e.id, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora),
+       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
+           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
+           'responsavel', (select pe.nome from pessoas pe where pe.id = g.responsavel_id),
+           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
+                       from iemanja_membros m where m.grupo_id = g.id),
+           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'quantidade', i.quantidade,
+               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
+                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
+                     from iemanja_itens i where i.grupo_id = g.id)
+         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
+     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
+     from iemanja_eventos e
+   $$`,
   `create or replace function iemanja_evento_novo(p jsonb)
    returns jsonb language plpgsql as $$
    declare v_id uuid;
@@ -4229,6 +4263,19 @@ export const MIGRACOES = [
      delete from diario_fotos
       where (criado_em at time zone 'America/Sao_Paulo')
             < date_trunc('week', (now() at time zone 'America/Sao_Paulo') - interval '1 day') + interval '1 day'
+   $$`,
+  // p = { chave } → [{ id, nome, descricao, criadoEm, v, curtidas, curti, minha }] (mais nova primeiro)
+  `create or replace function diario_fotos(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     perform diario_fotos_limpar();
+     return coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'nome', f.nome, 'descricao', f.descricao, 'criadoEm', f.criado_em,
+              'v', substr(md5(f.foto), 1, 10),
+              'curtidas', (select count(*) from diario_curtidas c where c.foto_id = f.id),
+              'curti', exists (select 1 from diario_curtidas c where c.foto_id = f.id and c.chave = p ->> 'chave'),
+              'minha', f.chave = p ->> 'chave') order by f.criado_em desc)
+       from diario_fotos f), '[]'::jsonb);
+   end;
    $$`,
   // p = { chave, nome, descricao, foto }
   `create or replace function diario_foto_salvar(p jsonb)
