@@ -8,8 +8,10 @@
 //   POST ?webhook=asaas                          — o ASAAS avisa (token no cabeçalho asaas-access-token)
 //   POST { acao: 'guias', op: 'pix', pedido, cpf? } — a pessoa gera o Pix do que pediu (cpf só na 1ª vez)
 //   GET  ?lista=asaas                            — aba ASAAS (root e quem tem a aba no perfil): situação, cobranças e eventos recebidos
+//   GET  ?lista=asaasbusca&q=&conta=             — aba ASAAS → Buscar (ver buscaAsaas)
 //   POST { acao: 'asaas', op: 'ativar', ativo } · { acao: 'asaas', op: 'cancelar', id }   (root)
 //        { acao: 'asaas', op: 'credito', chave: 'p:<pessoa>' | 'a:<aluno>', remover? }  — quem gera link com cartão de crédito e Pix
+//        { acao: 'asaas', op: 'contatos', desde? }  — Atualizar contatos: busca de novo no ASAAS os clientes guardados (ver contatosAsaas)
 // Quem está nessa lista gera, na conta A, a cobrança com a forma "cliente escolhe" (UNDEFINED): Pix ou cartão na fatura.
 //
 // Variáveis (só no servidor): ASAAS_API_KEY, ASAAS_WEBHOOK_TOKEN e ASAAS_API_URL (sem ela, usa o sandbox).
@@ -66,32 +68,70 @@ export function corteDiario(agora = new Date()) {
 export const leituraDoDia = (atualizadoEm) => !!atualizadoEm && Date.parse(atualizadoEm) >= corteDiario().getTime();
 
 // Clientes de uma conta ('A' = ASAAS, 'B' = ASAAS2): nome, telefone, hash do CPF (o CPF aberto não é guardado) e referência.
-// Os guardados há menos de 7 dias (asaas_clientes_info) não são buscados de novo, a não ser com renovar.
+// Os já guardados (asaas_clientes_info) não são buscados de novo: nome e CPF quase nunca mudam; o ASAAS só é lido para cliente novo.
 // → Map(id → { id, nome, telefone, cpfHash, referencia }); cliente que o ASAAS não devolveu fica de fora.
 const PREFIXO = { A: 'ASAAS', B: 'ASAAS2' };
 const LOTE_CLIENTES = 10;
-export async function clientesAsaas(conta, ids, renovar = false) {
+export async function clientesAsaas(conta, ids) {
   const clientes = new Map();
   const unicos = [...new Set(ids.filter(Boolean))];
   if (!unicos.length) return clientes;
-  if (!renovar) (await db.rpc('asaas_clientes_info_ler', { conta, ids: unicos })).forEach((c) => clientes.set(c.id, c));
-  const novos = [];
-  const faltam = unicos.filter((id) => !clientes.has(id));
-  for (let i = 0; i < faltam.length; i += LOTE_CLIENTES) {
-    await Promise.all(faltam.slice(i, i + LOTE_CLIENTES).map(async (id) => {
+  (await db.rpc('asaas_clientes_info_ler', { conta, ids: unicos })).forEach((c) => clientes.set(c.id, c));
+  const { lidos } = await buscarClientes(conta, unicos.filter((id) => !clientes.has(id)));
+  lidos.forEach((c) => clientes.set(c.id, c));
+  return clientes;
+}
+
+// Busca os clientes no ASAAS, de 10 em 10, e guarda os que vieram. → { lidos, falhas: [{ id, rede }] }
+// rede: o ASAAS não respondeu (502); senão, ele recusou (ex.: cliente excluído).
+async function buscarClientes(conta, ids) {
+  const lidos = [];
+  const falhas = [];
+  for (let i = 0; i < ids.length; i += LOTE_CLIENTES) {
+    await Promise.all(ids.slice(i, i + LOTE_CLIENTES).map(async (id) => {
       try {
         const cli = await chamarAsaas(PREFIXO[conta], 'GET', `/customers/${encodeURIComponent(id)}`);
         const cpf = String(cli?.cpfCnpj || '').replace(/\D/g, '');
         let cpfHash = '';
         if (cpf.length === 11) { try { cpfHash = hashCpf(cpf); } catch { /* sem CPF_CHAVE: não liga por CPF */ } }
-        const info = { id, nome: String(cli?.name || ''), telefone: String(cli?.mobilePhone || cli?.phone || '').replace(/\D/g, ''), cpfHash, referencia: String(cli?.externalReference || '') };
-        clientes.set(id, info);
-        novos.push(info);
-      } catch { /* fica sem nome/CPF */ }
+        lidos.push({ id, nome: String(cli?.name || ''), telefone: String(cli?.mobilePhone || cli?.phone || '').replace(/\D/g, ''), cpfHash, referencia: String(cli?.externalReference || '') });
+      } catch (e) { falhas.push({ id, rede: e?.status === 502 }); }
     }));
   }
-  if (novos.length) await db.rpc('asaas_clientes_info_salvar', { conta, itens: novos });
-  return clientes;
+  if (lidos.length) await db.rpc('asaas_clientes_info_salvar', { conta, itens: lidos });
+  return { lidos, falhas };
+}
+
+// Atualizar contatos (aba ASAAS → Conexão): busca de novo no ASAAS os clientes guardados das contas ligadas, os mais
+// antigos primeiro. Cada pedido para em ~9 s (o limite da função é 15 s); a tela repete com o mesmo desde (a hora do
+// servidor no 1º pedido) até não faltar nenhum. Cliente que o ASAAS recusa (ex.: excluído) fica com os dados que tinha
+// e não volta para a fila (conta em recusados); se o ASAAS não responder, para com erro.
+// → { desde, atualizados, recusados, faltam, erro? }
+const LOTE_CONTATOS = 50;
+const TEMPO_CONTATOS_MS = 9000;
+async function contatosAsaas(b) {
+  const contas = Object.keys(PREFIXO).filter((k) => process.env[PREFIXO[k] + '_API_KEY']);
+  if (!contas.length) throw new HttpError(400, 'Nenhuma conta do ASAAS configurada na Vercel.');
+  const desde = typeof b.desde === 'string' && !Number.isNaN(Date.parse(b.desde)) ? b.desde : new Date().toISOString();
+  const inicio = Date.now();
+  let atualizados = 0;
+  let recusadosTotal = 0;
+  let erro;
+  for (const conta of contas) {
+    while (!erro && Date.now() - inicio < TEMPO_CONTATOS_MS) {
+      const { ids } = await db.rpc('asaas_clientes_info_pendentes', { conta, desde, limite: LOTE_CONTATOS });
+      if (!ids.length) break;
+      const { lidos, falhas } = await buscarClientes(conta, ids);
+      atualizados += lidos.length;
+      const recusados = falhas.filter((f) => !f.rede).map((f) => f.id);
+      recusadosTotal += recusados.length;
+      if (recusados.length) await db.rpc('asaas_clientes_info_tocar', { conta, ids: recusados });
+      if (falhas.some((f) => f.rede)) erro = `O ASAAS da conta ${conta} não respondeu. Tente de novo em instantes.`;
+    }
+  }
+  let faltam = 0;
+  for (const conta of contas) faltam += (await db.rpc('asaas_clientes_info_pendentes', { conta, desde, limite: 0 })).total;
+  return { desde, atualizados, recusados: recusadosTotal, faltam, ...(erro ? { erro } : {}) };
 }
 
 // ---------- pessoa: gerar o Pix ----------
@@ -292,6 +332,108 @@ async function respostaRoot(eu) {
   };
 }
 
+// ---------- Buscar (aba ASAAS → Buscar; quem vê a aba) ----------
+// O tipo vem da tela (cada um é uma consulta diferente). Procura no que o app guarda (asaas_buscar: links das Compras e
+// vencidas da última leitura) e, nas contas escolhidas:
+//   nome      — no ASAAS, as cobranças (GET /payments?customer=) dos clientes achados no cadastro, nos clientes guardados
+//               ou, sem nenhum, no próprio ASAAS (GET /customers?name=);
+//   link      — a cobrança da fatura (/i/<código>) direto no ASAAS (GET /payments/pay_<código>);
+//   valor, descricao — só no que o app guarda (o ASAAS não filtra por eles).
+// O que veio do ASAAS vale sobre o guardado (situação mais nova); nome e celular, do cadastro quando a pessoa é ligada.
+//   GET /api/oferendas?lista=asaasbusca&tipo=nome|valor|descricao|link&q=<texto>&conta=A|B|ambas
+//     → { resultados: [{ id, conta, nome, telefone, status, situacao, tom, valor, vencimento, descricao, link }], avisos }
+const SITUACAO = {
+  pendente: ['Aguardando pagamento', 'pendente'], paga: ['Pago', 'pago'], vencida: ['Vencido', 'vencido'],
+  cancelada: ['Cancelado', 'cancelado'], estornada: ['Estornado', 'cancelado'],
+  PENDING: ['Aguardando pagamento', 'pendente'], RECEIVED: ['Pago', 'pago'], CONFIRMED: ['Pago (confirmado)', 'pago'],
+  RECEIVED_IN_CASH: ['Pago em dinheiro', 'pago'], OVERDUE: ['Vencido', 'vencido'], REFUNDED: ['Estornado', 'cancelado'],
+  REFUND_REQUESTED: ['Estorno solicitado', 'cancelado'], REFUND_IN_PROGRESS: ['Estorno em andamento', 'cancelado'],
+  CHARGEBACK_REQUESTED: ['Chargeback', 'cancelado'], CHARGEBACK_DISPUTE: ['Chargeback em disputa', 'cancelado'],
+  AWAITING_RISK_ANALYSIS: ['Em análise', 'pendente'], DELETED: ['Excluído', 'cancelado'],
+};
+const MAX_CLIENTES_BUSCA = 8;
+const MAX_RESULTADOS = 60;
+const escaparLike = (s) => s.replace(/[\\%_]/g, (c) => '\\' + c);
+const TIPOS_BUSCA = ['nome', 'valor', 'descricao', 'link'];
+// "110", "110,50", "R$ 1.250,00" ou "1250.5" → número; senão null.
+function valorDaBusca(t) {
+  const s = t.replace(/^r\$\s*/i, '').trim();
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s) || /^\d+(,\d{1,2})?$/.test(s)) return Number(s.replace(/\./g, '').replace(',', '.'));
+  if (/^\d+\.\d{1,2}$/.test(s)) return Number(s);
+  return null;
+}
+
+export async function buscaAsaas(eu, query) {
+  exigirVer(eu);
+  const tipo = TIPOS_BUSCA.includes(query.tipo) ? query.tipo : 'nome';
+  const texto = String(query.q || '').trim().slice(0, 300);
+  const contas = query.conta === 'A' ? ['A'] : query.conta === 'B' ? ['B'] : ['A', 'B'];
+  let valor = null, link = '', nome = '', descricao = '';
+  if (tipo === 'valor') {
+    valor = valorDaBusca(texto);
+    if (valor === null || valor <= 0) throw new HttpError(400, 'Valor inválido. Ex.: 110 ou 110,50.');
+  } else if (tipo === 'link') {
+    if (!/^https:\/\/\S+$/i.test(texto)) throw new HttpError(400, 'Cole o link de pagamento inteiro (começa com https://).');
+    link = texto;
+  } else {
+    if (texto.length < 2) throw new HttpError(400, 'Digite pelo menos 2 letras.');
+    if (tipo === 'nome') nome = texto; else descricao = texto;
+  }
+  const local = await db.rpc('asaas_buscar', { contas, nome: escaparLike(nome), descricao: escaparLike(descricao), valor, link });
+  const porChave = new Map(local.gente.map((g) => [g.chave, g]));
+  const porHash = new Map(local.gente.filter((g) => g.hash).map((g) => [g.hash, g]));
+  const res = new Map();
+  const situar = (r) => { const [situacao, tom] = SITUACAO[r.status] || [r.status, 'pendente']; return { ...r, situacao, tom }; };
+  for (const r of [...local.atrasos, ...local.cobrancas]) {
+    const k = r.id ? `${r.conta}:${r.id}` : `local:${res.size}`;
+    if (!res.has(k)) res.set(k, situar({ ...r, valor: Number(r.valor) || 0 }));
+  }
+  const avisos = [];
+  for (const k of contas) {
+    if (tipo === 'valor' || tipo === 'descricao') break;
+    if (!process.env[PREFIXO[k] + '_API_KEY']) { avisos.push(`Conta ${k}: sem a chave na Vercel; só o que o app guarda.`); continue; }
+    try {
+      let ids = local.clientes.filter((c) => c.conta === k).map((c) => c.id);
+      if (!ids.length && nome) {
+        const r = await chamarAsaas(PREFIXO[k], 'GET', `/customers?name=${encodeURIComponent(nome)}&limit=${MAX_CLIENTES_BUSCA + 1}`, null, 5000);
+        ids = (r?.data || []).filter((c) => !c.deleted).map((c) => c.id);
+      }
+      const pagamentos = [];
+      const codigo = link.match(/\/i\/([A-Za-z0-9]+)/)?.[1];
+      if (codigo) {
+        const pg = await chamarAsaas(PREFIXO[k], 'GET', `/payments/pay_${encodeURIComponent(codigo)}`, null, 5000).catch(() => null);
+        if (pg?.id && !pg.deleted) pagamentos.push(pg);
+      }
+      await Promise.all(ids.slice(0, MAX_CLIENTES_BUSCA).map(async (id) => {
+        const r = await chamarAsaas(PREFIXO[k], 'GET', `/payments?customer=${encodeURIComponent(id)}&limit=20`, null, 6000);
+        pagamentos.push(...(r?.data || []).filter((pg) => !pg.deleted));
+      }));
+      if (ids.length > MAX_CLIENTES_BUSCA) avisos.push(`Conta ${k}: muitos clientes com esse nome; mostrando os ${MAX_CLIENTES_BUSCA} primeiros. Digite mais do nome.`);
+      const clientes = await clientesAsaas(k, pagamentos.map((pg) => pg.customer));
+      for (const pg of pagamentos) {
+        const cli = clientes.get(pg.customer) || {};
+        const g = porChave.get(cli.referencia) || (cli.cpfHash && porHash.get(cli.cpfHash)) || null;
+        const chave = `${k}:${pg.id}`;
+        const ant = res.get(chave);
+        res.set(chave, situar({
+          id: pg.id, conta: k,
+          nome: ant?.nome || g?.nome || cli.nome || 'Sem nome no ASAAS',
+          telefone: ant?.telefone || g?.celular || cli.telefone || '',
+          status: pg.status, valor: Number(pg.value) || 0, vencimento: pg.dueDate || null,
+          descricao: String(pg.description || ant?.descricao || ''),
+          link: /^https:\/\//.test(pg.invoiceUrl || '') ? pg.invoiceUrl : (ant?.link || ''),
+        }));
+      }
+    } catch (e) {
+      avisos.push(`Conta ${k}: ${e.message} Mostrando só o que o app guarda.`);
+    }
+  }
+  const resultados = [...res.values()]
+    .sort((a, b) => String(b.vencimento || '').localeCompare(String(a.vencimento || '')) || a.nome.localeCompare(b.nome, 'pt-BR'))
+    .slice(0, MAX_RESULTADOS);
+  return { resultados, avisos };
+}
+
 export async function respostaAsaas(eu) {
   exigirVer(eu);
   return respostaRoot(eu);
@@ -308,6 +450,8 @@ export async function acaoAsaas(eu, b) {
     if (!/^[pa]:/.test(chave)) throw new HttpError(400, 'Escolha a pessoa.');
     validarId(chave.slice(2), 'Pessoa');
     await db.rpc('asaas_credito_salvar', b.remover === true ? { chave, remover: true } : { chave, por: eu.nome || '' });
+  } else if (b.op === 'contatos') {
+    return { ...(await respostaRoot(eu)), contatos: await contatosAsaas(b) };
   } else if (b.op === 'cancelar') {
     const id = validarId(b.id, 'Cobrança');
     const c = await db.rpc('asaas_cobranca', { id });

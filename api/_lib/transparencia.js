@@ -82,9 +82,9 @@ async function cobrancas(filtros) {
 }
 
 // Lê um mês no ASAAS: mensalidades (pelo vencimento) e doações (pela data do pagamento), com o nome de cada cliente.
-// Doação de um dos pagadores do aporte (config) vai para o aporte da Mãe Vê. Os clientes vêm dos guardados (7 dias) e a
-// pessoa da corrente, pelo hash do CPF do Perfil (porHash), sem decifrar; renovar = Puxar (busca todos de novo).
-async function lerMes(mes, cfg, porHash, renovar) {
+// Doação de um dos pagadores do aporte (config) vai para o aporte da Mãe Vê. Os clientes vêm dos guardados (só os novos
+// são buscados no ASAAS) e a pessoa da corrente, pelo hash do CPF do Perfil (porHash), sem decifrar.
+async function lerMes(mes, cfg, porHash) {
   const ini = mes + '-01', fim = ultimoDia(mes);
   const [porVencimento, porPagamento] = await Promise.all([
     cobrancas({ 'dueDate[ge]': ini, 'dueDate[le]': fim }),
@@ -95,7 +95,7 @@ async function lerMes(mes, cfg, porHash, renovar) {
   const alvo = centavos(cfg.valorMensalidade);
   const mens = porVencimento.filter((c) => !ehDoacao(c) && centavos(c.value) === alvo && (PAGO.includes(c.status) || ABERTO.includes(c.status)));
   const recebidas = porPagamento.filter((c) => ehDoacao(c) && PAGO.includes(c.status));
-  const clientes = await clientesAsaas('B', [...mens, ...recebidas].map((c) => c.customer), renovar);
+  const clientes = await clientesAsaas('B', [...mens, ...recebidas].map((c) => c.customer));
   const nomes = new Map([...clientes].map(([id, c]) => [id, c.nome]));
   const pessoaDe = (c) => { const h = clientes.get(c.customer)?.cpfHash; return (h && porHash.get(h)) || null; };
   const pagas = mens.filter((c) => PAGO.includes(c.status));
@@ -193,7 +193,7 @@ export async function transparencia(eu, query) {
     const porHash = precisa.length ? await pessoasPorHashCpf() : null;
     for (const m of precisa) {
       try {
-        const dados = await lerMes(m, cfg, porHash, puxar && m === mes);
+        const dados = await lerMes(m, cfg, porHash);
         await db.rpc('transparencia_asaas_salvar', { mes: m, dados });
         lidos.set(m, { mes: m, dados, atualizadoEm: new Date().toISOString() });
       } catch (e) {

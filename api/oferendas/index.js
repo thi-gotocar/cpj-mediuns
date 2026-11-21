@@ -25,7 +25,7 @@ import { chavePessoa } from '../../shared/ervas.js';
 import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida, quantidadeValida, aceitaFracao } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 import { respostaGuias, acaoGuias, fotoGuia, respostaPedidos } from '../_lib/guias.js';
-import { webhookAsaas, respostaAsaas, acaoAsaas } from '../_lib/asaas.js';
+import { webhookAsaas, respostaAsaas, acaoAsaas, buscaAsaas } from '../_lib/asaas.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 // abas: as sub-abas, quando já vieram junto (a leitura da aba busca as duas em paralelo).
@@ -79,6 +79,7 @@ export default rota({
     if (req.query.lista === 'guias') return respostaGuias(await exigir(req));
     if (req.query.lista === 'guiaFoto') return fotoGuia(req, res);
     if (req.query.lista === 'asaas') return respostaAsaas(await exigir(req));
+    if (req.query.lista === 'asaasbusca') return buscaAsaas(await exigir(req), req.query);
     if (req.query.lista === 'pedidos') return respostaPedidos(await exigir(req));
     // Sessão, oferendas, sub-abas e quantas anteriores ficaram fora numa ida só (só leitura: os novos cadastrados
     // entram nas listas por gatilho no cadastro). ?anteriores=1 (o admin abriu "Oferendas anteriores") traz todas.

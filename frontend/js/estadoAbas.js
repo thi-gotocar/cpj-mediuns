@@ -481,6 +481,10 @@ export async function carregarAsaas() {
   try { estado.asaas = await api('GET', '/oferendas?lista=asaas'); } catch (e) { estado.asaas = estado.asaas && !estado.asaas.erro ? estado.asaas : { erro: e.message }; }
   avisar();
 }
+// Buscar (aba ASAAS): não guarda no estado; a tela guarda o resultado.
+export async function buscarAsaas({ tipo, q, conta }) {
+  return api('GET', `/oferendas?lista=asaasbusca&tipo=${encodeURIComponent(tipo)}&q=${encodeURIComponent(q)}&conta=${encodeURIComponent(conta)}`);
+}
 export async function acaoAsaas(op, dados = {}) {
   try {
     estado.asaas = await api('POST', '/oferendas', { acao: 'asaas', op, ...dados });

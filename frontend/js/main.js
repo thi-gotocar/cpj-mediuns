@@ -647,7 +647,7 @@ main.addEventListener('submit', async (e) => {
     await (await telaDe('diario')).addErva(e.target);
   } else if (id === 'f-tr-val' || id === 'f-tr-busca') {
     await (await telaDe('transparencia')).enviar(e.target);
-  } else if (e.target.dataset.form === 'asaascredito') {
+  } else if (e.target.dataset.form === 'asaascredito' || e.target.dataset.form === 'asaasbusca') {
     await (await telaDe('asaas')).enviar(e.target);
   } else if (id.startsWith('f-guia-')) {
     await (await telaDe('guias')).enviar(e.target);

@@ -2,8 +2,10 @@
 // os pedidos pagos e por pagar, mostra se a Vercel está configurada e o retorno do webhook (os eventos que o
 // ASAAS mandou e o que o app fez com cada um).
 
-import { estado, pode, carregarAsaas, acaoAsaas, avisar } from '../estado.js';
-import { esc, toast } from '../util.js';
+import { estado, pode, carregarAsaas, acaoAsaas, buscarAsaas, avisar } from '../estado.js';
+import { esc, toast, baixar, hoje } from '../util.js';
+import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
+import { ICONE_WHATS } from './giraComum.js';
 import { centavos, reais } from '/shared/ervas.js';
 
 const R = (v) => reais(centavos(v));
@@ -16,8 +18,9 @@ const editar = () => pode('asaas:editar');
 const badge = (s) => { const [t, c] = STATUS[s] || [s, '']; return `<span class="badge ${c}">${esc(t)}</span>`; };
 
 // Todos os blocos e sub-blocos começam minimizados.
-const ui = { conexao: false, credito: false, cobrancas: false, eventos: false, cobSel: {}, evValores: new Set() };   // cobSel: grupo → quadradinho aberto
-export function limpar() { ui.conexao = false; ui.credito = false; ui.cobrancas = false; ui.eventos = false; ui.cobSel = {}; ui.evValores.clear(); }
+const buscaVazia = () => ({ tipo: 'nome', q: '', conta: 'ambas', buscando: false, gerando: false, resultado: null, feita: null });   // feita: a busca da lista mostrada
+const ui = { conexao: false, buscaAberta: false, credito: false, cobrancas: false, eventos: false, cobSel: {}, evValores: new Set(), contatos: '', busca: buscaVazia() };   // cobSel: grupo → quadradinho aberto; contatos: andamento do Atualizar contatos
+export function limpar() { ui.conexao = false; ui.buscaAberta = false; ui.credito = false; ui.cobrancas = false; ui.eventos = false; ui.cobSel = {}; ui.evValores.clear(); ui.busca = buscaVazia(); }
 
 // Primeiro bloco, minimizado: o toggle do Pix e a configuração. Minimizado, mostra se o Pix está ligado e o ambiente.
 function cardConexao(A) {
@@ -36,7 +39,97 @@ function cardConexao(A) {
     <ul class="as-cfg">${item(C.chaveB, 'ASAAS2_API_KEY na Vercel')}${item(C.tokenB, 'ASAAS2_WEBHOOK_TOKEN na Vercel')}</ul>
     <label class="field">URL do webhook da conta B (itens de doação; cole no ASAAS da conta B, com o mesmo token)<input type="text" id="as-url-b" readonly value="${esc(URL_WEBHOOK_B)}"></label>
     <div class="cp-bts"><button class="btn" data-act="asaascopiar" data-b="1"><span aria-hidden="true">📋</span> Copiar URL da conta B</button></div>
-    <p class="muted" style="margin:0">As chaves ficam só nas variáveis da Vercel; o app nunca mostra o valor delas.</p></div>`;
+    <p class="muted" style="margin:0">As chaves ficam só nas variáveis da Vercel; o app nunca mostra o valor delas.</p>
+    ${editar() && (C.chave || C.chaveB) ? `<div class="cp-bts"><button class="btn" data-act="asaascontatos" ${ui.contatos ? 'disabled' : ''}><span aria-hidden="true">↻</span> Atualizar contatos</button></div>
+    <p class="muted" style="margin:0">${ui.contatos ? esc(ui.contatos) : 'Busca de novo no ASAAS o nome, o telefone e o CPF dos clientes guardados (as leituras do dia a dia só buscam clientes novos).'}</p>` : ''}</div>`;
+}
+
+// Buscar (segundo bloco, minimizado): o tipo (nome, valor, descrição ou link: cada um é uma consulta diferente), a conta e
+// o texto. Procura no que o app guarda e no ASAAS (api/_lib/asaas.js → buscaAsaas). Cada resultado: nome, celular e
+// situação, com um quadradinho para ir marcando (guardado só neste aparelho); tocar no celular copia. A lista sai em imagem ou
+// texto para o WhatsApp.
+const TOM = { pago: 'pleno', pendente: 'hot', vencido: 're', cancelado: 'sn-sem' };
+const TIPOS = {
+  nome: ['Nome', 'Nome da pessoa (ou parte)', 'Ex.: Maria', 'text'],
+  valor: ['Valor', 'Valor da cobrança', 'Ex.: 110 ou 110,50', 'decimal'],
+  descricao: ['Descrição', 'Parte da descrição', 'Ex.: Mensalidade', 'text'],
+  link: ['Link', 'Link de pagamento', 'https://…', 'url'],
+};
+const CONTAS_TXT = { ambas: 'as duas contas', A: 'conta A', B: 'conta B' };
+const soDigitos = (t) => String(t || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+const foneBR = (t) => { const d = soDigitos(t); return d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d; };
+const vence = (r) => (r.vencimento ? new Date(r.vencimento + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '');
+const chaveRes = (r) => `${r.conta}:${r.id || `${r.nome}|${r.valor}|${r.vencimento}`}`;
+
+// Marcados: só neste aparelho (localStorage); sem ele, vale enquanto a tela está aberta.
+const MARCAS = 'asaas-busca-marcados';
+const marcados = (() => { try { return new Set(JSON.parse(localStorage.getItem(MARCAS) || '[]')); } catch { return new Set(); } })();
+const guardarMarcas = () => { try { localStorage.setItem(MARCAS, JSON.stringify([...marcados].slice(-500))); } catch { /* sem armazenamento */ } };
+
+function linhaBusca(r) {
+  const tel = soDigitos(r.telefone);
+  const k = chaveRes(r);
+  const v = vence(r);
+  return `<li class="as-res${marcados.has(k) ? ' marcado' : ''}">
+    <label class="as-res-m"><input type="checkbox" data-act="asaasmarcar" data-k="${esc(k)}" ${marcados.has(k) ? 'checked' : ''} aria-label="Marcar ${esc(r.nome)}"></label>
+    <div class="as-res-c">
+      <span class="as-l1"><b>${esc(r.nome)}</b><span class="badge ${TOM[r.tom] || 'hot'}">${esc(r.situacao)}</span></span>
+      <span class="as-l2">${tel.length >= 10 ? `<button type="button" class="linkbtn as-tel" data-act="asaascopiartel" data-tel="${tel}" aria-label="Copiar o celular ${esc(foneBR(tel))}">📱 ${esc(foneBR(tel))}</button>` : '<span class="muted">Sem celular</span>'} · <b>${R(r.valor)}</b>${v ? ` · vence ${v}` : ''}</span>
+      <span class="as-l2 muted">${r.descricao ? esc(r.descricao) + ' · ' : ''}Conta ${esc(r.conta)}${r.link ? ` · <a href="${esc(r.link)}" target="_blank" rel="noopener">link</a>` : ''}</span>
+    </div></li>`;
+}
+
+// Texto para o WhatsApp: uma linha por pessoa, ✅ nos marcados.
+function textoBusca(B) {
+  const L = B.resultado.resultados;
+  const cab = `*ASAAS · ${TIPOS[B.feita.tipo][0]}: ${B.feita.q}* (${CONTAS_TXT[B.feita.conta]}) · ${new Date().toLocaleDateString('pt-BR')}`;
+  return [cab, ...L.map((r) => {
+    const f = foneBR(r.telefone);
+    const v = vence(r);
+    return `${marcados.has(chaveRes(r)) ? '✅' : '⬜'} *${r.nome}*${f ? ' · ' + f : ''} · ${r.situacao} · ${R(r.valor)}${v ? ' · vence ' + v : ''}`;
+  })].join('\n');
+}
+
+function cardBusca() {
+  const B = ui.busca;
+  const L = B.resultado?.resultados || [];
+  const n = B.resultado ? L.length : null;
+  const cab = `<button class="grp-h dobra" data-act="asaasdobrar" data-k="buscaAberta" aria-expanded="${ui.buscaAberta}"><h2><span aria-hidden="true">🔍</span> Buscar</h2>
+    <span class="count">${n != null ? `${n} ${n === 1 ? 'resultado' : 'resultados'} ` : ''}<span class="seta" aria-hidden="true">${ui.buscaAberta ? '▾' : '▸'}</span></span></button>`;
+  if (!ui.buscaAberta) return `<div class="card adm adm-financeiro">${cab}</div>`;
+  const T = TIPOS[B.tipo];
+  const tipos = Object.entries(TIPOS).map(([k, [t]]) => `<button type="button" class="chip${B.tipo === k ? ' on' : ''}" data-act="asaastipo" data-k="${k}" aria-pressed="${B.tipo === k}">${t}</button>`).join('');
+  const op = (v, t) => `<option value="${v}"${B.conta === v ? ' selected' : ''}>${t}</option>`;
+  const nMarc = L.filter((r) => marcados.has(chaveRes(r))).length;
+  const R0 = B.resultado;
+  return `<div class="card adm adm-financeiro">${cab}
+    <form class="as-busca" data-form="asaasbusca" autocomplete="off">
+      <div class="as-tipos" role="group" aria-label="Buscar por">${tipos}</div>
+      <label class="field">${T[1]}<input type="text" name="q" value="${esc(B.q)}" maxlength="300" inputmode="${T[3]}" enterkeyhint="search" placeholder="${esc(T[2])}"></label>
+      <div class="as-busca-l"><select name="conta" aria-label="Conta do ASAAS">${op('ambas', 'As duas contas')}${op('A', 'Conta A (Compras)')}${op('B', 'Conta B (mensalidades)')}</select>
+        <button class="btn primary" type="submit" ${B.buscando ? 'disabled' : ''}><span aria-hidden="true">🔍</span> ${B.buscando ? 'Buscando…' : 'Buscar'}</button></div>
+    </form>
+    <p class="muted as-dica">${B.tipo === 'nome' || B.tipo === 'link' ? 'Procura no app e no ASAAS.' : 'Só acha o que o app guarda (links das Compras e cobranças vencidas): o ASAAS não busca por valor nem por descrição.'}</p>
+    ${R0 ? `${R0.avisos.map((a) => `<p class="muted as-dica"><span aria-hidden="true">⚠️</span> ${esc(a)}</p>`).join('')}
+      ${L.length ? `<div class="as-busca-x"><span class="muted">${nMarc} de ${L.length} marcados${nMarc ? ` · <button type="button" class="linkbtn" data-act="asaasdesmarcar">desmarcar</button>` : ''}</span>
+          <span class="as-busca-bts"><button class="btn small wa-bt" data-act="asaasbuscaimg" ${B.gerando ? 'disabled' : ''}><span aria-hidden="true">🖼️</span> ${B.gerando ? 'Gerando…' : 'Imagem'}</button>
+          <a class="btn small wa-bt" href="https://wa.me/?text=${encodeURIComponent(textoBusca(B))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Texto</a></span></div>
+        <ul class="as-lista as-res-lista">${L.map(linhaBusca).join('')}</ul>` : '<p class="muted as-dica">Nada encontrado.</p>'}` : ''}</div>`;
+}
+
+// Imagem da lista (mesmo desenho das outras listas do app): uma linha por pessoa, ✓ nos marcados.
+function dadosImagemBusca(B) {
+  const L = B.resultado.resultados;
+  return {
+    rotulo: 'Casa do Pai João · ASAAS',
+    titulo: `${TIPOS[B.feita.tipo][0]}: ${B.feita.q}`.slice(0, 80),
+    subtitulo: `${L.length} ${L.length === 1 ? 'resultado' : 'resultados'} · ${CONTAS_TXT[B.feita.conta]} · ${new Date().toLocaleDateString('pt-BR')}`,
+    linhas: L.map((r) => {
+      const f = foneBR(r.telefone);
+      const v = vence(r);
+      return { texto: `${marcados.has(chaveRes(r)) ? '✓ ' : ''}${r.nome}`, valor: R(r.valor), sub: `${f || 'Sem celular'} · ${r.situacao}${v ? ' · vence ' + v : ''}` };
+    }),
+  };
 }
 
 // Quem gera link com cartão de crédito e Pix (nas Compras, conta A): os outros só têm Pix; doação é sempre Pix.
@@ -161,7 +254,7 @@ export function render() {
   if (estado.asaas === null) { carregarAsaas(); return '<div class="loading">Carregando o ASAAS…</div>'; }
   const A = estado.asaas;
   if (A.erro) return `<section class="panel"><div class="card"><p class="erro">${esc(A.erro)}</p><button class="btn" data-act="asaasatualizar">Tentar de novo</button></div></section>`;
-  return `<section class="panel">${cardConexao(A)}${cardCredito(A)}${cardCobrancas(A)}${cardEventos(A)}</section>`;
+  return `<section class="panel">${cardConexao(A)}${cardBusca()}${cardCredito(A)}${cardCobrancas(A)}${cardEventos(A)}</section>`;
 }
 
 export const cliques = {
@@ -169,6 +262,71 @@ export const cliques = {
   asaasquadro(el) { const g = el.dataset.g; ui.cobSel[g] = ui.cobSel[g] === el.dataset.k ? null : el.dataset.k; avisar(); },
   asaassub(el) { const s = ui[el.dataset.c]; const k = el.dataset.k; if (s.has(k)) s.delete(k); else s.add(k); avisar(); },
   asaasatualizar() { estado.asaas = null; avisar(); },
+  asaastipo(el) {
+    const q = document.querySelector('form.as-busca input[name=q]');
+    if (q) ui.busca.q = q.value;
+    ui.busca.tipo = el.dataset.k;
+    avisar();
+    document.querySelector('form.as-busca input[name=q]')?.focus();
+  },
+  // Toque no celular: copia só os números (com DDD), para colar em outro lugar.
+  asaascopiartel(el) {
+    const tel = el.dataset.tel;
+    const ok = () => toast(`Celular copiado: ${foneBR(tel)}`);
+    // Sem a API da área de transferência (ou bloqueada): copia por um campo escondido.
+    const fb = () => {
+      const t = Object.assign(document.createElement('textarea'), { value: tel, readOnly: true });
+      t.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(t);
+      t.select();
+      let feito = false;
+      try { feito = document.execCommand('copy'); } catch { /* */ }
+      t.remove();
+      if (feito) ok(); else toast(`Não deu para copiar. Celular: ${tel}`);
+    };
+    try { navigator.clipboard.writeText(tel).then(ok, fb); } catch { fb(); }
+  },
+  asaasdesmarcar() { (ui.busca.resultado?.resultados || []).forEach((r) => marcados.delete(chaveRes(r))); guardarMarcas(); avisar(); },
+  // Gera a imagem e já abre o compartilhar do aparelho (WhatsApp); se não der, baixa a imagem.
+  async asaasbuscaimg() {
+    const B = ui.busca;
+    if (!B.resultado?.resultados.length || B.gerando) return;
+    B.gerando = true;
+    avisar();
+    try {
+      const blob = await gerarImagemLista(dadosImagemBusca(B));
+      const nome = `asaas-busca-${hoje()}.png`;
+      if (!(await compartilharImagem(blob, nome, 'Busca no ASAAS'))) {
+        const url = URL.createObjectURL(blob);
+        baixar(url, nome);
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        toast('Imagem salva no aparelho: anexe no WhatsApp.');
+      }
+    } catch (e) { toast(e.message); }
+    B.gerando = false;
+    avisar();
+  },
+  // Repete o pedido (cada um para em ~9 s no servidor) até não faltar nenhum cliente.
+  async asaascontatos() {
+    if (ui.contatos) return;
+    ui.contatos = 'Atualizando contatos…';
+    avisar();
+    let desde, total = 0, recusados = 0, msg = '';
+    for (let i = 0; i < 40; i++) {
+      if (!(await acaoAsaas('contatos', desde ? { desde } : {}))) break;
+      const c = estado.asaas.contatos;
+      desde = c.desde;
+      total += c.atualizados;
+      recusados += c.recusados;
+      if (c.erro) { msg = c.erro; break; }
+      if (!c.faltam) { msg = `${total} ${total === 1 ? 'contato atualizado' : 'contatos atualizados'}.${recusados ? ` ${recusados} não ${recusados === 1 ? 'veio' : 'vieram'} do ASAAS e ficaram como estavam.` : ''}`; break; }
+      ui.contatos = `Atualizando contatos… ${total} feitos, faltam ${c.faltam}.`;
+      avisar();
+    }
+    ui.contatos = '';
+    avisar();
+    if (msg) toast(msg);
+  },
   async asaascreditodel(el) { estado.confirm = null; if (await acaoAsaas('credito', { chave: el.dataset.chave, remover: true })) toast('Saiu da lista do cartão: os próximos links são só Pix.'); },
   async asaascancelar(el) { if (await acaoAsaas('cancelar', { id: el.dataset.id })) toast('Cobrança cancelada: os itens saíram do pedido e o estoque voltou.'); },
   asaascopiar(el) {
@@ -178,8 +336,25 @@ export const cliques = {
   },
 };
 
-// Formulário do bloco Cartão de crédito: inclui a pessoa escolhida.
+// Formulários da tela: Buscar e Cartão de crédito (inclui a pessoa escolhida).
 export async function enviar(form) {
+  if (form.dataset.form === 'asaasbusca') {
+    const B = ui.busca;
+    B.q = form.elements.q.value.trim();
+    B.conta = form.elements.conta.value;
+    if (!B.q) { toast('Digite o que procurar.'); return; }
+    if (B.buscando) return;
+    B.buscando = true;
+    avisar();
+    try {
+      const feita = { tipo: B.tipo, q: B.q, conta: B.conta };
+      B.resultado = await buscarAsaas(feita);
+      B.feita = feita;
+    } catch (e) { toast(e.message); }
+    B.buscando = false;
+    avisar();
+    return;
+  }
   const chave = form.elements.pessoa?.value;
   if (!chave) { toast('Escolha a pessoa.'); return; }
   const nome = form.elements.pessoa.selectedOptions[0]?.textContent || '';
@@ -188,4 +363,5 @@ export async function enviar(form) {
 
 export const mudancas = {
   async asaasativo(t) { if (!(await acaoAsaas('ativar', { ativo: t.checked }))) t.checked = !t.checked; },
+  asaasmarcar(t) { if (t.checked) marcados.add(t.dataset.k); else marcados.delete(t.dataset.k); guardarMarcas(); avisar(); },
 };

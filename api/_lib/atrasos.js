@@ -7,8 +7,8 @@
 // o do root (e do Admin financeiro) lê sempre; o da pessoa só se a última leitura tiver mais de 1 minuto (toques repetidos
 // não viram chamadas ao ASAAS). Com os clientes guardados, cada leitura é barata (1 ou 2 chamadas ao ASAAS).
 // Não usa webhook: a fonte é sempre o ASAAS na hora da leitura. Os dados dos clientes (nome, telefone, hash do CPF e
-// referência) ficam guardados por 7 dias (asaas_clientes_info): cada leitura busca só as cobranças e os clientes novos;
-// o Atualizar do root renova todos. A pessoa é achada pelo hash do CPF do Perfil, sem decifrar os CPFs.
+// referência) ficam guardados sem prazo (asaas_clientes_info): cada leitura busca só as cobranças e os clientes novos.
+// A pessoa é achada pelo hash do CPF do Perfil, sem decifrar os CPFs.
 //
 //   GET /api/giras?lista=atrasos[&atualizar=1]
 //     → { configurado, contas: { A, B } (quais estão ligadas), root, atualizadoEm, erro?, semSenha?, verComoSemSenha?, atrasos: [...] }
@@ -34,9 +34,9 @@ const MAX_COBRANCAS = 1000;
 const ligada = (k) => !!process.env[CONTAS[k] + '_API_KEY'];
 export const configuradoB = () => ligada('B');
 
-// Lê no ASAAS as cobranças vencidas de uma conta e os clientes delas (os guardados há menos de 7 dias não são buscados de
-// novo, a não ser com renovar); liga cada uma à pessoa pelo hash do CPF.
-async function buscarNoAsaas(k, porHash, renovar) {
+// Lê no ASAAS as cobranças vencidas de uma conta e os clientes novos delas (os guardados não são buscados de novo);
+// liga cada uma à pessoa pelo hash do CPF.
+async function buscarNoAsaas(k, porHash) {
   const CONTA = CONTAS[k];
   const cobrancas = [];
   for (let offset = 0; offset < MAX_COBRANCAS; offset += 100) {
@@ -44,7 +44,7 @@ async function buscarNoAsaas(k, porHash, renovar) {
     cobrancas.push(...(r?.data || []));
     if (!r?.hasMore) break;
   }
-  const clientes = await clientesAsaas(k, cobrancas.map((c) => c.customer), renovar);
+  const clientes = await clientesAsaas(k, cobrancas.map((c) => c.customer));
   return cobrancas.map((c) => {
     const cli = clientes.get(c.customer) || {};
     // Cliente que o app criou na conta A: a referência é a chave da pessoa ('p:<id>') ou do aluno ('a:<id>').
@@ -91,7 +91,7 @@ export async function atrasos(eu, atualizar, { soCache = false } = {}) {
     const falhas = [];
     for (const k of ['B', 'A'].filter((x) => contas[x])) {
       try {
-        await db.rpc('atrasos_salvar', { conta: k, itens: await buscarNoAsaas(k, porHash, forcar && root) });
+        await db.rpc('atrasos_salvar', { conta: k, itens: await buscarNoAsaas(k, porHash) });
       } catch (e) {
         console.error('[atrasos] leitura da conta', k, e.message);
         falhas.push({ k, e });

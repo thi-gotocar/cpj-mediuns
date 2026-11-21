@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 161;  // v161: QR do Pix só pendente, oferendas sem gravar na leitura, giras em janela e versão própria
+export const VERSAO = 162;  // v162: clientes do ASAAS guardados sem prazo, Atualizar contatos e Buscar
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -3867,7 +3867,7 @@ export const MIGRACOES = [
          left join turmas_alunos t on t.id = al.turma_id), '[]'::jsonb))
    $$`,
   // Leitura do ASAAS mais leve: os dados dos clientes (nome, telefone, hash do CPF — nunca o CPF aberto — e a referência)
-  // ficam guardados por 7 dias; cada leitura busca só as cobranças e os clientes novos (o Atualizar do root renova todos).
+  // ficam guardados; cada leitura busca só as cobranças e os clientes novos.
   // A pessoa é achada pelo hash do CPF do Perfil, sem decifrar os CPFs da corrente.
   `create table if not exists asaas_clientes_info (
      conta          text not null,
@@ -3879,14 +3879,6 @@ export const MIGRACOES = [
      atualizado_em  timestamptz not null default now(),
      primary key (conta, id)
    )`,
-  // p = { conta, ids } — os clientes guardados há menos de 7 dias.
-  `create or replace function asaas_clientes_info_ler(p jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'nome', c.nome, 'telefone', c.telefone, 'cpfHash', c.cpf_hash, 'referencia', c.referencia)), '[]'::jsonb)
-       from asaas_clientes_info c
-      where c.conta = p ->> 'conta' and c.atualizado_em > now() - interval '7 days'
-        and c.id in (select jsonb_array_elements_text(coalesce(p -> 'ids', '[]'::jsonb)))
-   $$`,
   // p = { conta, itens: [{ id, nome, telefone, cpfHash, referencia }] }
   `create or replace function asaas_clientes_info_salvar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -5164,5 +5156,103 @@ export const MIGRACOES = [
      end if;
      return r;
    end;
+   $$`,
+  // v162: os clientes guardados valem sem prazo (nome e CPF quase nunca mudam); o ASAAS só é consultado para cliente novo.
+  // p = { conta, ids }
+  `create or replace function asaas_clientes_info_ler(p jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', c.id, 'nome', c.nome, 'telefone', c.telefone, 'cpfHash', c.cpf_hash, 'referencia', c.referencia)), '[]'::jsonb)
+       from asaas_clientes_info c
+      where c.conta = p ->> 'conta'
+        and c.id in (select jsonb_array_elements_text(coalesce(p -> 'ids', '[]'::jsonb)))
+   $$`,
+  // Atualizar contatos (aba ASAAS): os clientes guardados ainda não buscados desde o início do Atualizar, os mais antigos
+  // primeiro. p = { conta, desde, limite } → { ids, total }
+  `create or replace function asaas_clientes_info_pendentes(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'ids', coalesce((select jsonb_agg(x.id order by x.atualizado_em) from (
+                select c.id, c.atualizado_em from asaas_clientes_info c
+                 where c.conta = p ->> 'conta' and c.atualizado_em < (p ->> 'desde')::timestamptz
+                 order by c.atualizado_em limit greatest(coalesce((p ->> 'limite')::int, 50), 0)) x), '[]'::jsonb),
+       'total', (select count(*) from asaas_clientes_info c
+                  where c.conta = p ->> 'conta' and c.atualizado_em < (p ->> 'desde')::timestamptz))
+   $$`,
+  // Cliente que o ASAAS recusou no Atualizar contatos: fica com os dados que tinha e sai da fila. p = { conta, ids }
+  `create or replace function asaas_clientes_info_tocar(p jsonb)
+   returns jsonb language sql as $$
+     update asaas_clientes_info set atualizado_em = now()
+      where conta = p ->> 'conta' and id in (select jsonb_array_elements_text(coalesce(p -> 'ids', '[]'::jsonb)));
+     select jsonb_build_object('ok', true)
+   $$`,
+  // Buscar (aba ASAAS): o que o app já guarda — links das Compras e vencidas da última leitura — e os clientes do ASAAS a
+  // consultar. Um tipo por busca: nome (do cadastro, do Perfil ou do cliente no ASAAS), descrição (da cobrança, itens e
+  // "pedido nº"), valor ou link (iguais). Nome e descrição já vêm com % e _ escapados.
+  // p = { contas, nome?, descricao?, valor?, link? } → { cobrancas, atrasos, clientes, gente }
+  `create or replace function asaas_buscar(p jsonb)
+   returns jsonb language sql stable as $$
+     with par as (
+       select array(select jsonb_array_elements_text(coalesce(p -> 'contas', '["A","B"]'::jsonb))) as contas,
+              '%' || nullif(btrim(p ->> 'nome'), '') || '%' as t,
+              '%' || nullif(btrim(p ->> 'descricao'), '') || '%' as d,
+              nullif(p ->> 'valor', '')::numeric as valor,
+              nullif(btrim(p ->> 'link'), '') as link
+     ),
+     gente as (
+       select 'p:' || pe.id::text as chave, pe.nome, nullif(pe.perfil -> 'info' ->> 'celular', '') as celular,
+              (select c.hash from pessoas_cpf c where c.pessoa_id = pe.id and c.hash <> '') as hash
+         from pessoas pe, par
+        where par.t is not null and pe.saida is null
+          and (pe.nome ilike par.t or coalesce(pe.perfil -> 'info' ->> 'nome', '') ilike par.t)
+       union all
+       select 'a:' || al.id::text, al.nome, nullif(al.perfil -> 'info' ->> 'celular', ''),
+              (select c.hash from alunos_cpf c where c.aluno_id = al.id and c.hash <> '')
+         from alunos al, par
+        where par.t is not null and al.saida is null
+          and (al.nome ilike par.t or coalesce(al.perfil -> 'info' ->> 'nome', '') ilike par.t)
+     )
+     select jsonb_build_object(
+       'cobrancas', coalesce((select jsonb_agg(x.j) from (
+           select jsonb_build_object('id', c.asaas_id, 'conta', c.conta, 'nome', coalesce(pe.nome, al.nome, c.nome),
+                    'telefone', coalesce(nullif(pe.perfil -> 'info' ->> 'celular', ''), nullif(al.perfil -> 'info' ->> 'celular', ''), ''),
+                    'status', c.status, 'valor', c.valor::float8, 'vencimento', c.vencimento, 'link', coalesce(c.link, ''),
+                    'descricao', 'CPJ · ' || case when c.conta = 'B' then 'Doação' else 'Compras' end || ' · pedido nº ' || c.pedido
+                      || coalesce(' · ' || coalesce((select string_agg(l.quantidade || 'x ' || l.descricao, ', ' order by l.criado_em) from guias_linhas l where l.cobranca_id = c.id),
+                                                    (select string_agg(v, ', ') from jsonb_array_elements_text(coalesce(c.itens_cancelados, '[]'::jsonb)) v)), '')) as j
+             from asaas_cobrancas c cross join par
+             left join pessoas pe on c.chave = 'p:' || pe.id::text
+             left join alunos al on c.chave = 'a:' || al.id::text
+            where c.status <> 'criando' and c.conta = any (par.contas)
+              and ((par.valor is not null and c.valor = par.valor)
+                or (par.link is not null and c.link = par.link)
+                or (par.t is not null and (c.nome ilike par.t or c.chave in (select g.chave from gente g)))
+                or (par.d is not null and (('CPJ · ' || case when c.conta = 'B' then 'Doação' else 'Compras' end || ' · pedido nº ' || c.pedido) ilike par.d
+                      or exists (select 1 from guias_linhas l where l.cobranca_id = c.id and l.descricao ilike par.d)
+                      or exists (select 1 from jsonb_array_elements_text(coalesce(c.itens_cancelados, '[]'::jsonb)) v where v ilike par.d))))
+            order by c.criado_em desc limit 30) x), '[]'::jsonb),
+       'atrasos', coalesce((select jsonb_agg(x.j) from (
+           select jsonb_build_object('id', a.id, 'conta', a.conta, 'nome', coalesce(pe.nome, al.nome, a.nome),
+                    'telefone', coalesce(nullif(pe.perfil -> 'info' ->> 'celular', ''), nullif(al.perfil -> 'info' ->> 'celular', ''), a.telefone),
+                    'status', 'OVERDUE', 'valor', a.valor::float8, 'vencimento', a.vencimento, 'link', a.link, 'descricao', a.descricao) as j
+             from atrasos_validos() a cross join par
+             left join pessoas pe on pe.id = a.pessoa_id and pe.saida is null
+             left join alunos al on al.id = a.aluno_id and al.saida is null and pe.id is null
+            where a.conta = any (par.contas)
+              and ((par.valor is not null and a.valor = par.valor)
+                or (par.link is not null and a.link = par.link)
+                or (par.t is not null and (a.nome ilike par.t
+                      or ('p:' || a.pessoa_id::text) in (select g.chave from gente g)
+                      or ('a:' || a.aluno_id::text) in (select g.chave from gente g)))
+                or (par.d is not null and a.descricao ilike par.d))
+            order by a.vencimento desc nulls last limit 30) x), '[]'::jsonb),
+       'clientes', coalesce((select jsonb_agg(jsonb_build_object('conta', y.conta, 'id', y.id)) from (
+           select k.conta, k.cliente_id as id from asaas_clientes k, par
+            where k.conta = any (par.contas) and k.chave in (select g.chave from gente g)
+           union
+           select i.conta, i.id from asaas_clientes_info i, par
+            where par.t is not null and i.conta = any (par.contas)
+              and (i.nome ilike par.t or (i.cpf_hash <> '' and i.cpf_hash in (select g.hash from gente g where g.hash is not null)))
+            limit 20) y), '[]'::jsonb),
+       'gente', coalesce((select jsonb_agg(jsonb_build_object('chave', g.chave, 'nome', g.nome, 'celular', coalesce(g.celular, ''), 'hash', coalesce(g.hash, ''))) from gente g), '[]'::jsonb))
    $$`,
 ];
