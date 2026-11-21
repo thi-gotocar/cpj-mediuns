@@ -18,7 +18,7 @@
 //                              numa gira que já existe, sem mexer na presença nem nos atendidos (sem gira na data, recusa) → { gira, mensagem }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA, hojeBR } from '../../_lib/http.js';
-import { exigir } from '../../_lib/sessao.js';
+import { exigir, exigirComLeitura } from '../../_lib/sessao.js';
 import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
 import { configCasa } from '../../../shared/config.js';
@@ -153,18 +153,19 @@ const SORTEIO = ['sortear', 'remanejar'];
 
 export default rota({
   GET: async (req) => {
-    const eu = await exigir(req, 'giras:ler');
-    const data = validarData(req.query.data);
-    return ocultarSorteio(eu, (await db.rpc('gira_obter', { data })) || giraVazia(data));
+    // Sessão e gira numa ida só ao banco (a data é conferida depois do token, como antes: sem login, 401).
+    let data;
+    const [eu, gira] = await exigirComLeitura(req, 'giras:ler', () => [{ funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } }]);
+    return ocultarSorteio(eu, gira || giraVazia(data));
   },
   PUT: async (req) => {
-    const perfil = await exigir(req, 'giras:editar');
-    const data = validarData(req.query.data);
+    // Sessão e gira atual numa ida só ao banco.
+    let data;
+    const [perfil, atual] = await exigirComLeitura(req, 'giras:editar', () => [{ funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } }]);
     const b = corpo(req);
     // Cadastrar gira antiga (já encerrada): só o admin root.
     if (b.encerrada === true && !pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra gira antiga.');
     // Gira encerrada: só a turma da limpeza ainda pode mudar (o resto, só reabrindo).
-    const atual = await db.rpc('gira_obter', { data });
     const soLimpeza = Object.keys(b).length > 0 && Object.keys(b).every((k) => k === 'limpeza');
     if (!soLimpeza && atual?.encerrada) throw new HttpError(409, MSG_ENCERRADA);
     const mudaEvento = 'evento' in b;
@@ -205,15 +206,17 @@ export default rota({
     const nova = b.encerrada !== true && !atual;
     const previas = nova ? (await db.rpc('ausencias_previas_listar')).filter((x) => x.data === data).map((x) => x.pessoaId) : [];
     if (previas.length) p.presenca = { ...Object.fromEntries(previas.map((id) => [id, 'a'])), ...(p.presenca || {}) };
-    let gira = await db.rpc('gira_salvar', p);
-    if ('entidadeNome' in p) gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
-    if ('titulo' in p) gira = await db.rpc('gira_titulo', { data, titulo: p.titulo });
-    if (nova) await db.rpc('ausencias_previas_usar', { data });
-    if (mudaEvento) gira = await db.rpc('gira_evento', { data, usuario: perfil.id, evento: b.evento });
-    if (participantes !== undefined) gira = await db.rpc('gira_participantes', { data, usuario: perfil.id, participantes });
-    // Gira antiga cadastrada já encerrada: retrato pelo cadastro de hoje.
-    if (gira?.encerrada && !gira.retrato) gira = await db.rpc('gira_retrato', { data, doCadastro: true });
-    return ocultarSorteio(perfil, gira);
+    // Todas as gravações numa ida só (e numa transação), em vez de uma ida por parte; a gira volta no fim (gira_obter).
+    const chamadas = [{ funcao: 'gira_salvar', p }];
+    if ('entidadeNome' in p) chamadas.push({ funcao: 'gira_entidade_nome', p: { data, nome: p.entidadeNome } });
+    if ('titulo' in p) chamadas.push({ funcao: 'gira_titulo', p: { data, titulo: p.titulo } });
+    if (nova) chamadas.push({ funcao: 'ausencias_previas_usar', p: { data } });
+    if (mudaEvento) chamadas.push({ funcao: 'gira_evento', p: { data, usuario: perfil.id, evento: b.evento } });
+    if (participantes !== undefined) chamadas.push({ funcao: 'gira_participantes', p: { data, usuario: perfil.id, participantes } });
+    // Gira antiga cadastrada já encerrada (ou encerrada sem retrato): retrato pelo cadastro de hoje.
+    if ((p.encerrada || atual?.encerrada) && !atual?.retrato) chamadas.push({ funcao: 'gira_retrato', p: { data, doCadastro: true } });
+    chamadas.push({ funcao: 'gira_obter', p: { data } });
+    return ocultarSorteio(perfil, await db.tx(chamadas));
   },
   POST: async (req) => {
     // App anterior: /api/giras/:data/sortear ou /remanejar, sem corpo (reescrito pelo vercel.json).
@@ -231,22 +234,11 @@ export default rota({
       if (!['p', 'f', 'a'].includes(b.status)) throw new HttpError(400, 'Status inválido.');
       return { gira: await db.rpc('presenca_marcar', { data, pessoaId, status: b.status }), mensagem: 'Presença corrigida.' };
     }
+    // Cancela o sorteio (apaga duplas, despublica e tira a trava): as conferências e a gravação numa ida só (gira_acao).
     if (b.acao === 'cancelarSorteio') {
       const quem = await exigir(req, 'giras:sortear');
       const data = validarData(req.query.data);
-      const atual = await db.rpc('gira_obter', { data });
-      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
-      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
-      if (atual.evento) throw new HttpError(409, 'Evento não tem escala para cancelar.');
-      if (!atual.pares?.length && !atual.passes?.length) throw new HttpError(409, 'Não há sorteio para cancelar.');
-      if (escalaPublicada(atual)) throw new HttpError(409, MSG_PUBLICADA);
-      // Cancela o sorteio (apaga duplas e despublica) em uma transação.
-      // gira_salvar deve ser a última chamada porque db.tx() retorna o resultado do último RPC.
-      const gira = await db.tx([
-        { funcao: 'gira_publicar', p: { data, publicada: false } },
-        { funcao: 'gira_travar', p: { data, travada: false } },
-        { funcao: 'gira_salvar', p: { data, usuario: quem.id, pares: [], passes: [] } },
-      ]);
+      const gira = await db.rpc('gira_acao', { acao: 'cancelarSorteio', data, usuario: quem.id });
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     const perfil = await exigir(req, 'giras:editar');
@@ -254,14 +246,10 @@ export default rota({
     const { acao, atendimentos, participantes } = b;
     if (acao === 'mudarData') {
       const para = validarData(String(b.para || ''));
-      const [atual, ocupada] = await Promise.all([db.rpc('gira_obter', { data }), db.rpc('gira_obter', { data: para })]);
-      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
-      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
-      if (escalaPublicada(atual)) throw new HttpError(409, MSG_PUBLICADA);
-      if (para === data) return { gira: atual, mensagem: 'A gira já está nesta data.' };
-      if (ocupada) throw new HttpError(409, 'Já existe uma gira nesta data. Escolha outro dia.');
+      const gira = await db.rpc('gira_acao', { acao, data, para });
+      if (para === data) return { gira, mensagem: 'A gira já está nesta data.' };
       const [y, m, d] = para.split('-');
-      return { gira: await db.rpc('gira_mudar_data', { data, para }), mensagem: `Data da gira alterada para ${d}/${m}/${y}.` };
+      return { gira, mensagem: `Data da gira alterada para ${d}/${m}/${y}.` };
     }
     if (acao === 'escala') {
       if (!pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra escala.');
@@ -281,33 +269,26 @@ export default rota({
         p.entidadeNome = validarEntidade(b.entidadeNome);
       }
       if (!atual.orixa && orixa) p.orixa = orixa;
-      let gira = await db.rpc('gira_salvar', p);
-      if ('entidadeNome' in p) {
-        gira = await db.rpc('gira_entidade_nome', { data, nome: p.entidadeNome });
-      }
+      // Gravação e nome da gira numa ida só; a gira volta no fim.
+      const gira = await db.tx([
+        { funcao: 'gira_salvar', p },
+        ...('entidadeNome' in p ? [{ funcao: 'gira_entidade_nome', p: { data, nome: p.entidadeNome } }] : []),
+        { funcao: 'gira_obter', p: { data } },
+      ]);
       return { gira, mensagem: `Escala gravada na gira de ${d}/${m}/${y} (presença e atendidos não mudaram).` };
     }
+    // Publicar, travar e recado: as conferências (gira existe, encerrada, evento) ficam em gira_acao, numa ida só.
     if (acao === 'publicar') {
-      const atual = await db.rpc('gira_obter', { data });
-      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
-      if (atual.evento) throw new HttpError(409, 'Evento não tem escala para publicar.');
       const pub = b.publicada !== false;
-      return { gira: await db.rpc('gira_publicar', { data, publicada: pub }), mensagem: pub ? 'Escala publicada: agora todos veem o sorteio.' : 'Publicação desfeita: só os admins veem o sorteio.' };
+      return { gira: await db.rpc('gira_acao', { acao, data, publicada: pub }), mensagem: pub ? 'Escala publicada: agora todos veem o sorteio.' : 'Publicação desfeita: só os admins veem o sorteio.' };
     }
     if (acao === 'travar') {
       if (typeof b.travada !== 'boolean') throw new HttpError(400, 'Informe se a escala fica travada.');
-      const atual = await db.rpc('gira_obter', { data });
-      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
-      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
-      if (atual.evento && b.travada) throw new HttpError(409, 'Evento não tem escala para travar.');
-      return { gira: await db.rpc('gira_travar', { data, travada: b.travada }), mensagem: b.travada ? 'Escala travada: marcar falta não muda a escala.' : 'Trava desligada: faltas voltam a tirar a pessoa da escala.' };
+      return { gira: await db.rpc('gira_acao', { acao, data, travada: b.travada }), mensagem: b.travada ? 'Escala travada: marcar falta não muda a escala.' : 'Trava desligada: faltas voltam a tirar a pessoa da escala.' };
     }
     if (acao === 'recado') {
       const recado = validarRecado(b.recado);
-      const atual = await db.rpc('gira_obter', { data });
-      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
-      if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
-      return { gira: await db.rpc('gira_recado', { data, recado }), mensagem: recado ? 'Recado salvo: todos veem no evento.' : 'Recado retirado.' };
+      return { gira: await db.rpc('gira_acao', { acao, data, recado }), mensagem: recado ? 'Recado salvo: todos veem no evento.' : 'Recado retirado.' };
     }
     if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
     // Todas: uma gira antiga pode ter quem já saiu da corrente (as regras filtram pela data).

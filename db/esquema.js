@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 158;  // v158: cancelar a cobrança na aba ASAAS cancela os itens dela (some do Falta pagar)
+export const VERSAO = 159;  // v159: menos idas ao banco (inicio_dados com usuarioId; gira_acao)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -7107,4 +7107,82 @@ export const MIGRACOES = [
        insert into sistema (chave, valor) values ('v158_cancelados', 'ok');
      end if;
    end $$`,
+
+  // ================================================== v159: menos idas ao banco (sessão junto com os dados; ações da gira)
+  // A abertura do app vai ao banco junto com a conferência da sessão, antes de saber a pessoa ligada ao usuário:
+  // inicio_dados aceita usuarioId e acha a pessoa (para as aulas da curimba) aqui mesmo.
+  `create or replace function inicio_dados(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_versao text := versao_dados();
+     v_pessoa text := coalesce(nullif(p ->> 'pessoaId', ''),
+                               (select u.pessoa_id::text from usuarios u where u.id = nullif(p ->> 'usuarioId', '')::uuid));
+     r jsonb;
+   begin
+     if coalesce(p ->> 'versao', '') = v_versao then
+       return jsonb_build_object('versao', v_versao, 'semMudanca', true);
+     end if;
+     r := jsonb_build_object('versao', v_versao, 'pessoas', pessoas_listar('{"todas": true}'::jsonb),
+                             'giras', giras_listar('{}'::jsonb), 'config', config_casa('{}'::jsonb));
+     begin r := r || jsonb_build_object('eventos', eventos_listar('{}'::jsonb)); exception when others then null; end;
+     begin r := r || jsonb_build_object('oracoes', oracoes_listar('{}'::jsonb)); exception when others then null; end;
+     begin r := r || jsonb_build_object('entidadesApelidos', entidades_apelidos_listar('{}'::jsonb)); exception when others then null; end;
+     if v_pessoa is not null then
+       begin r := r || jsonb_build_object('minhaCurimba', curimba_minha(jsonb_build_object('pessoaId', v_pessoa))); exception when others then null; end;
+     end if;
+     if coalesce((p ->> 'me')::boolean, false) then
+       r := r || jsonb_build_object('abasOferendas', oferenda_abas_listar('{}'::jsonb), 'videosPublicada', videos_publicada('{}'::jsonb),
+                                    'ervasPublicada', ervas_publicada('{}'::jsonb), 'guiasPublicada', guias_publicada('{}'::jsonb),
+                                    'amaciPublicada', amaci_publicada('{}'::jsonb),
+                                    'iemanja', iemanja_resumo('{}'::jsonb));
+     end if;
+     return r;
+   end;
+   $$`,
+  // Ações da gira (publicar, travar, recado, cancelarSorteio, mudarData) com as conferências aqui: uma ida em vez de
+  // ler a gira e depois gravar. O erro leva o status da resposta no código (SM404 → 404, SM409 → 409; api/_lib/http.js).
+  // Os textos são os que a rota mostrava antes (api/giras/[data]/index.js).
+  `create or replace function gira_acao(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_acao text := p ->> 'acao';
+     g giras%rowtype;
+     v_escala boolean;
+     v_encerrada constant text := 'Esta gira está encerrada. Toque em Reabrir para alterar.';
+     v_publicada constant text := 'A escala já foi publicada. Para mudar isso, oculte a escala antes.';
+   begin
+     select * into g from giras where data = v_data for update;
+     if not found then raise exception using errcode = 'SM404', message = 'Gira não encontrada.'; end if;
+     v_escala := exists (select 1 from duplas where gira_data = v_data);
+     if v_acao = 'publicar' then
+       if g.evento then raise exception using errcode = 'SM409', message = 'Evento não tem escala para publicar.'; end if;
+       return gira_publicar(jsonb_build_object('data', v_data, 'publicada', coalesce((p ->> 'publicada')::boolean, true)));
+     end if;
+     if g.encerrada then raise exception using errcode = 'SM409', message = v_encerrada; end if;
+     if v_acao = 'travar' then
+       if g.evento and coalesce((p ->> 'travada')::boolean, false) then
+         raise exception using errcode = 'SM409', message = 'Evento não tem escala para travar.';
+       end if;
+       return gira_travar(jsonb_build_object('data', v_data, 'travada', coalesce((p ->> 'travada')::boolean, false)));
+     elsif v_acao = 'recado' then
+       return gira_recado(jsonb_build_object('data', v_data, 'recado', coalesce(p ->> 'recado', '')));
+     elsif v_acao = 'cancelarSorteio' then
+       if g.evento then raise exception using errcode = 'SM409', message = 'Evento não tem escala para cancelar.'; end if;
+       if not v_escala then raise exception using errcode = 'SM409', message = 'Não há sorteio para cancelar.'; end if;
+       if coalesce(g.publicada, false) then raise exception using errcode = 'SM409', message = v_publicada; end if;
+       perform gira_publicar(jsonb_build_object('data', v_data, 'publicada', false));
+       perform gira_travar(jsonb_build_object('data', v_data, 'travada', false));
+       return gira_salvar(jsonb_build_object('data', v_data, 'usuario', p -> 'usuario', 'pares', '[]'::jsonb, 'passes', '[]'::jsonb));
+     elsif v_acao = 'mudarData' then
+       if coalesce(g.publicada, false) and v_escala then raise exception using errcode = 'SM409', message = v_publicada; end if;
+       if (p ->> 'para')::date = v_data then return gira_json(v_data); end if;
+       if exists (select 1 from giras where data = (p ->> 'para')::date) then
+         raise exception using errcode = 'SM409', message = 'Já existe uma gira nesta data. Escolha outro dia.';
+       end if;
+       return gira_mudar_data(jsonb_build_object('data', v_data, 'para', p ->> 'para'));
+     end if;
+     raise exception 'Ação inválida.';
+   end;
+   $$`,
 ];

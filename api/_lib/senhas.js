@@ -38,7 +38,7 @@ export async function conferirSenha(senha, armazenado) {
 // O segredo das sessões fica no próprio banco (gerado na instalação).
 let segredo = null;
 async function obterSegredo() {
-  segredo ||= await db.rpc('sistema_segredo');
+  segredo ||= await db.segredo();
   if (!segredo) throw new Error('Segredo de sessão ausente.');
   return segredo;
 }

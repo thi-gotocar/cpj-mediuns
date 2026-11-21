@@ -53,13 +53,16 @@ async function enviar(corpo, extras = {}) {
 }
 
 let esquemaPronto = null;
+let segredoLido = null;     // o segredo das sessões vem na mesma ida que confere a versão (instância nova: uma ida a menos)
 const JA_MIGRADO = 'SM001'; // SQLSTATE nosso: outro acesso terminou a migração enquanto este esperava a trava
 
 async function garantirEsquema() {
   esquemaPronto ||= (async () => {
     try {
-      const r = await enviar({ query: "select valor from sistema where chave = 'versao_esquema'", params: [] });
-      if (Number(r?.rows?.[0]?.[0]) >= VERSAO) return;
+      const r = await enviar({ query: "select chave, valor from sistema where chave in ('versao_esquema', 'segredo_sessao')", params: [] });
+      const v = Object.fromEntries(r?.rows || []);
+      segredoLido = v.segredo_sessao || null;
+      if (Number(v.versao_esquema) >= VERSAO) return;
     } catch (e) {
       if (e.code !== '42P01') throw e; // 42P01 = tabela ainda não existe
     }
@@ -115,5 +118,26 @@ export const db = {
     // Em lote o Neon responde { results: [{ rows }, ...] }: vale o último select (última chamada RPC).
     const valor = (r?.results ? r.results[r.results.length - 1] : r)?.rows?.[0]?.[0];
     return valor == null ? null : JSON.parse(valor);
+  },
+  // Várias LEITURAS numa ida só: [{ funcao, p }, ...] → [resultado, ...], na mesma ordem.
+  // Transação só de leitura: uma função que grave falha em vez de gravar antes de a rota conferir a permissão.
+  // soLeitura: false só para leitura com limpeza inofensiva dentro (inicio_dados apaga orações vencidas num bloco
+  // que engole o erro: na transação read only as orações sumiriam da resposta sem aviso).
+  async lote(chamadas, { soLeitura = true } = {}) {
+    await garantirEsquema();
+    const queries = chamadas.map(({ funcao, p = {} }) => {
+      if (!/^[a-z_]+$/.test(funcao)) throw new Error('Função inválida: ' + funcao);
+      return { query: `select ${funcao}($1::jsonb)`, params: [JSON.stringify(p)] };
+    });
+    const r = await enviar({ queries }, { 'Neon-Batch-Isolation-Level': 'ReadCommitted', ...(soLeitura ? { 'Neon-Batch-Read-Only': 'true' } : {}) });
+    return (r?.results || []).map((x) => {
+      const valor = x?.rows?.[0]?.[0];
+      return valor == null ? null : JSON.parse(valor);
+    });
+  },
+  // Segredo das sessões: já lido junto com a versão do esquema; banco recém-criado busca pela função.
+  async segredo() {
+    await garantirEsquema();
+    return segredoLido || db.rpc('sistema_segredo');
   },
 };

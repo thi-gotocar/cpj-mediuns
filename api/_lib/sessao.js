@@ -10,7 +10,7 @@ import { permissoesDe, permissoesConsulente, PERMISSOES_GRUPO, PERMISSOES_OFEREN
 const papelAluno = (aluno) => (aluno.consulente ? ['Consulente', permissoesConsulente(aluno.abasConsulente)]
   : aluno.grupoOferenda ? ['Oferenda', PERMISSOES_OFERENDA] : ['Aluno', PERMISSOES_GRUPO.alunos || []]);
 
-export async function exigir(req, permissao) {
+async function lerSessao(req) {
   const h = req.headers.authorization || req.headers.Authorization || '';
   const token = h.startsWith('Bearer ') ? h.slice(7).trim() : '';
   if (!token) throw new HttpError(401, 'Faça login.');
@@ -20,10 +20,47 @@ export async function exigir(req, permissao) {
 
   // A palavra-passe curimba acabou (v131): quem era de fora virou aluno e entra de novo pelo cadastro.
   if (sessao.grupo === 'curimba') throw new HttpError(401, 'Sessão expirada. Entre de novo com o seu e-mail, celular ou CPF.');
+  return sessao;
+}
+
+// A consulta do banco que confere a sessão (aluno, corrente ou usuário).
+function chamadaDaSessao(sessao) {
+  if (sessao.grupo) return { funcao: 'aluno_acesso', p: { id: sessao.registroId } };
+  if (sessao.corrente) {
+    // Sessões antigas (antes de ligar o acesso à pessoa cadastrada) precisam entrar de novo.
+    if (!sessao.pessoaId) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
+    return { funcao: 'corrente_sessao', p: { pessoaId: sessao.pessoaId } };
+  }
+  return { funcao: 'usuario_obter', p: { id: sessao.id } };
+}
+
+export async function exigir(req, permissao) {
+  const sessao = await lerSessao(req);
+  const { funcao, p } = chamadaDaSessao(sessao);
+  return montarQuem(req, sessao, await db.rpc(funcao, p), permissao);
+}
+
+// Sessão e leituras da rota numa ida só ao banco (em vez de uma ida para a sessão e outra para os dados).
+// montar({ pessoaId, usuarioId, alunoId }) devolve as chamadas [{ funcao, p }]: só funções que leem (a ida é read only),
+// porque rodam antes de a permissão ser conferida; se a sessão ou a permissão falhar, os dados são descartados.
+// "Ver como" do root: a pessoa só se conhece depois da sessão, então vão duas idas, como antes.
+// → [quem, ...resultados]
+export async function exigirComLeitura(req, permissao, montar, opcoes) {
+  const sessao = await lerSessao(req);
+  const sessaoCall = chamadaDaSessao(sessao);
+  if (String(req.headers['x-ver-como'] || '').trim() && !sessao.grupo && !sessao.corrente) {
+    const quem = await exigir(req, permissao);
+    const chamadas = montar({ pessoaId: quem.pessoaId || null, usuarioId: quem.id || null, alunoId: quem.alunoId || null });
+    return [quem, ...(chamadas.length ? await db.lote(chamadas, opcoes) : [])];
+  }
+  const provavel = { pessoaId: sessao.pessoaId || null, usuarioId: sessao.id || null, alunoId: sessao.grupo ? sessao.registroId : null };
+  const [resultado, ...dados] = await db.lote([sessaoCall, ...montar(provavel)], opcoes);
+  return [await montarQuem(req, sessao, resultado, permissao), ...dados];
+}
+
+async function montarQuem(req, sessao, registro, permissao) {
   if (sessao.grupo) {
-    const aluno = sessao.grupo === 'alunos'
-      ? await db.rpc('aluno_acesso', { id: sessao.registroId })
-      : await db.rpc('curimba_aluno_acesso', { id: sessao.registroId });
+    const aluno = registro;
     if (!aluno) throw new HttpError(401, 'Cadastro não encontrado. Entre de novo.');
     if (sessao.grupo === 'alunos' && aluno.pinVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
     // Acesso bloqueado na aba Pessoas: a sessão aberta cai.
@@ -46,9 +83,7 @@ export async function exigir(req, permissao) {
   }
 
   if (sessao.corrente) {
-    // Sessões antigas (antes de ligar o acesso à pessoa cadastrada) precisam entrar de novo.
-    if (!sessao.pessoaId) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
-    const s = await db.rpc('corrente_sessao', { pessoaId: sessao.pessoaId });
+    const s = registro;
     // Pessoa excluída, ou a senha foi criada/trocada depois desta sessão.
     if (!s || s.pinVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
     const quem = { id: null, nome: s.nome, email: '', papel: 'corrente', papelNome: s.papelNome, pessoaId: sessao.pessoaId,
@@ -57,7 +92,7 @@ export async function exigir(req, permissao) {
     return quem;
   }
 
-  const usuario = await db.rpc('usuario_obter', { id: sessao.id });
+  const usuario = registro;
   // Trocar a senha ou o perfil muda a versão e encerra as sessões antigas.
   if (!usuario || usuario.sessaoVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
   usuario.permissoes = permissoesDe(usuario.papel, usuario.abas);

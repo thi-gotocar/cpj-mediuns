@@ -64,4 +64,14 @@ export function usarBancoLocal() {
     const ultima = psql(`begin isolation level serializable;\n${selects.join('\n')}\ncommit;`).split('\n').at(-2);
     return ultima ? JSON.parse(ultima) : null;
   };
+  // Como no db.js: só leituras, numa transação read only; um resultado por chamada.
+  db.lote = async (chamadas, { soLeitura = true } = {}) => {
+    const selects = chamadas.map(({ funcao, p = {} }) => {
+      if (!/^[a-z_]+$/.test(funcao)) throw new Error('função inválida');
+      return `select coalesce(${funcao}(${lit(JSON.stringify(p))}::jsonb)::text, '<nulo>');`;
+    });
+    return psql(`begin transaction${soLeitura ? ' read only' : ''};\n${selects.join('\n')}\ncommit;`).split('\n').filter((l) => l !== '')
+      .map((l) => (l === '<nulo>' ? null : JSON.parse(l)));
+  };
+  db.segredo = () => db.rpc('sistema_segredo');
 }

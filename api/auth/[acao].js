@@ -28,7 +28,7 @@
 
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { db } from '../_lib/db.js';
-import { exigir } from '../_lib/sessao.js';
+import { exigir, exigirComLeitura } from '../_lib/sessao.js';
 import { abaIemanja } from '../_lib/iemanja.js';
 import { ocultarSorteios } from '../_lib/escala.js';
 import { oracoes } from '../_lib/oracoes.js';
@@ -243,11 +243,10 @@ async function registrarVisitas(eu, texto) {
     .catch((e) => console.error('[visitas]', e));
 }
 
-// Corrente e usuários: tudo de uma vez no banco (inicio_dados). Com a versão que o app já tem e nada mudado,
-// volta só { versao, semMudanca }. extras: o que decide as abas, quando me = true.
-async function listasIniciais(eu, { versao = '', me = false } = {}) {
+// Corrente e usuários: tudo de uma vez no banco (inicio_dados, que já veio junto com a sessão). Com a versão que o
+// app já tem e nada mudado, volta só { versao, semMudanca }. extras: o que decide as abas, quando me = true.
+async function listasIniciais(eu, d) {
   if (!pode(eu, 'pessoas:ler') || !pode(eu, 'giras:ler')) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
-  const d = await db.rpc('inicio_dados', { versao, me, pessoaId: eu.pessoaId || '' });
   if (d.semMudanca) return { listas: { versao: d.versao, semMudanca: true }, extras: null };
   const listas = {
     versao: d.versao, config: d.config, pessoas: d.pessoas,
@@ -267,27 +266,30 @@ const acoes = {
 
   async inicio(req) {
     if (req.method !== 'GET') throw new HttpError(405, 'Método não permitido.');
-    const u = await exigir(req);
     const atualizar = !!req.query.atualizar;
+    // Corrente e usuários: a sessão, as listas (inicio_dados) e, na abertura, "a Transparência / o Diário estão
+    // visíveis?" vão numa ida só ao banco. Ao voltar ao app, ?versao= é a que ele já tem: sem mudança, só { versao, semMudanca }.
+    // Aluno: só a sessão nessa ida; as listas dele vêm depois (listasDoGrupo).
+    const [u, d, transparencia, diarioPub] = await exigirComLeitura(req, null, ({ pessoaId, usuarioId, alunoId }) => (alunoId ? [] : [
+      { funcao: 'inicio_dados', p: { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar, pessoaId: pessoaId || '', usuarioId: usuarioId || '' } },
+      ...(atualizar ? [] : [{ funcao: 'transparencia_publicada' }, { funcao: 'diario_publicada' }]),
+    ]), { soLeitura: false });
     // ?visitas=gira,ervas: abas abertas desde o último pedido, que pegam carona aqui em vez de um pedido só para isso
-    // (cada pedido avulso acordava o banco). Falha não atrapalha a abertura.
-    await registrarVisitas(u, req.query.visitas);
+    // (cada pedido avulso acordava o banco). Falha não atrapalha a abertura; vai junto com o resto.
+    const visitas = registrarVisitas(u, req.query.visitas);
     // Aluno: as listas e o "me" vão ao banco ao mesmo tempo.
     if (u.grupo) {
-      if (atualizar) return listasDoGrupo(u);
-      const [listas, me, [, atrasosAluno]] = await Promise.all([listasDoGrupo(u), dadosDoMe(u), blocosGeral(u)]);
+      if (atualizar) return (await Promise.all([listasDoGrupo(u), visitas]))[0];
+      const [listas, me, [, atrasosAluno]] = await Promise.all([listasDoGrupo(u), dadosDoMe(u), blocosGeral(u), visitas]);
       return { me, ...listas, atrasos: atrasosAluno };
     }
-    // Ao voltar ao app, ?versao= é a que ele já tem: sem mudança, a resposta é só { versao, semMudanca }.
-    // Na abertura, "a Transparência está visível?" e o mesmo do Diário vão ao banco junto com as listas
-    // (sem uma ida a mais em fila depois delas).
-    const transparencia = atualizar ? null : db.rpc('transparencia_publicada').catch(() => false);
-    const diarioPub = atualizar ? null : db.rpc('diario_publicada').catch(() => false);
-    const blocos = atualizar ? null : blocosGeral(u);
-    const { listas, extras } = await listasIniciais(u, { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar });
-    if (atualizar) return listas;
-    const [conduta, atrasosEu] = await blocos;
-    return { me: await dadosDoMe(u, extras && { ...extras, transparenciaPublicada: await transparencia, diarioPublicada: await diarioPub }), ...listas,
+    const { listas, extras } = await listasIniciais(u, d);
+    if (atualizar) {
+      await visitas;
+      return listas;
+    }
+    const [[conduta, atrasosEu]] = await Promise.all([blocosGeral(u), visitas]);
+    return { me: await dadosDoMe(u, extras && { ...extras, transparenciaPublicada: !!transparencia, diarioPublicada: !!diarioPub }), ...listas,
       conduta, atrasos: atrasosEu };
   },
 
