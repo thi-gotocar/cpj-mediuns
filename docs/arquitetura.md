@@ -25,7 +25,7 @@ Tudo isso para caber no plano gratuito (Vercel Hobby + Neon) e não ter dependê
 
 | Pasta | Papel |
 |---|---|
-| `frontend/js/telas/` | Uma tela por aba (ver padrão em [como-trabalhamos.md](como-trabalhamos.md)); a aba Gira separa composição e ações em `gira.js`, blocos informativos em `giraInformacoes.js` e outras peças em `gira*.js` (topo, "Você nesta gira", Sugestão e componentes comuns) |
+| `frontend/js/telas/` | Uma tela por aba (ver padrão em [como-trabalhamos.md](como-trabalhamos.md)); a aba Gira separa composição e ações em `gira.js`, blocos informativos em `giraInformacoes.js` e outras peças em `gira*.js` (topo, "Você nesta gira", Sugestão, componentes comuns e, em `giraJanelas.js`, as janelas por cima da tela: WhatsApp, imagens, troca de data, presença); a tela Pessoas deixa os alunos e os cadastros pelo login em `pessoasAlunos.js` (os salvamentos que o `main.js` chama continuam saindo de `pessoas.js`) |
 | `frontend/js/` | `main.js` (boot, abas, roteamento de eventos), `estado.js` (estado + chamadas à API; as das abas, de usuários a ASAAS, ficam em `estadoAbas.js`, que o `estado.js` reexporta: as telas importam tudo de `estado.js`), exportação para WhatsApp (texto e PNG) |
 | `api/` | Endpoints; `api/_lib/` tem banco, sessão/permissão, senhas, HTTP, `escala.js` (esconde escala não publicada) e a lógica que sai dos arquivos de rota grandes (`videos.js`, `oracoes.js`, `fotos.js`, usados por `api/giras`; `perfil.js`, com Perfil, foto e Anamnese, usado por `api/auth`) |
 | `db/esquema.js` | `VERSAO` + lista `MIGRACOES`: todas as tabelas e funções SQL |
