@@ -69,10 +69,6 @@ A cada `push` ou `pull_request` para `main`, o CI:
 
 **Status**: O workflow está ativo. Se algum PR quebrar a build ou testes, o status fica 🔴 e não deixa fazer merge (configurável no GitHub).
 
-### Migração de testes para CI
-
-As ~30 migrações não testadas (v56-v85, veja `db/ESTRUTURA-ESQUEMA.md`) agora rodam em CI a cada alteração, garantindo idempotência em Postgres real. Sem CI, essas versões só eram validadas no banco falso (durante o desenvolvimento).
-
 ---
 
 ## Convenções de código

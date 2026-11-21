@@ -4,10 +4,9 @@
 // não é preciso rodar SQL à mão. Cada item da lista é UM comando SQL, e todos
 // são idempotentes (podem rodar de novo sem estragar nada).
 //
-// Para mudar o esquema: acrescente comandos no fim e aumente VERSAO.
-//
-// Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
-// quais migrações foram testadas no Postgres.
+// Para mudar o esquema: acrescente comandos no fim e aumente VERSAO. Ao redefinir uma função,
+// apague a definição antiga se nenhum comando entre as duas a chama (só a última vale).
+// Convenções: docs/como-trabalhamos.md.
 
 export const VERSAO = 161;  // v161: QR do Pix só pendente, oferendas sem gravar na leitura, giras em janela e versão própria
 
@@ -220,18 +219,6 @@ export const MIGRACOES = [
      return jsonb_build_object('ok', true);
    end;
    $$`,
-  // Após 8 senhas erradas seguidas, o e-mail fica bloqueado por 15 minutos.
-  `create or replace function login_falha(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_email text := lower(btrim(p ->> 'email'));
-   begin
-     insert into login_falhas (email, tentativas) values (v_email, 1)
-     on conflict (email) do update set tentativas = login_falhas.tentativas + 1;
-     update login_falhas set tentativas = 0, bloqueado_ate = now() + interval '15 minutes'
-     where email = v_email and tentativas >= 8;
-     return jsonb_build_object('ok', true);
-   end;
-   $$`,
   `create or replace function login_ok(p jsonb)
    returns jsonb language sql as $$
      delete from login_falhas where email = lower(btrim(p ->> 'email'));
@@ -266,10 +253,6 @@ export const MIGRACOES = [
    $$`,
 
   // ------------------------------------------------------------------ giras
-  `create or replace function giras_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(gira_json(data) order by data desc), '[]'::jsonb) from giras;
-   $$`,
   `create or replace function gira_obter(p jsonb)
    returns jsonb language sql stable as $$
      select gira_json((p ->> 'data')::date);
@@ -453,26 +436,6 @@ export const MIGRACOES = [
      return oferendas_estado();
    end;
    $$`,
-  `create or replace function oferenda_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_doado int;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into oferenda_itens (oferenda_id, nome, quantidade, entrega)
-       values ((p ->> 'oferendaId')::uuid, btrim(p ->> 'nome'), (p ->> 'quantidade')::int, nullif(p ->> 'entrega', '')::date);
-     else
-       select coalesce(sum(quantidade), 0) into v_doado from oferenda_doacoes where item_id = (p ->> 'id')::uuid;
-       if (p ->> 'quantidade')::int < v_doado then
-         raise exception 'Já foram prometidos % deste item; a quantidade não pode ser menor.', v_doado;
-       end if;
-       update oferenda_itens set nome = btrim(p ->> 'nome'), quantidade = (p ->> 'quantidade')::int,
-              entrega = nullif(p ->> 'entrega', '')::date
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
   `create or replace function oferenda_item_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -540,15 +503,6 @@ export const MIGRACOES = [
   `delete from oferenda_doacoes x using usuarios u where x.pessoa_chave = 'u:' || u.id::text and u.pessoa_id is not null`,
 
   // ================================================== v19
-  `create or replace function oferenda_status(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     update oferendas set status = p ->> 'status', publicada = publicada or (p ->> 'status') = 'publicado'
-      where id = (p ->> 'id')::uuid;
-     if not found then raise exception 'Oferenda não encontrada.'; end if;
-     return oferendas_estado();
-   end;
-   $$`,
 
   // ================================================== v24: oferenda com uma linha para cada médium
   // Cada médium (Médium, Extra e Passe) tem uma situação: pendente, entregue, pago, não pago ou não vai.
@@ -562,28 +516,6 @@ export const MIGRACOES = [
    )`,
   // v31: médium tirado da lista da oferenda (continua marcado para não voltar com "Incluir novos médiuns")
   `alter table oferenda_mediuns add column if not exists excluido boolean not null default false`,
-  `create or replace function oferenda_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into oferendas (titulo, data, responsavel_id, por_medium)
-       values (btrim(p ->> 'titulo'), (p ->> 'data')::date, nullif(p ->> 'responsavelId', '')::uuid,
-               coalesce((p ->> 'porMedium')::boolean, false))
-       returning id into v_id;
-       if coalesce((p ->> 'porMedium')::boolean, false) then
-         insert into oferenda_mediuns (oferenda_id, pessoa_id)
-         select v_id, id from pessoas;   -- v32: todos os cadastrados
-       end if;
-     else
-       update oferendas set titulo = btrim(p ->> 'titulo'), data = (p ->> 'data')::date,
-              responsavel_id = case when p ? 'responsavelId' then nullif(p ->> 'responsavelId', '')::uuid else responsavel_id end
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Oferenda não encontrada.'; end if;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
 
   // v28: giras ainda em aberto, de hoje em diante, passam a usar "pendente" como padrão
   // (quem não foi marcado deixa de contar como presente até o admin confirmar).
@@ -742,23 +674,6 @@ export const MIGRACOES = [
 
   // ================================================== v36: oferenda completa (100%) há mais de um dia: fecha as doações
   `alter table oferendas add column if not exists completa_em timestamptz`,
-  // Marca quando todos os itens ficaram completos (e desmarca se voltar a faltar),
-  // mas depois de fechada (um dia completa) continua fechada.
-  `create or replace function oferenda_conferir_completa(v_of uuid)
-   returns void language plpgsql as $$
-   declare v_completa boolean;
-   begin
-     select exists (select 1 from oferenda_itens i where i.oferenda_id = v_of)
-        and not exists (select 1 from oferenda_itens i where i.oferenda_id = v_of
-                        and i.quantidade > coalesce((select sum(d.quantidade) from oferenda_doacoes d where d.item_id = i.id), 0))
-       into v_completa;
-     update oferendas set completa_em = case
-         when completa_em is not null and completa_em <= now() - interval '1 day' then completa_em
-         when v_completa then coalesce(completa_em, now())
-         else null end
-     where id = v_of;
-   end;
-   $$`,
   `create or replace function oferenda_completa_trg()
    returns trigger language plpgsql as $$
    declare v_of uuid;
@@ -785,47 +700,6 @@ export const MIGRACOES = [
      and exists (select 1 from oferenda_itens i where i.oferenda_id = o.id)
      and not exists (select 1 from oferenda_itens i where i.oferenda_id = o.id
                      and i.quantidade > coalesce((select sum(d.quantidade) from oferenda_doacoes d where d.item_id = i.id), 0))`,
-  `create or replace function oferenda_doar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_item uuid := (p ->> 'itemId')::uuid;
-     v_chave text := p ->> 'chave';
-     v_qtd int := (p ->> 'quantidade')::int;
-     v_total int; v_entregue boolean; v_outros int;
-     v_completa timestamptz; v_resp uuid;
-   begin
-     select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
-     if not found then raise exception 'Item não encontrado.'; end if;
-     if not coalesce((p ->> 'forcar')::boolean, false)
-        and (select o.status from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item) <> 'publicado' then
-       raise exception 'Esta oferenda não está aberta para doações.';
-     end if;
-     if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
-     -- v36: completa há mais de um dia → só o responsável altera (o admin altera pelo "doação por alguém").
-     if not coalesce((p ->> 'forcar')::boolean, false) then
-       select o.completa_em, o.responsavel_id into v_completa, v_resp
-       from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item;
-       if v_completa is not null and v_completa <= now() - interval '1 day' and v_chave is distinct from 'p:' || v_resp::text then
-         raise exception 'Esta oferenda está completa há mais de um dia: as doações estão fechadas. Só o responsável%pode alterar.',
-           coalesce(' (' || (select nome from pessoas where id = v_resp) || ') ', ' ');
-       end if;
-     end if;
-     select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
-     if v_qtd > 0 and v_outros + v_qtd > v_total then
-       if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;
-       raise exception 'Só faltam % deste item.', v_total - v_outros;
-     end if;
-     -- Uma alteração só (sem apagar e inserir), para não reiniciar a contagem do "completa há um dia".
-     if v_qtd > 0 then
-       insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
-       values (v_item, v_chave, btrim(p ->> 'nome'), v_qtd)
-       on conflict (item_id, pessoa_chave) do update set quantidade = excluded.quantidade, pessoa_nome = excluded.pessoa_nome, atualizado_em = now();
-     else
-       delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
 
   // ================================================== v37: a pessoa declara a própria ausência (só a presença dela muda)
   `create or replace function presenca_marcar(p jsonb)
@@ -884,22 +758,6 @@ export const MIGRACOES = [
 
   // ================================================== v40: tipo do evento
   `alter table eventos add column if not exists tipo text not null default 'evento' check (tipo in ('gira', 'amaci', 'aviso', 'evento'))`,
-  `create or replace function eventos_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'data', data, 'nome', nome, 'tipo', tipo) order by data, lower(nome)), '[]'::jsonb) from eventos
-   $$`,
-  `create or replace function evento_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     if coalesce(p ->> 'id', '') = '' then
-       insert into eventos (data, nome, tipo) values ((p ->> 'data')::date, btrim(p ->> 'nome'), coalesce(p ->> 'tipo', 'evento'));
-     else
-       update eventos set data = (p ->> 'data')::date, nome = btrim(p ->> 'nome'), tipo = coalesce(p ->> 'tipo', tipo) where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Evento não encontrado.'; end if;
-     end if;
-     return eventos_listar();
-   end;
-   $$`,
 
   // ================================================== v41: afinidade com as entidades (aba Perfil)
   // A da própria função fica em pessoas.linhas (Extra → atendimento extra; Passe → passe).
@@ -942,31 +800,6 @@ export const MIGRACOES = [
      if not found then raise exception 'Gira não encontrada.'; end if;
      return gira_json((p ->> 'data')::date);
    end;
-   $$`,
-  `create or replace function gira_json(d date)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'data', g.data,
-       'entidade', g.entidade,
-       'encerrada', g.encerrada,
-       'suporteAuto', g.suporte_auto,
-       'atendimentos', g.atendimentos,
-       'limpeza', g.limpeza,
-       'orixa', g.orixa,
-       'pendentePadrao', g.pendente_padrao,
-       'publicada', coalesce(g.publicada, false),
-       'papeis', g.papeis,
-       'atualizadoEm', g.atualizado_em,
-       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
-                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
-       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
-       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
-     )
-     from giras g where g.data = d;
    $$`,
 
   // ================================================== v43: a lista de pessoas leva o nome dos guias de atendimento (todos veem)
@@ -1210,34 +1043,6 @@ export const MIGRACOES = [
      status    text not null check (status in ('p', 'f')),
      primary key (aula_id, aluno_id)
    )`,
-  `create or replace function curimba_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'alunos', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'nome', coalesce(pe.nome, a.nome), 'pessoaId', a.pessoa_id)
-                                            order by lower(coalesce(pe.nome, a.nome)))
-                           from curimba_alunos a left join pessoas pe on pe.id = a.pessoa_id), '[]'::jsonb),
-       'aulas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'data', data, 'nome', nome) order by data) from curimba_aulas), '[]'::jsonb),
-       'presencas', coalesce((select jsonb_agg(jsonb_build_object('aulaId', aula_id, 'alunoId', aluno_id, 'status', status)) from curimba_presencas), '[]'::jsonb))
-   $$`,
-  // p = { pessoaId } (da corrente) ou { nome } (de fora).
-  `create or replace function curimba_aluno_criar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_pessoa uuid := nullif(p ->> 'pessoaId', '')::uuid;
-     v_nome text := btrim(coalesce(p ->> 'nome', ''));
-   begin
-     if v_pessoa is not null then
-       select nome into v_nome from pessoas where id = v_pessoa;
-       if not found then raise exception 'Pessoa não encontrada.'; end if;
-       if exists (select 1 from curimba_alunos where pessoa_id = v_pessoa) then raise exception 'Essa pessoa já é aluna da curimba.'; end if;
-     elsif exists (select 1 from curimba_alunos a left join pessoas pe on pe.id = a.pessoa_id
-                    where lower(btrim(coalesce(pe.nome, a.nome))) = lower(v_nome)) then
-       raise exception 'Já existe um aluno com esse nome.';
-     end if;
-     insert into curimba_alunos (nome, pessoa_id) values (v_nome, v_pessoa);
-     return curimba_estado();
-   end;
-   $$`,
   `create or replace function curimba_aluno_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -1278,13 +1083,6 @@ export const MIGRACOES = [
      end if;
      return curimba_estado();
    end;
-   $$`,
-  // Aba Gira: as aulas de quem está logado (null se a pessoa não é aluna da curimba).
-  `create or replace function curimba_minha(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('aulas', coalesce((select jsonb_agg(jsonb_build_object('data', au.data, 'nome', au.nome, 'status', cp.status) order by au.data)
-                                                  from curimba_aulas au left join curimba_presencas cp on cp.aula_id = au.id and cp.aluno_id = a.id), '[]'::jsonb))
-     from curimba_alunos a where a.pessoa_id = (p ->> 'pessoaId')::uuid
    $$`,
 
   // ================================================== v58: aba Vídeos (vídeos do YouTube das giras)
@@ -1480,11 +1278,6 @@ export const MIGRACOES = [
    $$`,
 
   // ================================================== v62: oferenda por pessoa: alunos por turma
-  // Grupos dos alunos: 'alunos' (todos), 'turma:<id>' (só aquela turma) e 'alunos:sem' (sem turma).
-  `create or replace function aluno_no_grupo(t uuid, g text[])
-   returns boolean language sql immutable as $$
-     select coalesce('alunos' = any(g) or (t is null and 'alunos:sem' = any(g)) or (t is not null and ('turma:' || t::text) = any(g)), false)
-   $$`,
   `create or replace function oferenda_mediuns_atualizar(p jsonb)
    returns jsonb language plpgsql as $$
    declare
@@ -1595,18 +1388,6 @@ export const MIGRACOES = [
      criado_em timestamptz not null default now(),
      primary key (oracao_id, autor)
    )`,
-  // 'reacoes' = autores de quem reagiu (a API troca pela contagem e por "eu reagi").
-  `create or replace function oracoes_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     delete from oracoes where criado_em < now() - interval '7 days';
-     return coalesce((select jsonb_agg(jsonb_build_object('id', o.id, 'texto', o.texto, 'autor', o.autor,
-                                                         'criadoEm', o.criado_em, 'expiraEm', o.criado_em + interval '7 days',
-                                                         'reacoes', coalesce((select jsonb_agg(r.autor) from oracoes_reacoes r where r.oracao_id = o.id), '[]'::jsonb))
-                                       order by o.criado_em desc)
-                      from oracoes o), '[]'::jsonb);
-   end;
-   $$`,
   // p = { id, autor } — liga/desliga a reação de quem tocou.
   `create or replace function oracao_reagir(p jsonb)
    returns jsonb language plpgsql as $$
@@ -1621,22 +1402,6 @@ export const MIGRACOES = [
    $$`,
 
   // ================================================== v66: oferenda por pessoa segue o cadastro
-  // A cada leitura, quem foi cadastrado depois (pessoa da função ou aluno da turma escolhida) entra sozinho
-  // nas oferendas ainda não encerradas e de hoje em diante. Quem o admin tirou continua fora (a linha existe, excluída).
-  `create or replace function oferendas_sincronizar(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     insert into oferenda_mediuns (oferenda_id, pessoa_id)
-     select o.id, pe.id from oferendas o join pessoas pe on pe.funcao = any(o.grupos) and pe.saida is null
-     where o.por_medium and o.status <> 'encerrado' and o.data >= (now() at time zone 'America/Sao_Paulo')::date
-     on conflict do nothing;
-     insert into oferenda_alunos (oferenda_id, aluno_id)
-     select o.id, a.id from oferendas o join alunos a on a.saida is null and aluno_no_grupo(a.turma_id, o.grupos)
-     where o.por_medium and o.status <> 'encerrado' and o.data >= (now() at time zone 'America/Sao_Paulo')::date
-     on conflict do nothing;
-     return oferendas_estado();
-   end;
-   $$`,
 
   // ================================================== v67: renomear turma dos alunos (as oferendas guardam o id, não o nome)
   `create or replace function turma_aluno_renomear(p jsonb)
@@ -1652,34 +1417,6 @@ export const MIGRACOES = [
 
   // ================================================== v68: oferenda por pessoa "Exibir no resumo" (tabela do admin em Seus compromissos)
   `alter table oferendas add column if not exists no_resumo boolean not null default false`,
-  // Igual à v44, com 'noResumo'.
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada,
-       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
-       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'grupos', to_jsonb(o.grupos),
-       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
-           select pe.nome, jsonb_build_object('pessoaId', pe.id::text, 'nome', pe.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
-           from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
-           where om.oferenda_id = o.id and not om.excluido
-           union all
-           select al.nome, jsonb_build_object('pessoaId', 'a:' || al.id::text, 'nome', al.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
-           from oferenda_alunos oa join alunos al on al.id = oa.aluno_id
-           where oa.oferenda_id = o.id and not oa.excluido) x), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, al.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
   `create or replace function oferenda_resumo(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -1739,19 +1476,6 @@ export const MIGRACOES = [
      atualizado_em timestamptz not null default now(),
      primary key (pessoa_id, pergunta_id)
    )`,
-  `create or replace function anamnese_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'perguntas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'texto', texto, 'tipo', tipo) order by criado_em) from anamnese_perguntas), '[]'::jsonb),
-       'respostas', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pessoa_id, 'perguntaId', pergunta_id, 'resposta', resposta)) from anamnese_respostas), '[]'::jsonb));
-   $$`,
-  `create or replace function anamnese_pergunta_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     insert into anamnese_perguntas (texto, tipo) values (btrim(p ->> 'texto'), p ->> 'tipo');
-     return anamnese_estado();
-   end;
-   $$`,
   `create or replace function anamnese_pergunta_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -1801,81 +1525,9 @@ export const MIGRACOES = [
      return gira_json((p ->> 'data')::date);
    end;
    $$`,
-  // Igual à v42, com 'travada' e 'recado'.
-  `create or replace function gira_json(d date)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'data', g.data,
-       'entidade', g.entidade,
-       'encerrada', g.encerrada,
-       'suporteAuto', g.suporte_auto,
-       'atendimentos', g.atendimentos,
-       'limpeza', g.limpeza,
-       'orixa', g.orixa,
-       'pendentePadrao', g.pendente_padrao,
-       'publicada', coalesce(g.publicada, false),
-       'travada', g.travada,
-       'recado', g.recado,
-       'papeis', g.papeis,
-       'atualizadoEm', g.atualizado_em,
-       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
-                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
-       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
-       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
-     )
-     from giras g where g.data = d;
-   $$`,
 
   // ================================================== v74: evento sem limpeza, escala ou sugestões
   `alter table giras add column if not exists evento boolean not null default false`,
-  `create or replace function gira_evento(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_data date := (p ->> 'data')::date;
-     v_evento boolean := (p ->> 'evento')::boolean;
-   begin
-     update giras set
-       evento = v_evento,
-       publicada = case when v_evento then false else publicada end,
-       atualizado_em = now(),
-       atualizado_por = nullif(p ->> 'usuario', '')::uuid
-     where data = v_data;
-     if not found then raise exception 'Gira não encontrada.'; end if;
-     return gira_json(v_data);
-   end;
-   $$`,
-  `create or replace function gira_json(d date)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'data', g.data,
-       'entidade', g.entidade,
-       'encerrada', g.encerrada,
-       'suporteAuto', g.suporte_auto,
-       'atendimentos', g.atendimentos,
-       'limpeza', g.limpeza,
-       'orixa', g.orixa,
-       'evento', g.evento,
-       'pendentePadrao', g.pendente_padrao,
-       'publicada', coalesce(g.publicada, false),
-       'travada', g.travada,
-       'recado', g.recado,
-       'papeis', g.papeis,
-       'atualizadoEm', g.atualizado_em,
-       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
-                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
-       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
-       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
-     )
-     from giras g where g.data = d;
-   $$`,
 
   // ================================================== v75: remover turma de alunos; os alunos ficam sem turma
   `create or replace function turma_aluno_excluir(p jsonb)
@@ -1894,23 +1546,6 @@ export const MIGRACOES = [
   `alter table anamnese_perguntas add constraint anamnese_perguntas_texto_check check (length(btrim(texto)) between 1 and 500)`,
   `alter table anamnese_perguntas drop constraint if exists anamnese_perguntas_tipo_check`,
   `alter table anamnese_perguntas add constraint anamnese_perguntas_tipo_check check (tipo in ('texto', 'data', 'simnao', 'opcao', 'multipla'))`,
-  `create or replace function anamnese_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'perguntas', coalesce((select jsonb_agg(jsonb_build_object(
-         'id', id, 'texto', texto, 'tipo', tipo, 'opcoes', opcoes, 'obrigatoria', obrigatoria) order by criado_em)
-         from anamnese_perguntas), '[]'::jsonb),
-       'respostas', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pessoa_id, 'perguntaId', pergunta_id, 'resposta', resposta))
-         from anamnese_respostas), '[]'::jsonb));
-   $$`,
-  `create or replace function anamnese_pergunta_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     insert into anamnese_perguntas (texto, tipo, opcoes, obrigatoria)
-     values (btrim(p ->> 'texto'), p ->> 'tipo', coalesce(p -> 'opcoes', '[]'::jsonb), coalesce((p ->> 'obrigatoria')::boolean, true));
-     return anamnese_estado();
-   end;
-   $$`,
   `do $$
    begin
      if not exists (select 1 from sistema where chave = 'v76_anamnese_forms_seed') then
@@ -1974,16 +1609,6 @@ export const MIGRACOES = [
    $$`,
   // ================================================== v78: o admin do perfil controla a exibição para a corrente
   `insert into sistema (chave, valor) values ('anamnese_visivel', 'true') on conflict (chave) do nothing`,
-  `create or replace function anamnese_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'perguntas', coalesce((select jsonb_agg(jsonb_build_object(
-         'id', id, 'texto', texto, 'tipo', tipo, 'opcoes', opcoes, 'obrigatoria', obrigatoria) order by criado_em)
-         from anamnese_perguntas), '[]'::jsonb),
-       'respostas', coalesce((select jsonb_agg(jsonb_build_object('pessoaId', pessoa_id, 'perguntaId', pergunta_id, 'resposta', resposta))
-         from anamnese_respostas), '[]'::jsonb),
-       'visivel', coalesce((select valor = 'true' from sistema where chave = 'anamnese_visivel'), true));
-   $$`,
   `create or replace function anamnese_visibilidade(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -2070,120 +1695,18 @@ export const MIGRACOES = [
      return gira_json((p ->> 'data')::date);
    end;
    $$`,
-  `create or replace function gira_json(d date)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'data', g.data,
-       'entidade', g.entidade,
-       'entidadeNome', g.entidade_nome,
-       'encerrada', g.encerrada,
-       'suporteAuto', g.suporte_auto,
-       'atendimentos', g.atendimentos,
-       'limpeza', g.limpeza,
-       'orixa', g.orixa,
-       'evento', g.evento,
-       'pendentePadrao', g.pendente_padrao,
-       'publicada', coalesce(g.publicada, false),
-       'travada', g.travada,
-       'recado', g.recado,
-       'papeis', g.papeis,
-       'atualizadoEm', g.atualizado_em,
-       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
-                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
-       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
-       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
-     )
-     from giras g where g.data = d;
-   $$`,
   // ================================================== v81: login limitado para alunos da CPJ e alunos de curimba
-  `create or replace function aluno_acesso(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id)
-     from alunos a where a.id = (p ->> 'id')::uuid
-   $$`,
   `create or replace function curimba_aluno_acesso(p jsonb)
    returns jsonb language sql stable as $$
      select jsonb_build_object('id', a.id, 'nome', coalesce(pe.nome, a.nome), 'pessoaId', a.pessoa_id)
      from curimba_alunos a left join pessoas pe on pe.id = a.pessoa_id
      where a.id = (p ->> 'id')::uuid
    $$`,
-  `create or replace function curimba_minha(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('aulas', coalesce((select jsonb_agg(jsonb_build_object('data', au.data, 'nome', au.nome, 'status', cp.status) order by au.data)
-                                                  from curimba_aulas au left join curimba_presencas cp on cp.aula_id = au.id and cp.aluno_id = a.id), '[]'::jsonb))
-     from curimba_alunos a
-     where (nullif(p ->> 'alunoId', '') is not null and a.id = (p ->> 'alunoId')::uuid)
-        or (nullif(p ->> 'alunoId', '') is null and a.pessoa_id = (p ->> 'pessoaId')::uuid)
-   $$`,
   // ================================================== v82: Admin curimba publica e administra os vídeos da casa
   `update perfis set abas = jsonb_set(coalesce(abas, '{}'::jsonb), '{videos}', '{"ver":true,"editar":true}'::jsonb, true)
     where chave = 'admin_curimba'`,
   // ================================================== v83: transferir aluno para a Corrente como Cambone sem perder histórico de oferendas
-  `create or replace function aluno_transferir_cambone(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid := (p ->> 'id')::uuid;
-     v_nome text;
-     v_pessoa_id uuid;
-   begin
-     select nome into v_nome from alunos where id = v_id for update;
-     if not found then raise exception 'Aluno não encontrado.'; end if;
-     v_nome := coalesce(nullif(btrim(p ->> 'nome'), ''), v_nome);
-     if length(v_nome) > 80 then raise exception 'Nome inválido.'; end if;
-     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_nome))) then
-       raise exception 'Já existe uma pessoa da corrente com esse nome.';
-     end if;
-
-     insert into pessoas (nome, funcao) values (v_nome, 'cambone') returning id into v_pessoa_id;
-     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
-       select oferenda_id, v_pessoa_id, pagamento, entrega, excluido, atualizado_em
-       from oferenda_alunos where aluno_id = v_id
-       on conflict (oferenda_id, pessoa_id) do update set
-         pagamento = excluded.pagamento, entrega = excluded.entrega,
-         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
-     update oferenda_doacoes set pessoa_chave = 'p:' || v_pessoa_id::text
-       where pessoa_chave = 'a:' || v_id::text;
-     delete from alunos where id = v_id;
-
-     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar());
-   exception when unique_violation then
-     raise exception 'Já existe uma pessoa da corrente com esse nome.';
-   end;
-   $$`,
   // ================================================== v84: promover aluno para CPJ como Cambone, mantendo o nome usado no acesso
-  `create or replace function aluno_transferir_cambone(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid := (p ->> 'id')::uuid;
-     v_nome text;
-     v_pessoa_id uuid;
-   begin
-     select nome into v_nome from alunos where id = v_id for update;
-     if not found then raise exception 'Aluno não encontrado.'; end if;
-     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_nome))) then
-       raise exception 'Já existe uma pessoa da corrente com esse nome.';
-     end if;
-
-     insert into pessoas (nome, funcao) values (v_nome, 'cambone') returning id into v_pessoa_id;
-     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
-       select oferenda_id, v_pessoa_id, pagamento, entrega, excluido, atualizado_em
-       from oferenda_alunos where aluno_id = v_id
-       on conflict (oferenda_id, pessoa_id) do update set
-         pagamento = excluded.pagamento, entrega = excluded.entrega,
-         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
-     update oferenda_doacoes set pessoa_chave = 'p:' || v_pessoa_id::text
-       where pessoa_chave = 'a:' || v_id::text;
-     delete from alunos where id = v_id;
-
-     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar());
-   exception when unique_violation then
-     raise exception 'Já existe uma pessoa da corrente com esse nome.';
-   end;
-   $$`,
   // ================================================== v85: total de participantes dos eventos (separado dos atendimentos)
   `alter table giras add column if not exists participantes integer check (participantes between 0 and 100000)`,
   `update giras set limpeza = null, publicada = false, travada = false where evento`,
@@ -2235,38 +1758,6 @@ export const MIGRACOES = [
      where data = v_data;
      return gira_json(v_data);
    end;
-   $$`,
-  // Igual à v85, com 'atende'.
-  `create or replace function gira_json(d date)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'data', g.data,
-       'entidade', g.entidade,
-       'entidadeNome', g.entidade_nome,
-       'encerrada', g.encerrada,
-       'suporteAuto', g.suporte_auto,
-       'atendimentos', g.atendimentos,
-       'participantes', g.participantes,
-       'limpeza', g.limpeza,
-       'orixa', g.orixa,
-       'evento', g.evento,
-       'pendentePadrao', g.pendente_padrao,
-       'publicada', coalesce(g.publicada, false),
-       'travada', g.travada,
-       'recado', g.recado,
-       'papeis', g.papeis,
-       'atende', g.atende,
-       'atualizadoEm', g.atualizado_em,
-       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
-                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
-       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
-       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
-     )
-     from giras g where g.data = d;
    $$`,
   // ================================================== v87: aba Ervas visível para todos ou só para quem administra (começa visível)
   `insert into sistema (chave, valor) values ('ervas_publicada', 'true') on conflict (chave) do nothing`,
@@ -2323,23 +1814,6 @@ export const MIGRACOES = [
      quantidade int not null check (quantidade > 0),
      primary key (item_id, chave)
    )`,
-  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', e.id, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
-           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
-           'responsavel', (select pe.nome from pessoas pe where pe.id = g.responsavel_id),
-           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
-                       from iemanja_membros m where m.grupo_id = g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'quantidade', i.quantidade,
-               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
-                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
-                     from iemanja_itens i where i.grupo_id = g.id)
-         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
-     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
-     from iemanja_eventos e
-   $$`,
   `create or replace function iemanja_evento_novo(p jsonb)
    returns jsonb language plpgsql as $$
    declare v_id uuid;
@@ -2349,22 +1823,6 @@ export const MIGRACOES = [
      end if;
      insert into iemanja_eventos (data) values ((p ->> 'data')::date) returning id into v_id;
      insert into iemanja_grupos (evento_id, ordem) select v_id, n from generate_series(1, 5) n;
-     return iemanja_estado();
-   end;
-   $$`,
-  `create or replace function iemanja_evento_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := (p ->> 'id')::uuid;
-   begin
-     update iemanja_eventos set
-       data = case when p ? 'data' then (p ->> 'data')::date else data end,
-       visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end,
-       fora = case when p ? 'fora' then array(select jsonb_array_elements_text(p -> 'fora')) else fora end,
-       encerrado_em = case when (p ->> 'encerrar')::boolean then now() else encerrado_em end
-     where id = v_id;
-     update iemanja_grupos g set nome = x ->> 'nome', responsavel_id = nullif(x ->> 'responsavelId', '')::uuid
-       from jsonb_array_elements(coalesce(p -> 'grupos', '[]'::jsonb)) x
-      where g.id = (x ->> 'id')::uuid and g.evento_id = v_id;
      return iemanja_estado();
    end;
    $$`,
@@ -2390,39 +1848,10 @@ export const MIGRACOES = [
      return iemanja_estado();
    end;
    $$`,
-  `create or replace function iemanja_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     insert into iemanja_itens (grupo_id, nome, quantidade) values ((p ->> 'grupoId')::uuid, p ->> 'nome', (p ->> 'quantidade')::int);
-     return iemanja_estado();
-   end;
-   $$`,
   `create or replace function iemanja_item_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
      delete from iemanja_itens where id = (p ->> 'id')::uuid;
-     return iemanja_estado();
-   end;
-   $$`,
-  // A trava da linha do item impede duas pessoas de passarem da quantidade pedida.
-  `create or replace function iemanja_assumir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_item uuid := (p ->> 'itemId')::uuid;
-     v_chave text := p ->> 'chave';
-     v_qtd int := (p ->> 'quantidade')::int;
-     v_pedido int;
-   begin
-     select quantidade into v_pedido from iemanja_itens where id = v_item for update;
-     if v_qtd = 0 then
-       delete from iemanja_doacoes where item_id = v_item and chave = v_chave;
-     else
-       if v_qtd + (select coalesce(sum(quantidade), 0) from iemanja_doacoes where item_id = v_item and chave <> v_chave) > v_pedido then
-         raise exception 'Este item já tem responsável para toda a quantidade.';
-       end if;
-       insert into iemanja_doacoes (item_id, chave, nome, quantidade) values (v_item, v_chave, p ->> 'nome', v_qtd)
-       on conflict (item_id, chave) do update set quantidade = excluded.quantidade;
-     end if;
      return iemanja_estado();
    end;
    $$`,
@@ -2465,55 +1894,6 @@ export const MIGRACOES = [
   `alter table iemanja_grupos drop constraint if exists iemanja_grupos_ordem_check`,
   `alter table iemanja_itens add column if not exists entrega date`,
   `alter table iemanja_itens add column if not exists entregue boolean not null default false`,
-  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
-           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
-           'responsavel', (select pe.nome from pessoas pe where pe.id = g.responsavel_id),
-           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
-                       from iemanja_membros m where m.grupo_id = g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
-                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
-                     from iemanja_itens i where i.grupo_id = g.id)
-         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
-     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
-     from iemanja_eventos e
-   $$`,
-  `create or replace function iemanja_evento_novo(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid;
-   begin
-     if exists (select 1 from iemanja_eventos where encerrado_em is null) then
-       raise exception 'Já existe um evento em andamento. Encerre antes de criar outro.';
-     end if;
-     insert into iemanja_eventos (data, nome)
-       values ((p ->> 'data')::date, coalesce(nullif(btrim(p ->> 'nome'), ''), 'Oferenda de Iemanjá'))
-       returning id into v_id;
-     insert into iemanja_grupos (evento_id, ordem) select v_id, n from generate_series(1, 5) n;
-     return iemanja_estado();
-   end;
-   $$`,
-  `create or replace function iemanja_evento_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := (p ->> 'id')::uuid;
-   begin
-     update iemanja_eventos set
-       nome = case when p ? 'nome' then p ->> 'nome' else nome end,
-       data = case when p ? 'data' then (p ->> 'data')::date else data end,
-       visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end,
-       fora = case when p ? 'fora' then array(select jsonb_array_elements_text(p -> 'fora')) else fora end,
-       listas = case when p ? 'listas' then array(select jsonb_array_elements_text(p -> 'listas')) else listas end,
-       encerrado_em = case when (p ->> 'encerrar')::boolean then now() else encerrado_em end
-     where id = v_id;
-     update iemanja_grupos g set nome = x ->> 'nome', responsavel_id = nullif(x ->> 'responsavelId', '')::uuid
-       from jsonb_array_elements(coalesce(p -> 'grupos', '[]'::jsonb)) x
-      where g.id = (x ->> 'id')::uuid and g.evento_id = v_id;
-     return iemanja_estado();
-   end;
-   $$`,
   `create or replace function iemanja_grupo_novo(p jsonb)
    returns jsonb language plpgsql as $$
    declare v_id uuid := (p ->> 'id')::uuid;
@@ -2528,25 +1908,6 @@ export const MIGRACOES = [
    returns jsonb language plpgsql as $$
    begin
      delete from iemanja_grupos where id = (p ->> 'id')::uuid;
-     return iemanja_estado();
-   end;
-   $$`,
-  `create or replace function iemanja_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_doado int;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into iemanja_itens (grupo_id, nome, quantidade, entrega)
-       values ((p ->> 'grupoId')::uuid, p ->> 'nome', (p ->> 'quantidade')::int, nullif(p ->> 'entrega', '')::date);
-     else
-       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = (p ->> 'id')::uuid;
-       if (p ->> 'quantidade')::int < v_doado then
-         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
-       end if;
-       update iemanja_itens set nome = p ->> 'nome', quantidade = (p ->> 'quantidade')::int, entrega = nullif(p ->> 'entrega', '')::date
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
      return iemanja_estado();
    end;
    $$`,
@@ -2581,10 +1942,6 @@ export const MIGRACOES = [
    end;
    $$`,
   `alter table oferendas alter column aba_id set not null`,
-  `create or replace function oferenda_abas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'iemanja', iemanja) order by ordem), '[]'::jsonb) from oferenda_abas
-   $$`,
   `create or replace function oferenda_aba_salvar(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -2639,42 +1996,10 @@ export const MIGRACOES = [
      return oferendas_estado();
    end;
    $$`,
-  // Igual à v68, com 'abaId'.
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
-       'responsavelId', o.responsavel_id, 'responsavel', (select nome from pessoas where id = o.responsavel_id),
-       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'grupos', to_jsonb(o.grupos),
-       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
-           select pe.nome, jsonb_build_object('pessoaId', pe.id::text, 'nome', pe.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
-           from oferenda_mediuns om join pessoas pe on pe.id = om.pessoa_id
-           where om.oferenda_id = o.id and not om.excluido
-           union all
-           select al.nome, jsonb_build_object('pessoaId', 'a:' || al.id::text, 'nome', al.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
-           from oferenda_alunos oa join alunos al on al.id = oa.aluno_id
-           where oa.oferenda_id = o.id and not oa.excluido) x), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave, 'nome', coalesce(u.nome, pe.nome, al.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
   // ================================================== v90: sub-aba de Oferendas com Visível para todos
   // As que já existem continuam visíveis; as criadas daqui em diante nascem ocultas.
   `alter table oferenda_abas add column if not exists visivel boolean not null default true`,
   `alter table oferenda_abas alter column visivel set default false`,
-  `create or replace function oferenda_abas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'iemanja', iemanja, 'visivel', visivel) order by ordem), '[]'::jsonb) from oferenda_abas
-   $$`,
   `create or replace function oferenda_aba_visivel(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -2688,11 +2013,6 @@ export const MIGRACOES = [
   `alter table alunos add column if not exists foto text`,
   `alter table alunos add column if not exists pin_hash text`,
   `alter table alunos add column if not exists pin_versao int not null default 0`,
-  `create or replace function aluno_acesso(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id, 'temSenha', a.pin_hash is not null, 'pinVersao', a.pin_versao)
-     from alunos a where a.id = (p ->> 'id')::uuid
-   $$`,
   `create or replace function aluno_pin(p jsonb)
    returns jsonb language sql stable as $$
      select jsonb_build_object('pinHash', a.pin_hash, 'pinVersao', a.pin_versao,
@@ -2739,62 +2059,10 @@ export const MIGRACOES = [
      return aluno_foto_ler(p);
    end;
    $$`,
-  // Igual à v84, levando o perfil, a foto e a senha para o cadastro da corrente.
-  `create or replace function aluno_transferir_cambone(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid := (p ->> 'id')::uuid;
-     v_aluno alunos%rowtype;
-     v_pessoa_id uuid;
-   begin
-     select * into v_aluno from alunos where id = v_id for update;
-     if not found then raise exception 'Aluno não encontrado.'; end if;
-     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_aluno.nome))) then
-       raise exception 'Já existe uma pessoa da corrente com esse nome.';
-     end if;
-
-     insert into pessoas (nome, funcao, perfil, pin_hash, pin_versao, entrada)
-       values (v_aluno.nome, 'cambone', v_aluno.perfil, v_aluno.pin_hash, v_aluno.pin_versao, (now() at time zone 'America/Sao_Paulo')::date)
-       returning id into v_pessoa_id;
-     if v_aluno.foto is not null then
-       insert into pessoas_fotos (pessoa_id, foto) values (v_pessoa_id, v_aluno.foto);
-     end if;
-     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
-       select oferenda_id, v_pessoa_id, pagamento, entrega, excluido, atualizado_em
-       from oferenda_alunos where aluno_id = v_id
-       on conflict (oferenda_id, pessoa_id) do update set
-         pagamento = excluded.pagamento, entrega = excluded.entrega,
-         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
-     update oferenda_doacoes set pessoa_chave = 'p:' || v_pessoa_id::text
-       where pessoa_chave = 'a:' || v_id::text;
-     delete from alunos where id = v_id;
-
-     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar('{"todas": true}'::jsonb));
-   exception when unique_violation then
-     raise exception 'Já existe uma pessoa da corrente com esse nome.';
-   end;
-   $$`,
   // ================================================== v92: quem sai da corrente some das listas, mas o histórico fica
   // saida: a partir dessa data a pessoa não conta mais (a gira do próprio dia, se já encerrada, ainda conta: ver pessoas_excluir).
   `alter table pessoas add column if not exists saida date`,
   `alter table alunos add column if not exists saida date`,
-  // Só quem está ativo, a não ser com { todas: true } (telas de histórico, que filtram pela data da gira).
-  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select pe.id, pe.nome, pe.funcao, pe.experiente, pe.linhas, pe.limpeza, pe.entrada, pe.saida,
-              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
-                        from licencas l where l.pessoa_id = pe.id), '[]'::jsonb) as licencas,
-              coalesce(pe.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento",
-              nullif(pe.perfil -> 'guias' -> 'chefe' ->> 'linha', '') as "guiaChefe",
-              nullif(pe.perfil -> 'guias' -> 'frente' ->> 'linha', '') as "guiaFrente",
-              pe.afinidade_extra as "afinidadeExtra", pe.afinidade_passe as "afinidadePasse",
-              case when (pe.perfil -> 'info' ->> 'nascimento') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-                   then substring(pe.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario
-       from pessoas pe
-       where pe.saida is null or coalesce((p ->> 'todas')::boolean, false)
-     ) x;
-   $$`,
   `create or replace function perfis_listar(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(jsonb_build_object('pessoaId', id, 'nome', nome, 'funcao', funcao, 'perfil', perfil)
@@ -2806,12 +2074,6 @@ export const MIGRACOES = [
      select coalesce(jsonb_agg(jsonb_build_object('pessoaId', id, 'nome', nome, 'temSenha', pin_hash is not null)
                                order by lower(nome)), '[]'::jsonb)
      from pessoas where saida is null
-   $$`,
-  `create or replace function alunos_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'turmas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome) order by lower(nome)) from turmas_alunos), '[]'::jsonb),
-       'alunos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'turmaId', turma_id) order by lower(nome)) from alunos where saida is null), '[]'::jsonb))
    $$`,
   // p = { nomes: [...], funcao, entrada?, reativar? }. Nomes repetidos são ignorados.
   // reativar: quem tinha saído e é cadastrado de novo volta com o mesmo registro (o nome é único) e a função informada.
@@ -2868,38 +2130,6 @@ export const MIGRACOES = [
      return jsonb_build_object('ok', true);
    end;
    $$`,
-  `create or replace function alunos_criar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_n int; v_volta int;
-   begin
-     update alunos set saida = null, turma_id = nullif(p ->> 'turmaId', '')::uuid
-     where saida is not null
-       and lower(btrim(nome)) in (select lower(btrim(n)) from jsonb_array_elements_text(coalesce(p -> 'nomes', '[]'::jsonb)) n);
-     get diagnostics v_volta = row_count;
-     with novos as (
-       select distinct on (lower(btrim(n))) btrim(n) as nome
-       from jsonb_array_elements_text(coalesce(p -> 'nomes', '[]'::jsonb)) n where btrim(n) <> ''
-     ), ins as (
-       insert into alunos (nome, turma_id) select nome, nullif(p ->> 'turmaId', '')::uuid from novos
-       on conflict do nothing returning 1
-     )
-     select count(*) into v_n from ins;
-     return alunos_estado() || jsonb_build_object('criadas', v_n + v_volta);
-   end;
-   $$`,
-  `create or replace function aluno_excluir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid := (p ->> 'id')::uuid;
-     v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
-   begin
-     update alunos set saida = v_hoje, perfil = '{}'::jsonb, foto = null, pin_hash = null, pin_versao = pin_versao + 1
-     where id = v_id and saida is null;
-     update oferenda_alunos oa set excluido = true from oferendas o
-     where oa.aluno_id = v_id and o.id = oa.oferenda_id and o.status <> 'encerrado' and o.data >= v_hoje;
-     return alunos_estado();
-   end;
-   $$`,
   // ================================================== v93: Configurações da casa (aba Admin root); o padrão de cada campo fica em shared/config.js
   `insert into sistema (chave, valor) values ('config_casa', '{}') on conflict (chave) do nothing`,
   `create or replace function config_casa(p jsonb default '{}'::jsonb)
@@ -2924,39 +2154,6 @@ export const MIGRACOES = [
      if not found then raise exception 'Gira não encontrada.'; end if;
      return gira_json((p ->> 'data')::date);
    end;
-   $$`,
-  // Igual à versão anterior, com 'titulo'.
-  `create or replace function gira_json(d date)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'data', g.data,
-       'entidade', g.entidade,
-       'entidadeNome', g.entidade_nome,
-       'titulo', g.titulo,
-       'encerrada', g.encerrada,
-       'suporteAuto', g.suporte_auto,
-       'atendimentos', g.atendimentos,
-       'participantes', g.participantes,
-       'limpeza', g.limpeza,
-       'orixa', g.orixa,
-       'evento', g.evento,
-       'pendentePadrao', g.pendente_padrao,
-       'publicada', coalesce(g.publicada, false),
-       'travada', g.travada,
-       'recado', g.recado,
-       'papeis', g.papeis,
-       'atende', g.atende,
-       'atualizadoEm', g.atualizado_em,
-       'presenca', coalesce((select jsonb_object_agg(pr.pessoa_id, pr.status)
-                             from presencas pr where pr.gira_data = g.data), '{}'::jsonb),
-       'pares', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                 'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                          from duplas du where du.gira_data = g.data and du.tipo = 'cambone'), '[]'::jsonb),
-       'passes', coalesce((select jsonb_agg(jsonb_build_object('m', du.medium_id, 'c', du.pessoa_id,
-                                  'fixo', du.fixo, 'remanejado', du.remanejado) order by du.id)
-                           from duplas du where du.gira_data = g.data and du.tipo = 'passe'), '[]'::jsonb)
-     )
-     from giras g where g.data = d;
    $$`,
   // ================================================== v95: Gestão de Conduta e Risco (aba Geral, último bloco)
   // Qualquer pessoa logada abre relatos; só o admin root lê todos (com o nome). Quem abriu edita enquanto não foi lido.
@@ -3050,62 +2247,6 @@ export const MIGRACOES = [
      return iemanja_estado();
    end;
    $$`,
-  `create or replace function iemanja_evento_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := (p ->> 'id')::uuid;
-   begin
-     update iemanja_eventos set
-       nome = case when p ? 'nome' then p ->> 'nome' else nome end,
-       data = case when p ? 'data' then (p ->> 'data')::date else data end,
-       visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end,
-       fora = case when p ? 'fora' then array(select jsonb_array_elements_text(p -> 'fora')) else fora end,
-       listas = case when p ? 'listas' then array(select jsonb_array_elements_text(p -> 'listas')) else listas end,
-       categorias = case when p ? 'categorias' then array(select jsonb_array_elements_text(p -> 'categorias')) else categorias end,
-       encerrado_em = case when (p ->> 'encerrar')::boolean then now() else encerrado_em end
-     where id = v_id;
-     update iemanja_grupos g set nome = x ->> 'nome', responsavel_id = nullif(x ->> 'responsavelId', '')::uuid
-       from jsonb_array_elements(coalesce(p -> 'grupos', '[]'::jsonb)) x
-      where g.id = (x ->> 'id')::uuid and g.evento_id = v_id;
-     return iemanja_estado();
-   end;
-   $$`,
-  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
-           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
-           'responsavel', (select pe.nome from pessoas pe where pe.id = g.responsavel_id),
-           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
-                       from iemanja_membros m where m.grupo_id = g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
-                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
-                     from iemanja_itens i where i.grupo_id = g.id)
-         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
-     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
-     from iemanja_eventos e
-   $$`,
-  `create or replace function iemanja_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_doado int;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into iemanja_itens (grupo_id, nome, categoria, quantidade, entrega)
-       values ((p ->> 'grupoId')::uuid, p ->> 'nome', coalesce(p ->> 'categoria', ''), (p ->> 'quantidade')::int, nullif(p ->> 'entrega', '')::date);
-     else
-       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = (p ->> 'id')::uuid;
-       if (p ->> 'quantidade')::int < v_doado then
-         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
-       end if;
-       update iemanja_itens set nome = p ->> 'nome', categoria = coalesce(p ->> 'categoria', ''), quantidade = (p ->> 'quantidade')::int,
-                                entrega = nullif(p ->> 'entrega', '')::date
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
-     return iemanja_estado();
-   end;
-   $$`,
   // ================================================== v98: o que foi encerrado não muda mais com o cadastro
   // Gira encerrada guarda o retrato de quem estava nela (shared/regras.js retratoDaGira): nome, função, linhas,
   // + médium de passe, turma da limpeza e a licença daquele dia. Reabrir apaga o retrato.
@@ -3195,39 +2336,6 @@ export const MIGRACOES = [
      ) x where x.n is not null
    $$`,
   `update oferendas set retrato = oferenda_retrato(id) where status = 'encerrado' and retrato is null`,
-  // Nomes: o do retrato primeiro (encerrada); quem já foi apagado do cadastro continua pelo retrato.
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
-       'responsavelId', o.responsavel_id,
-       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
-                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
-       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'grupos', to_jsonb(o.grupos),
-       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
-           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
-           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
-           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
-           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
-           union all
-           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
-           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
-           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
-           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
-                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
 
   // Oferenda de Iemanjá: membros e doações já guardam o nome; o responsável do grupo fica guardado ao encerrar.
   `alter table iemanja_grupos add column if not exists responsavel_nome text`,
@@ -3245,24 +2353,6 @@ export const MIGRACOES = [
    for each row execute function iemanja_encerrar_trg()`,
   `update iemanja_grupos g set responsavel_nome = (select nome from pessoas where id = g.responsavel_id)
    from iemanja_eventos e where e.id = g.evento_id and e.encerrado_em is not null and g.responsavel_nome is null`,
-  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
-           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
-           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
-                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
-           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
-                       from iemanja_membros m where m.grupo_id = g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
-                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
-                     from iemanja_itens i where i.grupo_id = g.id)
-         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
-     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
-     from iemanja_eventos e
-   $$`,
 
   // Apagar de vez quem foi excluído: o histórico (presença, duplas, linhas de oferenda) não some junto com o
   // cadastro — as encerradas têm o retrato. Tira as chaves estrangeiras com "on delete cascade" dessas tabelas.
@@ -3275,79 +2365,6 @@ export const MIGRACOES = [
        execute format('alter table %I drop constraint %I', r.relname, r.conname);
      end loop;
    end $$`,
-  // UP CPJ: as oferendas encerradas ficam como estavam (com o aluno, pelo retrato); só as outras passam para médiuns.
-  `create or replace function aluno_transferir_cambone(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid := (p ->> 'id')::uuid;
-     v_aluno alunos%rowtype;
-     v_pessoa_id uuid;
-   begin
-     select * into v_aluno from alunos where id = v_id for update;
-     if not found then raise exception 'Aluno não encontrado.'; end if;
-     if exists (select 1 from pessoas where lower(btrim(nome)) = lower(btrim(v_aluno.nome))) then
-       raise exception 'Já existe uma pessoa da corrente com esse nome.';
-     end if;
-
-     insert into pessoas (nome, funcao, perfil, pin_hash, pin_versao, entrada)
-       values (v_aluno.nome, 'cambone', v_aluno.perfil, v_aluno.pin_hash, v_aluno.pin_versao, (now() at time zone 'America/Sao_Paulo')::date)
-       returning id into v_pessoa_id;
-     if v_aluno.foto is not null then
-       insert into pessoas_fotos (pessoa_id, foto) values (v_pessoa_id, v_aluno.foto);
-     end if;
-     insert into oferenda_mediuns (oferenda_id, pessoa_id, pagamento, entrega, excluido, atualizado_em)
-       select oa.oferenda_id, v_pessoa_id, oa.pagamento, oa.entrega, oa.excluido, oa.atualizado_em
-       from oferenda_alunos oa join oferendas o on o.id = oa.oferenda_id
-       where oa.aluno_id = v_id and o.status <> 'encerrado'
-       on conflict (oferenda_id, pessoa_id) do update set
-         pagamento = excluded.pagamento, entrega = excluded.entrega,
-         excluido = excluded.excluido, atualizado_em = excluded.atualizado_em;
-     delete from oferenda_alunos oa using oferendas o
-       where oa.aluno_id = v_id and o.id = oa.oferenda_id and o.status <> 'encerrado';
-     update oferenda_doacoes d set pessoa_chave = 'p:' || v_pessoa_id::text
-       from oferenda_itens i join oferendas o on o.id = i.oferenda_id
-       where d.item_id = i.id and o.status <> 'encerrado' and d.pessoa_chave = 'a:' || v_id::text;
-     delete from alunos where id = v_id;
-
-     return alunos_estado() || jsonb_build_object('pessoas', pessoas_listar('{"todas": true}'::jsonb));
-   exception when unique_violation then
-     raise exception 'Já existe uma pessoa da corrente com esse nome.';
-   end;
-   $$`,
-  // Apaga a pessoa ou o aluno excluído que não está em nada ainda aberto: gira não encerrada da época em que
-  // estava na corrente, oferenda não encerrada, Oferenda de Iemanjá não encerrada. Antes, tira as linhas
-  // "excluído" dele das oferendas abertas. Licenças, foto, Anamnese e ausências antecipadas vão junto (cascade).
-  `create or replace function apagar_excluidos(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_pessoas uuid[]; v_alunos uuid[];
-   begin
-     select coalesce(array_agg(pe.id), '{}') into v_pessoas from pessoas pe
-     where pe.saida is not null
-       and not exists (select 1 from giras g where not g.encerrada and g.data < pe.saida and (pe.entrada is null or g.data >= pe.entrada))
-       and not exists (select 1 from presencas pr join giras g on g.data = pr.gira_data where pr.pessoa_id = pe.id and not g.encerrada)
-       and not exists (select 1 from duplas du join giras g on g.data = du.gira_data where pe.id in (du.pessoa_id, du.medium_id) and not g.encerrada)
-       and not exists (select 1 from oferenda_mediuns om join oferendas o on o.id = om.oferenda_id
-                       where om.pessoa_id = pe.id and not om.excluido and o.status <> 'encerrado')
-       and not exists (select 1 from oferendas o where o.responsavel_id = pe.id and o.status <> 'encerrado')
-       and not exists (select 1 from iemanja_grupos g join iemanja_eventos e on e.id = g.evento_id
-                       where g.responsavel_id = pe.id and e.encerrado_em is null)
-       and not exists (select 1 from iemanja_membros m join iemanja_grupos g on g.id = m.grupo_id join iemanja_eventos e on e.id = g.evento_id
-                       where m.chave = 'p:' || pe.id::text and e.encerrado_em is null);
-     select coalesce(array_agg(a.id), '{}') into v_alunos from alunos a
-     where a.saida is not null
-       and not exists (select 1 from oferenda_alunos oa join oferendas o on o.id = oa.oferenda_id
-                       where oa.aluno_id = a.id and not oa.excluido and o.status <> 'encerrado')
-       and not exists (select 1 from iemanja_membros m join iemanja_grupos g on g.id = m.grupo_id join iemanja_eventos e on e.id = g.evento_id
-                       where m.chave = 'a:' || a.id::text and e.encerrado_em is null);
-     delete from oferenda_mediuns om using oferendas o
-       where om.pessoa_id = any(v_pessoas) and o.id = om.oferenda_id and o.status <> 'encerrado';
-     delete from oferenda_alunos oa using oferendas o
-       where oa.aluno_id = any(v_alunos) and o.id = oa.oferenda_id and o.status <> 'encerrado';
-     delete from pessoas where id = any(v_pessoas);
-     delete from alunos where id = any(v_alunos);
-     return jsonb_build_object('pessoas', cardinality(v_pessoas), 'alunos', cardinality(v_alunos));
-   end;
-   $$`,
   // Encerrar tira o retrato (já encerrada, mantém o que tinha); sair de encerrado apaga. Encerrar também libera
   // quem só faltava nela para ser apagado (apagar_excluidos).
   `create or replace function oferenda_status(p jsonb)
@@ -3389,10 +2406,6 @@ export const MIGRACOES = [
        end if;
      end loop;
    end $$`,
-  `create or replace function versao_dados()
-   returns text language sql volatile as $$
-     select (select last_value from versao_dados_seq)::text || '-' || to_char(now() at time zone 'America/Sao_Paulo', 'YYYYMMDDHH24');
-   $$`,
   // Iemanjá para decidir a aba (sem ler grupos, itens e doações): visível e quem é responsável em cada evento.
   `create or replace function iemanja_resumo(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
@@ -3400,33 +2413,6 @@ export const MIGRACOES = [
        'responsaveis', coalesce((select jsonb_agg(g.responsavel_id) from iemanja_grupos g
                                  where g.evento_id = e.id and g.responsavel_id is not null), '[]'::jsonb))), '[]'::jsonb)
      from iemanja_eventos e
-   $$`,
-  // p = { versao, me, pessoaId }. Mesma versão do app: só { versao, semMudanca }. Senão, tudo da abertura de uma vez
-  // (as listas que podem falhar sem impedir o app de abrir ficam de fora em caso de erro, como antes).
-  // me: também o que decide as abas (sub-abas de oferendas, vídeos e ervas publicados, resumo da Iemanjá).
-  `create or replace function inicio_dados(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_versao text := versao_dados();
-     r jsonb;
-   begin
-     if coalesce(p ->> 'versao', '') = v_versao then
-       return jsonb_build_object('versao', v_versao, 'semMudanca', true);
-     end if;
-     r := jsonb_build_object('versao', v_versao, 'pessoas', pessoas_listar('{"todas": true}'::jsonb),
-                             'giras', giras_listar('{}'::jsonb), 'config', config_casa('{}'::jsonb));
-     begin r := r || jsonb_build_object('eventos', eventos_listar('{}'::jsonb)); exception when others then null; end;
-     begin r := r || jsonb_build_object('oracoes', oracoes_listar('{}'::jsonb)); exception when others then null; end;
-     begin r := r || jsonb_build_object('entidadesApelidos', entidades_apelidos_listar('{}'::jsonb)); exception when others then null; end;
-     if nullif(p ->> 'pessoaId', '') is not null then
-       begin r := r || jsonb_build_object('minhaCurimba', curimba_minha(jsonb_build_object('pessoaId', p ->> 'pessoaId'))); exception when others then null; end;
-     end if;
-     if coalesce((p ->> 'me')::boolean, false) then
-       r := r || jsonb_build_object('abasOferendas', oferenda_abas_listar('{}'::jsonb), 'videosPublicada', videos_publicada('{}'::jsonb),
-                                    'ervasPublicada', ervas_publicada('{}'::jsonb), 'iemanja', iemanja_resumo('{}'::jsonb));
-     end if;
-     return r;
-   end;
    $$`,
   // ================================================== v100: Detalhes de cada sub-aba de Oferendas (texto do admin para o pessoal)
   `alter table oferenda_abas add column if not exists detalhes text not null default ''`,
@@ -3464,50 +2450,7 @@ export const MIGRACOES = [
      return iemanja_estado();
    end;
    $$`,
-  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
-       'detalhes', e.detalhes,
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
-           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
-           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
-                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
-           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo) order by lower(m.nome)), '[]'::jsonb)
-                       from iemanja_membros m where m.grupo_id = g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
-                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
-                     from iemanja_itens i where i.grupo_id = g.id)
-         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
-     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
-     from iemanja_eventos e
-   $$`,
   // ================================================== v102: pessoas do grupo da Iemanjá com a lista de cada uma
-  // lista: 'Corrente', 'Curimba', o nome da turma do aluno ou 'Alunos sem turma' (como está no cadastro hoje).
-  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
-       'detalhes', e.detalhes,
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
-           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
-           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
-                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
-           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo,
-               'lista', case when m.chave like 'a:%'
-                               then coalesce((select t.nome from alunos a join turmas_alunos t on t.id = a.turma_id where a.id::text = substr(m.chave, 3)), 'Alunos sem turma')
-                             when (select pe.funcao from pessoas pe where pe.id::text = substr(m.chave, 3)) = 'curimba' then 'Curimba'
-                             else 'Corrente' end) order by lower(m.nome)), '[]'::jsonb)
-                       from iemanja_membros m where m.grupo_id = g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'entrega', i.entrega, 'entregue', i.entregue,
-               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
-                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
-                     from iemanja_itens i where i.grupo_id = g.id)
-         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
-     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
-     from iemanja_eventos e
-   $$`,
   // ================================================== v103: aba Pedidos de Guias — grupos, itens à venda e pedidos numerados
   // A aba começa escondida (só quem administra vê) até o admin ligar "Visível para todos".
   `insert into sistema (chave, valor) values ('guias_publicada', 'false') on conflict (chave) do nothing`,
@@ -3564,110 +2507,10 @@ export const MIGRACOES = [
      criado_em   timestamptz not null default now()
    )`,
   `create index if not exists guias_linhas_pedido on guias_linhas (pedido)`,
-  `create or replace function guias_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', guias_publicada(),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'descricao', g.descricao, 'visivel', g.visivel,
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'descricao', i.descricao, 'foto', i.foto, 'quantidade', i.quantidade,
-                       'valor', i.valor, 'visivel', i.visivel) order by i.criado_em), '[]'::jsonb)
-                     from guias_itens i where i.grupo_id = g.id)) order by g.criado_em), '[]'::jsonb)
-                  from guias_grupos g),
-       'pedidos', (select coalesce(jsonb_agg(jsonb_build_object('numero', pe.numero, 'criadoEm', pe.criado_em, 'encerradoEm', pe.encerrado_em,
-           'linhas', (select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'descricao', l.descricao, 'valor', l.valor,
-                       'quantidade', l.quantidade, 'chave', l.chave, 'nome', l.nome, 'ok', l.ok, 'criadoEm', l.criado_em) order by lower(l.nome), l.criado_em), '[]'::jsonb)
-                      from guias_linhas l where l.pedido = pe.numero)) order by pe.numero desc), '[]'::jsonb)
-                   from guias_pedidos pe))
-   $$`,
-  `create or replace function guia_grupo_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := nullif(p ->> 'id', '')::uuid;
-   begin
-     if v_id is null then
-       insert into guias_grupos (descricao, visivel) values (p ->> 'descricao', coalesce((p ->> 'visivel')::boolean, true));
-     else
-       update guias_grupos set
-         descricao = case when p ? 'descricao' then p ->> 'descricao' else descricao end,
-         visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end
-       where id = v_id;
-       if not found then raise exception 'Grupo não encontrado.'; end if;
-     end if;
-     return guias_estado();
-   end;
-   $$`,
-  `create or replace function guia_grupo_excluir(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     delete from guias_grupos where id = (p ->> 'id')::uuid;
-     return guias_estado();
-   end;
-   $$`,
-  `create or replace function guia_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := nullif(p ->> 'id', '')::uuid;
-   begin
-     if v_id is null then
-       if not exists (select 1 from guias_grupos where id = (p ->> 'grupoId')::uuid) then raise exception 'Grupo não encontrado.'; end if;
-       insert into guias_itens (grupo_id, descricao, foto, quantidade, valor, visivel)
-       values ((p ->> 'grupoId')::uuid, p ->> 'descricao', nullif(p ->> 'foto', ''), (p ->> 'quantidade')::int, (p ->> 'valor')::numeric,
-               coalesce((p ->> 'visivel')::boolean, true));
-     else
-       update guias_itens set
-         descricao = case when p ? 'descricao' then p ->> 'descricao' else descricao end,
-         foto = case when p ? 'foto' then nullif(p ->> 'foto', '') else foto end,
-         quantidade = case when p ? 'quantidade' then (p ->> 'quantidade')::int else quantidade end,
-         valor = case when p ? 'valor' then (p ->> 'valor')::numeric else valor end,
-         visivel = case when p ? 'visivel' then (p ->> 'visivel')::boolean else visivel end
-       where id = v_id;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
-     return guias_estado();
-   end;
-   $$`,
   `create or replace function guia_item_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    begin
      delete from guias_itens where id = (p ->> 'id')::uuid;
-     return guias_estado();
-   end;
-   $$`,
-  // Pedir: só no pedido aberto, item e grupo visíveis, sem passar do disponível (que já baixa).
-  // A mesma pessoa pedindo de novo o mesmo item no mesmo pedido soma na linha que já existe.
-  `create or replace function guia_pedir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_pedido int;
-     v_item guias_itens%rowtype;
-     v_qtd int := (p ->> 'quantidade')::int;
-     v_linha uuid;
-   begin
-     select numero into v_pedido from guias_pedidos where encerrado_em is null order by numero desc limit 1;
-     if v_pedido is null then raise exception 'Os pedidos estão fechados no momento.'; end if;
-     select i.* into v_item from guias_itens i join guias_grupos g on g.id = i.grupo_id
-      where i.id = (p ->> 'itemId')::uuid and i.visivel and g.visivel for update of i;
-     if not found then raise exception 'Este item não está disponível.'; end if;
-     if v_item.quantidade < 1 then raise exception 'Este item esgotou.'; end if;
-     if v_qtd < 1 or v_qtd > v_item.quantidade then raise exception 'Só restam % deste item.', v_item.quantidade; end if;
-     update guias_itens set quantidade = quantidade - v_qtd where id = v_item.id;
-     select id into v_linha from guias_linhas
-      where pedido = v_pedido and item_id = v_item.id and chave = p ->> 'chave' and valor = v_item.valor limit 1;
-     if v_linha is not null then
-       update guias_linhas set quantidade = quantidade + v_qtd, nome = p ->> 'nome', ok = false where id = v_linha;
-     else
-       insert into guias_linhas (pedido, item_id, descricao, valor, quantidade, chave, nome)
-       values (v_pedido, v_item.id, v_item.descricao, v_item.valor, v_qtd, p ->> 'chave', p ->> 'nome');
-     end if;
-     return guias_estado();
-   end;
-   $$`,
-  // Cancelar (só o admin): a quantidade volta para o item, se ele ainda existir.
-  `create or replace function guia_linha_cancelar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v guias_linhas%rowtype;
-   begin
-     delete from guias_linhas where id = (p ->> 'id')::uuid returning * into v;
-     if not found then raise exception 'Pedido não encontrado.'; end if;
-     if v.item_id is not null then update guias_itens set quantidade = quantidade + v.quantidade where id = v.item_id; end if;
      return guias_estado();
    end;
    $$`,
@@ -3679,122 +2522,9 @@ export const MIGRACOES = [
      return guias_estado();
    end;
    $$`,
-  `create or replace function guia_pedido_encerrar(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     update guias_pedidos set encerrado_em = now() where encerrado_em is null;
-     if not found then raise exception 'Não há pedido aberto.'; end if;
-     return guias_estado();
-   end;
-   $$`,
-  `create or replace function guia_pedido_novo(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   declare v int;
-   begin
-     select numero into v from guias_pedidos where encerrado_em is null limit 1;
-     if v is not null then raise exception 'O pedido nº % ainda está aberto. Encerre antes de começar outro.', v; end if;
-     insert into guias_pedidos (numero) select coalesce(max(numero), 0) + 1 from guias_pedidos;
-     return guias_estado();
-   end;
-   $$`,
   // ================================================== v104: unidade do item das oferendas e da Iemanjá (vazio = sem unidade, como antes)
   `alter table oferenda_itens add column if not exists unidade text not null default ''`,
   `alter table iemanja_itens add column if not exists unidade text not null default ''`,
-  `create or replace function oferenda_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_doado int;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into oferenda_itens (oferenda_id, nome, quantidade, unidade, entrega)
-       values ((p ->> 'oferendaId')::uuid, btrim(p ->> 'nome'), (p ->> 'quantidade')::int, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
-     else
-       select coalesce(sum(quantidade), 0) into v_doado from oferenda_doacoes where item_id = (p ->> 'id')::uuid;
-       if (p ->> 'quantidade')::int < v_doado then
-         raise exception 'Já foram prometidos % deste item; a quantidade não pode ser menor.', v_doado;
-       end if;
-       update oferenda_itens set nome = btrim(p ->> 'nome'), quantidade = (p ->> 'quantidade')::int,
-              unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
-  `create or replace function iemanja_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_doado int;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into iemanja_itens (grupo_id, nome, categoria, quantidade, unidade, entrega)
-       values ((p ->> 'grupoId')::uuid, p ->> 'nome', coalesce(p ->> 'categoria', ''), (p ->> 'quantidade')::int, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
-     else
-       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = (p ->> 'id')::uuid;
-       if (p ->> 'quantidade')::int < v_doado then
-         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
-       end if;
-       update iemanja_itens set nome = p ->> 'nome', categoria = coalesce(p ->> 'categoria', ''), quantidade = (p ->> 'quantidade')::int,
-                                unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
-     return iemanja_estado();
-   end;
-   $$`,
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
-       'responsavelId', o.responsavel_id,
-       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
-                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
-       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'grupos', to_jsonb(o.grupos),
-       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
-           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
-           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
-           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
-           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
-           union all
-           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
-           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
-           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
-           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
-                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d left join usuarios u on d.pessoa_chave = 'u:' || u.id::text
-                                left join pessoas pe on d.pessoa_chave = 'p:' || pe.id::text
-                                left join alunos al on d.pessoa_chave = 'a:' || al.id::text
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
-  `create or replace function iemanja_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', e.id, 'nome', e.nome, 'data', e.data, 'visivel', e.visivel, 'sorteado', e.sorteado, 'encerradoEm', e.encerrado_em, 'fora', to_jsonb(e.fora), 'listas', to_jsonb(e.listas), 'categorias', to_jsonb(e.categorias),
-       'detalhes', e.detalhes,
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object(
-           'id', g.id, 'ordem', g.ordem, 'nome', g.nome, 'responsavelId', g.responsavel_id,
-           'responsavel', case when e.encerrado_em is not null then g.responsavel_nome
-                               else (select pe.nome from pessoas pe where pe.id = g.responsavel_id) end,
-           'membros', (select coalesce(jsonb_agg(jsonb_build_object('chave', m.chave, 'nome', m.nome, 'fixo', m.fixo,
-               'lista', case when m.chave like 'a:%'
-                               then coalesce((select t.nome from alunos a join turmas_alunos t on t.id = a.turma_id where a.id::text = substr(m.chave, 3)), 'Alunos sem turma')
-                             when (select pe.funcao from pessoas pe where pe.id::text = substr(m.chave, 3)) = 'curimba' then 'Curimba'
-                             else 'Corrente' end) order by lower(m.nome)), '[]'::jsonb)
-                       from iemanja_membros m where m.grupo_id = g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'nome', i.nome, 'categoria', i.categoria, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue,
-               'doacoes', (select coalesce(jsonb_agg(jsonb_build_object('chave', d.chave, 'nome', d.nome, 'quantidade', d.quantidade) order by lower(d.nome)), '[]'::jsonb)
-                           from iemanja_doacoes d where d.item_id = i.id)) order by i.criado_em), '[]'::jsonb)
-                     from iemanja_itens i where i.grupo_id = g.id)
-         ) order by g.ordem), '[]'::jsonb) from iemanja_grupos g where g.evento_id = e.id)
-     ) order by (e.encerrado_em is not null), e.encerrado_em desc nulls first, e.data desc), '[]'::jsonb)
-     from iemanja_eventos e
-   $$`,
   // ================================================== v105: quantidade quebrada (kg e litro: 1,5 kg) e troca de pessoas entre grupos da Iemanjá
   // A quantidade do item e da doação passa a aceitar até 2 casas; a API só deixa fração nas unidades kg e litro.
   // O gatilho "update of quantidade" impede trocar o tipo da coluna: sai antes e volta depois.
@@ -3813,108 +2543,6 @@ export const MIGRACOES = [
   `alter table iemanja_doacoes add constraint iemanja_doacoes_quantidade_check check (quantidade > 0)`,
   `create trigger oferenda_itens_completa after insert or update of quantidade or delete on oferenda_itens
    for each row execute function oferenda_completa_trg()`,
-  `create or replace function oferenda_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_doado numeric;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into oferenda_itens (oferenda_id, nome, quantidade, unidade, entrega)
-       values ((p ->> 'oferendaId')::uuid, btrim(p ->> 'nome'), (p ->> 'quantidade')::numeric, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
-     else
-       select coalesce(sum(quantidade), 0) into v_doado from oferenda_doacoes where item_id = (p ->> 'id')::uuid;
-       if (p ->> 'quantidade')::numeric < v_doado then
-         raise exception 'Já foram prometidos % deste item; a quantidade não pode ser menor.', v_doado;
-       end if;
-       update oferenda_itens set nome = btrim(p ->> 'nome'), quantidade = (p ->> 'quantidade')::numeric,
-              unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
-  `create or replace function iemanja_item_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_doado numeric;
-   begin
-     if nullif(p ->> 'id', '') is null then
-       insert into iemanja_itens (grupo_id, nome, categoria, quantidade, unidade, entrega)
-       values ((p ->> 'grupoId')::uuid, p ->> 'nome', coalesce(p ->> 'categoria', ''), (p ->> 'quantidade')::numeric, coalesce(p ->> 'unidade', ''), nullif(p ->> 'entrega', '')::date);
-     else
-       select coalesce(sum(quantidade), 0) into v_doado from iemanja_doacoes where item_id = (p ->> 'id')::uuid;
-       if (p ->> 'quantidade')::numeric < v_doado then
-         raise exception 'Já foram assumidos % deste item; a quantidade não pode ser menor.', v_doado;
-       end if;
-       update iemanja_itens set nome = p ->> 'nome', categoria = coalesce(p ->> 'categoria', ''), quantidade = (p ->> 'quantidade')::numeric,
-                                unidade = coalesce(p ->> 'unidade', ''), entrega = nullif(p ->> 'entrega', '')::date
-       where id = (p ->> 'id')::uuid;
-       if not found then raise exception 'Item não encontrado.'; end if;
-     end if;
-     return iemanja_estado();
-   end;
-   $$`,
-  `create or replace function oferenda_doar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_item uuid := (p ->> 'itemId')::uuid;
-     v_chave text := p ->> 'chave';
-     v_qtd numeric := (p ->> 'quantidade')::numeric;
-     v_total numeric; v_entregue boolean; v_outros numeric;
-     v_completa timestamptz; v_resp uuid;
-   begin
-     select quantidade, entregue into v_total, v_entregue from oferenda_itens where id = v_item for update;
-     if not found then raise exception 'Item não encontrado.'; end if;
-     if not coalesce((p ->> 'forcar')::boolean, false)
-        and (select o.status from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item) <> 'publicado' then
-       raise exception 'Esta oferenda não está aberta para doações.';
-     end if;
-     if v_entregue and not coalesce((p ->> 'forcar')::boolean, false) then raise exception 'Este item já foi entregue.'; end if;
-     -- v36: completa há mais de um dia → só o responsável altera (o admin altera pelo "doação por alguém").
-     if not coalesce((p ->> 'forcar')::boolean, false) then
-       select o.completa_em, o.responsavel_id into v_completa, v_resp
-       from oferendas o join oferenda_itens i on i.oferenda_id = o.id where i.id = v_item;
-       if v_completa is not null and v_completa <= now() - interval '1 day' and v_chave is distinct from 'p:' || v_resp::text then
-         raise exception 'Esta oferenda está completa há mais de um dia: as doações estão fechadas. Só o responsável%pode alterar.',
-           coalesce(' (' || (select nome from pessoas where id = v_resp) || ') ', ' ');
-       end if;
-     end if;
-     select coalesce(sum(quantidade), 0) into v_outros from oferenda_doacoes where item_id = v_item and pessoa_chave <> v_chave;
-     if v_qtd > 0 and v_outros + v_qtd > v_total then
-       if v_total - v_outros <= 0 then raise exception 'Este item já está completo.'; end if;
-       raise exception 'Só faltam % deste item.', v_total - v_outros;
-     end if;
-     -- Uma alteração só (sem apagar e inserir), para não reiniciar a contagem do "completa há um dia".
-     if v_qtd > 0 then
-       insert into oferenda_doacoes (item_id, pessoa_chave, pessoa_nome, quantidade)
-       values (v_item, v_chave, btrim(p ->> 'nome'), v_qtd)
-       on conflict (item_id, pessoa_chave) do update set quantidade = excluded.quantidade, pessoa_nome = excluded.pessoa_nome, atualizado_em = now();
-     else
-       delete from oferenda_doacoes where item_id = v_item and pessoa_chave = v_chave;
-     end if;
-     return oferendas_estado();
-   end;
-   $$`,
-  `create or replace function iemanja_assumir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_item uuid := (p ->> 'itemId')::uuid;
-     v_chave text := p ->> 'chave';
-     v_qtd numeric := (p ->> 'quantidade')::numeric;
-     v_pedido numeric;
-   begin
-     select quantidade into v_pedido from iemanja_itens where id = v_item for update;
-     if v_qtd = 0 then
-       delete from iemanja_doacoes where item_id = v_item and chave = v_chave;
-     else
-       if v_qtd + (select coalesce(sum(quantidade), 0) from iemanja_doacoes where item_id = v_item and chave <> v_chave) > v_pedido then
-         raise exception 'Este item já tem responsável para toda a quantidade.';
-       end if;
-       insert into iemanja_doacoes (item_id, chave, nome, quantidade) values (v_item, v_chave, p ->> 'nome', v_qtd)
-       on conflict (item_id, chave) do update set quantidade = excluded.quantidade;
-     end if;
-     return iemanja_estado();
-   end;
-   $$`,
   // Troca duas pessoas de grupos diferentes do mesmo evento (cada uma vai para o grupo da outra).
   `create or replace function iemanja_trocar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -4098,33 +2726,6 @@ export const MIGRACOES = [
      return amaci_estado();
    end;
    $$`,
-  // Abertura: também se a aba Amaci está visível para todos (substitui a da v103).
-  `create or replace function inicio_dados(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_versao text := versao_dados();
-     r jsonb;
-   begin
-     if coalesce(p ->> 'versao', '') = v_versao then
-       return jsonb_build_object('versao', v_versao, 'semMudanca', true);
-     end if;
-     r := jsonb_build_object('versao', v_versao, 'pessoas', pessoas_listar('{"todas": true}'::jsonb),
-                             'giras', giras_listar('{}'::jsonb), 'config', config_casa('{}'::jsonb));
-     begin r := r || jsonb_build_object('eventos', eventos_listar('{}'::jsonb)); exception when others then null; end;
-     begin r := r || jsonb_build_object('oracoes', oracoes_listar('{}'::jsonb)); exception when others then null; end;
-     begin r := r || jsonb_build_object('entidadesApelidos', entidades_apelidos_listar('{}'::jsonb)); exception when others then null; end;
-     if nullif(p ->> 'pessoaId', '') is not null then
-       begin r := r || jsonb_build_object('minhaCurimba', curimba_minha(jsonb_build_object('pessoaId', p ->> 'pessoaId'))); exception when others then null; end;
-     end if;
-     if coalesce((p ->> 'me')::boolean, false) then
-       r := r || jsonb_build_object('abasOferendas', oferenda_abas_listar('{}'::jsonb), 'videosPublicada', videos_publicada('{}'::jsonb),
-                                    'ervasPublicada', ervas_publicada('{}'::jsonb), 'guiasPublicada', guias_publicada('{}'::jsonb),
-                                    'amaciPublicada', amaci_publicada('{}'::jsonb),
-                                    'iemanja', iemanja_resumo('{}'::jsonb));
-     end if;
-     return r;
-   end;
-   $$`,
 
   // ================================================== v109: ASAAS — Pix dos pedidos da aba Compras e aba ASAAS (root)
   // O root liga o Pix na aba ASAAS (começa desligado). Detalhes do fluxo: api/_lib/asaas.js.
@@ -4176,53 +2777,6 @@ export const MIGRACOES = [
   `alter table asaas_eventos add column if not exists cobranca_id uuid`,
   `alter table asaas_eventos add column if not exists resultado text`,
   `create index if not exists asaas_eventos_recebido on asaas_eventos (recebido_em desc)`,
-  // Linhas com Pago e com a situação da cobrança Pix (substitui a da v103).
-  `create or replace function guias_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', guias_publicada(),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'descricao', g.descricao, 'visivel', g.visivel,
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'descricao', i.descricao, 'foto', i.foto, 'quantidade', i.quantidade,
-                       'valor', i.valor, 'visivel', i.visivel) order by i.criado_em), '[]'::jsonb)
-                     from guias_itens i where i.grupo_id = g.id)) order by g.criado_em), '[]'::jsonb)
-                  from guias_grupos g),
-       'pedidos', (select coalesce(jsonb_agg(jsonb_build_object('numero', pe.numero, 'criadoEm', pe.criado_em, 'encerradoEm', pe.encerrado_em,
-           'linhas', (select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'descricao', l.descricao, 'valor', l.valor,
-                       'quantidade', l.quantidade, 'chave', l.chave, 'nome', l.nome, 'ok', l.ok, 'criadoEm', l.criado_em,
-                       'pago', l.pago_em is not null,
-                       'pix', case when l.pago_em is null and c.status in ('criando', 'pendente') then 'pendente' end) order by lower(l.nome), l.criado_em), '[]'::jsonb)
-                      from guias_linhas l left join asaas_cobrancas c on c.id = l.cobranca_id where l.pedido = pe.numero)) order by pe.numero desc), '[]'::jsonb)
-                   from guias_pedidos pe))
-   $$`,
-  // Pedir de novo o mesmo item só soma numa linha sem cobrança Pix (substitui a da v103).
-  `create or replace function guia_pedir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_pedido int;
-     v_item guias_itens%rowtype;
-     v_qtd int := (p ->> 'quantidade')::int;
-     v_linha uuid;
-   begin
-     select numero into v_pedido from guias_pedidos where encerrado_em is null order by numero desc limit 1;
-     if v_pedido is null then raise exception 'Os pedidos estão fechados no momento.'; end if;
-     select i.* into v_item from guias_itens i join guias_grupos g on g.id = i.grupo_id
-      where i.id = (p ->> 'itemId')::uuid and i.visivel and g.visivel for update of i;
-     if not found then raise exception 'Este item não está disponível.'; end if;
-     if v_item.quantidade < 1 then raise exception 'Este item esgotou.'; end if;
-     if v_qtd < 1 or v_qtd > v_item.quantidade then raise exception 'Só restam % deste item.', v_item.quantidade; end if;
-     update guias_itens set quantidade = quantidade - v_qtd where id = v_item.id;
-     select id into v_linha from guias_linhas
-      where pedido = v_pedido and item_id = v_item.id and chave = p ->> 'chave' and valor = v_item.valor
-        and cobranca_id is null and pago_em is null limit 1;
-     if v_linha is not null then
-       update guias_linhas set quantidade = quantidade + v_qtd, nome = p ->> 'nome', ok = false where id = v_linha;
-     else
-       insert into guias_linhas (pedido, item_id, descricao, valor, quantidade, chave, nome)
-       values (v_pedido, v_item.id, v_item.descricao, v_item.valor, v_qtd, p ->> 'chave', p ->> 'nome');
-     end if;
-     return guias_estado();
-   end;
-   $$`,
   // Cancelar: não cancela linha paga nem com Pix pendente (substitui a da v103).
   `create or replace function guia_linha_cancelar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -4239,61 +2793,6 @@ export const MIGRACOES = [
      return guias_estado();
    end;
    $$`,
-  // p = { chave } — o cliente do ASAAS e as cobranças da pessoa (pendentes primeiro, até 10).
-  `create or replace function asaas_minhas(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'cliente', (select cliente_id from asaas_clientes where chave = p ->> 'chave'),
-       'cobrancas', coalesce((select jsonb_agg(x.j order by x.ordem) from (
-           select row_number() over (order by (c.status = 'pendente') desc, c.criado_em desc) as ordem,
-                  jsonb_build_object('id', c.id, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status, 'link', c.link,
-                    'pixPayload', case when c.status = 'pendente' then c.pix_payload end,
-                    'pixImagem', case when c.status = 'pendente' then c.pix_imagem end,
-                    'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_cobrancas c where c.chave = p ->> 'chave' and c.status <> 'criando'
-            order by (c.status = 'pendente') desc, c.criado_em desc limit 10) x), '[]'::jsonb))
-   $$`,
-  // p = { chave, nome, pedido } — reserva as linhas não pagas da pessoa no pedido (inclusive de cobrança vencida
-  // ou cancelada) numa cobrança nova e devolve o valor somado no banco. No máximo 5 por pessoa por hora.
-  `create or replace function asaas_cobranca_reservar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid;
-     v_valor numeric(10, 2);
-   begin
-     delete from asaas_cobrancas where status = 'criando' and criado_em < now() - interval '10 minutes';
-     if (select count(*) from asaas_cobrancas where chave = p ->> 'chave' and criado_em > now() - interval '1 hour') >= 5 then
-       raise exception 'Muitos Pix gerados em pouco tempo. Tente de novo mais tarde.';
-     end if;
-     perform 1 from guias_linhas where pedido = (p ->> 'pedido')::int and chave = p ->> 'chave' for update;
-     select coalesce(sum(l.valor * l.quantidade), 0) into v_valor
-       from guias_linhas l left join asaas_cobrancas c on c.id = l.cobranca_id
-      where l.pedido = (p ->> 'pedido')::int and l.chave = p ->> 'chave' and l.pago_em is null
-        and (c.id is null or c.status in ('vencida', 'cancelada', 'estornada'));
-     if v_valor <= 0 then
-       if exists (select 1 from guias_linhas l join asaas_cobrancas c on c.id = l.cobranca_id
-                   where l.pedido = (p ->> 'pedido')::int and l.chave = p ->> 'chave' and l.pago_em is null and c.status in ('criando', 'pendente')) then
-         raise exception 'O Pix deste pedido já foi gerado. Use o que está na tela.';
-       end if;
-       raise exception 'Não há nada a pagar neste pedido.';
-     end if;
-     insert into asaas_cobrancas (chave, nome, pedido, valor) values (p ->> 'chave', p ->> 'nome', (p ->> 'pedido')::int, v_valor) returning id into v_id;
-     update guias_linhas l set cobranca_id = v_id
-      where l.pedido = (p ->> 'pedido')::int and l.chave = p ->> 'chave' and l.pago_em is null
-        and (l.cobranca_id is null or exists (select 1 from asaas_cobrancas c where c.id = l.cobranca_id and c.status in ('vencida', 'cancelada', 'estornada')));
-     return jsonb_build_object('id', v_id, 'valor', v_valor);
-   end;
-   $$`,
-  `create or replace function asaas_cobranca_criada(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     update asaas_cobrancas set status = 'pendente', asaas_id = p ->> 'asaasId', link = p ->> 'link',
-       pix_payload = p ->> 'payload', pix_imagem = p ->> 'imagem', vencimento = nullif(p ->> 'vencimento', '')::date
-      where id = (p ->> 'id')::uuid and status = 'criando';
-     return jsonb_build_object('ok', true);
-   end;
-   $$`,
   // O ASAAS recusou: apaga a reserva (as linhas voltam a ficar livres pelo on delete set null).
   `create or replace function asaas_cobranca_desfazer(p jsonb)
    returns jsonb language plpgsql as $$
@@ -4302,175 +2801,8 @@ export const MIGRACOES = [
      return jsonb_build_object('ok', true);
    end;
    $$`,
-  // p = { id } — devolve a cobrança (para o root cancelar) ou null.
-  `create or replace function asaas_cobranca_cancelar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     update asaas_cobrancas set status = 'cancelada', pix_payload = null, pix_imagem = null where id = (p ->> 'id')::uuid and status = 'pendente';
-     return jsonb_build_object('ok', true);
-   end;
-   $$`,
-  // p = { id, evento, dados, paymentId, conferido?: { status, valor } } — grava o evento (repetido: não faz nada)
-  // e atualiza a cobrança. Só marca como paga com a conferência no ASAAS batendo status e valor.
-  `create or replace function asaas_evento_processar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_c asaas_cobrancas%rowtype;
-     v_res text;
-     v_n int;
-   begin
-     insert into asaas_eventos (id, evento, dados) values (p ->> 'id', p ->> 'evento', coalesce(p -> 'dados', '{}'::jsonb))
-     on conflict (id) do nothing;
-     if not found then return jsonb_build_object('repetido', true); end if;
-     delete from asaas_eventos where recebido_em < now() - interval '180 days';
-     select * into v_c from asaas_cobrancas where asaas_id = p ->> 'paymentId' for update;
-     if not found then
-       v_res := 'ignorado (cobrança que não é do app)';
-     elsif p ->> 'evento' in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED') then
-       if p -> 'conferido' is null then
-         v_res := 'não conferido (sem ASAAS_API_KEY)';
-       elsif coalesce(p -> 'conferido' ->> 'status', '') not in ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH') then
-         v_res := 'não liberado: no ASAAS está ' || coalesce(p -> 'conferido' ->> 'status', '?');
-       elsif (p -> 'conferido' ->> 'valor')::numeric is distinct from v_c.valor then
-         v_res := 'não liberado: valor diferente (' || coalesce(p -> 'conferido' ->> 'valor', '?') || ')';
-       elsif v_c.status = 'paga' then
-         v_res := 'já estava paga';
-       else
-         update asaas_cobrancas set status = 'paga', pago_em = now(), pix_payload = null, pix_imagem = null where id = v_c.id;
-         update guias_linhas set pago_em = now() where cobranca_id = v_c.id and pago_em is null;
-         get diagnostics v_n = row_count;
-         v_res := case when v_n > 0 then 'paga' else 'paga, mas os itens não estão mais nesta cobrança: conferir' end;
-       end if;
-     elsif p ->> 'evento' = 'PAYMENT_OVERDUE' then
-       update asaas_cobrancas set status = 'vencida', pix_payload = null, pix_imagem = null where id = v_c.id and status = 'pendente';
-       v_res := 'vencida';
-     elsif p ->> 'evento' = 'PAYMENT_DELETED' then
-       update asaas_cobrancas set status = 'cancelada', pix_payload = null, pix_imagem = null where id = v_c.id and status in ('pendente', 'vencida');
-       v_res := 'cancelada';
-     elsif p ->> 'evento' in ('PAYMENT_REFUNDED', 'PAYMENT_CHARGEBACK_REQUESTED') then
-       update asaas_cobrancas set status = 'estornada' where id = v_c.id;
-       update guias_linhas set pago_em = null where cobranca_id = v_c.id;
-       v_res := 'estornada';
-     else
-       v_res := 'só registrado';
-     end if;
-     update asaas_eventos set cobranca_id = v_c.id, resultado = v_res where id = p ->> 'id';
-     return jsonb_build_object('ok', true, 'resultado', v_res);
-   end;
-   $$`,
-  // Aba ASAAS (root): se o Pix está ligado, as últimas cobranças e os últimos eventos recebidos.
-  `create or replace function asaas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'ativo', asaas_ativo(),
-       'cobrancas', coalesce((select jsonb_agg(x.j order by x.criado_em desc) from (
-           select c.criado_em, jsonb_build_object('id', c.id, 'nome', c.nome, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status,
-                    'asaasId', c.asaas_id, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em) as j
-             from asaas_cobrancas c where c.status <> 'criando' order by c.criado_em desc limit 100) x), '[]'::jsonb),
-       'eventos', coalesce((select jsonb_agg(x.j order by x.recebido_em desc) from (
-           select e.recebido_em, jsonb_build_object('id', e.id, 'evento', e.evento, 'recebidoEm', e.recebido_em, 'resultado', e.resultado,
-                    'paymentId', e.dados -> 'payment' ->> 'id', 'valor', e.dados -> 'payment' ->> 'value',
-                    'status', e.dados -> 'payment' ->> 'status', 'nome', c.nome, 'pedido', c.pedido) as j
-             from asaas_eventos e left join asaas_cobrancas c on c.id = e.cobranca_id order by e.recebido_em desc limit 50) x), '[]'::jsonb))
-   $$`,
   // ================================================== v110: Pedir já gera o link de pagamento (ASAAS)
-  // Linha não paga traz a situação da cobrança (pendente, vencida, cancelada, estornada) para a pessoa acompanhar (substitui a da v109).
-  `create or replace function guias_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', guias_publicada(),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'descricao', g.descricao, 'visivel', g.visivel,
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'descricao', i.descricao, 'foto', i.foto, 'quantidade', i.quantidade,
-                       'valor', i.valor, 'visivel', i.visivel) order by i.criado_em), '[]'::jsonb)
-                     from guias_itens i where i.grupo_id = g.id)) order by g.criado_em), '[]'::jsonb)
-                  from guias_grupos g),
-       'pedidos', (select coalesce(jsonb_agg(jsonb_build_object('numero', pe.numero, 'criadoEm', pe.criado_em, 'encerradoEm', pe.encerrado_em,
-           'linhas', (select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'descricao', l.descricao, 'valor', l.valor,
-                       'quantidade', l.quantidade, 'chave', l.chave, 'nome', l.nome, 'ok', l.ok, 'criadoEm', l.criado_em,
-                       'pago', l.pago_em is not null,
-                       'pix', case when l.pago_em is not null then null when c.status = 'criando' then 'pendente' else c.status end) order by lower(l.nome), l.criado_em), '[]'::jsonb)
-                      from guias_linhas l left join asaas_cobrancas c on c.id = l.cobranca_id where l.pedido = pe.numero)) order by pe.numero desc), '[]'::jsonb)
-                   from guias_pedidos pe))
-   $$`,
-  // Cada Pedir gera um link: o limite sobe para 20 por pessoa por hora (substitui a da v109).
-  `create or replace function asaas_cobranca_reservar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_id uuid;
-     v_valor numeric(10, 2);
-   begin
-     delete from asaas_cobrancas where status = 'criando' and criado_em < now() - interval '10 minutes';
-     if (select count(*) from asaas_cobrancas where chave = p ->> 'chave' and criado_em > now() - interval '1 hour') >= 20 then
-       raise exception 'Muitos links de pagamento gerados em pouco tempo. Tente de novo mais tarde.';
-     end if;
-     perform 1 from guias_linhas where pedido = (p ->> 'pedido')::int and chave = p ->> 'chave' for update;
-     select coalesce(sum(l.valor * l.quantidade), 0) into v_valor
-       from guias_linhas l left join asaas_cobrancas c on c.id = l.cobranca_id
-      where l.pedido = (p ->> 'pedido')::int and l.chave = p ->> 'chave' and l.pago_em is null
-        and (c.id is null or c.status in ('vencida', 'cancelada', 'estornada'));
-     if v_valor <= 0 then
-       if exists (select 1 from guias_linhas l join asaas_cobrancas c on c.id = l.cobranca_id
-                   where l.pedido = (p ->> 'pedido')::int and l.chave = p ->> 'chave' and l.pago_em is null and c.status in ('criando', 'pendente')) then
-         raise exception 'O link de pagamento deste pedido já foi gerado. Use o que está na tela.';
-       end if;
-       raise exception 'Não há nada a pagar neste pedido.';
-     end if;
-     insert into asaas_cobrancas (chave, nome, pedido, valor) values (p ->> 'chave', p ->> 'nome', (p ->> 'pedido')::int, v_valor) returning id into v_id;
-     update guias_linhas l set cobranca_id = v_id
-      where l.pedido = (p ->> 'pedido')::int and l.chave = p ->> 'chave' and l.pago_em is null
-        and (l.cobranca_id is null or exists (select 1 from asaas_cobrancas c where c.id = l.cobranca_id and c.status in ('vencida', 'cancelada', 'estornada')));
-     return jsonb_build_object('id', v_id, 'valor', v_valor);
-   end;
-   $$`,
-  // Aba ASAAS: cada cobrança com os itens e o vencimento, para acompanhar o pedido (substitui a da v109).
-  `create or replace function asaas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'ativo', asaas_ativo(),
-       'cobrancas', coalesce((select jsonb_agg(x.j order by x.criado_em desc) from (
-           select c.criado_em, jsonb_build_object('id', c.id, 'nome', c.nome, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status,
-                    'asaasId', c.asaas_id, 'link', c.link, 'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_cobrancas c where c.status <> 'criando' order by c.criado_em desc limit 100) x), '[]'::jsonb),
-       'eventos', coalesce((select jsonb_agg(x.j order by x.recebido_em desc) from (
-           select e.recebido_em, jsonb_build_object('id', e.id, 'evento', e.evento, 'recebidoEm', e.recebido_em, 'resultado', e.resultado,
-                    'paymentId', e.dados -> 'payment' ->> 'id', 'valor', e.dados -> 'payment' ->> 'value',
-                    'status', e.dados -> 'payment' ->> 'status', 'nome', c.nome, 'pedido', c.pedido) as j
-             from asaas_eventos e left join asaas_cobrancas c on c.id = e.cobranca_id order by e.recebido_em desc limit 50) x), '[]'::jsonb))
-   $$`,
   // ================================================== v111: a linha do pedido guarda "Grupo · Item"
-  // Itens com a mesma descrição em grupos diferentes não se confundem no pedido (substitui a da v109).
-  // Só vale para pedidos novos: as linhas já feitas continuam como estavam.
-  `create or replace function guia_pedir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_pedido int;
-     v_item guias_itens%rowtype;
-     v_grupo text;
-     v_qtd int := (p ->> 'quantidade')::int;
-     v_linha uuid;
-   begin
-     select numero into v_pedido from guias_pedidos where encerrado_em is null order by numero desc limit 1;
-     if v_pedido is null then raise exception 'Os pedidos estão fechados no momento.'; end if;
-     select i.* into v_item from guias_itens i join guias_grupos g on g.id = i.grupo_id
-      where i.id = (p ->> 'itemId')::uuid and i.visivel and g.visivel for update of i;
-     if not found then raise exception 'Este item não está disponível.'; end if;
-     if v_item.quantidade < 1 then raise exception 'Este item esgotou.'; end if;
-     if v_qtd < 1 or v_qtd > v_item.quantidade then raise exception 'Só restam % deste item.', v_item.quantidade; end if;
-     select descricao into v_grupo from guias_grupos where id = v_item.grupo_id;
-     update guias_itens set quantidade = quantidade - v_qtd where id = v_item.id;
-     select id into v_linha from guias_linhas
-      where pedido = v_pedido and item_id = v_item.id and chave = p ->> 'chave' and valor = v_item.valor
-        and cobranca_id is null and pago_em is null limit 1;
-     if v_linha is not null then
-       update guias_linhas set quantidade = quantidade + v_qtd, nome = p ->> 'nome', ok = false where id = v_linha;
-     else
-       insert into guias_linhas (pedido, item_id, descricao, valor, quantidade, chave, nome)
-       values (v_pedido, v_item.id, v_grupo || ' · ' || v_item.descricao, v_item.valor, v_qtd, p ->> 'chave', p ->> 'nome');
-     end if;
-     return guias_estado();
-   end;
-   $$`,
   // ================================================== v112: CPF no Perfil
   // Fica fora do perfil (jsonb), numa tabela só dele, e cifrado pelo backend (api/_lib/cpf.js):
   // não vai nas listas de perfis, no backup nem para quem administra o Perfil. O banco nunca vê o número.
@@ -4484,24 +2816,6 @@ export const MIGRACOES = [
    returns jsonb language sql stable as $$
      select jsonb_build_object('cifrado', c.cifrado, 'atualizadoEm', c.atualizado_em)
        from pessoas_cpf c where c.pessoa_id = (p ->> 'pessoaId')::uuid
-   $$`,
-  // cifrado '' apaga. Só pessoa ativa (quem saiu não tem CPF guardado).
-  `create or replace function cpf_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := (p ->> 'pessoaId')::uuid;
-   begin
-     if not exists (select 1 from pessoas where id = v_id and saida is null) then
-       raise exception 'Pessoa não encontrada.';
-     end if;
-     if coalesce(p ->> 'cifrado', '') = '' then
-       delete from pessoas_cpf where pessoa_id = v_id;
-     else
-       insert into pessoas_cpf (pessoa_id, cifrado, atualizado_em, atualizado_por)
-       values (v_id, p ->> 'cifrado', now(), coalesce(p ->> 'por', ''))
-       on conflict (pessoa_id) do update set cifrado = excluded.cifrado, atualizado_em = now(), atualizado_por = excluded.atualizado_por;
-     end if;
-     return cpf_ler(p);
-   end;
    $$`,
   // Excluir a pessoa (saida preenchida) apaga o CPF junto com o perfil, a foto e a senha.
   `create or replace function pessoas_cpf_saida()
@@ -4517,23 +2831,6 @@ export const MIGRACOES = [
   // ================================================== v113: item de Compras exclusivo da corrente (CPJ)
   // cpj = só quem está cadastrado na corrente vê e pede o item (quem filtra é api/_lib/guias.js). Nasce desligado.
   `alter table guias_itens add column if not exists cpj boolean not null default false`,
-  `create or replace function guias_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', guias_publicada(),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'descricao', g.descricao, 'visivel', g.visivel,
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'descricao', i.descricao, 'foto', i.foto, 'quantidade', i.quantidade,
-                       'valor', i.valor, 'visivel', i.visivel, 'cpj', i.cpj) order by i.criado_em), '[]'::jsonb)
-                     from guias_itens i where i.grupo_id = g.id)) order by g.criado_em), '[]'::jsonb)
-                  from guias_grupos g),
-       'pedidos', (select coalesce(jsonb_agg(jsonb_build_object('numero', pe.numero, 'criadoEm', pe.criado_em, 'encerradoEm', pe.encerrado_em,
-           'linhas', (select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'descricao', l.descricao, 'valor', l.valor,
-                       'quantidade', l.quantidade, 'chave', l.chave, 'nome', l.nome, 'ok', l.ok, 'criadoEm', l.criado_em,
-                       'pago', l.pago_em is not null,
-                       'pix', case when l.pago_em is not null then null when c.status = 'criando' then 'pendente' else c.status end) order by lower(l.nome), l.criado_em), '[]'::jsonb)
-                      from guias_linhas l left join asaas_cobrancas c on c.id = l.cobranca_id where l.pedido = pe.numero)) order by pe.numero desc), '[]'::jsonb)
-                   from guias_pedidos pe))
-   $$`,
   // ================================================== v114: pagamentos em atraso da conta B do ASAAS (aba Geral)
   // Última leitura das cobranças vencidas da conta B (api/_lib/atrasos.js), trocada inteira a cada leitura.
   // pessoa_id vem do CPF do Perfil (null = cliente do ASAAS que não bate com ninguém da corrente).
@@ -4552,33 +2849,6 @@ export const MIGRACOES = [
    returns jsonb language sql stable as $$
      select coalesce(jsonb_agg(jsonb_build_object('pessoaId', c.pessoa_id, 'cifrado', c.cifrado)), '[]'::jsonb)
        from pessoas_cpf c join pessoas pe on pe.id = c.pessoa_id where pe.saida is null
-   $$`,
-  `create or replace function atrasos_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     delete from asaas2_atrasos;
-     insert into asaas2_atrasos (id, pessoa_id, nome, telefone, valor, vencimento, descricao, link)
-     select x ->> 'id', nullif(x ->> 'pessoaId', '')::uuid, coalesce(x ->> 'nome', ''), coalesce(x ->> 'telefone', ''),
-            coalesce((x ->> 'valor')::numeric, 0), nullif(x ->> 'vencimento', '')::date, coalesce(x ->> 'descricao', ''), coalesce(x ->> 'link', '')
-       from jsonb_array_elements(coalesce(p -> 'itens', '[]'::jsonb)) x
-     on conflict (id) do nothing;
-     insert into sistema (chave, valor) values ('asaas2_atualizado', now()::text)
-     on conflict (chave) do update set valor = excluded.valor;
-     return jsonb_build_object('ok', true);
-   end;
-   $$`,
-  // Nome e celular da corrente quando a cobrança está ligada a uma pessoa; senão, os do cliente no ASAAS.
-  `create or replace function atrasos_ler(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'atualizadoEm', (select to_char(valor::timestamptz at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') from sistema where chave = 'asaas2_atualizado'),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', a.id, 'pessoaId', a.pessoa_id, 'ligado', pe.id is not null,
-           'nome', coalesce(pe.nome, a.nome),
-           'telefone', coalesce(nullif(pe.perfil -> 'info' ->> 'celular', ''), a.telefone),
-           'valor', a.valor::float8, 'vencimento', a.vencimento, 'descricao', a.descricao, 'link', a.link)
-           order by a.vencimento nulls last, lower(coalesce(pe.nome, a.nome)))
-         from asaas2_atrasos a left join pessoas pe on pe.id = a.pessoa_id and pe.saida is null), '[]'::jsonb))
    $$`,
   // ================================================== v115: funções dos atrasos sem número no nome
   // db.rpc só aceita nomes com letras e _: as da v114 (asaas2_atrasos_*) nunca podiam ser chamadas; agora são atrasos_*.
@@ -4663,64 +2933,6 @@ export const MIGRACOES = [
    $$`,
 
   // ================================================== v118: link do ASAAS sem repetir quando ele demora
-  // Antes, a reserva sem resposta do ASAAS era apagada (na hora ou depois de 10 min, por qualquer pessoa) e a pessoa
-  // gerava outro link, deixando a primeira cobrança solta no ASAAS. Agora a reserva fica até o app achar (ou não) a
-  // cobrança no ASAAS pela referência (api/_lib/asaas.js conferirReservas).
-  // p = { chave } — reservas da pessoa paradas há mais de 20 s (a função da Vercel não passa de 15 s).
-  // O webhook também acha a reserva que ainda está 'criando' (pela referência), para um pagamento rápido não se perder.
-  `create or replace function asaas_evento_processar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_c asaas_cobrancas%rowtype;
-     v_res text;
-     v_n int;
-   begin
-     insert into asaas_eventos (id, evento, dados) values (p ->> 'id', p ->> 'evento', coalesce(p -> 'dados', '{}'::jsonb))
-     on conflict (id) do nothing;
-     if not found then return jsonb_build_object('repetido', true); end if;
-     delete from asaas_eventos where recebido_em < now() - interval '180 days';
-     select * into v_c from asaas_cobrancas where asaas_id = p ->> 'paymentId' for update;
-     -- Reserva que ainda não recebeu a resposta do ASAAS (ele demorou): é a mesma cobrança, pela referência.
-     if not found and p ->> 'paymentId' is not null and coalesce(p ->> 'referencia', '') ~ '^[0-9a-f-]{36}$' then
-       update asaas_cobrancas set status = 'pendente', asaas_id = p ->> 'paymentId', link = p -> 'dados' -> 'payment' ->> 'invoiceUrl',
-         vencimento = nullif(p -> 'dados' -> 'payment' ->> 'dueDate', '')::date
-        where id = (p ->> 'referencia')::uuid and status = 'criando';
-       select * into v_c from asaas_cobrancas where asaas_id = p ->> 'paymentId' for update;
-     end if;
-     if not found then
-       v_res := 'ignorado (cobrança que não é do app)';
-     elsif p ->> 'evento' in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED') then
-       if p -> 'conferido' is null then
-         v_res := 'não conferido (sem ASAAS_API_KEY)';
-       elsif coalesce(p -> 'conferido' ->> 'status', '') not in ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH') then
-         v_res := 'não liberado: no ASAAS está ' || coalesce(p -> 'conferido' ->> 'status', '?');
-       elsif (p -> 'conferido' ->> 'valor')::numeric is distinct from v_c.valor then
-         v_res := 'não liberado: valor diferente (' || coalesce(p -> 'conferido' ->> 'valor', '?') || ')';
-       elsif v_c.status = 'paga' then
-         v_res := 'já estava paga';
-       else
-         update asaas_cobrancas set status = 'paga', pago_em = now(), pix_payload = null, pix_imagem = null where id = v_c.id;
-         update guias_linhas set pago_em = now() where cobranca_id = v_c.id and pago_em is null;
-         get diagnostics v_n = row_count;
-         v_res := case when v_n > 0 then 'paga' else 'paga, mas os itens não estão mais nesta cobrança: conferir' end;
-       end if;
-     elsif p ->> 'evento' = 'PAYMENT_OVERDUE' then
-       update asaas_cobrancas set status = 'vencida', pix_payload = null, pix_imagem = null where id = v_c.id and status = 'pendente';
-       v_res := 'vencida';
-     elsif p ->> 'evento' = 'PAYMENT_DELETED' then
-       update asaas_cobrancas set status = 'cancelada', pix_payload = null, pix_imagem = null where id = v_c.id and status in ('pendente', 'vencida');
-       v_res := 'cancelada';
-     elsif p ->> 'evento' in ('PAYMENT_REFUNDED', 'PAYMENT_CHARGEBACK_REQUESTED') then
-       update asaas_cobrancas set status = 'estornada' where id = v_c.id;
-       update guias_linhas set pago_em = null where cobranca_id = v_c.id;
-       v_res := 'estornada';
-     else
-       v_res := 'só registrado';
-     end if;
-     update asaas_eventos set cobranca_id = v_c.id, resultado = v_res where id = p ->> 'id';
-     return jsonb_build_object('ok', true, 'resultado', v_res);
-   end;
-   $$`,
 
   // ================================================== v119: Compras com pedido próprio por grupo
   // Cada grupo tem o seu pedido aberto, com Encerrar e Novo pedido próprios. O número continua único (Guias nº 8, Velas nº 9).
@@ -4772,26 +2984,6 @@ export const MIGRACOES = [
      insert into guias_pedido_grupos (pedido, grupo_id) values (v, p_grupo);
      return v;
    end;
-   $$`,
-  `create or replace function guias_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', guias_publicada(),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'descricao', g.descricao, 'visivel', g.visivel,
-           'aberto', guia_pedido_do_grupo(g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'descricao', i.descricao, 'foto', i.foto, 'quantidade', i.quantidade,
-                       'valor', i.valor, 'visivel', i.visivel, 'cpj', i.cpj) order by i.criado_em), '[]'::jsonb)
-                     from guias_itens i where i.grupo_id = g.id)) order by g.criado_em), '[]'::jsonb)
-                  from guias_grupos g),
-       'pedidos', (select coalesce(jsonb_agg(jsonb_build_object('numero', pe.numero, 'criadoEm', pe.criado_em, 'encerradoEm', pe.encerrado_em,
-           'grupos', (select coalesce(jsonb_agg(jsonb_build_object('grupoId', pg.grupo_id, 'criadoEm', pg.criado_em, 'encerradoEm', pg.encerrado_em)), '[]'::jsonb)
-                      from guias_pedido_grupos pg where pg.pedido = pe.numero),
-           'linhas', (select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'grupoId', l.grupo_id, 'descricao', l.descricao, 'valor', l.valor,
-                       'quantidade', l.quantidade, 'chave', l.chave, 'nome', l.nome, 'ok', l.ok, 'criadoEm', l.criado_em,
-                       'pago', l.pago_em is not null,
-                       'pix', case when l.pago_em is not null then null when c.status = 'criando' then 'pendente' else c.status end) order by lower(l.nome), l.criado_em), '[]'::jsonb)
-                      from guias_linhas l left join asaas_cobrancas c on c.id = l.cobranca_id where l.pedido = pe.numero)) order by pe.numero desc), '[]'::jsonb)
-                   from guias_pedidos pe))
    $$`,
   // Pedir: entra no pedido aberto do grupo do item. Devolve também o número do pedido (para gerar o Pix dele).
   // p = { grupoId } — encerra o pedido aberto do grupo; o pedido encerra quando não sobra grupo aberto nele.
@@ -4864,37 +3056,6 @@ export const MIGRACOES = [
        alter table asaas2_atrasos add constraint asaas2_atrasos_conta_id primary key (conta, id);
      end if;
    end $$`,
-  // p = { conta: 'A'|'B', itens } — troca só a leitura daquela conta.
-  `create or replace function atrasos_salvar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_conta text := coalesce(nullif(p ->> 'conta', ''), 'B');
-   begin
-     delete from asaas2_atrasos where conta = v_conta;
-     insert into asaas2_atrasos (conta, id, pessoa_id, nome, telefone, valor, vencimento, descricao, link, referencia)
-     select v_conta, x ->> 'id', nullif(x ->> 'pessoaId', '')::uuid, coalesce(x ->> 'nome', ''), coalesce(x ->> 'telefone', ''),
-            coalesce((x ->> 'valor')::numeric, 0), nullif(x ->> 'vencimento', '')::date, coalesce(x ->> 'descricao', ''), coalesce(x ->> 'link', ''),
-            coalesce(x ->> 'referencia', '')
-       from jsonb_array_elements(coalesce(p -> 'itens', '[]'::jsonb)) x
-     on conflict (conta, id) do nothing;
-     insert into sistema (chave, valor) values ('asaas2_atualizado', now()::text)
-     on conflict (chave) do update set valor = excluded.valor;
-     return jsonb_build_object('ok', true);
-   end;
-   $$`,
-  `create or replace function atrasos_ler(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'atualizadoEm', (select to_char(valor::timestamptz at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') from sistema where chave = 'asaas2_atualizado'),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', a.id, 'conta', a.conta, 'pessoaId', a.pessoa_id, 'ligado', pe.id is not null,
-           'nome', coalesce(pe.nome, a.nome),
-           'telefone', coalesce(nullif(pe.perfil -> 'info' ->> 'celular', ''), a.telefone),
-           'valor', a.valor::float8, 'vencimento', a.vencimento, 'descricao', a.descricao, 'link', a.link)
-           order by a.vencimento nulls last, lower(coalesce(pe.nome, a.nome)))
-         from asaas2_atrasos a left join pessoas pe on pe.id = a.pessoa_id and pe.saida is null
-        where not (a.conta = 'A' and exists (select 1 from asaas_cobrancas c where c.id::text = a.referencia)
-                   and not exists (select 1 from guias_linhas l where l.cobranca_id::text = a.referencia and l.pago_em is null))), '[]'::jsonb))
-   $$`,
 
   // ================================================== v121: aba ASAAS nos perfis e o perfil "Admin financeiro"
   // A aba ASAAS passa a ser marcada por perfil (Ver / Editar). O Admin financeiro vem só com Ver; perfis que já existem
@@ -4914,16 +3075,6 @@ export const MIGRACOES = [
   `create or replace function asaas_pessoa(p jsonb)
    returns jsonb language sql stable as $$
      select jsonb_build_object('ativo', asaas_ativo(), 'minhas', asaas_minhas(p))
-   $$`,
-  // p = { chave } — tudo que a aba Compras precisa ao abrir; paradas = há reserva do ASAAS sem resposta para conferir.
-  `create or replace function guias_tela(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', guias_publicada(),
-       'ativo', asaas_ativo(),
-       'paradas', exists (select 1 from asaas_cobrancas where chave = p ->> 'chave' and status = 'criando' and criado_em < now() - interval '20 seconds'),
-       'estado', guias_estado(),
-       'minhas', asaas_minhas(p))
    $$`,
 
   // ================================================== v123: dados dos alunos (CPF, nome completo, e-mail, celular) e pendências
@@ -4971,18 +3122,6 @@ export const MIGRACOES = [
    returns jsonb language sql stable as $$
      select to_jsonb(cifrado) from alunos_cpf where aluno_id = (p ->> 'id')::uuid
    $$`,
-  // Cobranças vencidas que contam (a conta A sem os links trocados, pagos ou cancelados), com a pessoa ou o aluno ligado:
-  // pessoa pelo CPF/cliente do app; aluno pelo cliente do app (a:<id>) ou pelo hash do CPF.
-  `create or replace function atrasos_validos()
-   returns table (conta text, id text, pessoa_id uuid, aluno_id uuid, nome text, telefone text, valor numeric, vencimento date, descricao text, link text)
-   language sql stable as $$
-     select a.conta, a.id, a.pessoa_id,
-            coalesce(a.aluno_id, (select c.aluno_id from alunos_cpf c where a.cpf_hash <> '' and c.hash = a.cpf_hash limit 1)),
-            a.nome, a.telefone, a.valor, a.vencimento, a.descricao, a.link
-       from asaas2_atrasos a
-      where not (a.conta = 'A' and exists (select 1 from asaas_cobrancas c where c.id::text = a.referencia)
-                 and not exists (select 1 from guias_linhas l where l.cobranca_id::text = a.referencia and l.pago_em is null))
-   $$`,
   `create or replace function atrasos_salvar(p jsonb)
    returns jsonb language plpgsql as $$
    declare v_conta text := coalesce(nullif(p ->> 'conta', ''), 'B');
@@ -5001,21 +3140,6 @@ export const MIGRACOES = [
      return jsonb_build_object('ok', true);
    end;
    $$`,
-  // O bloco de atrasos passa a dar nome também ao aluno ligado (antes aparecia "sem ligação").
-  // Para quem edita Alunos: os dados de cada aluno (o CPF cifrado vai para o servidor mascarar) e as pendências.
-  `create or replace function alunos_extras(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'dados', coalesce((select jsonb_agg(jsonb_build_object('id', al.id, 'nomeCompleto', coalesce(al.perfil -> 'info' ->> 'nome', ''),
-                   'celular', coalesce(al.perfil -> 'info' ->> 'celular', ''), 'email', coalesce(al.perfil -> 'info' ->> 'email', ''), 'cifrado', c.cifrado))
-                 from alunos al left join alunos_cpf c on c.aluno_id = al.id where al.saida is null), '[]'::jsonb),
-       'pendencias', coalesce((select jsonb_agg(jsonb_build_object('alunoId', x.aluno_id, 'itens', x.itens))
-                 from (select a.aluno_id, jsonb_agg(jsonb_build_object('conta', a.conta, 'valor', a.valor::float8, 'vencimento', a.vencimento,
-                         'descricao', a.descricao, 'link', a.link) order by a.vencimento nulls last) as itens
-                         from atrasos_validos() a join alunos al on al.id = a.aluno_id and al.saida is null
-                        where a.pessoa_id is null group by a.aluno_id) x), '[]'::jsonb),
-       'atualizadoEm', (select to_char(valor::timestamptz at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') from sistema where chave = 'asaas2_atualizado'))
-   $$`,
 
   // ================================================== v124: login por e-mail ou celular, 3 tentativas e autocadastro como aluno
   // Celular comparado por DDD + 8 últimos números (com ou sem o 9 da frente), como no Criar senha.
@@ -5023,30 +3147,6 @@ export const MIGRACOES = [
    returns text language sql immutable as $$
      select case when length(d) between 10 and 11 then left(d, 2) || right(d, 8) else '' end
        from (select regexp_replace(coalesce(t, ''), '[^0-9]', '', 'g') as d) x
-   $$`,
-  // Quem pode entrar com este e-mail ou celular: usuário (só e-mail), pessoa da corrente e aluno (pelo Perfil).
-  // Uso interno do login: leva o hash da senha. p = { email } ou { celular } (já como celular_chave).
-  `create or replace function login_candidatos(p jsonb)
-   returns jsonb language sql stable as $$
-     with k as (select lower(btrim(coalesce(p ->> 'email', ''))) as email, coalesce(p ->> 'celular', '') as cel),
-     c as (
-       select 1 as ordem, 'usuario' as tipo, u.id, u.nome, u.senha_hash as hash, 0 as versao, u.email as chave
-         from usuarios u, k where k.email <> '' and u.email = k.email
-       union all
-       select 2, 'corrente', pe.id, pe.nome, pe.pin_hash, pe.pin_versao, 'pin:' || pe.id::text
-         from pessoas pe, k where pe.saida is null
-          and ((k.email <> '' and lower(btrim(pe.perfil -> 'info' ->> 'email')) = k.email)
-            or (k.cel <> '' and celular_chave(pe.perfil -> 'info' ->> 'celular') = k.cel))
-       union all
-       select 3, 'aluno', al.id, al.nome, al.pin_hash, al.pin_versao, 'pina:' || al.id::text
-         from alunos al, k where al.saida is null
-          and ((k.email <> '' and lower(btrim(al.perfil -> 'info' ->> 'email')) = k.email)
-            or (k.cel <> '' and celular_chave(al.perfil -> 'info' ->> 'celular') = k.cel))
-     )
-     select coalesce(jsonb_agg(jsonb_build_object('tipo', c.tipo, 'id', c.id, 'nome', c.nome, 'hash', c.hash, 'versao', c.versao,
-              'chave', c.chave, 'bloqueado', exists (select 1 from login_falhas f where f.email = c.chave and f.bloqueado_ate > now()))
-              order by c.ordem, lower(c.nome)), '[]'::jsonb)
-       from c
    $$`,
   // 3 senhas erradas seguidas (num intervalo de 15 minutos) bloqueiam por 15 minutos. Devolve quantas restam.
   `alter table login_falhas add column if not exists ultima_em timestamptz`,
@@ -5069,62 +3169,12 @@ export const MIGRACOES = [
    $$`,
   // Cadastro feito pela própria pessoa na tela de login: entra como aluno sem turma (o admin depois põe no lugar certo).
   `alter table alunos add column if not exists autocadastro_em timestamptz`,
-  // p = { id, nome, celular, email, pinHash, cpfHash }. Recusa nome, e-mail, celular ou CPF que já estão em uso.
-  // Nome de aluno excluído volta com o mesmo registro (o nome é único), como no cadastro feito pelo admin.
-  // Devolve { id, nome, pinVersao }; o CPF é gravado depois (a cifra usa o id).
-  `create or replace function aluno_autocadastro(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_nome text := btrim(p ->> 'nome');
-     v_email text := lower(btrim(coalesce(p ->> 'email', '')));
-     v_cel text := celular_chave(p ->> 'celular');
-     v_id uuid; v_versao int;
-     v_perfil jsonb := jsonb_build_object('info', jsonb_build_object('nome', btrim(p ->> 'nome'), 'celular', p ->> 'celular', 'email', v_email));
-   begin
-     if (select count(*) from alunos where autocadastro_em > now() - interval '1 hour') >= 20 then
-       raise exception 'Muitos cadastros na última hora. Tente de novo mais tarde.';
-     end if;
-     if exists (select 1 from alunos where lower(btrim(nome)) = lower(v_nome) and saida is null) then
-       raise exception 'Já existe um aluno com esse nome. Se for você, entre com o seu e-mail ou celular; senão, coloque o sobrenome.';
-     end if;
-     if v_email <> '' and (exists (select 1 from usuarios where email = v_email)
-        or exists (select 1 from pessoas where saida is null and lower(btrim(perfil -> 'info' ->> 'email')) = v_email)
-        or exists (select 1 from alunos where saida is null and lower(btrim(perfil -> 'info' ->> 'email')) = v_email)) then
-       raise exception 'Já existe um cadastro com esse e-mail. Entre com ele ou fale com a administração.';
-     end if;
-     if v_cel <> '' and (exists (select 1 from pessoas where saida is null and celular_chave(perfil -> 'info' ->> 'celular') = v_cel)
-        or exists (select 1 from alunos where saida is null and celular_chave(perfil -> 'info' ->> 'celular') = v_cel)) then
-       raise exception 'Já existe um cadastro com esse celular. Entre com ele ou fale com a administração.';
-     end if;
-     if coalesce(p ->> 'cpfHash', '') <> '' and exists (select 1 from alunos_cpf c join alunos a on a.id = c.aluno_id and a.saida is null
-                                                       where c.hash = p ->> 'cpfHash') then
-       raise exception 'Já existe um cadastro com esse CPF. Fale com a administração.';
-     end if;
-     update alunos set saida = null, turma_id = null, perfil = v_perfil, foto = null, pin_hash = p ->> 'pinHash',
-                       pin_versao = pin_versao + 1, autocadastro_em = now()
-      where lower(btrim(nome)) = lower(v_nome) and saida is not null
-      returning id, pin_versao into v_id, v_versao;
-     if v_id is null then
-       insert into alunos (id, nome, perfil, pin_hash, pin_versao, autocadastro_em)
-       values ((p ->> 'id')::uuid, v_nome, v_perfil, p ->> 'pinHash', 1, now())
-       returning id, pin_versao into v_id, v_versao;
-     end if;
-     delete from login_falhas where email = 'pina:' || v_id::text;
-     return jsonb_build_object('id', v_id, 'nome', v_nome, 'pinVersao', v_versao);
-   end;
-   $$`,
 
   // ================================================== v125: ex-alunos (excluir guarda o cadastro; apagar de vez é um segundo passo)
   // Excluir o aluno leva para Ex-alunos: sai das listas, do login e das próximas oferendas, mas perfil, foto, senha e
   // CPF ficam guardados (pode voltar). Excluir dos Ex-alunos apaga os dados na hora (apagado_em) e o registro some de vez
   // quando nada aberto depende dele (apagar_excluidos); o que foi encerrado continua pelo retrato.
   `alter table alunos add column if not exists apagado_em timestamptz`,
-  // Ex-aluno não usa sessão antiga (a versão da senha também sobe ao excluir).
-  `create or replace function aluno_acesso(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id, 'temSenha', a.pin_hash is not null, 'pinVersao', a.pin_versao)
-     from alunos a where a.id = (p ->> 'id')::uuid and a.saida is null
-   $$`,
   `create or replace function aluno_excluir(p jsonb)
    returns jsonb language plpgsql as $$
    declare
@@ -5676,41 +3726,6 @@ export const MIGRACOES = [
                 else a.pessoa_id = nullif(p ->> 'pessoaId', '')::uuid end
    $$`,
   // ================================================== v132: aba Oferendas mais leve
-  // O nome de quem doou vinha comparando texto ('p:' || pe.id::text), o que não usa o índice: o banco percorria
-  // usuários, pessoas e alunos inteiros a cada doação. Agora busca pelo id (só as chaves u:, p: e a: têm id; a chave fora desse formato não quebra a lista, só fica sem o nome do cadastro).
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
-       'responsavelId', o.responsavel_id,
-       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
-                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
-       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'grupos', to_jsonb(o.grupos),
-       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
-           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
-           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
-           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
-           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
-           union all
-           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
-           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
-           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
-           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
-                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d
-                                left join usuarios u on u.id = case when d.pessoa_chave ~ '^u:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
-                                left join pessoas pe on pe.id = case when d.pessoa_chave ~ '^p:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
-                                left join alunos al on al.id = case when d.pessoa_chave ~ '^a:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
-   $$`,
   // ================================================== v133: Ervas vira sub-aba de Oferendas; o perfil Admin ervas sai
   // O Admin oferendas passa a administrar as ervas e recebe quem era do Admin ervas; depois o Admin ervas é apagado.
   // Só enquanto o Admin ervas existir: se o root mudar o Admin oferendas depois, a migração não desfaz.
@@ -5742,27 +3757,6 @@ export const MIGRACOES = [
    returns uuid language sql stable as $$
      select t.id from sistema s join turmas_alunos t on t.id::text = s.valor where s.chave = 'turma_consulentes'
    $$`,
-  // Os grupos "Alunos" e "Alunos sem turma" das oferendas não levam os consulentes (só se a turma for marcada de propósito).
-  `create or replace function aluno_no_grupo(t uuid, g text[])
-   returns boolean language sql stable as $$
-     select coalesce((t is not null and ('turma:' || t::text) = any(g))
-       or (t is distinct from turma_consulentes_id() and ('alunos' = any(g) or (t is null and 'alunos:sem' = any(g)))), false)
-   $$`,
-  // A lista de alunos (aba Pessoas, oferendas, Iemanjá) sem a turma Consulentes e sem quem está nela.
-  // Bloco Cadastros pelo login: os novos (cadastro pelo login ainda sem turma) e os consulentes.
-  `create or replace function cadastros_login(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'turmaConsulentes', turma_consulentes_id(),
-       'novos', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'nome', a.nome, 'em', a.autocadastro_em,
-                   'celular', coalesce(a.perfil -> 'info' ->> 'celular', ''), 'email', coalesce(a.perfil -> 'info' ->> 'email', ''))
-                   order by a.autocadastro_em desc)
-                 from alunos a where a.saida is null and a.autocadastro_em is not null and a.turma_id is null), '[]'::jsonb),
-       'consulentes', coalesce((select jsonb_agg(jsonb_build_object('id', a.id, 'nome', a.nome, 'em', a.autocadastro_em,
-                   'celular', coalesce(a.perfil -> 'info' ->> 'celular', ''), 'email', coalesce(a.perfil -> 'info' ->> 'email', ''))
-                   order by lower(a.nome))
-                 from alunos a where a.saida is null and a.turma_id = turma_consulentes_id()), '[]'::jsonb))
-   $$`,
   // ================================================== v135: presença dos alunos no amaci (aba Amaci)
   // Um registro por evento do tipo Amaci e aluno: 'p' presente, 'f' falta; sem registro = ausente.
   // O aluno marca a própria presença no dia, dentro do terreiro (a API confere); o admin root marca presença ou falta.
@@ -5789,21 +3783,6 @@ export const MIGRACOES = [
    end;
    $$`,
   // ================================================== v136: tipos de evento por turma (T09 - Amaci…) e turmas com acesso à aba
-  // É amaci todo evento cujo tipo tem "Amaci" no nome (o tipo fixo Amaci e os criados por turma, como "T09 - Amaci");
-  // as turmas de cada amaci são as marcadas no tipo do evento.
-  // A turma escondida Consulentes só entra (na configuração e nos orixás liberados) quando o perfil Consulentes tem a aba
-  // Amaci marcada (Ver ou Editar) no Admin root; as outras turmas de alunos sempre têm a aba.
-  `create or replace function amaci_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', amaci_publicada(),
-       'turmas', coalesce((select jsonb_agg(jsonb_build_object('id', t.id, 'nome', t.nome, 'orixas', coalesce(a.orixas, '[]'::jsonb)) order by lower(t.nome))
-                           from turmas_alunos t left join amaci_turmas a on a.turma_id = t.id
-                          where t.id is distinct from turma_consulentes_id()
-                             or coalesce((select (abas -> 'amaci' ->> 'ver')::boolean or (abas -> 'amaci' ->> 'editar')::boolean
-                                          from perfis where chave = 'consulente'), false)), '[]'::jsonb),
-       'orientacoes', coalesce((select jsonb_object_agg(o.orixa, o.texto) from amaci_orientacoes o where o.texto <> ''), '{}'::jsonb))
-   $$`,
   // ================================================== v137: amaci que já passou, cadastrado pelo root na aba Amaci
   // O evento criado pelo root em Presenças → "Cadastrar amaci que já passou" fica marcado (retroativo): nele o aluno
   // marca a própria presença sem a localização. Os outros amacis passados (cadastro normal de Eventos) só o root marca.
@@ -5896,22 +3875,6 @@ export const MIGRACOES = [
   // Quem edita Alunos marca "Bloquear acesso ao app": o login recusa e a sessão aberta cai no próximo pedido.
   // O cadastro, as presenças e o resto ficam como estão; desmarcar devolve o acesso.
   `alter table alunos add column if not exists bloqueado boolean not null default false`,
-  `create or replace function alunos_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'turmas', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome) order by lower(nome)) from turmas_alunos
-                           where id is distinct from turma_consulentes_id()), '[]'::jsonb),
-       'alunos', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'turmaId', turma_id, 'bloqueado', bloqueado) order by lower(nome)) from alunos
-                           where saida is null and turma_id is distinct from turma_consulentes_id()), '[]'::jsonb))
-   $$`,
-  // Sessão do aluno: diz se é consulente (e o que o perfil Consulentes vê) e se o acesso está bloqueado.
-  `create or replace function aluno_acesso(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id, 'temSenha', a.pin_hash is not null, 'pinVersao', a.pin_versao,
-                               'consulente', a.turma_id is not distinct from turma_consulentes_id() and a.turma_id is not null,
-                               'abasConsulente', (select abas from perfis where chave = 'consulente'), 'bloqueado', a.bloqueado)
-     from alunos a where a.id = (p ->> 'id')::uuid and a.saida is null
-   $$`,
   // p = { id, bloqueado }
   `create or replace function aluno_bloquear(p jsonb)
    returns jsonb language plpgsql as $$
@@ -6020,43 +3983,6 @@ export const MIGRACOES = [
      return guias_estado();
    end;
    $$`,
-  `create or replace function guias_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'publicada', guias_publicada(),
-       'grupos', (select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'descricao', g.descricao, 'visivel', g.visivel,
-           'aberto', guia_pedido_do_grupo(g.id),
-           'itens', (select coalesce(jsonb_agg(jsonb_build_object('id', i.id, 'descricao', i.descricao,
-                       'fotoV', case when i.foto is null then null else substr(md5(i.foto), 1, 10) end, 'quantidade', i.quantidade,
-                       'valor', i.valor, 'visivel', i.visivel, 'cpj', i.cpj, 'doacao', i.doacao) order by i.criado_em), '[]'::jsonb)
-                     from guias_itens i where i.grupo_id = g.id)) order by g.criado_em), '[]'::jsonb)
-                  from guias_grupos g),
-       'pedidos', (select coalesce(jsonb_agg(jsonb_build_object('numero', pe.numero, 'criadoEm', pe.criado_em, 'encerradoEm', pe.encerrado_em,
-           'grupos', (select coalesce(jsonb_agg(jsonb_build_object('grupoId', pg.grupo_id, 'criadoEm', pg.criado_em, 'encerradoEm', pg.encerrado_em)), '[]'::jsonb)
-                      from guias_pedido_grupos pg where pg.pedido = pe.numero),
-           'linhas', (select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'itemId', l.item_id, 'grupoId', l.grupo_id, 'descricao', l.descricao, 'valor', l.valor,
-                       'quantidade', l.quantidade, 'chave', l.chave, 'nome', l.nome, 'ok', l.ok, 'criadoEm', l.criado_em,
-                       'pago', l.pago_em is not null,
-                       'pix', case when l.pago_em is not null then null when c.status = 'criando' then 'pendente' else c.status end) order by lower(l.nome), l.criado_em), '[]'::jsonb)
-                      from guias_linhas l left join asaas_cobrancas c on c.id = l.cobranca_id where l.pedido = pe.numero)) order by pe.numero desc), '[]'::jsonb)
-                   from guias_pedidos pe))
-   $$`,
-  // p = { chave } — o Pix da pessoa: o cliente em cada conta e as cobranças (com a conta).
-  `create or replace function asaas_minhas(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'cliente', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'A'),
-       'clienteB', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'B'),
-       'cobrancas', coalesce((select jsonb_agg(x.j order by x.ordem) from (
-           select row_number() over (order by (c.status = 'pendente') desc, c.criado_em desc) as ordem,
-                  jsonb_build_object('id', c.id, 'conta', c.conta, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status, 'link', c.link,
-                    'pixPayload', case when c.status = 'pendente' then c.pix_payload end,
-                    'pixImagem', case when c.status = 'pendente' then c.pix_imagem end,
-                    'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_cobrancas c where c.chave = p ->> 'chave' and c.status <> 'criando'
-            order by (c.status = 'pendente') desc, c.criado_em desc limit 10) x), '[]'::jsonb))
-   $$`,
   // p = { chave, conta, clienteId }
   `create or replace function asaas_cliente_salvar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -6118,24 +4044,6 @@ export const MIGRACOES = [
   `create or replace function asaas_cobranca(p jsonb)
    returns jsonb language sql stable as $$
      select jsonb_build_object('id', c.id, 'status', c.status, 'asaasId', c.asaas_id, 'conta', c.conta) from asaas_cobrancas c where c.id = (p ->> 'id')::uuid
-   $$`,
-  `create or replace function asaas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'ativo', asaas_ativo(),
-       'cobrancas', coalesce((select jsonb_agg(x.j order by x.criado_em desc) from (
-           select c.criado_em, jsonb_build_object('id', c.id, 'conta', c.conta, 'nome', c.nome, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status,
-                    'asaasId', c.asaas_id, 'link', c.link, 'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
-                    'grupos', (select coalesce(jsonb_agg(distinct g.descricao), '[]'::jsonb) from guias_linhas l join guias_grupos g on g.id = l.grupo_id where l.cobranca_id = c.id),
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_cobrancas c where c.status <> 'criando' order by c.criado_em desc limit 100) x), '[]'::jsonb),
-       'eventos', coalesce((select jsonb_agg(x.j order by x.recebido_em desc) from (
-           select e.recebido_em, jsonb_build_object('id', e.id, 'evento', e.evento, 'recebidoEm', e.recebido_em, 'resultado', e.resultado,
-                    'paymentId', e.dados -> 'payment' ->> 'id', 'valor', e.dados -> 'payment' ->> 'value',
-                    'status', e.dados -> 'payment' ->> 'status', 'descricao', e.dados -> 'payment' ->> 'description',
-                    'nome', c.nome, 'pedido', c.pedido, 'conta', c.conta,
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_eventos e left join asaas_cobrancas c on c.id = e.cobranca_id order by e.recebido_em desc limit 50) x), '[]'::jsonb))
    $$`,
   // Pgto atrasado: a cobrança que o app criou (em qualquer conta) só conta enquanto tem item por pagar ligado a ela.
   `create or replace function atrasos_validos()
@@ -6287,14 +4195,6 @@ export const MIGRACOES = [
   // As doações ficam de fora (não têm o que confeccionar).
   `alter table guias_linhas add column if not exists andamento text not null default 'pendente'
      check (andamento in ('pendente', 'em_confeccao', 'falta_materia', 'concluido', 'entregue'))`,
-  `create or replace function guias_pedidos_andamento(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'pedido', l.pedido, 'descricao', l.descricao, 'quantidade', l.quantidade,
-              'valor', l.valor::float8, 'chave', l.chave, 'nome', l.nome, 'pago', l.pago_em is not null, 'andamento', l.andamento, 'criadoEm', l.criado_em)
-              order by l.criado_em, lower(l.nome)), '[]'::jsonb)
-       from guias_linhas l left join guias_itens i on i.id = l.item_id
-      where not coalesce(i.doacao, false)
-   $$`,
   // p = { id, andamento }
   `create or replace function guia_linha_andamento(p jsonb)
    returns jsonb language plpgsql as $$
@@ -6305,31 +4205,7 @@ export const MIGRACOES = [
    end;
    $$`,
   // ================================================== v147: sub-aba Pedidos com a foto do item
-  // Cada linha leva o item e a versão da foto (fotoV, como na aba Compras); a foto vem pelo link ?lista=guiaFoto.
-  `create or replace function guias_pedidos_andamento(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'pedido', l.pedido, 'descricao', l.descricao, 'quantidade', l.quantidade,
-              'valor', l.valor::float8, 'chave', l.chave, 'nome', l.nome, 'pago', l.pago_em is not null, 'andamento', l.andamento, 'criadoEm', l.criado_em,
-              'itemId', l.item_id, 'fotoV', case when i.foto is null then null else substr(md5(i.foto), 1, 10) end)
-              order by l.criado_em, lower(l.nome)), '[]'::jsonb)
-       from guias_linhas l left join guias_itens i on i.id = l.item_id
-      where not coalesce(i.doacao, false)
-   $$`,
   // ================================================== v148: sub-aba Pedidos sem o grupo Axé
-  // Cada linha leva o grupo (id e nome); as do grupo "Axé" (sem diferença de maiúscula e acento) ficam de fora.
-  `create or replace function guias_pedidos_andamento(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', l.id, 'pedido', l.pedido, 'descricao', l.descricao, 'quantidade', l.quantidade,
-              'valor', l.valor::float8, 'chave', l.chave, 'nome', l.nome, 'pago', l.pago_em is not null, 'andamento', l.andamento, 'criadoEm', l.criado_em,
-              'itemId', l.item_id, 'fotoV', case when i.foto is null then null else substr(md5(i.foto), 1, 10) end,
-              'grupoId', l.grupo_id, 'grupo', g.descricao)
-              order by l.criado_em, lower(l.nome)), '[]'::jsonb)
-       from guias_linhas l
-       left join guias_itens i on i.id = l.item_id
-       left join guias_grupos g on g.id = l.grupo_id
-      where not coalesce(i.doacao, false)
-        and translate(lower(btrim(coalesce(g.descricao, ''))), 'áàâãéêíóôõúç', 'aaaaeeiooouc') <> 'axe'
-   $$`,
   // ================================================== v149: Diário — Galeria de fotos da corrente
   // Uma foto por pessoa (chave p:/a:/u:), guardada no banco (JPEG em base64, reduzida no aparelho) e curtidas.
   // Toda terça-feira (horário de Brasília) as fotos da semana anterior são apagadas: a limpeza roda a cada leitura e
@@ -6353,19 +4229,6 @@ export const MIGRACOES = [
      delete from diario_fotos
       where (criado_em at time zone 'America/Sao_Paulo')
             < date_trunc('week', (now() at time zone 'America/Sao_Paulo') - interval '1 day') + interval '1 day'
-   $$`,
-  // p = { chave } → [{ id, nome, descricao, criadoEm, v, curtidas, curti, minha }] (mais nova primeiro)
-  `create or replace function diario_fotos(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     perform diario_fotos_limpar();
-     return coalesce((select jsonb_agg(jsonb_build_object('id', f.id, 'nome', f.nome, 'descricao', f.descricao, 'criadoEm', f.criado_em,
-              'v', substr(md5(f.foto), 1, 10),
-              'curtidas', (select count(*) from diario_curtidas c where c.foto_id = f.id),
-              'curti', exists (select 1 from diario_curtidas c where c.foto_id = f.id and c.chave = p ->> 'chave'),
-              'minha', f.chave = p ->> 'chave') order by f.criado_em desc)
-       from diario_fotos f), '[]'::jsonb);
-   end;
    $$`,
   // p = { chave, nome, descricao, foto }
   `create or replace function diario_foto_salvar(p jsonb)
@@ -6527,23 +4390,6 @@ export const MIGRACOES = [
   `alter table pessoas_fotos add column if not exists foto_v text generated always as (substr(md5(foto), 1, 10)) stored`,
   `drop trigger if exists versao_dados on pessoas_fotos`,
   `create trigger versao_dados after insert or update or delete on pessoas_fotos for each row execute function versao_dados_subir()`,
-  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
-       select pe.id, pe.nome, pe.funcao, pe.experiente, pe.linhas, pe.limpeza, pe.entrada, pe.saida,
-              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
-                        from licencas l where l.pessoa_id = pe.id), '[]'::jsonb) as licencas,
-              coalesce(pe.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento",
-              nullif(pe.perfil -> 'guias' -> 'chefe' ->> 'linha', '') as "guiaChefe",
-              nullif(pe.perfil -> 'guias' -> 'frente' ->> 'linha', '') as "guiaFrente",
-              pe.afinidade_extra as "afinidadeExtra", pe.afinidade_passe as "afinidadePasse",
-              case when (pe.perfil -> 'info' ->> 'nascimento') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-                   then substring(pe.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario,
-              (select f.foto_v from pessoas_fotos f where f.pessoa_id = pe.id) as "fotoV"
-       from pessoas pe
-       where pe.saida is null or coalesce((p ->> 'todas')::boolean, false)
-     ) x;
-   $$`,
 
   // ================================================== v155: item "de todos" na oferenda por pessoa e o grupo Oferenda
   // 1) Na oferenda com uma linha por pessoa, o admin pode dar um item a Todos: cada pessoa da lista fica responsável por
@@ -6651,28 +4497,6 @@ export const MIGRACOES = [
        or (t is distinct from turma_consulentes_id() and t is distinct from turma_oferenda_id()
            and ('alunos' = any(g) or (t is null and 'alunos:sem' = any(g)))), false)
    $$`,
-  // A cada leitura da aba Oferendas: as turmas escondidas são lidas uma vez (antes, aluno_no_grupo buscava a turma
-  // escondida para cada par oferenda × aluno). Mesma regra de aluno_no_grupo.
-  `create or replace function oferendas_sincronizar(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
-     v_ocultas uuid[] := array_remove(array[turma_consulentes_id(), turma_oferenda_id()], null);
-   begin
-     insert into oferenda_mediuns (oferenda_id, pessoa_id)
-     select o.id, pe.id from oferendas o join pessoas pe on pe.funcao = any(o.grupos) and pe.saida is null
-     where o.por_medium and o.status <> 'encerrado' and o.data >= v_hoje
-     on conflict do nothing;
-     insert into oferenda_alunos (oferenda_id, aluno_id)
-     select o.id, a.id from oferendas o join alunos a on a.saida is null
-       and ((a.turma_id is not null and ('turma:' || a.turma_id::text) = any(o.grupos))
-            or ((a.turma_id is null or a.turma_id <> all(v_ocultas))
-                and ('alunos' = any(o.grupos) or (a.turma_id is null and 'alunos:sem' = any(o.grupos)))))
-     where o.por_medium and o.status <> 'encerrado' and o.data >= v_hoje
-     on conflict do nothing;
-     return oferendas_estado();
-   end;
-   $$`,
   `create or replace function cadastros_login(p jsonb default '{}'::jsonb)
    returns jsonb language sql stable as $$
      select jsonb_build_object(
@@ -6721,40 +4545,6 @@ export const MIGRACOES = [
                                'grupoOferenda', a.turma_id is not distinct from turma_oferenda_id() and a.turma_id is not null,
                                'abasConsulente', (select abas from perfis where chave = 'consulente'), 'bloqueado', a.bloqueado)
      from alunos a where a.id = (p ->> 'id')::uuid and a.saida is null
-   $$`,
-  // Itens com o campo todos (igual à v132).
-  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object(
-       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
-       'responsavelId', o.responsavel_id,
-       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
-                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
-       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
-       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
-       'grupos', to_jsonb(o.grupos),
-       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
-           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
-           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
-           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
-           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
-           union all
-           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
-           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
-           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
-           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
-       'itens', coalesce((select jsonb_agg(jsonb_build_object(
-           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue, 'todos', i.todos,
-           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
-                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
-                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
-                                from oferenda_doacoes d
-                                left join usuarios u on u.id = case when d.pessoa_chave ~ '^u:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
-                                left join pessoas pe on pe.id = case when d.pessoa_chave ~ '^p:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
-                                left join alunos al on al.id = case when d.pessoa_chave ~ '^a:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
-                                where d.item_id = i.id), '[]'::jsonb)
-         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
-     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o;
    $$`,
   // ================================================== v156: responsável Todos no cadastro e na edição do item
   // p.todos (opcional, só na oferenda com uma linha por pessoa): true deixa o item de todos da lista (as doações saem),
@@ -6913,57 +4703,6 @@ export const MIGRACOES = [
      return jsonb_build_object('ok', true);
    end;
    $$`,
-  `create or replace function asaas_minhas(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'cliente', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'A'),
-       'clienteB', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'B'),
-       'credito', exists (select 1 from asaas_credito where chave = p ->> 'chave'),
-       'cobrancas', coalesce((select jsonb_agg(x.j order by x.ordem) from (
-           select row_number() over (order by (c.status = 'pendente') desc, c.criado_em desc) as ordem,
-                  jsonb_build_object('id', c.id, 'conta', c.conta, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status, 'link', c.link, 'forma', c.forma,
-                    'pixPayload', case when c.status = 'pendente' then c.pix_payload end,
-                    'pixImagem', case when c.status = 'pendente' then c.pix_imagem end,
-                    'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_cobrancas c where c.chave = p ->> 'chave' and c.status <> 'criando'
-            order by (c.status = 'pendente') desc, c.criado_em desc limit 10) x), '[]'::jsonb))
-   $$`,
-  `create or replace function asaas_estado(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object(
-       'ativo', asaas_ativo(),
-       -- Quem gera link com cartão de crédito e Pix (conta A), com o CPF cifrado para a API mostrar só o final.
-       'credito', coalesce((select jsonb_agg(jsonb_build_object('chave', k.chave, 'nome', coalesce(pe.nome, al.nome, k.nome),
-                       'aluno', k.chave like 'a:%', 'em', k.em, 'por', k.por,
-                       'cifrado', case when pe.id is not null then (select pc.cifrado from pessoas_cpf pc where pc.pessoa_id = pe.id)
-                                       else (select ac.cifrado from alunos_cpf ac where ac.aluno_id = al.id) end) order by lower(coalesce(pe.nome, al.nome, k.nome)))
-                   from asaas_credito k
-                   left join pessoas pe on k.chave = 'p:' || pe.id::text and pe.saida is null
-                   left join alunos al on k.chave = 'a:' || al.id::text and al.saida is null), '[]'::jsonb),
-       -- Para escolher no cadastro: a corrente e os alunos (sem os grupos escondidos), quem ainda não está na lista.
-       'candidatos', coalesce((select jsonb_agg(x.j order by x.grupo, lower(x.nome)) from (
-           select 1 as grupo, pe.nome, jsonb_build_object('chave', 'p:' || pe.id::text, 'nome', pe.nome, 'aluno', false) as j
-             from pessoas pe where pe.saida is null and not exists (select 1 from asaas_credito k where k.chave = 'p:' || pe.id::text)
-           union all
-           select 2, al.nome, jsonb_build_object('chave', 'a:' || al.id::text, 'nome', al.nome, 'aluno', true)
-             from alunos al where al.saida is null and al.turma_id is distinct from (select turma_consulentes_id())
-              and al.turma_id is distinct from (select turma_oferenda_id())
-              and not exists (select 1 from asaas_credito k where k.chave = 'a:' || al.id::text)) x), '[]'::jsonb),
-       'cobrancas', coalesce((select jsonb_agg(x.j order by x.criado_em desc) from (
-           select c.criado_em, jsonb_build_object('id', c.id, 'conta', c.conta, 'nome', c.nome, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status, 'forma', c.forma,
-                    'asaasId', c.asaas_id, 'link', c.link, 'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
-                    'grupos', (select coalesce(jsonb_agg(distinct g.descricao), '[]'::jsonb) from guias_linhas l join guias_grupos g on g.id = l.grupo_id where l.cobranca_id = c.id),
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_cobrancas c where c.status <> 'criando' order by c.criado_em desc limit 100) x), '[]'::jsonb),
-       'eventos', coalesce((select jsonb_agg(x.j order by x.recebido_em desc) from (
-           select e.recebido_em, jsonb_build_object('id', e.id, 'evento', e.evento, 'recebidoEm', e.recebido_em, 'resultado', e.resultado,
-                    'paymentId', e.dados -> 'payment' ->> 'id', 'valor', e.dados -> 'payment' ->> 'value',
-                    'status', e.dados -> 'payment' ->> 'status', 'descricao', e.dados -> 'payment' ->> 'description',
-                    'nome', c.nome, 'pedido', c.pedido, 'conta', c.conta,
-                    'itens', (select coalesce(jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em), '[]'::jsonb) from guias_linhas l where l.cobranca_id = c.id)) as j
-             from asaas_eventos e left join asaas_cobrancas c on c.id = e.cobranca_id order by e.recebido_em desc limit 50) x), '[]'::jsonb))
-   $$`,
   // ================================================== v158: cobrança cancelada cancela os itens dela
   // O Cancelar da aba ASAAS (ou a exclusão no painel do ASAAS) cancelava só o link: os itens continuavam pedidos e a
   // pessoa via "Gerar link de pagamento" no Falta pagar. Agora os itens não pagos da cobrança saem do pedido (como no ✕
@@ -7109,36 +4848,6 @@ export const MIGRACOES = [
    end $$`,
 
   // ================================================== v159: menos idas ao banco (sessão junto com os dados; ações da gira)
-  // A abertura do app vai ao banco junto com a conferência da sessão, antes de saber a pessoa ligada ao usuário:
-  // inicio_dados aceita usuarioId e acha a pessoa (para as aulas da curimba) aqui mesmo.
-  `create or replace function inicio_dados(p jsonb default '{}'::jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_versao text := versao_dados();
-     v_pessoa text := coalesce(nullif(p ->> 'pessoaId', ''),
-                               (select u.pessoa_id::text from usuarios u where u.id = nullif(p ->> 'usuarioId', '')::uuid));
-     r jsonb;
-   begin
-     if coalesce(p ->> 'versao', '') = v_versao then
-       return jsonb_build_object('versao', v_versao, 'semMudanca', true);
-     end if;
-     r := jsonb_build_object('versao', v_versao, 'pessoas', pessoas_listar('{"todas": true}'::jsonb),
-                             'giras', giras_listar('{}'::jsonb), 'config', config_casa('{}'::jsonb));
-     begin r := r || jsonb_build_object('eventos', eventos_listar('{}'::jsonb)); exception when others then null; end;
-     begin r := r || jsonb_build_object('oracoes', oracoes_listar('{}'::jsonb)); exception when others then null; end;
-     begin r := r || jsonb_build_object('entidadesApelidos', entidades_apelidos_listar('{}'::jsonb)); exception when others then null; end;
-     if v_pessoa is not null then
-       begin r := r || jsonb_build_object('minhaCurimba', curimba_minha(jsonb_build_object('pessoaId', v_pessoa))); exception when others then null; end;
-     end if;
-     if coalesce((p ->> 'me')::boolean, false) then
-       r := r || jsonb_build_object('abasOferendas', oferenda_abas_listar('{}'::jsonb), 'videosPublicada', videos_publicada('{}'::jsonb),
-                                    'ervasPublicada', ervas_publicada('{}'::jsonb), 'guiasPublicada', guias_publicada('{}'::jsonb),
-                                    'amaciPublicada', amaci_publicada('{}'::jsonb),
-                                    'iemanja', iemanja_resumo('{}'::jsonb));
-     end if;
-     return r;
-   end;
-   $$`,
   // Ações da gira (publicar, travar, recado, cancelarSorteio, mudarData) com as conferências aqui: uma ida em vez de
   // ler a gira e depois gravar. O erro leva o status da resposta no código (SM404 → 404, SM409 → 409; api/_lib/http.js).
   // Os textos são os que a rota mostrava antes (api/giras/[data]/index.js).

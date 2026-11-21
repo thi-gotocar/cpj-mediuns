@@ -182,4 +182,3 @@ Veja `test/apoio.js` para os requisitos e como configurar o banco de testes loca
 - **Arquitetura e stack**: [docs/arquitetura.md](docs/arquitetura.md)
 - **Fluxo de desenvolvimento**: [docs/como-trabalhamos.md](docs/como-trabalhamos.md)
 - **Roadmap e pendências**: [docs/visao.md](docs/visao.md)
-- **Estrutura das migrações**: [db/ESTRUTURA-ESQUEMA.md](db/ESTRUTURA-ESQUEMA.md)
