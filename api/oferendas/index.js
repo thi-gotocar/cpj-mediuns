@@ -1,5 +1,6 @@
 // Oferendas: itens pedidos e quem vai doar o quê.
-//   GET  /api/oferendas   { oferendas: [...], eu: { chave, nome } }
+//   GET  /api/oferendas   { oferendas: [...], eu: { chave, nome }, anterioresTotal? }  sem as encerradas de antes de hoje;
+//                         ?anteriores=1 traz todas (o admin abriu "Oferendas anteriores"; nas gravações, anteriores: true)
 //   POST /api/oferendas   { acao, ... }
 //        todos:  doar { itemId, quantidade }  (0 = desiste)
 //        root:   abaSalvar { id?, nome } · abaVisivel { id, visivel } · abaExcluir { id }  (sub-abas)
@@ -79,11 +80,14 @@ export default rota({
     if (req.query.lista === 'guiaFoto') return fotoGuia(req, res);
     if (req.query.lista === 'asaas') return respostaAsaas(await exigir(req));
     if (req.query.lista === 'pedidos') return respostaPedidos(await exigir(req));
-    const eu = await exigir(req);
+    // Sessão, oferendas, sub-abas e quantas anteriores ficaram fora numa ida só (só leitura: os novos cadastrados
+    // entram nas listas por gatilho no cadastro). ?anteriores=1 (o admin abriu "Oferendas anteriores") traz todas.
+    const anteriores = !!req.query.anteriores;
+    const [eu, oferendas, abas, total] = await exigirComLeitura(req, null, () => [
+      { funcao: 'oferendas_estado', p: { anteriores } }, { funcao: 'oferenda_abas_listar' }, { funcao: 'oferendas_anteriores_total' },
+    ]);
     if (!pode(eu, 'oferendas:doar') && !pode(eu, 'oferendas:ver')) throw new HttpError(403, 'Este acesso não tem permissão para isso.');
-    // Já inclui os novos cadastrados nas listas por pessoa; as sub-abas vêm ao mesmo tempo (uma ida a menos ao banco).
-    const [oferendas, abas] = await Promise.all([db.rpc('oferendas_sincronizar'), db.rpc('oferenda_abas_listar')]);
-    return resposta(oferendas, eu, abas);
+    return { ...(await resposta(oferendas, eu, abas)), ...(pode(eu, 'oferendas:gerenciar') ? { anterioresTotal: total, anteriores } : {}) };
   },
   POST: async (req) => {
     if (req.query.webhook === 'asaas') return webhookAsaas(req);
@@ -100,7 +104,8 @@ export default rota({
         { funcao: 'oferenda_item_aba', p: { itemId: (itemId = validarId(b.itemId, 'Item')) } },
       ]);
       if (!pode(eu, 'oferendas:gerenciar') && abasOcultas(abas).has(abaDoItem)) throw new HttpError(403, 'Esta oferenda não está disponível.');
-      const estado = await db.rpc('oferenda_doar', { itemId, chave: chavePessoa(eu), nome: eu.nome, quantidade: qtd(b.quantidade, '', 0) });
+      let estado = await db.rpc('oferenda_doar', { itemId, chave: chavePessoa(eu), nome: eu.nome, quantidade: qtd(b.quantidade, '', 0) });
+      if (b.anteriores && pode(eu, 'oferendas:gerenciar')) estado = await db.rpc('oferendas_estado', { anteriores: true });
       return resposta(estado, eu, abas);
     }
     const eu = await exigir(req, 'oferendas:doar');
@@ -177,7 +182,7 @@ export default rota({
           chave = 'p:' + pessoa.id;
           nome = pessoa.nome;
         } else {
-          const item = (await db.rpc('oferendas_estado')).flatMap((o) => o.itens).find((i) => i.id === itemId);
+          const item = (await db.rpc('oferendas_estado', { anteriores: true })).flatMap((o) => o.itens).find((i) => i.id === itemId);
           const d = item?.doacoes.find((x) => x.chave === b.chave);
           if (!d) throw new HttpError(400, 'Doação não encontrada.');
           chave = d.chave;
@@ -239,6 +244,8 @@ export default rota({
       default:
         throw new HttpError(400, 'Ação inválida.');
     }
+    // As gravações devolvem só as atuais; com "Oferendas anteriores" aberta, o admin recebe todas (uma ida a mais).
+    if (b.anteriores) estado = await db.rpc('oferendas_estado', { anteriores: true });
     return resposta(estado, eu);
   },
 });

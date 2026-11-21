@@ -2,7 +2,7 @@
 // logado (tocar abre gira a gira) e o orixá de cabeça com mais pessoas — os mesmos números do Histórico.
 
 import { presencaDe, naGira, contaNaPresenca, nomeEntidadeGira } from '/shared/regras.js';
-import { estado, girasLista, avisar } from '../estado.js';
+import { estado, girasLista, historicoCompleto, avisar } from '../estado.js';
 import { esc, dShort, hoje } from '../util.js';
 import { PRES, ROT_PRESENCA, barra, corBarraPresenca, totaisAtendimento, stPerfis, blocoOrixaCabeca } from './estatisticasComum.js';
 
@@ -59,6 +59,7 @@ export function cardAno() {
   const cab = `<button class="grp-h dobra ano-h" data-act="anoabrir" aria-expanded="${aberto}"><h3>📊 Atendimentos · ${esc(rotulo)}</h3>
     <span class="count">${somaAtendidos(P.gs)} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
   if (!aberto) return `<div class="card st ano ano-fechado">${cab}</div>`;
+  historicoCompleto();   // a escolha de anos anteriores precisa das giras de antes dos últimos 12 meses
   const ano = hoje().slice(0, 4);
   const encerradas = girasLista().filter((g) => g.encerrada && g.data.startsWith(ano));
   const S = stPerfis();

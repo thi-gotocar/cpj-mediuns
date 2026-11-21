@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { calendarioMes, mesMais } from '../calendario.js';
@@ -364,6 +364,7 @@ function renderGira() {
 
   const secaoSorteio = () => {
     const nome = nomeNaGira(g);   // encerrada: nomes do retrato
+    historicoCompleto();   // quem cambonou quem pesa o histórico inteiro
     const map = custos(girasLista(), g.data, 'pares');
     const mapP = custos(girasLista(), g.data, 'passes');
     const psg = pessoasDaGira(ps, g);

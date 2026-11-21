@@ -1,7 +1,7 @@
 // Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
 
 import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes, arred, passoLevar, responsaveisItem } from '/shared/oferendas.js';
-import { estado, pode, pessoasOrd, carregarOferendas, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva, veErvas } from '../estado.js';
+import { estado, pode, pessoasOrd, carregarOferendas, abrirOferendasAnteriores, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva, veErvas } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes, atualizarPrevia, dobrarCategoria } from './oferendaComum.js';
@@ -21,7 +21,11 @@ document.addEventListener('toggle', (e) => {
   if (d.classList.contains('of-novo')) {
     const id = d.querySelector('form')?.dataset.of;
     if (d.open) U().novoItem = id; else if (U().novoItem === id) U().novoItem = null;
-  } else if (d.classList.contains('anteriores')) U().anteriores = d.open;
+  } else if (d.classList.contains('anteriores')) {
+    U().anteriores = d.open;
+    // As encerradas antigas só baixam quando o admin abre a lista.
+    if (d.open && pode('oferendas:gerenciar')) abrirOferendasAnteriores();
+  }
 }, true);
 // Quem só tem a Iemanjá (alunos) não usa as listas de oferendas.
 // O grupo Oferenda (oferendas:ver) vê as listas, mas não doa.
@@ -292,8 +296,11 @@ function listaDaAba(aba) {
   h += `<div class="of-sec"><h2><span aria-hidden="true">🕯️</span> Próximas oferendas</h2><span class="of-sec-n">${proximas.length}</span></div>`;
   h += proximas.map((o) => cardOferenda(o, admin)).join('');
   if (!proximas.length) h += `<div class="card empty"><p class="muted">Nenhuma oferenda marcada para os próximos dias.</p></div>`;
-  if (anteriores.length) {
-    h += `<details class="anteriores"${U().anteriores ? ' open' : ''}><summary>Oferendas anteriores (${anteriores.length})</summary>${anteriores.map((o) => cardOferenda(o, admin)).join('')}</details>`;
+  // Encerradas antigas que ainda não baixaram (só o admin as vê): contam no título e baixam ao abrir.
+  const faltam = admin && !estado.oferendasAnteriores ? Number(estado.oferendas.anterioresTotal?.[aba?.id || ''] || 0) : 0;
+  if (faltam && U().anteriores) abrirOferendasAnteriores();
+  if (anteriores.length || faltam) {
+    h += `<details class="anteriores"${U().anteriores ? ' open' : ''}><summary>Oferendas anteriores (${anteriores.length + faltam})</summary>${anteriores.map((o) => cardOferenda(o, admin)).join('')}${faltam ? '<div class="loading">Carregando…</div>' : ''}</details>`;
   }
   return h;
 }

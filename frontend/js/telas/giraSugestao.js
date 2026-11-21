@@ -2,7 +2,7 @@
 
 import { LINHA_LABEL, sugestoesDaGira } from '/shared/regras.js';
 import { config } from '/shared/config.js';
-import { estado, pode, girasLista, carregarPerfil } from '../estado.js';
+import { estado, pode, girasLista, historicoCompleto, carregarPerfil } from '../estado.js';
 import { esc } from '../util.js';
 
 // Admin: "Sugestão Mi/Mãe Vê" — quem marcou no Perfil que se sente confiante na entidade da gira,
@@ -40,6 +40,7 @@ function linhaSugestao(x, linha, ano) {
 export const sugAbertas = new Set();
 const subtitulo = (t, k, n) => `<div class="sug-sub ${k}"><h3>${t}</h3><span class="sug-qtd">${n}</span></div>`;
 export function blocoSugestao(ps, g) {
+  historicoCompleto();   // giras da linha contam o histórico inteiro
   const sug = sugestoesDaGira(ps, g, girasLista(), perfisDaCorrente());
   const linha = sug ? LINHA_LABEL[sug.linha] || '' : '';
   const ab = sugAbertas.has(g.data);

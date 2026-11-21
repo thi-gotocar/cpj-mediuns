@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 160;  // v160: visitas numa chamada, pessoas_listar com { id }, sub-aba do item (doar)
+export const VERSAO = 161;  // v161: QR do Pix só pendente, oferendas sem gravar na leitura, giras em janela e versão própria
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -7223,5 +7223,190 @@ export const MIGRACOES = [
   `create or replace function oferenda_item_aba(p jsonb)
    returns jsonb language sql stable as $$
      select to_jsonb(o.aba_id) from oferenda_itens i join oferendas o on o.id = i.oferenda_id where i.id = (p ->> 'itemId')::uuid;
+   $$`,
+
+  // ================================================== v161: menos dados guardados e lidos (QR do Pix, oferendas, giras)
+  // A imagem do QR do Pix só aparece enquanto a cobrança aguarda pagamento: paga, vencida, cancelada ou estornada,
+  // o banco apaga a imagem (o link e o código continuam). Uma limpeza única tira as que já tinham saído de pendente.
+  `create or replace function asaas_cobranca_sem_qr()
+   returns trigger language plpgsql as $$
+   begin
+     if new.status not in ('criando', 'pendente') then new.pix_imagem := null; end if;
+     return new;
+   end;
+   $$`,
+  `drop trigger if exists asaas_cobranca_sem_qr on asaas_cobrancas`,
+  `create trigger asaas_cobranca_sem_qr before insert or update on asaas_cobrancas for each row execute function asaas_cobranca_sem_qr()`,
+  `update asaas_cobrancas set pix_imagem = null where pix_imagem is not null and status not in ('criando', 'pendente')`,
+  // Oferendas: quem entra na corrente (ou numa turma) entrava nas listas por pessoa a cada leitura da aba
+  // (oferendas_sincronizar gravava em toda leitura). Agora entra quando o cadastro muda: gatilhos em pessoas, alunos
+  // e oferendas chamam a mesma inclusão (só acrescenta; quem o admin tirou da lista continua fora).
+  `create or replace function oferendas_incluir_novos()
+   returns void language plpgsql as $$
+   declare
+     v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+     v_ocultas uuid[] := array_remove(array[turma_consulentes_id(), turma_oferenda_id()], null);
+   begin
+     insert into oferenda_mediuns (oferenda_id, pessoa_id)
+     select o.id, pe.id from oferendas o join pessoas pe on pe.funcao = any(o.grupos) and pe.saida is null
+     where o.por_medium and o.status <> 'encerrado' and o.data >= v_hoje
+     on conflict do nothing;
+     insert into oferenda_alunos (oferenda_id, aluno_id)
+     select o.id, a.id from oferendas o join alunos a on a.saida is null
+       and ((a.turma_id is not null and ('turma:' || a.turma_id::text) = any(o.grupos))
+            or ((a.turma_id is null or a.turma_id <> all(v_ocultas))
+                and ('alunos' = any(o.grupos) or (a.turma_id is null and 'alunos:sem' = any(o.grupos)))))
+     where o.por_medium and o.status <> 'encerrado' and o.data >= v_hoje
+     on conflict do nothing;
+   end;
+   $$`,
+  `create or replace function oferendas_incluir_novos_gatilho()
+   returns trigger language plpgsql as $$
+   begin
+     perform oferendas_incluir_novos();
+     return null;
+   end;
+   $$`,
+  `drop trigger if exists oferendas_incluir_pessoas on pessoas`,
+  `create trigger oferendas_incluir_pessoas after insert or update of funcao, saida on pessoas
+   for each statement execute function oferendas_incluir_novos_gatilho()`,
+  `drop trigger if exists oferendas_incluir_alunos on alunos`,
+  `create trigger oferendas_incluir_alunos after insert or update of turma_id, saida on alunos
+   for each statement execute function oferendas_incluir_novos_gatilho()`,
+  `drop trigger if exists oferendas_incluir_oferendas on oferendas`,
+  `create trigger oferendas_incluir_oferendas after insert or update of grupos, status, por_medium, data on oferendas
+   for each statement execute function oferendas_incluir_novos_gatilho()`,
+  `select oferendas_incluir_novos()`,
+  `create or replace function oferendas_sincronizar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     perform oferendas_incluir_novos();
+     return oferendas_estado(p);
+   end;
+   $$`,
+  // Igual à anterior, sem as oferendas encerradas de antes de hoje (a aba mostra em "Oferendas anteriores", que o admin
+  // abre); { anteriores: true } traz todas. As gravações devolvem oferendas_estado() sem elas.
+  `create or replace function oferendas_estado(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object(
+       'id', o.id, 'titulo', o.titulo, 'data', o.data, 'status', o.status, 'publicada', o.publicada, 'abaId', o.aba_id,
+       'responsavelId', o.responsavel_id,
+       'responsavel', case when o.responsavel_id is null then o.retrato ->> 'responsavel'
+                           else coalesce(o.retrato ->> ('p:' || o.responsavel_id::text), (select nome from pessoas where id = o.responsavel_id)) end,
+       'porMedium', o.por_medium, 'noResumo', o.no_resumo,
+       'completaEm', o.completa_em, 'fechada', o.completa_em is not null and o.completa_em <= now() - interval '1 day',
+       'grupos', to_jsonb(o.grupos),
+       'mediuns', coalesce((select jsonb_agg(x.j order by lower(x.nome)) from (
+           select n.nome, jsonb_build_object('pessoaId', om.pessoa_id::text, 'nome', n.nome, 'pagamento', om.pagamento, 'entrega', om.entrega) as j
+           from oferenda_mediuns om left join pessoas pe on pe.id = om.pessoa_id
+           cross join lateral (select coalesce(o.retrato ->> ('p:' || om.pessoa_id::text), pe.nome) as nome) n
+           where om.oferenda_id = o.id and not om.excluido and n.nome is not null
+           union all
+           select n.nome, jsonb_build_object('pessoaId', 'a:' || oa.aluno_id::text, 'nome', n.nome, 'pagamento', oa.pagamento, 'entrega', oa.entrega, 'aluno', true)
+           from oferenda_alunos oa left join alunos al on al.id = oa.aluno_id
+           cross join lateral (select coalesce(o.retrato ->> ('a:' || oa.aluno_id::text), al.nome) as nome) n
+           where oa.oferenda_id = o.id and not oa.excluido and n.nome is not null) x), '[]'::jsonb),
+       'itens', coalesce((select jsonb_agg(jsonb_build_object(
+           'id', i.id, 'nome', i.nome, 'quantidade', i.quantidade, 'unidade', i.unidade, 'entrega', i.entrega, 'entregue', i.entregue, 'todos', i.todos,
+           'doacoes', coalesce((select jsonb_agg(jsonb_build_object('chave', d.pessoa_chave,
+                                                                    'nome', coalesce(o.retrato ->> d.pessoa_chave, u.nome, pe.nome, al.nome, d.pessoa_nome),
+                                                                    'quantidade', d.quantidade) order by d.atualizado_em)
+                                from oferenda_doacoes d
+                                left join usuarios u on u.id = case when d.pessoa_chave ~ '^u:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
+                                left join pessoas pe on pe.id = case when d.pessoa_chave ~ '^p:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
+                                left join alunos al on al.id = case when d.pessoa_chave ~ '^a:[0-9a-f-]{36}$' then substr(d.pessoa_chave, 3)::uuid end
+                                where d.item_id = i.id), '[]'::jsonb)
+         ) order by i.criado_em) from oferenda_itens i where i.oferenda_id = o.id), '[]'::jsonb)
+     ) order by o.data, o.criado_em), '[]'::jsonb) from oferendas o
+     where coalesce((p ->> 'anteriores')::boolean, false) or o.status <> 'encerrado'
+        or o.data >= (now() at time zone 'America/Sao_Paulo')::date;
+   $$`,
+  // Quantas encerradas de antes de hoje ficaram fora, por sub-aba ({ abaId: n }): o número de "Oferendas anteriores"
+  // antes de o admin abrir.
+  `create or replace function oferendas_anteriores_total(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_object_agg(x.aba, x.n), '{}'::jsonb) from (
+       select coalesce(o.aba_id::text, '') as aba, count(*) as n from oferendas o
+       where o.status = 'encerrado' and o.data < (now() at time zone 'America/Sao_Paulo')::date
+       group by 1) x;
+   $$`,
+  // Giras: a abertura do app trazia todas as giras desde o início, e qualquer gravação (uma presença marcada) fazia
+  // todo mundo baixar tudo de novo. Agora: { desde } nas giras (a abertura manda os últimos 12 meses; o histórico
+  // inteiro vem por GET /api/giras quando a tela precisa) e uma versão só das giras (giras, presença e duplas), separada
+  // da versão do resto: presença marcada reenvia só as giras, e uma pessoa editada não reenvia as giras.
+  `create or replace function giras_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(gira_json(data) order by data desc), '[]'::jsonb) from giras
+     where nullif(p ->> 'desde', '') is null or data >= (p ->> 'desde')::date;
+   $$`,
+  `create sequence if not exists versao_giras_seq`,
+  `do $$ begin
+     if not (select is_called from versao_giras_seq) then perform nextval('versao_giras_seq'); end if;
+     if not (select is_called from versao_dados_seq) then perform nextval('versao_dados_seq'); end if;
+   end $$`,
+  `create or replace function versao_dados_subir()
+   returns trigger language plpgsql as $$
+   begin
+     if tg_table_name in ('giras', 'presencas', 'duplas') then
+       perform nextval('versao_giras_seq');
+       return null;
+     end if;
+     if tg_table_name = 'sistema' then
+       if coalesce(new.chave, old.chave) = 'asaas2_atualizado' then return null; end if;
+     end if;
+     perform nextval('versao_dados_seq');
+     return null;
+   end;
+   $$`,
+  `create or replace function versao_giras()
+   returns text language sql volatile as $$
+     select (select last_value from versao_giras_seq)::text;
+   $$`,
+  // Versão "<resto>~<giras>". Com p.parcial (o app atual), só a parte que mudou volta: giras dos últimos 12 meses
+  // (girasDesde = início da janela), o resto (pessoas, config, eventos, orações, apelidos, curimba) ou os dois. Com giras,
+  // as pessoas vêm sempre (o servidor compacta os retratos com elas), e pessoasMudou diz se o app troca a lista.
+  // Sem p.parcial (aparelho uma versão atrás): tudo, com todas as giras, como antes. Versão sem "~": tudo.
+  `create or replace function inicio_dados(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_resto text := versao_dados();
+     v_giras text := versao_giras();
+     v_versao text := v_resto || '~' || v_giras;
+     v_cli text := coalesce(p ->> 'versao', '');
+     v_parcial boolean := coalesce((p ->> 'parcial')::boolean, false);
+     v_resto_mudou boolean := not v_parcial or position('~' in v_cli) = 0 or split_part(v_cli, '~', 1) <> v_resto;
+     v_giras_mudou boolean := not v_parcial or position('~' in v_cli) = 0 or split_part(v_cli, '~', 2) <> v_giras;
+     v_desde date := case when v_parcial then ((now() at time zone 'America/Sao_Paulo')::date - interval '12 months')::date end;
+     v_pessoa text := coalesce(nullif(p ->> 'pessoaId', ''),
+                               (select u.pessoa_id::text from usuarios u where u.id = nullif(p ->> 'usuarioId', '')::uuid));
+     r jsonb;
+   begin
+     if v_cli = v_versao then
+       return jsonb_build_object('versao', v_versao, 'semMudanca', true);
+     end if;
+     r := jsonb_build_object('versao', v_versao, 'pessoasMudou', v_resto_mudou);
+     if v_resto_mudou or v_giras_mudou then
+       r := r || jsonb_build_object('pessoas', pessoas_listar('{"todas": true}'::jsonb));
+     end if;
+     if v_giras_mudou then
+       r := r || jsonb_build_object('giras', giras_listar(jsonb_build_object('desde', v_desde)), 'girasDesde', v_desde);
+     end if;
+     if v_resto_mudou then
+       r := r || jsonb_build_object('config', config_casa('{}'::jsonb));
+       begin r := r || jsonb_build_object('eventos', eventos_listar('{}'::jsonb)); exception when others then null; end;
+       begin r := r || jsonb_build_object('oracoes', oracoes_listar('{}'::jsonb)); exception when others then null; end;
+       begin r := r || jsonb_build_object('entidadesApelidos', entidades_apelidos_listar('{}'::jsonb)); exception when others then null; end;
+       if v_pessoa is not null then
+         begin r := r || jsonb_build_object('minhaCurimba', curimba_minha(jsonb_build_object('pessoaId', v_pessoa))); exception when others then null; end;
+       end if;
+     end if;
+     if coalesce((p ->> 'me')::boolean, false) then
+       r := r || jsonb_build_object('abasOferendas', oferenda_abas_listar('{}'::jsonb), 'videosPublicada', videos_publicada('{}'::jsonb),
+                                    'ervasPublicada', ervas_publicada('{}'::jsonb), 'guiasPublicada', guias_publicada('{}'::jsonb),
+                                    'amaciPublicada', amaci_publicada('{}'::jsonb),
+                                    'iemanja', iemanja_resumo('{}'::jsonb));
+     end if;
+     return r;
+   end;
    $$`,
 ];

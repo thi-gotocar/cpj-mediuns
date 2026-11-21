@@ -14,6 +14,8 @@
 //   GET  /api/auth/me       quem sou eu e o que posso fazer (logado)
 //   GET  /api/auth/inicio   a abertura do app em um pedido só → { me, versao, config, pessoas, giras, eventos, minhaCurimba, oracoes, entidadesApelidos }
 //                           ?atualizar=1 (voltar ao app): só as listas, sem "me"; com &versao= igual à atual, só { versao, semMudanca: true }.
+//                           ?parcial=1 (app atual): giras dos últimos 12 meses (+ girasDesde) e, na volta, só a parte que mudou
+//                           (giras, ou pessoas/config/eventos/orações); sem ele, tudo, como antes.
 //                           Alunos recebem { eventos, oracoes, minhaCurimba, config }.
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
@@ -249,13 +251,17 @@ async function registrarVisitas(eu, texto) {
 async function listasIniciais(eu, d) {
   if (!pode(eu, 'pessoas:ler') || !pode(eu, 'giras:ler')) throw new HttpError(403, 'Seu perfil não tem permissão para isso.');
   if (d.semMudanca) return { listas: { versao: d.versao, semMudanca: true }, extras: null };
-  const listas = {
-    versao: d.versao, config: d.config, pessoas: d.pessoas,
-    // Retrato das giras encerradas só com o que difere do cadastro (ver shared/regras.js compactarRetrato).
-    giras: ocultarSorteios(eu, compactarRetratos(d.pessoas, d.giras)),
-    eventos: d.eventos, minhaCurimba: eu.pessoaId ? d.minhaCurimba : null,
-    oracoes: d.oracoes ? await oracoes(eu, d.oracoes) : undefined, entidadesApelidos: d.entidadesApelidos,
-  };
+  // Só o que mudou (?parcial=1, app atual): sem pessoasMudou, o resto não vem; sem giras, as giras não vêm.
+  const listas = { versao: d.versao };
+  if (d.pessoasMudou) {
+    Object.assign(listas, {
+      config: d.config, pessoas: d.pessoas, eventos: d.eventos, minhaCurimba: eu.pessoaId ? d.minhaCurimba : null,
+      oracoes: d.oracoes ? await oracoes(eu, d.oracoes) : undefined, entidadesApelidos: d.entidadesApelidos,
+    });
+  }
+  // Retrato das giras encerradas só com o que difere do cadastro (ver shared/regras.js compactarRetrato).
+  // girasDesde: a lista começa nessa data (as mais antigas o app busca em GET /api/giras quando precisa).
+  if (d.giras) Object.assign(listas, { giras: ocultarSorteios(eu, compactarRetratos(d.pessoas, d.giras)), girasDesde: d.girasDesde || null });
   return { listas, extras: d };
 }
 
@@ -272,7 +278,8 @@ const acoes = {
     // visíveis?" vão numa ida só ao banco. Ao voltar ao app, ?versao= é a que ele já tem: sem mudança, só { versao, semMudanca }.
     // Aluno: só a sessão nessa ida; as listas dele vêm depois (listasDoGrupo).
     const [u, d, transparencia, diarioPub] = await exigirComLeitura(req, null, ({ pessoaId, usuarioId, alunoId }) => (alunoId ? [] : [
-      { funcao: 'inicio_dados', p: { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar, pessoaId: pessoaId || '', usuarioId: usuarioId || '' } },
+      { funcao: 'inicio_dados', p: { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar, parcial: !!req.query.parcial,
+        pessoaId: pessoaId || '', usuarioId: usuarioId || '' } },
       ...(atualizar ? [] : [{ funcao: 'transparencia_publicada' }, { funcao: 'diario_publicada' }]),
     ]), { soLeitura: false });
     // ?visitas=gira,ervas: abas abertas desde o último pedido, que pegam carona aqui em vez de um pedido só para isso

@@ -13,6 +13,7 @@ export const estado = {
   me: null,            // { id, nome, email, papel, permissoes }
   pessoas: [],
   giras: {},           // por data
+  girasCompletas: false, // false: só os últimos 12 meses (abertura); o histórico inteiro vem por historicoCompleto()
   usuarios: null,      // só admin
   ervas: null,         // compra de ervas (GET /api/ervas)
   ervasVista: null,
@@ -39,7 +40,8 @@ export const estado = {
   editLic: null,
   renomearUsuario: null, // id do usuário com o nome em edição (aba Admin root)
   giraAntiga: null,
-  oferendas: null,     // GET /api/oferendas: { oferendas, eu }
+  oferendas: null,     // GET /api/oferendas: { oferendas, eu, anterioresTotal? }
+  oferendasAnteriores: false, // o admin abriu "Oferendas anteriores": os pedidos trazem também as encerradas antigas
   iemanja: null,       // GET /api/oferendas?lista=iemanja: { eventos, root, candidatos? }
   recadoTxt: null,     // recado do admin ainda não salvo: { data, texto }
   tituloTxt: null,     // nome da gira ainda não salvo: { data, texto }
@@ -113,8 +115,11 @@ export const nomeNaGira = (g) => { const ps = pessoasDe(estado.pessoas, g); retu
 export const girasLista = () => Object.values(estado.giras);
 export const giraAtual = () => estado.giras[prefs.data] || giraVazia(prefs.data);
 
-function definirGiras(lista) {
+// desde: a lista é só das giras dessa data em diante (a abertura manda os últimos 12 meses); as mais antigas que o app
+// já tem continuam. Sem desde: é a lista inteira (GET /api/giras).
+function definirGiras(lista, desde = null) {
   const novo = {};
+  if (desde) Object.values(estado.giras).forEach((g) => { if (g.data < desde) novo[g.data] = g; });
   // Na visão da corrente, a escala ainda não publicada fica escondida, como o servidor faz para a corrente.
   const visaoCorrente = estado.me?.papel === 'root' ? estado.visaoRoot === 'cpj' : estado.me?.papel === 'corrente';
   // Retrato das encerradas vem compacto: completa com o cadastro que chegou junto (estado.pessoas).
@@ -128,7 +133,8 @@ function definirGiras(lista) {
 export async function carregarTudo() {
   ultimaAtualizacao = Date.now();   // o foco logo depois da abertura não busca tudo de novo
   const vis = visitasPendentes();
-  const r = await api('GET', '/auth/inicio' + (vis.length ? '?visitas=' + vis.join(',') : ''));
+  // parcial=1: as giras vêm dos últimos 12 meses e, na volta ao app, só a parte que mudou (giras ou o resto).
+  const r = await api('GET', '/auth/inicio?parcial=1' + (vis.length ? '&visitas=' + vis.join(',') : ''));
   visitasEnviadas(vis);
   const { me } = r;
   definirConfig(r.config);
@@ -156,7 +162,9 @@ export async function carregarTudo() {
   estado.minhaCurimba = r.minhaCurimba?.aulas ? r.minhaCurimba : null;
   estado.pessoas = r.pessoas;
   estado.entidadesApelidos = r.entidadesApelidos || [];
-  definirGiras(r.giras);
+  estado.giras = {};
+  estado.girasCompletas = !r.girasDesde;
+  definirGiras(r.giras, r.girasDesde);
   estado.versaoDados = r.versao || '';   // ao voltar ao app, sem mudança desde esta versão, nada é baixado de novo
   estado.pronto = true;
   if (prefs.tab === 'usuarios' && !pode('usuarios:gerenciar')) prefs.tab = 'gira';
@@ -170,7 +178,7 @@ export async function carregarTudo() {
 
 // Listas das abas que dependem de quem está logado: trocar de pessoa busca de novo.
 function limparListasDaPessoa() {
-  Object.assign(estado, { oferendas: null, iemanja: null, ervas: null, guias: null, amaci: null, asaas: null, pedidos: null, transparencia: null, perfil: null,
+  Object.assign(estado, { oferendas: null, oferendasAnteriores: false, iemanja: null, ervas: null, guias: null, amaci: null, asaas: null, pedidos: null, transparencia: null, perfil: null,
     anamnese: null, fotosPessoa: {}, curimba: null, minhaCurimba: null, videos: null, fotos: null, conduta: null, atrasos: null, usuarios: null,
     perfisCfg: null, senhas: null, eventosTipos: null, stPerfis: null, ervasHist: null, img: null, confirm: null });
 }
@@ -230,6 +238,7 @@ export async function mudarVisaoRoot(visao) {
   try {
     const giras = await api('GET', '/giras');
     definirGiras(giras);
+    estado.girasCompletas = true;
   } catch (e) { toast(e.message); }
   if (visao === 'alunos' && estado.alunos === null) await carregarAlunos();
   if (visao === 'curimba') estado.minhaCurimba = null;
@@ -255,20 +264,20 @@ export async function atualizarDoServidor() {
     // Uma gravação feita daqui também muda a versão: na volta seguinte, baixa tudo uma vez.
     const versao = estado.me?.grupo ? '' : estado.versaoDados || '';
     const vis = visitasPendentes();
-    const r = await api('GET', '/auth/inicio?atualizar=1' + (versao ? '&versao=' + encodeURIComponent(versao) : '')
+    const r = await api('GET', '/auth/inicio?atualizar=1&parcial=1' + (versao ? '&versao=' + encodeURIComponent(versao) : '')
       + (vis.length ? '&visitas=' + vis.join(',') : ''));
     visitasEnviadas(vis);
     if (r.semMudanca) { await atualizarAbaAberta(); return; }
     if (r.versao) estado.versaoDados = r.versao;
     if (r.config) definirConfig(r.config);
-    // Lista que falhou no servidor não vem: fica a que já está na tela.
+    // Só vem o que mudou (giras, o resto ou os dois); lista que falhou no servidor também não vem: fica a que já está.
     const minhaCurimba = r.minhaCurimba === undefined ? estado.minhaCurimba : r.minhaCurimba;
     estado.oracoes = r.oracoes || estado.oracoes;
-    estado.pessoas = r.pessoas;
+    if (r.pessoas) estado.pessoas = r.pessoas;
     estado.eventos = r.eventos || estado.eventos;
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
     estado.entidadesApelidos = r.entidadesApelidos || estado.entidadesApelidos;
-    definirGiras(r.giras);
+    if (r.giras) definirGiras(r.giras, r.girasDesde);
     await atualizarAbaAberta();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
 }
@@ -280,10 +289,10 @@ async function atualizarAbaAberta() {
   if (prefs.tab !== 'oferendas') return;
   // Pega o que o admin publicou ou o que outros doaram (se não houver doação minha a enviar).
   const [oferendas, iemanja] = await Promise.all([
-    estado.oferendas !== null && !Object.values(timersDoacao).some(Boolean) ? api('GET', '/oferendas').catch(() => estado.oferendas) : estado.oferendas,
+    estado.oferendas !== null && !Object.values(timersDoacao).some(Boolean) ? api('GET', rotaOferendas()).catch(() => estado.oferendas) : estado.oferendas,
     estado.iemanja !== null ? api('GET', '/oferendas?lista=iemanja').catch(() => estado.iemanja) : estado.iemanja,
   ]);
-  estado.oferendas = oferendas;
+  estado.oferendas = oferendas && juntarOferendas(oferendas);
   estado.iemanja = iemanja;
   avisar();
 }
@@ -496,8 +505,25 @@ export async function excluirPessoa(id) {
     const [pessoas, giras] = await Promise.all([api('GET', '/pessoas'), api('GET', '/giras')]);
     estado.pessoas = pessoas;
     definirGiras(giras);
+    estado.girasCompletas = true;
   } catch (e) { toast(e.message); }
   avisar();
+}
+
+// Histórico inteiro de giras: a abertura traz só os últimos 12 meses. As telas que olham para trás (Histórico,
+// Sugestão, quem cambonou quem, resumo da gira, outro ano no bloco do ano) chamam esta: devolve se já está completo
+// e, se não, baixa uma vez por trás (a tela redesenha quando chegar).
+let baixandoGiras = null;
+let girasFalhouEm = 0;
+export function historicoCompleto() {
+  if (estado.girasCompletas || estado.me?.grupo || !estado.pronto) return true;
+  if (!baixandoGiras && Date.now() - girasFalhouEm > 60000) {
+    baixandoGiras = api('GET', '/giras')
+      .then((giras) => { definirGiras(giras); estado.girasCompletas = true; avisar(); })
+      .catch(() => { girasFalhouEm = Date.now(); })   // sem conexão: fica com os 12 meses e tenta de novo depois de 1 min
+      .finally(() => { baixandoGiras = null; });
+  }
+  return false;
 }
 
 // ---------- usuários (admin) ----------
@@ -1120,6 +1146,18 @@ export function salvarPerfilAgora() {
 export const temPendencia = () => estado.salvando > 0 || Object.keys(pendente).length > 0 || !!perfilPendente || Object.values(timersDoacao).some(Boolean);
 
 // ---------- oferendas ----------
+// As encerradas de antes de hoje só vêm depois que o admin abre "Oferendas anteriores" (oferendasAnteriores):
+// daí em diante a leitura e as gravações pedem todas. Sem elas, anterioresTotal ({ abaId: n }) dá o número do título;
+// as gravações não trazem esse número, então fica o da última leitura.
+const rotaOferendas = () => '/oferendas' + (estado.oferendasAnteriores ? '?anteriores=1' : '');
+const comAnteriores = (corpo) => (estado.oferendasAnteriores ? { ...corpo, anteriores: true } : corpo);
+const juntarOferendas = (r) => ({ ...r, anterioresTotal: r.anterioresTotal ?? estado.oferendas?.anterioresTotal ?? {} });
+export function abrirOferendasAnteriores() {
+  if (estado.oferendasAnteriores) return;
+  estado.oferendasAnteriores = true;
+  carregandoOferendas = null;
+  carregarOferendas();
+}
 // Pode ser chamada a cada desenho enquanto não há dados: só faz um pedido por vez.
 // A resposta de quem já saiu da conta é ignorada (senão a próxima pessoa veria os compromissos da anterior).
 let carregandoOferendas = null;
@@ -1128,8 +1166,8 @@ export function carregarOferendas() {
   const sessao = token();
   carregandoOferendas = (async () => {
     try {
-      const r = await api('GET', '/oferendas');
-      if (token() === sessao) estado.oferendas = r;
+      const r = await api('GET', rotaOferendas());
+      if (token() === sessao) estado.oferendas = juntarOferendas(r);
     } catch (e) {
       if (token() === sessao) { toast(e.message); estado.oferendas = estado.oferendas || { oferendas: [], eu: {} }; }
     }
@@ -1222,7 +1260,7 @@ export async function acaoIemanja(op, dados = {}) {
 
 export async function acaoOferendas(acao, dados = {}) {
   try {
-    estado.oferendas = await api('POST', '/oferendas', { acao, ...dados });
+    estado.oferendas = juntarOferendas(await api('POST', '/oferendas', comAnteriores({ acao, ...dados })));
     avisar();
     return true;
   } catch (e) {
@@ -1250,11 +1288,11 @@ export function doarItem(itemId, quantidade) {
     timersDoacao[itemId] = null;
     filaDoacao = filaDoacao.then(async () => {
       try {
-        estado.oferendas = await api('POST', '/oferendas', { acao: 'doar', itemId, quantidade });
+        estado.oferendas = juntarOferendas(await api('POST', '/oferendas', comAnteriores({ acao: 'doar', itemId, quantidade })));
         toast(quantidade > 0 ? 'Doação registrada. Obrigado!' : 'Doação retirada.');
       } catch (e) {
         toast(e.message);
-        try { estado.oferendas = await api('GET', '/oferendas'); } catch { /* mantém */ }
+        try { estado.oferendas = juntarOferendas(await api('GET', rotaOferendas())); } catch { /* mantém */ }
       }
       avisar();
     });

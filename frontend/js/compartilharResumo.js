@@ -5,7 +5,7 @@ import { textoResumo, dadosResumo, linhaLicenca, limpezaResumo, historicoAtendim
 import { giraEspecial } from '/shared/regras.js';
 import { config } from '/shared/config.js';
 import { compartilharImagem } from './imagemLista.js';
-import { estado, avisar, girasLista } from './estado.js';
+import { estado, avisar, girasLista, historicoCompleto } from './estado.js';
 import { toast, baixar, dShort } from './util.js';
 
 const giraDe = (data) => estado.giras[data];
@@ -82,6 +82,7 @@ export const botaoResumo = (g) => (g && g.encerrada
 // Painel com as opções (aparece embaixo do botão da gira encerrada).
 export function painelResumo(g) {
   if (!g || !g.encerrada || estado.resumo?.data !== g.data) return '';
+  historicoCompleto();   // frequência e recorrência olham as últimas giras da entidade, que podem ser de mais de 12 meses
   const txt = textoResumo(estado.pessoas, g, LOCAL_PADRAO, girasLista());
   const img = estado.resumo.img;
   return `<div class="rs-painel">

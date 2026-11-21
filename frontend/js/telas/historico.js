@@ -1,7 +1,7 @@
 // Tela "Histórico": giras salvas, quem já cambonou quem e backup.
 
 import { recebe, ehCambone, ordRecebe, status, presencaDe, daGira, naGira, FUNCOES, STATUS, STATUS_KEYS, opcoesGira, nomeGira, nomeEntidadeGira, apelidoEntidade, LINHA_LABEL, contaNaPresenca, ORIXAS, temOrixa, orixaDaGira, linhaDaEntidade, giraEspecial, licencaEm } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, pessoasOrd, pessoasComSaidas, girasLista, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, pessoasOrd, pessoasComSaidas, girasLista, historicoCompleto, excluirGira, cadastrarGiraAntiga, montarBackup, importarBackup, corrigirPresenca, avisar } from '../estado.js';
 import { esc, dLong, dShort, hoje, toast, baixar, ajustarRolagem } from '../util.js';
 import { lerResumo, casarNomes } from '/shared/resumo.js';
 import { botaoResumo, painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -258,6 +258,9 @@ export function render() {
   // O bloco Eventos (cadastrar e eventos cadastrados) fica na aba Gira.
   let h = `<section class="panel">`;
   if (!pode('historico:ver')) return h + '</section>';
+  // A abertura traz só os últimos 12 meses: o Histórico baixa o resto (aviso enquanto não chega).
+  const completo = historicoCompleto();
+  if (!completo) h += '<div class="card"><p class="muted" style="margin:0">Carregando as giras mais antigas…</p></div>';
   const gs = girasLista().sort((a, b) => b.data.localeCompare(a.data));
   const ps = pessoasComSaidas().filter(contaNaPresenca);   // curimba fica fora da presença
   h += cardEstatisticas(gs, ps);

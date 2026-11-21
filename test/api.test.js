@@ -3159,3 +3159,61 @@ test('v160: visitas de várias abas numa chamada e pessoas_listar com { id }', a
   assert.deepEqual(uma, [todas[1]]);
   assert.deepEqual(JSON.parse(sql(`select pessoas_listar('{"id": "00000000-0000-4000-8000-000000000000"}'::jsonb)`)), []);
 });
+
+test('v161: o QR do Pix some quando a cobrança deixa de estar pendente', async () => {
+  const id = sql(`insert into asaas_cobrancas (chave, nome, pedido, valor, status, pix_imagem) values ('p:teste-qr', 'QR', 1, 10, 'pendente', 'abc') returning id`);
+  assert.equal(sql(`select pix_imagem from asaas_cobrancas where id = '${id}'`), 'abc', 'pendente: a imagem fica');
+  sql(`update asaas_cobrancas set status = 'paga' where id = '${id}'`);
+  assert.equal(sql(`select coalesce(pix_imagem, '<nulo>') from asaas_cobrancas where id = '${id}'`), '<nulo>');
+  sql(`delete from asaas_cobrancas where id = '${id}'`);
+});
+
+test('v161: oferendas encerradas de antes de hoje só vêm com ?anteriores=1; novos cadastrados entram pelo cadastro', async () => {
+  const of = (b) => api('POST', '/api/oferendas', ADMIN, b);
+  const r = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Antiga encerrada', data: '2020-02-02' })).json;
+  const o = r.oferendas.find((x) => x.titulo === 'Antiga encerrada');
+  assert.ok(o, 'aberta, mesmo antiga, continua vindo');
+  const enc = (await of({ acao: 'status', id: o.id, status: 'encerrado' })).json;
+  assert.ok(!enc.oferendas.some((x) => x.id === o.id), 'encerrada e antiga sai da resposta');
+  const g = (await api('GET', '/api/oferendas', ADMIN)).json;
+  assert.ok(!g.oferendas.some((x) => x.id === o.id));
+  assert.ok(g.anterioresTotal[o.abaId || ''] >= 1, 'o número das anteriores vem à parte');
+  assert.ok((await api('GET', '/api/oferendas?anteriores=1', ADMIN)).json.oferendas.some((x) => x.id === o.id));
+  assert.ok((await of({ acao: 'status', id: o.id, status: 'encerrado', anteriores: true })).json.oferendas.some((x) => x.id === o.id),
+    'com as anteriores abertas, a gravação devolve todas');
+  // Por pessoa: quem entra na corrente depois entra na lista sem ninguém abrir a aba.
+  const pm = (await of({ acao: 'salvar', responsavelId: RESP(), titulo: 'Por pessoa v161', data: '2041-01-01', porMedium: true, grupos: ['senha'] })).json
+    .oferendas.find((x) => x.titulo === 'Por pessoa v161');
+  const nova = (await api('POST', '/api/pessoas', ADMIN, { nome: 'Entrou Depois', funcao: 'senha' })).json.pessoas.find((p) => p.nome === 'Entrou Depois');
+  assert.equal(sql(`select count(*) from oferenda_mediuns where oferenda_id = '${pm.id}' and pessoa_id = '${nova.id}'`), '1');
+  await of({ acao: 'excluir', id: pm.id });
+  await of({ acao: 'excluir', id: o.id });
+  await api('DELETE', '/api/pessoas/' + nova.id, ADMIN);
+});
+
+test('v161: abertura com ?parcial=1 traz 12 meses de giras e, na volta, só a parte que mudou', async () => {
+  const d = (dias) => new Date(Date.now() - dias * 86400000).toISOString().slice(0, 10);
+  const antiga = '2001-03-03', recente = d(10);
+  await api('PUT', '/api/giras/' + antiga, ADMIN, { titulo: 'Antiga v161' });
+  await api('PUT', '/api/giras/' + recente, ADMIN, { titulo: 'Recente v161' });
+  const r = (await api('GET', '/api/auth/inicio?parcial=1', USER)).json;
+  assert.ok(r.girasDesde);
+  assert.ok(r.giras.some((g) => g.data === recente) && !r.giras.some((g) => g.data === antiga), 'só os últimos 12 meses');
+  assert.ok((await api('GET', '/api/giras', USER)).json.some((g) => g.data === antiga), 'o histórico inteiro continua em /api/giras');
+  assert.ok((await api('GET', '/api/auth/inicio', USER)).json.giras.some((g) => g.data === antiga), 'sem parcial (app anterior): todas');
+  const volta = (v) => api('GET', '/api/auth/inicio?atualizar=1&parcial=1&versao=' + encodeURIComponent(v), USER).then((x) => x.json);
+  assert.equal((await volta(r.versao)).semMudanca, true);
+  // Gira mudou: só as giras (sem pessoas, eventos e orações).
+  await api('PUT', '/api/giras/' + recente, ADMIN, { titulo: 'Recente v161 2' });
+  const g = await volta(r.versao);
+  assert.ok(g.giras.some((x) => x.data === recente && x.titulo === 'Recente v161 2'));
+  assert.deepEqual([g.pessoas, g.eventos, g.oracoes], [undefined, undefined, undefined]);
+  // Pessoa mudou: o resto, sem as giras.
+  const p = (await api('POST', '/api/pessoas', ADMIN, { nome: 'Parcial v161', funcao: 'senha' })).json.pessoas.find((x) => x.nome === 'Parcial v161');
+  const pe = await volta(g.versao);
+  assert.ok(pe.pessoas.some((x) => x.id === p.id));
+  assert.equal(pe.giras, undefined);
+  await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+  await api('DELETE', '/api/giras/' + antiga, ADMIN);
+  await api('DELETE', '/api/giras/' + recente, ADMIN);
+});
