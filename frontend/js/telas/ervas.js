@@ -32,6 +32,11 @@ function alvo(E) {
   return { chave: P.chave || 'p:' + P.pessoaId, nome: P.nome, outro: true, itens: Object.entries(P.itens).map(([ervaId, quantidade]) => ({ ervaId, quantidade })) };
 }
 const qtdDe = (ervaId) => alvo(estado.ervas).itens.find((m) => m.ervaId === ervaId)?.quantidade || 0;
+// Só pessoas da corrente pedem ervas: quem está logado sem cadastro na corrente não tem pedido próprio
+// (o admin escolhe a pessoa no combo), e o pedido antigo de fora da corrente só diminui.
+const souDaCorrente = () => !!estado.me?.pessoaId && !estado.me?.grupo;
+const semPedidoProprio = () => !paraOutro() && !souDaCorrente();
+const maxDe = (ervaId) => { const P = paraOutro(); return P?.max ? P.max[ervaId] || 0 : 99; };
 const serveTxt = (e) => (Number(e.pessoasPorcao) ? ` (serve ${e.pessoasPorcao})` : '');
 const precoTxt = (v) => (v === null || v === undefined ? 'preço a definir' : reais(centavos(v)));
 const precoCampo = (v) => (v === null || v === undefined ? '' : Number(v).toFixed(2).replace('.', ','));
@@ -70,8 +75,8 @@ function seletorPessoa(E) {
   const P = paraOutro();
   const sel = !P ? '' : P.pessoaId ? 'p:' + P.pessoaId : P.chave;
   const op = (v, t) => `<option value="${esc(v)}" ${v === sel ? 'selected' : ''}>${esc(t)}</option>`;
-  const fora = lista.filter((p) => !p.chave.startsWith('p:') && p.chave !== E.eu.chave);
-  return `<label class="ervas-pedido-pessoa ervas-pessoa-sel"><span aria-hidden="true">👤</span><select id="er-pessoa" data-act="erpessoa" aria-label="De quem é o pedido">${op('', E.eu.nome)}
+  const fora = lista.filter((p) => !p.chave.startsWith('p:') && (p.chave !== E.eu.chave || !souDaCorrente()));
+  return `<label class="ervas-pedido-pessoa ervas-pessoa-sel"><span aria-hidden="true">👤</span><select id="er-pessoa" data-act="erpessoa" aria-label="De quem é o pedido">${op('', souDaCorrente() ? E.eu.nome : 'Escolha a pessoa')}
     ${pessoasOrd().filter((p) => 'p:' + p.id !== E.eu.chave).map((p) => op('p:' + p.id, p.nome + (comPedido.has('p:' + p.id) ? ' · já tem pedido' : ''))).join('')}
     ${fora.length ? `<optgroup label="Fora da corrente">${fora.map((p) => op(p.chave, p.nome)).join('')}</optgroup>` : ''}</select></label>`;
 }
@@ -85,7 +90,15 @@ function cardEscolha(E) {
   const r = simular(E);
   const m = meuPedido(E, r);
   const nPor = pessoasPorErva(r);
-  h += `<p class="ervas-pedido-dica">${aberta ? `Toque em − ou + para ajustar as porções ${a.outro ? 'do pedido de ' + esc(a.nome) : 'do seu pedido'}.` : a.outro ? 'A lista está fechada.' : 'Seu pedido foi salvo e a lista está fechada.'}</p>`;
+  const travado = semPedidoProprio();
+  const fora = !!paraOutro()?.max;
+  h += `<p class="ervas-pedido-dica">${travado ? (pode('ervas:gerenciar') ? 'Só pessoas da corrente pedem ervas. Escolha a pessoa ao lado para fazer o pedido dela.' : 'Só pessoas da corrente pedem ervas.')
+    : fora && aberta ? 'Pedido de fora da corrente: só pessoas da corrente pedem ervas. Dá para diminuir ou passar o pedido para uma pessoa da corrente.'
+    : aberta ? `Toque em − ou + para ajustar as porções ${a.outro ? 'do pedido de ' + esc(a.nome) : 'do seu pedido'}.` : a.outro ? 'A lista está fechada.' : 'Seu pedido foi salvo e a lista está fechada.'}</p>`;
+  if (fora && aberta) {
+    h += `<label class="ervas-pedido-pessoa ervas-pessoa-sel"><span>Passar para</span><select data-act="erpassar" aria-label="Passar o pedido para uma pessoa da corrente">
+      <option value="">Escolha a pessoa</option>${pessoasOrd().map((p) => `<option value="${esc(p.id)}">${esc(p.nome)}</option>`).join('')}</select></label>`;
+  }
   h += `<div class="ervas">`;
   E.ervas.forEach((e) => {
     const q = qtdDe(e.id);
@@ -96,9 +109,9 @@ function cardEscolha(E) {
     h += `<div class="erva erva-pedido-item ${q ? 'sel' : ''}">
       <span class="nmcell"><span class="nm">${esc(e.nome)}</span><span class="muted" style="font-size:.85rem">${info}</span></span>
       <span class="qtd">
-        <button class="btn small" data-act="menos" data-id="${e.id}" ${!aberta || !q ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
+        <button class="btn small" data-act="menos" data-id="${e.id}" ${!aberta || !q || travado ? 'disabled' : ''} aria-label="Menos ${esc(e.nome)}">−</button>
         <span class="n" aria-live="polite">${q}</span>
-        <button class="btn small ${q ? '' : 'primary'}" data-act="mais" data-id="${e.id}" ${!aberta || q >= 99 ? 'disabled' : ''} aria-label="Mais ${esc(e.nome)}">+</button>
+        <button class="btn small ${q ? '' : 'primary'}" data-act="mais" data-id="${e.id}" ${!aberta || q >= Math.min(99, maxDe(e.id)) || travado ? 'disabled' : ''} aria-label="Mais ${esc(e.nome)}">+</button>
       </span></div>`;
   });
   h += `</div>`;
@@ -548,7 +561,8 @@ function gravarPara() {
 function ajustarPedido(id, delta) {
   const nova = Math.min(99, Math.max(0, qtdDe(id) + delta));
   const P = paraOutro();
-  if (!P) { escolherErva(id, nova); return; }
+  if (!P) { if (!semPedidoProprio()) escolherErva(id, nova); return; }
+  if (nova > maxDe(id)) return;
   if (nova) P.itens[id] = nova; else delete P.itens[id];
   P.sujo = true;
   avisar();
@@ -558,20 +572,36 @@ function ajustarPedido(id, delta) {
 // v: 'p:<id da pessoa>', a chave de um pedido fora da corrente ou '' (quem está logado).
 function abrirPedido(v) {
   gravarPara();
-  if (!v || v === estado.ervas.eu.chave) { estado.ervasPara = null; avisar(); return; }
+  // O pedido antigo de quem está logado sem cadastro na corrente abre como pedido de fora (só diminui).
+  if (!v || (v === estado.ervas.eu.chave && souDaCorrente())) { estado.ervasPara = null; avisar(); return; }
   const lista = estado.ervas.pedidos?.pessoas || [];
   const pessoaId = v.startsWith('p:') ? v.slice(2) : undefined;
   const pessoa = pessoaId && estado.pessoas.find((x) => x.id === pessoaId);
   const p = lista.find((x) => x.chave === v) || (pessoa && lista.find((x) => normalizarNome(x.nome) === normalizarNome(pessoa.nome)));
   if (!p && !pessoa) return;
+  const itens = p ? Object.fromEntries(p.itens.map((i) => [i.ervaId, i.quantidade])) : {};
   estado.ervasPara = p
-    ? { chave: p.chave, pessoaId, nome: p.nome, itens: Object.fromEntries(p.itens.map((i) => [i.ervaId, i.quantidade])) }
+    // Pedido de fora da corrente: max = o que já tinha (só diminui).
+    ? { chave: p.chave, pessoaId, nome: p.nome, itens, ...(pessoaId || p.chave.startsWith('p:') ? {} : { max: { ...itens } }) }
     : { pessoaId, nome: pessoa.nome, itens: {} };
   avisar();
 }
 
 export const mudancas = {
   erpessoa(t) { abrirPedido(t.value); },
+  // Pedido de fora da corrente passa para uma pessoa da corrente (se ela já pediu a mesma erva, fica a quantidade dela).
+  async erpassar(t) {
+    const P = paraOutro();
+    const pessoa = estado.pessoas.find((x) => x.id === t.value);
+    if (!P?.chave || !pessoa) return;
+    if (!confirm(`Passar o pedido de ${P.nome} para ${pessoa.nome}?`)) { t.value = ''; return; }
+    gravarPara();
+    await filaPara;
+    if (await acaoErvas('reatribuir', { chave: P.chave, pessoaId: pessoa.id })) {
+      toast(`Pedido passado para ${pessoa.nome}.`);
+      abrirPedido('p:' + pessoa.id);
+    }
+  },
   async ervaspub(t) {
     const pub = t.checked;
     if (!(await publicarErvas(pub))) { t.checked = !pub; return; }

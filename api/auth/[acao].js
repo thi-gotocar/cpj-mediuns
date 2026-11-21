@@ -239,8 +239,9 @@ async function registrarVisitas(eu, texto) {
   if (!texto || eu.verComo || pode(eu, 'usuarios:gerenciar')) return;
   const abas = [...new Set(String(texto).split(','))].filter(abaValida).slice(0, 20);
   const nome = String(eu.nome || '').trim();
-  await Promise.all(abas.map((aba) => db.rpc('visita_registrar', { chave: chavePessoa(eu), aba, nome })))
-    .catch((e) => console.error('[visitas]', e));
+  if (!abas.length) return;
+  // Todas as abas numa chamada só (antes, uma por aba).
+  await db.rpc('visitas_registrar', { chave: chavePessoa(eu), abas, nome }).catch((e) => console.error('[visitas]', e));
 }
 
 // Corrente e usuários: tudo de uma vez no banco (inicio_dados, que já veio junto com a sessão). Com a versão que o

@@ -792,7 +792,7 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.match(fechado.json.erro, /fechada/);
   // Lista fechada: nem o admin altera pedidos, Compra ou cadastro; só reabre (ou começa nova compra).
   const admFechado = [
-    await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 1 }] }),
+    await api('PUT', '/api/ervas', ADMIN, { para: { pessoaId: (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Bruno').id }, itens: [{ ervaId: arruda.id, quantidade: 1 }] }),
     await api('POST', '/api/ervas', ADMIN, { acao: 'salvarCompra', gira: '', data: '', frete: '12', itens: [] }),
     await api('POST', '/api/ervas', ADMIN, { acao: 'salvarErva', id: arruda.id, nome: 'Arruda' }),
     await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: guine.id }),
@@ -808,17 +808,24 @@ test('ervas: admin cadastra, todos escolhem, frete dividido, lista fechada', asy
   assert.ok(e.pedidos.pessoas.some((p) => p.chave === 'p:' + bru.id && p.nome === 'Bruno'));
   e = (await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'p:' + bru.id }, itens: [] })).json;
   assert.ok(!e.pedidos.pessoas.some((p) => p.nome === 'Bruno'));
-  // Admin faz o pedido de outra pessoa; o mesmo nome da corrente é a mesma pessoa.
-  assert.equal((await api('PUT', '/api/ervas', USER, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 1 }] })).status, 403);
-  e = (await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 3 }] })).json;
-  assert.deepEqual(e.pedidos.pessoas.map((p) => p.nome), ['Dona Rosa', 'José Carlos', 'Maria']);
+  // Só pessoas da corrente pedem ervas: o admin pede pela pessoa da corrente (id); nome digitado não vale mais.
+  const mariaId = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Maria').id;
+  assert.equal((await api('PUT', '/api/ervas', USER, { para: { pessoaId: mariaId }, itens: [{ ervaId: arruda.id, quantidade: 1 }] })).status, 403);
+  assert.equal((await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'Dona Rosa' }, itens: [{ ervaId: arruda.id, quantidade: 3 }] })).status, 400);
+  // O admin sem cadastro na corrente não pede para si.
+  assert.equal((await api('PUT', '/api/ervas', ADMIN, { itens: [{ ervaId: arruda.id, quantidade: 1 }] })).status, 403);
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { pessoaId: mariaId }, itens: [{ ervaId: guine.id, quantidade: 1 }] })).json;
   assert.deepEqual(e.minhas, [], 'o pedido do admin não muda');
-  e = (await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'MARIA' }, itens: [{ ervaId: guine.id, quantidade: 1 }] })).json;
   assert.deepEqual((await api('GET', '/api/ervas', maria)).json.minhas, [{ ervaId: guine.id, quantidade: 1 }]);
-  const rosa = e.pedidos.pessoas.find((p) => p.nome === 'Dona Rosa');
-  e = (await api('PUT', '/api/ervas', ADMIN, { para: { chave: rosa.chave }, itens: [] })).json;
+  // Pedido antigo de fora da corrente: só diminui ou apaga.
+  sql(`insert into ervas_escolhas (pessoa_chave, pessoa_nome, erva_id, quantidade) values ('n:dona rosa', 'Dona Rosa', '${arruda.id}', 3)`);
+  assert.equal((await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'n:dona rosa' }, itens: [{ ervaId: arruda.id, quantidade: 4 }] })).status, 400);
+  assert.equal((await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'n:dona rosa' }, itens: [{ ervaId: guine.id, quantidade: 1 }] })).status, 400);
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'n:dona rosa' }, itens: [{ ervaId: arruda.id, quantidade: 2 }] })).json;
+  assert.equal(e.pedidos.pessoas.find((p) => p.nome === 'Dona Rosa').itens[0].quantidade, 2);
+  e = (await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'n:dona rosa' }, itens: [] })).json;
   assert.ok(!e.pedidos.pessoas.some((p) => p.nome === 'Dona Rosa'), 'lista vazia apaga o pedido');
-  assert.equal((await api('PUT', '/api/ervas', ADMIN, { para: { nome: 'x' }, itens: [] })).status, 400);
+  assert.equal((await api('PUT', '/api/ervas', ADMIN, { para: { chave: 'n:ninguem' }, itens: [] })).status, 400);
 
   // Excluir a erva remove as escolhas dela; nova compra limpa tudo e reabre.
   e = (await api('POST', '/api/ervas', ADMIN, { acao: 'excluirErva', id: guine.id })).json;
@@ -3138,4 +3145,17 @@ test('rota antiga /sortear e /remanejar (app da versão anterior) chega na açã
   assert.equal((await api('POST', `/api/giras/${d}/remanejar`, ADMIN)).status, 200);
   assert.equal((await api('POST', `/api/giras/${d}/outra`, ADMIN)).status, 404);
   await api('DELETE', `/api/giras/${d}`, ADMIN);
+});
+
+test('v160: visitas de várias abas numa chamada e pessoas_listar com { id }', async () => {
+  const chave = 'p:00000000-0000-4000-8000-0000000000aa';
+  sql(`delete from visitas_abas where chave = '${chave}'`);
+  sql(`select visitas_registrar('{"chave": "${chave}", "nome": "Teste", "abas": ["gira", "ervas", "gira"]}'::jsonb)`);
+  sql(`select visitas_registrar('{"chave": "${chave}", "nome": "Teste", "abas": ["gira"]}'::jsonb)`);
+  assert.equal(sql(`select string_agg(aba || '=' || vezes, ',' order by aba) from visitas_abas where chave = '${chave}'`), 'ervas=1,gira=2');
+  const todas = JSON.parse(sql(`select pessoas_listar('{"todas": true}'::jsonb)`));
+  assert.ok(todas.length > 1);
+  const uma = JSON.parse(sql(`select pessoas_listar('{"todas": true, "id": "${todas[1].id}"}'::jsonb)`));
+  assert.deepEqual(uma, [todas[1]]);
+  assert.deepEqual(JSON.parse(sql(`select pessoas_listar('{"id": "00000000-0000-4000-8000-000000000000"}'::jsonb)`)), []);
 });

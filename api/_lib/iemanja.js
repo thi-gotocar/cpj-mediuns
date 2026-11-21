@@ -257,7 +257,8 @@ export async function acaoIemanja(eu, b) {
       const descricao = limpar(b.descricao);
       if (!descricao || descricao.length > 80) throw new HttpError(400, 'Informe a descrição do transporte (até 80 letras).');
       if (b.transporteId && !transporteDe(b.transporteId)) throw new HttpError(404, 'Transporte não encontrado.');
-      const resp = b.responsavelId ? (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável')) : null;
+      const respId = b.responsavelId ? validarId(b.responsavelId, 'Responsável') : null;
+      const resp = respId ? (await db.rpc('pessoas_listar', { id: respId })).find((p) => p.id === respId) : null;
       if (b.responsavelId && !resp) throw new HttpError(400, 'Responsável não encontrado na corrente.');
       if (!resp) throw new HttpError(400, 'Escolha o responsável.');
       await db.rpc('iemanja_transporte_salvar', { id: b.transporteId || '', eventoId: ev.id, descricao, responsavelId: resp.id, responsavelNome: resp.nome });

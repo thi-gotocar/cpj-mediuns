@@ -106,12 +106,21 @@ function validarParticipantes(v) {
 }
 
 // Quem entra pelo acesso da corrente (cpj), com ou sem senha, avisa que não vai.
+// Sessão, gira e a própria pessoa numa ida só (só a pessoa, não a corrente inteira). A pessoa de um usuário
+// (cadastro ligado ao e-mail) só se conhece depois da sessão: aí ela vem numa ida à parte.
+async function giraEPessoa(req) {
+  let data;
+  const [eu, atual, lista] = await exigirComLeitura(req, 'giras:ler', ({ pessoaId }) => [
+    { funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } },
+    ...(pessoaId ? [{ funcao: 'pessoas_listar', p: { id: pessoaId } }] : []),
+  ]);
+  const pessoas = lista || (eu.pessoaId ? await db.rpc('pessoas_listar', { id: eu.pessoaId }) : []);
+  return { eu, data, atual, p: pessoas.find((x) => x.id === eu.pessoaId) };
+}
+
 async function declararAusencia(req) {
-  const eu = await exigir(req, 'giras:ler');
+  const { eu, data, atual, p } = await giraEPessoa(req);
   if (eu.papel !== 'corrente' || !eu.pessoaId) throw new HttpError(403, 'Só quem entra pelo acesso da corrente declara ausência por aqui.');
-  const data = validarData(req.query.data);
-  const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
-  const p = pessoas.find((x) => x.id === eu.pessoaId);
   if (!atual) throw new HttpError(404, 'Esta gira ainda não foi criada.');
   if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
   const faleCom = async () => `Fale com a ${configCasa(await db.rpc('config_casa')).responsavel}.`;
@@ -122,13 +131,10 @@ async function declararAusencia(req) {
 }
 
 async function escolherEntidade(req, linha) {
-  const eu = await exigir(req, 'giras:ler');
+  const { eu, data, atual, p } = await giraEPessoa(req);
   if (!eu.pessoaId) throw new HttpError(403, 'Só quem tem cadastro na corrente escolhe a entidade.');
-  const data = validarData(req.query.data);
-  const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('gira_obter', { data })]);
   if (!atual) throw new HttpError(404, 'Esta gira ainda não foi criada.');
   if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
-  const p = pessoas.find((x) => x.id === eu.pessoaId);
   if (!podeEscolherEntidade(p, atual)) throw new HttpError(400, 'Nesta gira você não escolhe a entidade.');
   const escolha = typeof linha === 'string' ? linha : '';
   if (escolha && !linhasParaEscolher(atual).some(([k]) => k === escolha)) throw new HttpError(400, 'Entidade inválida para esta gira.');

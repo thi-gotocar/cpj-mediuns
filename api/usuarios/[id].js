@@ -23,7 +23,8 @@ export default rota({
     }
     if ('pessoaId' in b) {
       if (b.pessoaId) {
-        const pessoa = (await db.rpc('pessoas_listar')).find((x) => x.id === validarId(b.pessoaId, 'Pessoa'));
+        const id = validarId(b.pessoaId, 'Pessoa');
+        const pessoa = (await db.rpc('pessoas_listar', { id })).find((x) => x.id === id);
         if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
         p.pessoaId = pessoa.id;
         p.nome = pessoa.nome;

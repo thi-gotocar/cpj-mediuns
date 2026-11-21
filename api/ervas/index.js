@@ -2,8 +2,9 @@
 //   GET  /api/ervas   catálogo, frete, lista aberta/fechada e as minhas escolhas
 //                     e todos os pedidos calculados (andamento geral)
 //   GET  /api/ervas?lista=historico  só admin: compras encerradas [{ id, gira, data, resumo, encerradaEm }], da mais nova
-//   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas
-//                     admin: { para: { chave? | pessoaId? | nome }, itens }  — pedido de outra pessoa (lista vazia apaga)
+//   PUT  /api/ervas   { itens: [{ ervaId, quantidade }] }  — salva as minhas escolhas (só quem é da corrente)
+//                     admin: { para: { pessoaId | chave }, itens }  — pedido de uma pessoa da corrente (lista vazia apaga);
+//                     com a chave de um pedido antigo de fora da corrente, só diminui ou apaga
 //   POST /api/ervas   { acao, ... }  — só admin (com a lista fechada, só config { aberta }, novaCompra e encerrarCompra):
 //        publicar { publicada }  → { publicada }  — aba visível para todos ou só para quem administra (vale com a lista fechada)
 //        salvarErva { id?, nome, precoEstimado?, preco?, pessoasPorcao? } (vazio = a definir / uma porção atende todos; sem o campo, mantém)
@@ -94,24 +95,33 @@ export default rota({
       if (!Number.isInteger(q) || q < 1 || q > 99) throw new HttpError(400, 'Quantidade inválida (de 1 a 99).');
       return { ervaId: validarId(i?.ervaId, 'Erva'), quantidade: q };
     });
+    // Só pessoas da corrente pedem ervas: quem pede para si precisa do cadastro na corrente, e o admin pede só
+    // para uma pessoa da corrente (escolhida pelo id). Pedido antigo de fora (nome digitado, ou de um login sem
+    // cadastro) que ainda está na compra só diminui, zera ou é passado para alguém da corrente (Reatribuir).
     if (b.para) {
       if (!pode(eu, 'ervas:gerenciar')) throw new HttpError(403, 'Só um admin pode fazer o pedido de outra pessoa.');
-      const nome = String(b.para.nome || '').replace(/\s+/g, ' ').trim();
       const atual = await db.rpc('ervas_estado');
       if (atual.aberta === false) throw new HttpError(400, FECHADA);
-      const existente = typeof b.para.chave === 'string' && atual.escolhas.find((s) => s.chave === b.para.chave);
-      if (!existente && !b.para.pessoaId && (nome.length < 2 || nome.length > 60)) throw new HttpError(400, 'Informe o nome da pessoa (2 a 60 letras).');
-      // Quem está na lista da corrente fica no cadastro da pessoa (o mesmo de quando ela entra pelo cpj).
-      const lista = existente ? [] : await db.rpc('pessoas_listar');
-      const pessoa = existente ? null : b.para.pessoaId
-        ? lista.find((p) => p.id === validarId(b.para.pessoaId, 'Pessoa'))
-        : lista.find((p) => normalizarNome(p.nome) === normalizarNome(nome));
-      if (b.para.pessoaId && !existente && !pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
-      if (pessoa) await db.rpc('corrente_vincular', { chave: 'p:' + pessoa.id, nome: pessoa.nome, antigas: ['n:' + normalizarNome(pessoa.nome), ...(nome ? ['n:' + normalizarNome(nome)] : [])] });
-      const chave = existente ? existente.chave : pessoa ? 'p:' + pessoa.id : 'n:' + normalizarNome(nome);
-      const estado = await db.rpc('ervas_escolher', { chave, nome: existente ? existente.nome : pessoa ? pessoa.nome : nome, itens });
-      return resposta(estado, eu);
+      if (b.para.pessoaId) {
+        const id = validarId(b.para.pessoaId, 'Pessoa');
+        const pessoa = (await db.rpc('pessoas_listar', { id })).find((p) => p.id === id);
+        if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
+        // O pedido antigo com o nome dela (antes de ligar ao cadastro) passa para o cadastro.
+        await db.rpc('corrente_vincular', { chave: 'p:' + id, nome: pessoa.nome, antigas: ['n:' + normalizarNome(pessoa.nome)] });
+        return resposta(await db.rpc('ervas_escolher', { chave: 'p:' + id, nome: pessoa.nome, itens }), eu);
+      }
+      const chave = typeof b.para.chave === 'string' ? b.para.chave : '';
+      const doPedido = chave ? atual.escolhas.filter((s) => s.chave === chave) : [];
+      if (!doPedido.length) throw new HttpError(400, 'Escolha uma pessoa da corrente.');
+      if (!chave.startsWith('p:')) {
+        const antes = new Map(doPedido.map((s) => [s.ervaId, s.quantidade]));
+        if (itens.some((i) => i.quantidade > (antes.get(i.ervaId) || 0))) {
+          throw new HttpError(400, 'Só pessoas da corrente pedem ervas. Este pedido de fora só pode diminuir ou ser passado para uma pessoa da corrente.');
+        }
+      }
+      return resposta(await db.rpc('ervas_escolher', { chave, nome: doPedido[0].nome, itens }), eu);
     }
+    if (!eu.pessoaId || eu.alunoId) throw new HttpError(403, 'Só pessoas da corrente pedem ervas.');
     const estado = await db.rpc('ervas_escolher', { chave: chavePessoa(eu), nome: eu.nome, itens });
     return resposta(estado, eu);
   },
@@ -185,7 +195,8 @@ export default rota({
       // Se ela já tiver pedido a mesma erva, fica a quantidade que ela já tinha.
       case 'reatribuir': {
         const chave = String(b.chave || '');
-        const pessoa = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.pessoaId, 'Pessoa'));
+        const id = validarId(b.pessoaId, 'Pessoa');
+        const pessoa = (await db.rpc('pessoas_listar', { id })).find((p) => p.id === id);
         if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
         const atual = await db.rpc('ervas_estado');
         if (!atual.escolhas.some((s) => s.chave === chave)) throw new HttpError(400, 'Pedido não encontrado.');

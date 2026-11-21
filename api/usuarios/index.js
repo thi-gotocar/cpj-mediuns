@@ -97,7 +97,8 @@ export default rota({
     } else {
       // O usuário é uma pessoa da corrente: o nome é sempre o do cadastro.
       if (!b.pessoaId) throw new HttpError(400, 'Escolha a pessoa da corrente.');
-      const pessoa = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.pessoaId, 'Pessoa'));
+      const id = validarId(b.pessoaId, 'Pessoa');
+      const pessoa = (await db.rpc('pessoas_listar', { id })).find((p) => p.id === id);
       if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
       nome = pessoa.nome;
       pessoaId = pessoa.id;

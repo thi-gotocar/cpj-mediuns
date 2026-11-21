@@ -9,7 +9,7 @@
 // Estrutura: veja db/ESTRUTURA-ESQUEMA.md para o mapa de versões, domínios e
 // quais migrações foram testadas no Postgres.
 
-export const VERSAO = 159;  // v159: menos idas ao banco (inicio_dados com usuarioId; gira_acao)
+export const VERSAO = 160;  // v160: visitas numa chamada, pessoas_listar com { id }, sub-aba do item (doar)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -7184,5 +7184,44 @@ export const MIGRACOES = [
      end if;
      raise exception 'Ação inválida.';
    end;
+   $$`,
+
+  // ================================================== v160: menos idas e menos dados lidos (visitas, uma pessoa, doar)
+  // As abas abertas que pegam carona na abertura do app: uma chamada para todas, em vez de uma por aba.
+  `create or replace function visitas_registrar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+   begin
+     insert into visitas_abas (chave, aba, dia, nome)
+     select p ->> 'chave', a, v_hoje, coalesce(p ->> 'nome', '')
+       from (select distinct jsonb_array_elements_text(coalesce(p -> 'abas', '[]'::jsonb)) as a) x
+     on conflict (chave, aba, dia) do update set vezes = visitas_abas.vezes + 1, ultima = now(), nome = excluded.nome;
+     delete from visitas_abas where dia < v_hoje - 2;
+     return '{}'::jsonb;
+   end;
+   $$`,
+  // Igual à v154, com { id } para ler uma pessoa só (quem procurava uma pessoa lia a corrente inteira).
+  `create or replace function pessoas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(to_jsonb(x) order by lower(x.nome)), '[]'::jsonb) from (
+       select pe.id, pe.nome, pe.funcao, pe.experiente, pe.linhas, pe.limpeza, pe.entrada, pe.saida,
+              coalesce((select jsonb_agg(jsonb_build_object('id', l.id, 'inicio', l.inicio, 'fim', l.fim, 'motivo', l.motivo) order by l.inicio)
+                        from licencas l where l.pessoa_id = pe.id), '[]'::jsonb) as licencas,
+              coalesce(pe.perfil -> 'outros', '{}'::jsonb) as "guiasAtendimento",
+              nullif(pe.perfil -> 'guias' -> 'chefe' ->> 'linha', '') as "guiaChefe",
+              nullif(pe.perfil -> 'guias' -> 'frente' ->> 'linha', '') as "guiaFrente",
+              pe.afinidade_extra as "afinidadeExtra", pe.afinidade_passe as "afinidadePasse",
+              case when (pe.perfil -> 'info' ->> 'nascimento') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                   then substring(pe.perfil -> 'info' ->> 'nascimento' from 6 for 5) end as aniversario,
+              (select f.foto_v from pessoas_fotos f where f.pessoa_id = pe.id) as "fotoV"
+       from pessoas pe
+       where (pe.saida is null or coalesce((p ->> 'todas')::boolean, false))
+         and (nullif(p ->> 'id', '') is null or pe.id = (p ->> 'id')::uuid)
+     ) x;
+   $$`,
+  // Sub-aba da oferenda de um item: o doar de quem não administra confere se ela está visível sem ler todas as oferendas.
+  `create or replace function oferenda_item_aba(p jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(o.aba_id) from oferenda_itens i join oferendas o on o.id = i.oferenda_id where i.id = (p ->> 'itemId')::uuid;
    $$`,
 ];

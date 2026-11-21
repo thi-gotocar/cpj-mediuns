@@ -17,7 +17,7 @@
 // O grupo Oferenda (oferendas:ver) vê o mesmo, mas não doa: o admin é quem atribui.
 //                doarPor { itemId, pessoaId | chave, quantidade }  — doação de outra pessoa (0 = exclui)
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
-import { exigir } from '../_lib/sessao.js';
+import { exigir, exigirComLeitura } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
@@ -92,18 +92,18 @@ export default rota({
     if (b.acao === 'iemanja') return acaoIemanja(await exigir(req), b);
     if (b.acao === 'guias') return acaoGuias(await exigir(req), b);
     if (b.acao === 'asaas') return acaoAsaas(await exigir(req), b);
-    const eu = await exigir(req, 'oferendas:doar');
     if (b.acao === 'doar') {
-      if (!pode(eu, 'oferendas:gerenciar')) {
-        const ocultas = abasOcultas(await db.rpc('oferenda_abas_listar'));
-        if (ocultas.size && ocultas.has((await db.rpc('oferendas_estado')).find((o) => o.itens.some((i) => i.id === b.itemId))?.abaId)) throw new HttpError(403, 'Esta oferenda não está disponível.');
-      }
-      const estado = await db.rpc('oferenda_doar', {
-        itemId: validarId(b.itemId, 'Item'), chave: chavePessoa(eu), nome: eu.nome,
-        quantidade: qtd(b.quantidade, '', 0),
-      });
-      return resposta(estado, eu);
+      // Sessão, sub-abas e a sub-aba do item numa ida só (antes: sessão, sub-abas e todas as oferendas, uma depois da outra).
+      let itemId;
+      const [eu, abas, abaDoItem] = await exigirComLeitura(req, 'oferendas:doar', () => [
+        { funcao: 'oferenda_abas_listar' },
+        { funcao: 'oferenda_item_aba', p: { itemId: (itemId = validarId(b.itemId, 'Item')) } },
+      ]);
+      if (!pode(eu, 'oferendas:gerenciar') && abasOcultas(abas).has(abaDoItem)) throw new HttpError(403, 'Esta oferenda não está disponível.');
+      const estado = await db.rpc('oferenda_doar', { itemId, chave: chavePessoa(eu), nome: eu.nome, quantidade: qtd(b.quantidade, '', 0) });
+      return resposta(estado, eu, abas);
     }
+    const eu = await exigir(req, 'oferendas:doar');
     if (!pode(eu, 'oferendas:gerenciar')) throw new HttpError(403, 'Só um admin pode alterar as oferendas.');
     let estado;
     switch (b.acao) {
@@ -127,7 +127,8 @@ export default rota({
       }
       case 'salvar': {
         // Responsável: uma pessoa da corrente (obrigatório).
-        const resp = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.responsavelId, 'Responsável'));
+        const respId = validarId(b.responsavelId, 'Responsável');
+        const resp = (await db.rpc('pessoas_listar', { id: respId })).find((p) => p.id === respId);
         if (!resp) throw new HttpError(400, 'Escolha o responsável (uma pessoa da corrente).');
         const porMedium = !b.id && b.porMedium === true;
         const grupos = porMedium && b.grupos !== undefined ? validarGrupos(b.grupos) : null;
@@ -170,7 +171,8 @@ export default rota({
           chave = 'a:' + aluno.id;
           nome = aluno.nome;
         } else if (b.pessoaId) {
-          const pessoa = (await db.rpc('pessoas_listar')).find((p) => p.id === validarId(b.pessoaId, 'Pessoa'));
+          const id = validarId(b.pessoaId, 'Pessoa');
+          const pessoa = (await db.rpc('pessoas_listar', { id })).find((p) => p.id === id);
           if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
           chave = 'p:' + pessoa.id;
           nome = pessoa.nome;
