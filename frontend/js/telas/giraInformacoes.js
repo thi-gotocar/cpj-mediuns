@@ -8,7 +8,7 @@ import { banhosDaGira } from '/shared/banhos.js';
 import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM, chaveDaLinha } from '/shared/oferendas.js';
 
 // Admin: tocar na turma abre a escolha manual da turma da vez.
-function escolhaTurma(g) {
+export function escolhaTurma(g) {
   const atual = Number(g.limpeza) || 0;
   const bt = (t, rotulo, sub) => `<button class="btn small limp-t${(t || 0) === atual ? ' on' : ''}" data-act="limpturma" data-v="${t || ''}" aria-pressed="${(t || 0) === atual}">${rotulo}${sub ? `<small>${sub}</small>` : ''}</button>`;
   const qtd = (t) => { const n = estado.pessoas.filter((p) => Number(p.limpeza) === t).length; return `${n} ${n === 1 ? 'pessoa' : 'pessoas'}`; };

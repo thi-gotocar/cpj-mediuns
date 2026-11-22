@@ -222,7 +222,7 @@ let raizJanela = null;
 export function atualizarJanela() {
   // Prévia aberta: a atualização da tela não pode apagar o que a pessoa está escrevendo.
   if (estado.previaGira && raizJanela?.querySelector('#pv-texto')) return;
-  const html = prefs.tab === 'agenda'
+  const html = prefs.tab === 'agenda' || prefs.tab === 'giranova'
     ? janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala() || janelaOracoes()
     : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() || janelaNiver() : '';
   if (!raizJanela) {
