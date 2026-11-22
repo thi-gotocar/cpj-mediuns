@@ -377,7 +377,7 @@ function renderGira(nova = false) {
     if (validos.length && semPasse.length) h += `<div class="warnbox">${semPasse.map(nome).map(esc).join(', ')} ainda sem médium.${manual ? ' Adicione no médium com quem foi.' : sortearOk ? (ps.some((p) => p.funcao === 'medium' && p.experiente) ? ' Use o Ajuste manual.' : ' Marque no Perfil → Pessoas quais médiuns podem ter passe junto.') : ''}</div>`;
     if (!temDuplas && !manual) {
       // Ainda não sorteado: sem Ajuste manual e sem "Ver mais"; só o resumo e quem está fora (licença etc.).
-      return h + `${!lista.length ? '<p class="muted" style="margin:0">Nenhum médium presente.</p>' : sortearOk ? '' : '<p class="muted" style="margin:0">As duplas ainda não foram sorteadas.</p>'}${blocosFora(ps, g)}</div>`;
+      return h + `${!lista.length ? '<p class="muted" style="margin:0">Nenhum médium presente.</p>' : sortearOk ? '' : '<p class="muted" style="margin:0">As duplas ainda não foram sorteadas.</p>'}${semTitulo ? '' : blocosFora(ps, g)}</div>`;
     }
     if (!lista.length) h += `<p class="muted">Nenhum médium presente.</p>`;
     else {
@@ -400,7 +400,8 @@ function renderGira(nova = false) {
         ? `<div class="sup-lista">${sup.map((p) => `<div class="sup-l"><span>${esc(p.nome)}</span>${botaoFalta(p.id)}</div>${confirmaFalta(p.id)}`).join('')}</div>`
         : `<p style="margin:0">${sup.map((p) => esc(p.nome)).join(', ')}</p>`}</div>`;
     }
-    return h + `${blocosFora(ps, g)}${ajuste || semTitulo ? '' : botaoDobrar(true)}</div>`;
+    // Gira nova: Faltaram e Ausentes ficam só em Quem não vem.
+    return h + `${semTitulo ? '' : blocosFora(ps, g)}${ajuste || semTitulo ? '' : botaoDobrar(true)}</div>`;
   };
 
   // O que vem entre o bloco de recados/atendimentos e os blocos informativos, conforme quem vê e o estado da gira.

@@ -6,8 +6,8 @@
 import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, proximaTurma } from '/shared/regras.js';
 import { aniversariantesDoDia, rotuloTipo } from '/shared/eventos.js';
 import { estado, prefs, salvarPrefs, girasLista, giraAtual, avisar } from '../estado.js';
-import { esc, dLong, dDM } from '../util.js';
-import { ICONE_WHATS } from './giraComum.js';
+import { esc, dLong, dDM, hoje } from '../util.js';
+import { ICONE_WHATS, htmlStatus } from './giraComum.js';
 import { blocoLimpeza, blocoBanho, blocoPedirErvas, blocosOferenda, escolhaTurma } from './giraInformacoes.js';
 import { atualizarJanela } from './giraJanelas.js';
 
@@ -26,6 +26,8 @@ const diaDaSemana = (iso) => { const [y, m, d] = iso.split('-').map(Number); ret
 const passos = new Map();   // data → número do passo aberto (0 = todos fechados)
 let mesAberto = false;
 let compAberto = false;
+const turmaAberta = new Map();   // data → turma da limpeza quando a lista abriu (escolher outra turma fecha a lista)
+const pendAberto = new Set();    // datas com a lista de pendentes aberta (passo Presença)
 let compOpcoes = { ops: [], eventoImagem: '' };   // as opções da gira aberta, para a janela do Compartilhar
 
 // ---------- faixa da semana ----------
@@ -103,10 +105,15 @@ export const compartilharAberto = () => compAberto && prefs.tab === 'agenda';
 // ---------- os passos do admin ----------
 // Gira sem turma: a mesma próxima do rodízio que o Adicionar evento usa (a Gira e a Gira nova têm os mesmos dados).
 // Um toque grava, como escolher a turma à mão.
-function sugestaoTurma(g) {
-  const t = proximaTurma(estado.pessoas, girasLista(), g.data);
-  if (!t) return '';
-  return `<span class="gn-sug-turma"><span>Próxima do rodízio: <b>Turma ${t}</b></span><button type="button" class="btn small primary" data-act="limpturma" data-v="${t}">Usar Turma ${t}</button></span>`;
+function campoTurma(g, L) {
+  const atual = Number(g.limpeza) || 0;
+  if (turmaAberta.has(g.data) && turmaAberta.get(g.data) !== atual) turmaAberta.delete(g.data);   // trocou: fecha
+  const aberta = turmaAberta.has(g.data);
+  const t = L ? 0 : proximaTurma(estado.pessoas, girasLista(), g.data);
+  const sug = !L && t ? `<span class="gn-sug-turma"><span>Próxima do rodízio: <b>Turma ${t}</b></span><button type="button" class="btn small primary" data-act="limpturma" data-v="${t}">Usar Turma ${t}</button></span>` : '';
+  const linha = `<button type="button" class="gn-turma" data-act="gnturma" aria-expanded="${aberta}"><span>${L ? `<b>Turma ${L.turma}</b> <small class="muted">${L.membros.length} ${L.membros.length === 1 ? 'pessoa' : 'pessoas'}</small>` : '<b>Sem turma</b>'}</span>
+    <small class="gn-turma-t">${aberta ? 'Fechar' : 'Trocar'} <span aria-hidden="true">${aberta ? '▾' : '▸'}</span></small></button>`;
+  return `<div class="field">Turma da limpeza${sug}${linha}${aberta ? escolhaTurma(g) : ''}</div>`;
 }
 
 function passoPadrao(ctx, pend) {
@@ -145,7 +152,7 @@ function conducao(ctx) {
     <label class="field">Nome no cabeçalho${ctx.titulo}<small class="muted">Em branco volta ao automático.</small></label>
     ${publicada ? '<p class="muted gn-nota">Escala publicada: gira, orixá, Evento e data ficam fixos. Para mudar, oculte a escala no passo Escala.</p>'
       : `<button type="button" class="btn" data-act="mudardata">📅 Alterar data · ${esc(dDM(g.data))}</button>`}
-    ${!g.evento && temLimpeza(g) ? `<div class="field">Turma da limpeza${L ? '' : sugestaoTurma(g)}${escolhaTurma(g)}</div>` : ''}
+    ${!g.evento && temLimpeza(g) ? campoTurma(g, L) : ''}
     <label class="field">Recado para a corrente<textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos.">${esc(recado)}</textarea></label>`;
 
   // 2. Presença
@@ -156,8 +163,13 @@ function conducao(ctx) {
   const barra = total ? `<div class="gn-barra" role="img" aria-label="${nP} presentes, ${nF} faltas, ${nA} ausentes, ${nL} de licença, ${pend.length} pendentes">
       ${[[nP, 'p'], [nF, 'f'], [nA, 'a'], [nL, 'lic'], [pend.length, 'pend']].filter(([n]) => n).map(([n, k]) => `<span class="b-${k}" style="flex:${n}"></span>`).join('')}</div>
     <div class="gn-legenda">${[[nP, 'presente', 'presentes', 'p'], [nF, 'falta', 'faltas', 'f'], [nA, 'ausente', 'ausentes', 'a'], [nL, 'licença', 'licença', 'lic'], [pend.length, 'pendente', 'pendentes', 'pend']]
-      .filter(([n]) => n).map(([n, um, varios, k]) => `<span><b class="t-${k}">${n}</b> ${n === 1 ? um : varios}</span>`).join('')}</div>` : '';
-  const c2 = barra + ctx.presenca;
+      .filter(([n]) => n).map(([n, um, varios, k]) => (k === 'pend'
+        ? `<button type="button" class="gn-pend-bt" data-act="gnpend" aria-expanded="${pendAberto.has(g.data)}"><b class="t-${k}">${n}</b> ${n === 1 ? um : varios} <span aria-hidden="true">${pendAberto.has(g.data) ? '▾' : '▸'}</span></button>`
+        : `<span><b class="t-${k}">${n}</b> ${n === 1 ? um : varios}</span>`)).join('')}</div>` : '';
+  const antesDoDia = g.pendentePadrao && g.data > hoje();
+  const pendentes = pend.length && pendAberto.has(g.data) ? `<div class="gn-pend">${pend.map((p) => `<div class="gn-pend-l"><span>${esc(p.nome)}</span>
+      <select class="st" id="st-${p.id}" data-act="status" data-id="${p.id}" aria-label="Status de ${esc(p.nome)}">${htmlStatus(g, presencaDe(p, g), status(p, g), antesDoDia)}</select></div>`).join('')}</div>` : '';
+  const c2 = barra + pendentes + ctx.presenca;
 
   // 3. Escala
   const nMed = !temDuplas ? 0 : new Set([...(g.pares || []), ...(g.passes || [])].map((p) => p.m)).size;
@@ -186,10 +198,10 @@ function quemNaoVem(ps, g) {
   const n = aus.length + fal.length + lic.length;
   if (!n) return '';
   const nomes = (l, cls) => l.map((p) => `<span class="gn-nome ${cls}">${esc(p.nome)}</span>`).join('');
-  return `<div class="gn-sec"><div class="gn-sec-h"><h3>Quem não vem</h3><span class="muted">${n}</span></div><div class="gn-fora">
-    ${aus.length ? `<span class="gn-fora-t aus">Ausência</span><span>${nomes(aus, 'aus')}</span>` : ''}
-    ${fal.length ? `<span class="gn-fora-t falta">Faltas</span><span>${nomes(fal, 'falta')}</span>` : ''}
-    ${lic.length ? `<span class="gn-fora-t">Licença</span><span>${lic.map((p) => `${esc(p.nome)} <span class="muted">até ${dDM(licencaEm(p, g.data).fim)}</span>`).join(', ')}</span>` : ''}
+  return `<div class="gn-sec"><div class="gn-sec-h"><h3><span aria-hidden="true">🚫</span> Quem não vem</h3><span class="muted">${n}</span></div><div class="gn-fora">
+    ${aus.length ? `<span class="gn-fora-t aus"><span class="gn-x fino" aria-hidden="true">✕</span> Ausência</span><span>${nomes(aus, 'aus')}</span>` : ''}
+    ${fal.length ? `<span class="gn-fora-t falta"><span class="gn-x grosso" aria-hidden="true">✖</span> Faltas</span><span>${nomes(fal, 'falta')}</span>` : ''}
+    ${lic.length ? `<span class="gn-fora-t"><span class="cruz-vermelha" aria-hidden="true">✚</span> Licença</span><span>${lic.map((p) => `${esc(p.nome)} <span class="muted">até ${dDM(licencaEm(p, g.data).fim)}</span>`).join(', ')}</span>` : ''}
   </div></div>`;
 }
 
@@ -199,7 +211,7 @@ function daCorrente(ctx) {
   if (g.recado) partes.push(`<div class="gn-recado"><small>Recado</small><p>${esc(g.recado)}</p></div>`);
   if (realizado) partes.push(`<div class="gn-sec gn-escala">${realizado}</div>`);
   else if (escala) partes.push(`<div class="gn-sec">${escala}</div>`);
-  else if (editar && !g.evento && !encerrada) partes.push(`<div class="gn-sec"><div class="gn-sec-h"><h3>Escala</h3><span class="gn-aviso-t">${temDuplas ? 'aguardando publicação' : 'ainda não sorteada'}</span></div><p class="muted gn-nota">A corrente vê a imagem da escala aqui assim que ela for publicada.</p></div>`);
+  else if (editar && !g.evento && !encerrada) partes.push(`<div class="gn-sec"><div class="gn-sec-h"><h3><span aria-hidden="true">📋</span> Escala</h3><span class="gn-aviso-t">${temDuplas ? 'aguardando publicação' : 'ainda não sorteada'}</span></div><p class="muted gn-nota">A corrente vê a imagem da escala aqui assim que ela for publicada.</p></div>`);
   if (!encerrada) { const l = blocoLimpeza(g, false); if (l) partes.push(`<div class="gn-sec">${l}</div>`); }
   const banho = blocoBanho(g);
   if (banho) partes.push(`<div class="gn-sec">${banho}</div>`);
@@ -235,6 +247,12 @@ export const cliquesNova = {
     avisar();
   },
   gnmes() { mesAberto = !mesAberto; avisar(); },
+  gnturma() {
+    const g = giraAtual();
+    if (turmaAberta.has(g.data)) turmaAberta.delete(g.data); else turmaAberta.set(g.data, Number(g.limpeza) || 0);
+    avisar();
+  },
+  gnpend() { const d = giraAtual().data; if (pendAberto.has(d)) pendAberto.delete(d); else pendAberto.add(d); avisar(); },
   gnsemana(el) { prefs.data = maisDias(prefs.data, Number(el.dataset.v)); salvarPrefs(); avisar(); },
   gncomp() { compAberto = true; atualizarJanela(); },
   gncompfechar() { fecharCompartilhar(); },
