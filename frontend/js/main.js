@@ -3,7 +3,7 @@
 import { estadoDoApp, logado, entrar, cadastrar, criarSenhaContato, verificarCpf, entrarCpf, criarSenhaCpf, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar, definirVerComo } from './api.js';
 import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veAmaci, veTransparencia, vePedidos, veDiario, vePessoas, temPendencia } from './estado.js';
-import { esc, toast, hoje, mascaraTel, guardarRascunhos, devolverRascunhos } from './util.js';
+import { esc, toast, hoje, mascaraTel, guardarRascunhos, devolverRascunhos, guardarTela, devolverTela } from './util.js';
 import { PIN_NOVO, PIN_NOVO_MSG } from '/shared/permissoes.js';
 import { cpfValido } from '/shared/perfil.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
@@ -186,8 +186,10 @@ function render() {
   let ss = null, se = null;
   try { if (fid && a.selectionStart != null) { ss = a.selectionStart; se = a.selectionEnd; } } catch { /* input sem seleção */ }
   const rascunhos = guardarRascunhos(main);
+  const telaAntes = guardarTela(main);
   main.innerHTML = html;
   devolverRascunhos(main, rascunhos);
+  devolverTela(main, telaAntes);
   if (fid) {
     let el = document.getElementById(fid);
     // Campo de data em uso: mantém o mesmo elemento (no celular, trocar o elemento

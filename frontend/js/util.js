@@ -70,6 +70,29 @@ export const iniciais = (nome) => String(nome || '').split(/\s+/).filter((w) => 
 // salvou sobrevive ao redesenho (ao voltar para o app, a atualização do servidor redesenha a tela). Guarda só os campos
 // mudados (valor diferente do que veio na tela) e devolve se o formulário e o campo continuam lá, com o valor de antes.
 const valorPadrao = (el) => (el.tagName === 'SELECT' ? ([...el.options].find((o) => o.defaultSelected) || el.options[0])?.value ?? '' : el.defaultValue);
+// Redesenhar troca o HTML inteiro: as imagens seriam recriadas (piscam e decodificam de novo) e os carrosséis voltariam
+// para o começo. Guarda as <img> já carregadas (pelo src) e a rolagem lateral dos carrosséis, e devolve depois.
+const CARROSSEIS = '.di-gal-l, .gi-car, .matrix';
+export function guardarTela(main) {
+  const imgs = new Map();
+  main.querySelectorAll('img[src]').forEach((i) => { if (i.complete) { const k = i.getAttribute('src'); imgs.set(k, [...(imgs.get(k) || []), i]); } });
+  const rolagem = [...main.querySelectorAll(CARROSSEIS)].map((el) => el.scrollLeft);
+  return { imgs, rolagem };
+}
+export function devolverTela(main, { imgs, rolagem }) {
+  if (imgs.size) {
+    main.querySelectorAll('img[src]').forEach((nova) => {
+      const velha = imgs.get(nova.getAttribute('src'))?.shift();
+      if (!velha) return;
+      for (const a of [...velha.attributes]) if (!nova.hasAttribute(a.name)) velha.removeAttribute(a.name);
+      for (const a of [...nova.attributes]) if (velha.getAttribute(a.name) !== a.value) velha.setAttribute(a.name, a.value);
+      nova.replaceWith(velha);
+    });
+  }
+  const els = main.querySelectorAll(CARROSSEIS);
+  if (els.length === rolagem.length) els.forEach((el, i) => { if (rolagem[i]) el.scrollLeft = rolagem[i]; });
+}
+
 export function guardarRascunhos(main) {
   const r = [];
   main.querySelectorAll('form[data-rascunho][id]').forEach((f) => {
