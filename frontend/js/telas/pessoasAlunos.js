@@ -109,11 +109,14 @@ function linhaAluno(a, turmas, editar, escolhendo) {
     <span class="pp-bts">${pode('usuarios:gerenciar') ? `<button class="btn small pp-bt pp-ico" type="button" data-act="senhaaluno" data-id="${a.id}" data-nome="${esc(a.nome)}" aria-label="Definir senha de ${esc(a.nome)}" title="Definir senha"><span aria-hidden="true">🔑</span></button>` : ''}<button class="btn small pp-bt pp-ico" data-act="editaluno" data-id="${a.id}" aria-label="Editar ${esc(a.nome)}" title="Editar"><span aria-hidden="true">✎</span></button><button class="btn small pp-bt pp-ico pp-del" data-act="excluirask" data-tipo="al" data-id="${a.id}" aria-label="Excluir ${esc(a.nome)}" title="Excluir"><span aria-hidden="true">🗑️</span></button></span></div></div>`;
 }
 
-export function cardAlunos() {
+// secao: dentro do bloco Pessoas do Perfil, como as Oferendas pendentes (sempre aberto, com os quadradinhos à vista).
+export function cardAlunos({ secao = false } = {}) {
   const A = estado.alunos;
-  // Começa minimizado (a contagem fica no título).
-  const aberto = !!estado.alunosAberto;
-  const cab = `<div class="card pp-card fn-alunos">${cabDobra('dobraralunos', '🎓 Alunos', A ? `${A.alunos.length} aluno${A.alunos.length === 1 ? '' : 's'}` : '', aberto)}`;
+  // Fora do Perfil começa minimizado (a contagem fica no título).
+  const aberto = secao || !!estado.alunosAberto;
+  const total = A ? `${A.alunos.length} aluno${A.alunos.length === 1 ? '' : 's'}` : '';
+  const cab = secao ? `<div class="card pp-card fn-alunos pf-sec-corrente"><div class="grp-h"><h2>🎓 Alunos</h2>${total ? `<span class="count">${total}</span>` : ''}</div>`
+    : `<div class="card pp-card fn-alunos">${cabDobra('dobraralunos', '🎓 Alunos', total, aberto)}`;
   if (!aberto) return cab + '</div>';
   if (!A) return cab + `<div class="loading">Carregando alunos…</div></div>`;
   const editar = pode('alunos:editar');
@@ -153,14 +156,15 @@ function blocoExAlunos(A) {
 // o grupo Oferenda ou a corrente (UP CPJ, como Cambone). Consulentes e Oferenda ficam nos outros quadradinhos e também
 // podem mudar de destino.
 const QUADROS_CADASTRO = [['novos', 'Novos', 'fn-cadnovos'], ['consulentes', 'Consulentes', 'fn-cadcons'], ['oferenda', 'Oferenda', 'fn-cadof']];
-export function cardCadastrosLogin() {
+// secao: dentro do bloco Pessoas do Perfil, como as Oferendas pendentes (sem o texto de explicação).
+export function cardCadastrosLogin({ secao = false } = {}) {
   const C = estado.alunos?.cadastros;
   if (!pode('alunos:editar') || !C) return '';
   // Sempre aberto: os quadradinhos ficam à vista; tocar num deles abre a lista.
   const n = C.novos.length;
-  let h = `<div class="card pp-card fn-cadastros"><div class="grp-h"><h2>🪪 Cadastros pelo login</h2>${n ? `<span class="count">${n} novo${n === 1 ? '' : 's'}</span>` : ''}</div>`;
+  let h = `<div class="card pp-card fn-cadastros${secao ? ' pf-sec-corrente' : ''}"><div class="grp-h"><h2>🪪 Cadastros pelo login</h2>${n ? `<span class="count">${n} novo${n === 1 ? '' : 's'}</span>` : ''}</div>`;
   const sel = C[estado.cadQuadro] ? estado.cadQuadro : null;
-  h += `<p class="muted" style="margin:0;font-size:.85rem">Quem se cadastrou pelo login (Criar cadastro). Decida para onde vai cada um: uma turma de alunos, Consulentes, Oferenda (só vê as oferendas; o admin põe a pessoa nelas) ou a corrente.</p>
+  h += `${secao ? '' : '<p class="muted" style="margin:0;font-size:.85rem">Quem se cadastrou pelo login (Criar cadastro). Decida para onde vai cada um: uma turma de alunos, Consulentes, Oferenda (só vê as oferendas; o admin põe a pessoa nelas) ou a corrente.</p>'}
     <div class="pf-of-totais auto">${QUADROS_CADASTRO.map(([k, t, cls]) => `<button type="button" class="pf-of-total ${cls}${sel === k ? ' selecionado' : ''}" data-act="cadquadro" data-q="${k}" aria-expanded="${sel === k}" aria-label="${t}: ${C[k].length}"${C[k].length ? '' : ' disabled'}><b>${C[k].length}</b><span>${t}</span></button>`).join('')}</div>`;
   if (!sel) return h + '</div>';
   const turmas = (estado.alunos.turmas || []).map((t) => `<option value="t:${t.id}">Aluno · ${esc(t.nome)}</option>`).join('');

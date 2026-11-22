@@ -2529,3 +2529,5 @@ div.pf-of-total{cursor:default}
 .pf-bloco-h .seta{color:var(--muted)}
 .pf-bloco-h .selo-preench{flex:none}
 .pf-bloco-c{display:grid;gap:12px;padding:0 14px 16px;min-width:0}
+.pessoas-tela .corrente-card .pf-sec-corrente{border:0;border-top:1px solid var(--line);border-radius:0;background:none;box-shadow:none;padding:12px 0 0;gap:10px}
+.pessoas-tela .corrente-card .pf-sec-corrente h2{font-size:1.05rem}

@@ -290,10 +290,8 @@ function renderPessoas(embutida = false) {
   const ps = todas.filter((p) => !ehCurimba(p));   // a corrente (sem a curimba)
   const editar = pode('pessoas:editar');
   const verAlunos = pode('alunos:ver');
-  // No Perfil (embutida), os Alunos ficam atrás do "Ver mais": só busca a lista (pesada para quem edita: dados,
-  // pendências e CPF mascarado de cada aluno) quando ela vai aparecer.
-  const mostraAlunos = !embutida || estado.pessoasMais || !pode('pessoas:ver');
-  if (verAlunos && mostraAlunos && estado.alunos === null) { estado.alunos = undefined; carregarAlunos(); }
+  // Os Alunos e os Cadastros pelo login ficam sempre à vista (no Perfil, no bloco principal, como as Oferendas pendentes).
+  if (verAlunos && estado.alunos === null) { estado.alunos = undefined; carregarAlunos(); }
   let h = `<section class="panel pessoas-tela">`;
   const podeAdd = editar || pode('alunos:editar');
   // Perfil que só cuida dos alunos (ex.: Admin oferendas): só o Adicionar e o bloco Alunos.
@@ -320,9 +318,10 @@ function renderPessoas(embutida = false) {
     }).join('')}</div>
     ${correnteListaAberta === CURIMBA ? '<p class="nota">A curimba não conta presença nem falta, não entra no sorteio nem no total da corrente.</p>' : ''}
     ${correnteListaAberta ? `<div class="ppl">${pessoasPorFuncao[correnteListaAberta].map(linhaCorrente).join('')}</div>` : ''}
-${cardOferendasPendentes()}`;
+${cardOferendasPendentes()}${embutida ? (verAlunos ? cardAlunos({ secao: true }) : '') + cardCadastrosLogin({ secao: true }) : ''}`;
   const resto = `${blocoTurmas(todas, editar)}${listaLicencas(ps, editar)}${add}`;   // licença: só a corrente
-  const fim = (verAlunos ? cardAlunos() : '') + cardCadastrosLogin();   // Cadastros pelo login: o último bloco da aba
+  // Fora do Perfil: Alunos e Cadastros pelo login em blocos próprios, no fim (no Perfil já estão no bloco principal).
+  const fim = embutida ? '' : (verAlunos ? cardAlunos() : '') + cardCadastrosLogin();
   if (embutida && !estado.pessoasMais) return h + `<button type="button" class="btn small pp-vermais" data-act="pessoasmais">Ver mais ▾</button></div></section>`;
   h += resto + (embutida ? '<button type="button" class="btn small pp-vermais" data-act="pessoasmais">Ver menos ▴</button>' : '') + '</div>' + fim;
   return h + '</section>';
