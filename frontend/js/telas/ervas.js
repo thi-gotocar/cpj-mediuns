@@ -4,7 +4,6 @@ import { centavos, reais, calcularPedidos, totaisPorErva, temPreco, textoFornece
 import { estado, pode, pessoasOrd, carregarErvas, carregarHistoricoErvas, escolherErva, acaoErvas, salvarPedidoDe, publicarErvas, avisar } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
-import { barraParaErvas } from './oferendas.js';
 
 // Dados da imagem do pedido ao fornecedor ou da cobrança.
 function dadosImagem(E, r, vista) {
@@ -376,9 +375,9 @@ export function render() {
   const E = estado.ervas;
   const admin = pode('ervas:gerenciar');
   const pub = estado.me?.ervasPublicada !== false;
-  // Ervas é uma sub-aba de Oferendas: a barra das sub-abas vem no topo. Depois: o cabeçalho, o meu pedido e, para o
+  // Ervas é uma sub-aba da Gira (a barra das sub-abas vem do main.js). O cabeçalho, o meu pedido e, para o
   // admin, a Gestão da compra em passos, o Histórico, a Nova compra e o Visível para todos (no fim).
-  let h = `<section class="panel ervas-tela">${barraParaErvas()}${cabecalho(E)}${cardEscolha(E)}`;
+  let h = `<section class="panel ervas-tela">${cabecalho(E)}${cardEscolha(E)}`;
   if (admin) {
     const r = E.pedidos || calcularPedidos(E.ervas, [], E.frete);
     h += gestao(E, r) + cardHistorico() + cardFim(pub);

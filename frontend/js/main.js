@@ -76,14 +76,11 @@ let arrastoAnamnese = null;
 // Abas com sub-abas: o botão do topo é o da primeira; as outras viram sub-abas dentro dela. Por dentro continuam
 // sendo telas separadas (cada uma com o seu estado e a sua permissão).
 const GRUPOS_ABAS = [
-  { topo: 'agenda', subs: [['agenda', 'Gira'], ['hist', 'Histórico']] },
+  { topo: 'agenda', subs: [['agenda', 'Gira'], ['ervas', 'Ervas'], ['hist', 'Histórico']] },
   { topo: 'guias', subs: [['guias', 'Compras'], ['pedidos', 'Pedidos'], ['asaas', 'ASAAS']] },
-  // Ervas: entra na barra das sub-abas de Oferendas, logo depois da Iemanjá (a barra é desenhada por oferendas.js).
-  { topo: 'oferendas', subs: [['oferendas', 'Oferendas'], ['ervas', 'Ervas']], barraPropria: true },
 ];
 const grupoDa = (tab) => GRUPOS_ABAS.find((g) => g.subs.some(([k]) => k === tab));
 function barraSubabas(grupo, VE) {
-  if (grupo.barraPropria) return '';
   const subs = grupo.subs.filter(([k]) => VE[k]);
   if (subs.length < 2) return '';
   return `<div class="subabas subabas-topo" role="tablist" aria-label="Sub-abas">${subs.map(([k, t]) => `<button class="subaba" role="tab" data-sub="${k}" aria-selected="${prefs.tab === k}">${t}</button>`).join('')}</div>`;
@@ -352,8 +349,6 @@ main.addEventListener('click', async (e) => {
   // Sub-aba: o mesmo que tocar na aba (cada tela se prepara como sempre).
   const sub = e.target.closest('[data-sub]');
   if (sub) {
-    // Da tela de Ervas para uma sub-aba de Oferendas: já abre na sub-aba tocada.
-    if (sub.dataset.ofaba) estado.ofUi = { ...estado.ofUi, aba: sub.dataset.ofaba };
     if (sub.dataset.sub !== prefs.tab) tabs.querySelector(`[data-tab="${sub.dataset.sub}"]`).click();
     return;
   }

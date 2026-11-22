@@ -1,7 +1,7 @@
 // Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
 
 import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes, arred, passoLevar, responsaveisItem } from '/shared/oferendas.js';
-import { estado, pode, pessoasOrd, carregarOferendas, abrirOferendasAnteriores, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva, veErvas } from '../estado.js';
+import { estado, pode, pessoasOrd, carregarOferendas, abrirOferendasAnteriores, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva } from '../estado.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes, atualizarPrevia, dobrarCategoria } from './oferendaComum.js';
@@ -305,21 +305,13 @@ function listaDaAba(aba) {
   return h;
 }
 
-// Sub-abas; o + e Renomear/Excluir são só do root. Ervas (uma tela à parte) entra logo depois da Iemanjá.
-// naErvas: a barra desenhada na tela de Ervas (Ervas marcada; as outras levam de volta às Oferendas, já na sub-aba).
-function barraAbas(aba, naErvas = false) {
+// Sub-abas; o + e Renomear/Excluir são só do root.
+function barraAbas(aba) {
   const l = subabas();
-  const root = !naErvas && souRoot() && veLista();
-  const ervas = veErvas();
-  if (l.length + (ervas ? 1 : 0) < 2 && !root) return '';
+  const root = souRoot() && veLista();
+  if (l.length < 2 && !root) return '';
   const nome = (a) => `${a.iemanja || a.visivel ? '' : '<span title="Só os admins veem" aria-label="Oculta">🔒</span> '}${esc(a.nome)}`;
-  const botoes = l.map((a) => (naErvas
-    ? `<button class="subaba" role="tab" data-sub="oferendas" data-ofaba="${a.id}" aria-selected="false">${nome(a)}</button>`
-    : `<button class="subaba" role="tab" data-act="ofaba" data-id="${a.id}" aria-selected="${a.id === aba.id}">${nome(a)}</button>`));
-  if (ervas) {
-    const iem = l.findIndex((a) => a.iemanja);
-    botoes.splice(iem >= 0 ? iem + 1 : botoes.length, 0, `<button class="subaba" role="tab" data-sub="ervas" aria-selected="${naErvas}">Ervas</button>`);
-  }
+  const botoes = l.map((a) => `<button class="subaba" role="tab" data-act="ofaba" data-id="${a.id}" aria-selected="${a.id === aba.id}">${nome(a)}</button>`);
   return `<div class="subabas" role="tablist" aria-label="Sub-abas de oferendas">${botoes.join('')}${root ? '<button class="subaba mais" data-act="ofabanova" aria-label="Criar sub-aba" title="Criar sub-aba">＋</button>' : ''}</div>
     ${root && !aba.iemanja ? `<div class="subaba-adm"><label class="of-sw"><input type="checkbox" role="switch" data-act="ofabavisivel" data-id="${aba.id}" ${aba.visivel ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label><span class="subaba-bts"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button><button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button></span></div>` : ''}`;
 }
@@ -348,12 +340,6 @@ export function render() {
   const aba = abaAtiva();
   if (!aba) return `<section class="panel"><div class="card empty"><p class="muted">Nenhuma oferenda disponível.</p></div></section>`;
   return `<section class="panel">${cardMeusCompromissos()}${veLista() ? cardPorPessoa() : ''}${barraAbas(aba)}${aba.iemanja ? iemanja.conteudo() : listaDaAba(aba)}${janelaEntregue()}${janelaAba()}${janelaNova()}</section>`;
-}
-
-// A barra das sub-abas de Oferendas no topo da tela de Ervas (sem as oferendas baixadas, busca e desenha depois).
-export function barraParaErvas() {
-  if (veLista() && !estado.oferendas) { if (estado.oferendas === null) carregarOferendas(); return ''; }
-  return barraAbas(null, true);
 }
 
 // Janela "Confirmar entrega" da caixinha de entregue da linha do item: OK marca, Cancelar deixa como está.
