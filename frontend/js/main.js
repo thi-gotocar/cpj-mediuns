@@ -4,7 +4,6 @@ import { estadoDoApp, logado, entrar, cadastrar, criarSenhaContato, verificarCpf
 import { quandoSessaoExpirar, definirVerComo } from './api.js';
 import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veAmaci, veTransparencia, vePedidos, veDiario, vePessoas, temPendencia } from './estado.js';
 import { esc, toast, hoje, mascaraTel, guardarRascunhos, devolverRascunhos } from './util.js';
-import { iniciarAtualizacao } from './atualizacao.js';
 import { PIN_NOVO, PIN_NOVO_MSG } from '/shared/permissoes.js';
 import { cpfValido } from '/shared/perfil.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
@@ -51,9 +50,17 @@ function abrirTela(tab) {
   const aviso = setTimeout(() => { if (prefs.tab === tab) main.innerHTML = '<div class="loading">Carregando…</div>'; }, 200);
   telaDe(tab).then(() => { clearTimeout(aviso); if (prefs.tab === tab) render(); }).catch(() => {
     clearTimeout(aviso);
-    // O app pode ter atualizado com esta página aberta: a aba nova não encaixa no código antigo.
-    if (navigator.onLine && !temPendencia()) { location.reload(); return; }
-    if (prefs.tab === tab) main.innerHTML = '<div class="card"><p class="erro">Não foi possível abrir esta aba. Verifique a internet.</p><button class="btn" data-conta="recarregar-pagina">Tentar de novo</button></div>';
+    // O app pode ter atualizado com esta página aberta: a aba nova não encaixa no código antigo. Recarrega uma vez;
+    // se a mesma aba falhar de novo logo depois, não entra em laço: mostra o erro (o Atualizar app limpa o cache).
+    let ultima = null;
+    try { ultima = JSON.parse(sessionStorage.getItem('sm-aba-falhou') || 'null'); } catch { /* */ }
+    const repetiu = ultima && ultima.tab === tab && Date.now() - ultima.em < 60000;
+    if (navigator.onLine && !temPendencia() && !repetiu) {
+      try { sessionStorage.setItem('sm-aba-falhou', JSON.stringify({ tab, em: Date.now() })); } catch { /* */ }
+      location.reload();
+      return;
+    }
+    if (prefs.tab === tab) main.innerHTML = `<div class="card"><p class="erro">Não foi possível abrir esta aba.${repetiu ? ' Toque em <b>Atualizar app</b>, no fim da página.' : ' Verifique a internet.'}</p><button class="btn" data-conta="recarregar-pagina">Tentar de novo</button></div>`;
   });
 }
 let erroLogin = '';
@@ -665,5 +672,8 @@ window.addEventListener('pagehide', salvarPerfilAgora);
 window.addEventListener('focus', () => atualizarDoServidor());
 
 iniciar();
-iniciarAtualizacao({ pendente: temPendencia, digitando: () => ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) });
+// A atualização roda à parte (js/atualizacao.js, script próprio antes deste): aqui só avisa que o app abriu e o que ela
+// precisa saber dele.
+window.__smApp = { pendente: temPendencia, digitando: () => ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName), toast };
+window.__smAberto = true;
 export { avisar };
