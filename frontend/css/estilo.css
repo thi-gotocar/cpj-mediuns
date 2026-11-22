@@ -2391,6 +2391,8 @@ div.pf-of-total{cursor:default}
 .gn-check{display:flex;align-items:center;gap:8px;font-weight:700;min-height:40px}
 .gn-check input{width:20px;height:20px}
 .gn-nota{margin:0;font-size:.88rem}
+.gn-excluir{justify-self:start}
+.gn-excluir-c{display:grid;gap:8px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--falta) 45%,var(--line));border-radius:10px}
 .gn-recado-ed{font-family:var(--f-body);font-size:1rem;min-height:calc(2lh + 20px);max-height:calc(5lh + 20px);height:auto;field-sizing:content;resize:none}
 .gn-barra{display:flex;gap:2px;height:10px;border-radius:6px;overflow:hidden}
 .gn-barra .b-p{background:var(--ok)}.gn-barra .b-f{background:var(--falta)}.gn-barra .b-a{background:var(--off)}.gn-barra .b-lic{background:var(--muted)}.gn-barra .b-pend{background:var(--warn)}

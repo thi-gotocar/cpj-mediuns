@@ -4,7 +4,7 @@
 
 import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, proximaTurma } from '/shared/regras.js';
 import { aniversariantesDoDia, rotuloTipo } from '/shared/eventos.js';
-import { estado, prefs, salvarPrefs, girasLista, giraAtual, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, girasLista, giraAtual, excluirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, hoje } from '../util.js';
 import { ICONE_WHATS, htmlStatus } from './giraComum.js';
 import { blocoLimpeza, blocoBanho, blocoPedirErvas, blocosOferenda, escolhaTurma } from './giraInformacoes.js';
@@ -58,15 +58,19 @@ function cabecalho(ctx) {
       else if (editar) selos.push(temDuplas ? '<span class="gn-selo warn">Escala não publicada</span>' : '<span class="gn-selo">Sem sorteio</span>');
     }
   }
-  // Os eventos da agenda nesta data (fora a própria gira) e quem faz aniversário.
-  const agenda = (estado.eventos || []).filter((e) => e.data === g.data && (!existe || e.nome !== titulo)).map((e) => `${esc(e.nome)} <span class="muted">(${esc(rotuloTipo(e))})</span>`);
-  const niver = aniversariantesDoDia(estado.pessoas, g.data);
   return `<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span>
     <h1 class="gn-titulo">${esc(titulo)}</h1>
     ${selos.length ? `<div class="gn-selos">${selos.join('')}</div>` : ''}
-    ${agenda.length ? `<p class="gn-extra">${agenda.join(' · ')}</p>` : ''}
-    ${niver.length ? `<p class="gn-extra"><span aria-hidden="true">🎈</span> Aniversário: ${niver.map((p) => esc(p.nome)).join(', ')}</p>` : ''}
+    ${extrasDoDia(g.data, existe ? titulo : null)}
     ${compartilhar(ctx)}</div>`;
+}
+
+// Os eventos da agenda na data (fora o que já é o título) e quem faz aniversário; também no dia sem gira cadastrada.
+function extrasDoDia(data, titulo) {
+  const agenda = (estado.eventos || []).filter((e) => e.data === data && e.nome !== titulo).map((e) => `${esc(e.nome)} <span class="muted">(${esc(rotuloTipo(e))})</span>`);
+  const niver = aniversariantesDoDia(estado.pessoas, data);
+  return `${agenda.length ? `<p class="gn-extra">${agenda.join(' · ')}</p>` : ''}
+    ${niver.length ? `<p class="gn-extra"><span aria-hidden="true">🎈</span> Aniversário: ${niver.map((p) => esc(p.nome)).join(', ')}</p>` : ''}`;
 }
 
 // ---------- Compartilhar: um botão só, com as opções que a pessoa tem ----------
@@ -132,6 +136,14 @@ function passo(n, num, titulo, resumo, feito, aberto, corpo) {
     ${aberto ? `<div class="gn-passo-c">${corpo}</div>` : ''}</div>`;
 }
 
+// Gira de hoje em diante, ainda aberta (criada por engano): Excluir, com confirmação. As passadas saem pelo Histórico.
+function excluir(g) {
+  if (!pode('giras:excluir') || g.encerrada || g.data < hoje() || !estado.giras[g.data]) return '';
+  if (estado.confirm !== 'gn:' + g.data) return `<button type="button" class="btn link small danger gn-excluir" data-act="askdel" data-k="gn:${esc(g.data)}"><span aria-hidden="true">🗑️</span> Excluir esta gira</button>`;
+  return `<div class="gn-excluir-c"><p class="gn-aviso">Excluir a gira de ${esc(dDM(g.data))}? Saem a presença, a escala e o resto desta data, para todos. Não dá para desfazer.</p>
+    <div class="row" style="gap:8px"><button type="button" class="btn" data-act="gnexcnao">Cancelar</button><button type="button" class="btn danger" data-act="gnexcluir" data-d="${esc(g.data)}">Excluir gira</button></div></div>`;
+}
+
 function conducao(ctx) {
   const { g, ps, temDuplas, publicada } = ctx;
   const pend = ps.filter((p) => !licencaEm(p, g.data) && presencaDe(p, g) === 'pend');
@@ -152,7 +164,8 @@ function conducao(ctx) {
     ${publicada ? '<p class="muted gn-nota">Escala publicada: gira, orixá, Evento e data ficam fixos. Para mudar, oculte a escala no passo Escala.</p>'
       : `<button type="button" class="btn" data-act="mudardata">📅 Alterar data · ${esc(dDM(g.data))}</button>`}
     ${!g.evento && temLimpeza(g) ? campoTurma(g, L) : ''}
-    <label class="field">Recado para a corrente<textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos.">${esc(recado)}</textarea></label>`;
+    <label class="field">Recado para a corrente<textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos.">${esc(recado)}</textarea></label>
+    ${excluir(g)}`;
 
   // 2. Presença
   const conta = (s) => ps.filter((p) => presencaDe(p, g) === s).length;
@@ -227,7 +240,7 @@ export function montarNova(ctx) {
   const { g, semGira } = ctx;
   const faixa = faixaSemana(g, ctx.marcas, ctx.calendario);
   if (semGira) {
-    return `<section class="panel gn">${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span><h1 class="gn-titulo">Nenhuma gira nesta data</h1></div>
+    return `<section class="panel gn">${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span><h1 class="gn-titulo">Nenhuma gira nesta data</h1>${extrasDoDia(g.data, null)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>${ctx.ausPrevia || ''}${ctx.ano || ''}</section>`;
   }
   const { existe, editar, encerrada } = ctx;
@@ -255,6 +268,8 @@ export const cliquesNova = {
   gnsemana(el) { prefs.data = maisDias(prefs.data, Number(el.dataset.v)); salvarPrefs(); avisar(); },
   gncomp() { compAberto = true; atualizarJanela(); },
   gncompfechar() { fecharCompartilhar(); },
+  gnexcnao() { avisar(); },
+  async gnexcluir(el) { const d = el.dataset.d; await excluirGira(d); passos.delete(d); },
 };
 
 // As ações do Compartilhar (waabrir, pvabrir, oraabrir, eventoimagem) chamam isto antes de abrir a própria janela.
