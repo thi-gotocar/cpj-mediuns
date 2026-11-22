@@ -1993,20 +1993,6 @@ section.panel.gi-tela{gap:12px}
 .iem-resumo-bt{justify-self:end;min-height:38px;padding:4px 14px}
 
 /* Aba Amaci: seletor de orixás e blocos (pontos riscados sobre fundo claro, como pemba no chão) */
-.am-cab{gap:12px}
-.am-cab-info{list-style:none;margin:0;padding:10px 0 0;border-top:1px solid var(--line);display:grid;gap:6px;font-size:.95rem}
-.am-cab-info li{display:flex;gap:8px;align-items:baseline;overflow-wrap:anywhere}
-.am-cab-info .am-hoje{color:var(--ok)}
-.am-filtro{gap:12px}
-.am-filtro-l{display:flex;align-items:center;gap:8px}
-.am-filtro-l select{flex:1;min-width:0;font-weight:700}
-.am-pres-area{display:grid;gap:10px}
-.am-filtro-l + .am-pres-area{padding-top:12px;border-top:1px solid var(--line)}
-.am-pres-area h3{margin:0;font-size:1.05rem}
-.am-pres-lista{display:grid;gap:8px}
-.am-pres-dia .am-pres-nota{flex:1 1 100%}
-.am-pres-area .am-cab-info{padding:0;border:0}
-.am-pres-dia{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .am-padm-h{display:flex;align-items:center;gap:8px}
 .am-padm-h .grp-h{flex:1 1 auto;min-width:0}
 .am-padm-h h3{white-space:nowrap}
@@ -2040,16 +2026,9 @@ section.panel.gi-tela{gap:12px}
 .pf-of-totais.am-padm-q{grid-template-columns:repeat(2,minmax(0,1fr))}
 .am-q-p{--fn:var(--ok)}
 .am-q-a{--fn:var(--gold)}
-.am-filtro-n{font-size:.8rem;white-space:nowrap}
-.am-pres{gap:10px}
 .am-pres-barra{height:8px;border-radius:8px;background:var(--line);overflow:hidden}
 .am-pres-barra span{display:block;height:100%;background:var(--ok)}
-.am-pres-l{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.am-pres-l li{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .am-pres-n{display:grid;gap:2px;min-width:0}
-.am-pres-hoje{border-color:var(--ok)!important}
-.am-pres-acao{display:flex;gap:8px;align-items:center;flex:1 1 100%}
-.am-pres-acao select{flex:1;min-width:0}
 .am-pres-nota{font-size:.82rem;margin:0}
 .am-pres-ts{display:grid;gap:10px;padding:2px 12px 12px}
 .am-pres-t{display:grid;gap:6px}
@@ -2058,21 +2037,14 @@ section.panel.gi-tela{gap:12px}
 /* Amaci: cada bloco com a sua cor (faixa à esquerda e fundo do ícone) e o título separado do texto por uma linha. */
 .am-tela{gap:16px}
 .am-bloco{gap:12px;border-left:4px solid var(--am-cor,var(--line))}
-.am-c-erva{--am-cor:var(--ok)}
-.am-c-vela{--am-cor:var(--gold)}
-.am-c-ponto{--am-cor:var(--accent)}
-.am-c-fator{--am-cor:var(--orange)}
 .am-bloco-h{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .am-bloco-h h3{margin:0;font-size:1.1rem;flex:1 1 auto}
 .am-ico{flex:none;display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px;font-size:1.15rem;line-height:1;background:color-mix(in srgb,var(--am-cor,var(--accent)) 16%,transparent)}
 .am-lista{margin:0;padding-left:20px;display:grid;gap:8px;font-size:1rem;line-height:1.55}
 .am-lista li{overflow-wrap:anywhere;padding-left:2px}
 .am-lista li::marker{color:var(--am-cor,var(--muted))}
-.am-fatores{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
-.am-fatores li{border-radius:12px;padding:7px 12px;line-height:1.45;font-size:.97rem;overflow-wrap:anywhere;background:color-mix(in srgb,var(--am-cor) 9%,var(--bg));border:1px solid color-mix(in srgb,var(--am-cor) 28%,var(--line))}
-.am-nome{display:flex;align-items:center;gap:12px}
-.am-nome h2{margin:2px 0 0;font-size:1.5rem}
-.am-ico-g{--am-cor:var(--gold);width:48px;height:48px;font-size:1.5rem;border-radius:14px}
+.am-fatores{margin:0;padding-left:20px;display:grid;gap:8px;font-size:1rem;line-height:1.55}
+.am-fatores li{overflow-wrap:anywhere}
 /* Recados: o logo da casa (preto) num quadrado branco, para aparecer também no tema escuro. */
 .am-ico-casa{background:#fff;border:1px solid var(--line);padding:3px;box-sizing:border-box}
 .am-ico-casa img{width:100%;height:100%;object-fit:contain}
@@ -2447,3 +2419,45 @@ div.pf-of-total{cursor:default}
 .gn-tambem .limpeza.oferenda{border-left:0;background:var(--bg);border-radius:10px}
 .gn-tambem .limpeza.pedir-ervas>b{font-family:var(--f-body);font-size:1rem}
 .gn-sug-turma{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:8px 10px;border-radius:10px;background:var(--warn-soft);color:var(--ink);font-weight:500;font-size:.92rem}
+
+/* Aba Amaci: o orixá com a trilha dos 14, o cartão Hoje, Minha presença e a apostila como uma página */
+.am-topo{display:grid;gap:4px}
+.am-trono{font-size:.9rem;font-weight:700;color:var(--gold)}
+.am-titulo{font-family:var(--f-display);font-size:2.4rem;line-height:1.05;margin:0;overflow-wrap:anywhere}
+.am-trilha{display:grid;gap:8px;margin-top:12px}
+.am-trilha-h{display:flex;justify-content:space-between;gap:8px;font-size:.85rem;color:var(--muted)}
+.am-trilha-h b{color:var(--warn)}
+.am-passos{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px 4px}
+.am-passo{display:flex;flex-direction:column;align-items:center;gap:4px;min-height:56px;padding:2px 0;border:0;background:none;color:var(--ink);font:inherit;cursor:pointer;min-width:0}
+.am-passo-n{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:.9rem;background:color-mix(in srgb,var(--accent) 30%,var(--surface));box-sizing:border-box}
+.am-passo-t{font-size:.7rem;font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.am-passo.sel .am-passo-n{background:var(--gold);color:var(--surface)}
+.am-passo.sel .am-passo-t{color:var(--gold)}
+.am-passo.bloq{cursor:default}
+.am-passo.bloq .am-passo-n{background:none;border:1px dashed var(--line);color:color-mix(in srgb,var(--muted) 60%,transparent)}
+.am-passo.bloq .am-passo-t{color:color-mix(in srgb,var(--muted) 60%,transparent)}
+.am-hoje{display:grid;gap:10px;padding:16px;border-radius:16px;background:color-mix(in srgb,var(--accent) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line))}
+.am-hoje-d{font-size:.84rem;font-weight:700;color:var(--accent)}
+.am-hoje-n{font-family:var(--f-display);font-size:1.3rem}
+.am-hoje-bt{min-height:52px;font-size:1.05rem;white-space:normal}
+.am-hoje-ok{display:flex;align-items:center;gap:8px;padding:12px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font-weight:700}
+.am-prox{margin:0;font-size:.92rem}
+.am-mp{border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.am-mp-h{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:10px 14px;border:0;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.am-mp-t{flex:1;min-width:0;display:grid;gap:1px}
+.am-mp-pct{font-family:var(--f-display);font-size:1.4rem;color:var(--warn)}
+.am-mp-c{display:grid;gap:8px;padding:0 14px 14px}
+.am-mp-l{list-style:none;margin:0;padding:0;display:grid}
+.am-mp-l li{display:flex;justify-content:space-between;align-items:center;gap:6px 8px;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--line)}
+.am-mp-marcar{flex:1 1 100%;justify-self:start;max-width:max-content}
+.am-apostila{display:grid;min-width:0}
+.am-recado{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:14px;background:var(--accent-soft);margin-bottom:6px}
+.am-recado-c{flex:1;min-width:0;display:grid;gap:2px}
+.am-recado-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.84rem;font-weight:700;color:var(--accent)}
+.am-recado .am-ori-txt{font-family:var(--f-display);font-size:1.15rem;line-height:1.3}
+.am-atalhos{display:flex;flex-wrap:wrap;gap:8px;padding:12px 0 4px}
+.am-atalho{min-height:36px;padding:4px 12px;border:1px solid var(--line);border-radius:999px;background:none;color:var(--ink);font:700 .9rem var(--f-body);cursor:pointer}
+.am-sec{display:grid;gap:10px;padding:18px 0;border-top:1px solid var(--line);scroll-margin-top:70px}
+.am-atalhos+.am-sec,.am-recado+.am-sec{border-top:0}
+.am-sec h3{margin:0;font-family:var(--f-display);font-size:1.3rem}
+.am-vazio{margin:0}
