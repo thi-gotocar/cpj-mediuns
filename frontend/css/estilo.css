@@ -2516,3 +2516,10 @@ div.pf-of-total{cursor:default}
 .di-emo-pronto{justify-self:start}
 .di-termo{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 70%,transparent)}
 .di-banho{display:grid;gap:10px}
+.di-cuids.cinco{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.di-cuids.cinco .di-cuid-t{font-size:.66rem}
+.di-cuid-ciclo{--c:var(--di-rosa)}
+.di-p-ciclo{background:var(--di-rosa)}
+.di-ciclo{display:grid;gap:8px}
+.di-ciclo-i,.di-ciclo-p{margin:0;font-size:.85rem}
+.di-prefs{gap:6px}

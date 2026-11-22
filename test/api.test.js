@@ -3093,6 +3093,10 @@ test('diário: só o root vê até ligar; cada um lê e grava só o seu, com os 
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.deepEqual(r.json.dados, { antes: { emo: ['ansioso'] }, banho: { ervas: ['arruda'], feito: false, origem: 'guia' } });
   assert.equal((await salvar(ana, '2999-01-01', { antes: { emo: 'paz' } })).status, 400, 'dia que ainda não chegou');
+  // Ciclo: só com menstruada; fluxo e sintomas só os da lista.
+  const c = await salvar(ana, '2024-03-03', { ciclo: { menstruada: true, fluxo: 'forte', sintomas: ['colica', 'xx', 'colica'] } });
+  assert.deepEqual(c.json.dados, { ciclo: { menstruada: true, fluxo: 'forte', sintomas: ['colica'] } });
+  assert.deepEqual((await salvar(ana, '2024-03-03', { ciclo: { menstruada: false, fluxo: 'leve' } })).json.dados, {}, 'sem menstruada, o ciclo cai fora');
   assert.deepEqual((await ler(ana)).json.dias.map((d) => d.data), ['2024-03-02']);
   assert.equal((await ler(ADMIN)).json.dias.some((d) => d.data === '2024-03-02'), false, 'o root não vê o diário dos outros');
   await salvar(ana, '2024-03-02', {});

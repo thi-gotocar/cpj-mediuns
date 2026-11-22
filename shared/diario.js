@@ -38,6 +38,31 @@ export const GRUPOS_SENSACOES = [
   { k: 'dificil', titulo: 'Neutras ou difíceis', itens: [['igual', 'Sem diferença'], ['pesado', 'Pesado'], ['esgotado', 'Esgotado'], ['agitado', 'Agitado'], ['confuso', 'Confuso']] },
 ];
 export const SENSACOES = GRUPOS_SENSACOES.flatMap((g) => g.itens);
+// Ciclo menstrual (opcional: só aparece para quem liga "Registrar meu ciclo" no Diário).
+export const FLUXOS = [['leve', 'Leve'], ['medio', 'Médio'], ['forte', 'Forte']];
+export const SINTOMAS_CICLO = [['colica', 'Cólica'], ['cabeca', 'Dor de cabeça'], ['inchaco', 'Inchaço'], ['sensibilidade', 'Sensibilidade'], ['cansaco', 'Cansaço']];
+
+// Ciclo: inícios (dia menstruada depois de um dia sem), a média entre eles (só intervalos de 15 a 45 dias, para não
+// contar um registro esquecido) e a previsão do próximo; e a energia média nos dias do ciclo e nos outros.
+// dias: [{ data, dados }] em qualquer ordem.
+export function resumoCiclo(dias, hoje) {
+  const menstr = new Set((dias || []).filter((x) => x.dados?.ciclo?.menstruada).map((x) => x.data));
+  const antes = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd - 1)).toISOString().slice(0, 10); };
+  const entre = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+  const inicios = [...menstr].filter((d) => !menstr.has(antes(d))).sort();
+  const intervalos = inicios.slice(1).map((d, i) => entre(inicios[i], d)).filter((n) => n >= 15 && n <= 45);
+  const media = intervalos.length ? Math.round(intervalos.reduce((s, n) => s + n, 0) / intervalos.length) : null;
+  const ultimo = inicios.filter((d) => d <= hoje).at(-1) || null;
+  const proximo = media && ultimo ? (() => { const [y, m, dd] = ultimo.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd + media)).toISOString().slice(0, 10); })() : null;
+  // Dia do ciclo de hoje: contando do último início, enquanto os dias seguidos estão marcados.
+  let diaAtual = null;
+  if (menstr.has(hoje) && ultimo) diaAtual = entre(ultimo, hoje) + 1;
+  const energiaDe = (dd) => { const v = [dd?.antes?.energia, dd?.depois?.energia].filter(Boolean); return v.length ? v.reduce((s, n) => s + n, 0) / v.length : null; };
+  const comCiclo = [], sem = [];
+  for (const x of dias || []) { const e = energiaDe(x.dados); if (e !== null) (menstr.has(x.data) ? comCiclo : sem).push(e); }
+  const med = (l) => (l.length ? Math.round((l.reduce((s, n) => s + n, 0) / l.length) * 10) / 10 : null);
+  return { inicios, media, proximo, diaAtual, energiaCiclo: comCiclo.length >= 3 ? med(comCiclo) : null, energiaOutros: comCiclo.length >= 3 ? med(sem) : null };
+}
 export const SONO = [['bem', 'Dormi bem'], ['pouco', 'Dormi pouco'], ['agitado', 'Sono agitado'], ['sonhos', 'Sonhos marcantes']];
 // Linhas que dá para escolher no conselho do guia (sem o Encontro das Linhas, que não é um guia).
 export const LINHAS_DIARIO = LINHAS.flatMap((g) => g.itens).filter(([k]) => k !== 'mista');
@@ -139,6 +164,11 @@ function habitos(h) {
     banho: sim(banho), orixa, ervas: ervas.length ? ervas : undefined,
   });
 }
+function ciclo(c) {
+  if (!c || typeof c !== 'object' || c.menstruada !== true) return undefined;
+  const sint = Array.isArray(c.sintomas) ? [...new Set(c.sintomas.filter((s) => umDe(s, SINTOMAS_CICLO)))] : [];
+  return limpo({ menstruada: true, fluxo: umDe(c.fluxo, FLUXOS), sintomas: sint.length ? sint : undefined });
+}
 const nota = (v) => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : undefined);
 const texto = (v, max) => (typeof v === 'string' && v.trim() ? v.replace(/\r/g, '').trim().slice(0, max) : undefined);
 const limpo = (o) => {
@@ -155,6 +185,7 @@ export const MAX_ERVAS = 15;
 //   linha, conselho (dia de gira) · reflexao (dia comum)
 //   habitos: { preceito, atividade, agua, litros, banho, orixa | ervas: [até 7] } (só os marcados)
 //   banho: { ervas: [..], feito, origem: 'guia' | 'orientador' | 'proprio' (anotado pela pessoa num dia comum) }
+//   ciclo: { menstruada: true, fluxo: 'leve' | 'medio' | 'forte', sintomas: [..] } (só quando marcada)
 export function normalizarDia(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return {};
   const ervas = Array.isArray(d.banho?.ervas)
@@ -162,6 +193,7 @@ export function normalizarDia(d) {
   return limpo({
     gira: typeof d.gira === 'boolean' ? d.gira : undefined,
     habitos: habitos(d.habitos),
+    ciclo: ciclo(d.ciclo),
     antes: limpo({ humor: nota(d.antes?.humor), emo: emocoes(d.antes?.emo), energia: nota(d.antes?.energia), sono: umDe(d.antes?.sono, SONO) }),
     depois: limpo({ humor: nota(d.depois?.humor), emo: emocoes(d.depois?.emo), energia: nota(d.depois?.energia), sensacao: umDe(d.depois?.sensacao, SENSACOES) }),
     linha: umDe(d.linha, LINHAS_DIARIO),
