@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 162;  // v162: clientes do ASAAS guardados sem prazo, Atualizar contatos e Buscar
+export const VERSAO = 163;  // v163: índice das linhas por cobrança e busca por descrição numa varredura só
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5185,6 +5185,8 @@ export const MIGRACOES = [
       where conta = p ->> 'conta' and id in (select jsonb_array_elements_text(coalesce(p -> 'ids', '[]'::jsonb)));
      select jsonb_build_object('ok', true)
    $$`,
+  // Linhas por cobrança: usado pela aba ASAAS (itens de cada link), pelo Falta pagar e pela busca; antes era varredura.
+  `create index if not exists guias_linhas_cobranca on guias_linhas (cobranca_id) where cobranca_id is not null`,
   // Buscar (aba ASAAS): o que o app já guarda — links das Compras e vencidas da última leitura — e os clientes do ASAAS a
   // consultar. Um tipo por busca: nome (do cadastro, do Perfil ou do cliente no ASAAS), descrição (da cobrança, itens e
   // "pedido nº"), valor ou link (iguais). Nome e descrição já vêm com % e _ escapados.
@@ -5227,7 +5229,7 @@ export const MIGRACOES = [
                 or (par.link is not null and c.link = par.link)
                 or (par.t is not null and (c.nome ilike par.t or c.chave in (select g.chave from gente g)))
                 or (par.d is not null and (('CPJ · ' || case when c.conta = 'B' then 'Doação' else 'Compras' end || ' · pedido nº ' || c.pedido) ilike par.d
-                      or exists (select 1 from guias_linhas l where l.cobranca_id = c.id and l.descricao ilike par.d)
+                      or c.id in (select l.cobranca_id from guias_linhas l where l.descricao ilike par.d)
                       or exists (select 1 from jsonb_array_elements_text(coalesce(c.itens_cancelados, '[]'::jsonb)) v where v ilike par.d))))
             order by c.criado_em desc limit 30) x), '[]'::jsonb),
        'atrasos', coalesce((select jsonb_agg(x.j) from (

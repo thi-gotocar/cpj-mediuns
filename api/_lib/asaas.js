@@ -72,56 +72,65 @@ export const leituraDoDia = (atualizadoEm) => !!atualizadoEm && Date.parse(atual
 // → Map(id → { id, nome, telefone, cpfHash, referencia }); cliente que o ASAAS não devolveu fica de fora.
 const PREFIXO = { A: 'ASAAS', B: 'ASAAS2' };
 const LOTE_CLIENTES = 10;
-export async function clientesAsaas(conta, ids) {
+export async function clientesAsaas(conta, ids, opcoes) {
   const clientes = new Map();
   const unicos = [...new Set(ids.filter(Boolean))];
   if (!unicos.length) return clientes;
   (await db.rpc('asaas_clientes_info_ler', { conta, ids: unicos })).forEach((c) => clientes.set(c.id, c));
-  const { lidos } = await buscarClientes(conta, unicos.filter((id) => !clientes.has(id)));
+  const { lidos } = await buscarClientes(conta, unicos.filter((id) => !clientes.has(id)), opcoes);
   lidos.forEach((c) => clientes.set(c.id, c));
   return clientes;
 }
 
 // Busca os clientes no ASAAS, de 10 em 10, e guarda os que vieram. → { lidos, falhas: [{ id, rede }] }
 // rede: o ASAAS não respondeu (502); senão, ele recusou (ex.: cliente excluído).
-async function buscarClientes(conta, ids) {
+// ms: espera máxima de cada chamada; ate: depois dessa hora (Date.now()), não começa outra rodada de 10 (os que
+// sobram não entram em lidos nem em falhas), para a função não passar do limite de 15 s da Vercel. Rodada em que o ASAAS
+// não respondeu nenhum encerra a busca.
+async function buscarClientes(conta, ids, { ms = 8000, ate = Infinity } = {}) {
   const lidos = [];
   const falhas = [];
-  for (let i = 0; i < ids.length; i += LOTE_CLIENTES) {
-    await Promise.all(ids.slice(i, i + LOTE_CLIENTES).map(async (id) => {
+  for (let i = 0; i < ids.length && Date.now() < ate; i += LOTE_CLIENTES) {
+    const antes = lidos.length;
+    const rodada = ids.slice(i, i + LOTE_CLIENTES);
+    await Promise.all(rodada.map(async (id) => {
       try {
-        const cli = await chamarAsaas(PREFIXO[conta], 'GET', `/customers/${encodeURIComponent(id)}`);
+        const cli = await chamarAsaas(PREFIXO[conta], 'GET', `/customers/${encodeURIComponent(id)}`, null, ms);
         const cpf = String(cli?.cpfCnpj || '').replace(/\D/g, '');
         let cpfHash = '';
         if (cpf.length === 11) { try { cpfHash = hashCpf(cpf); } catch { /* sem CPF_CHAVE: não liga por CPF */ } }
         lidos.push({ id, nome: String(cli?.name || ''), telefone: String(cli?.mobilePhone || cli?.phone || '').replace(/\D/g, ''), cpfHash, referencia: String(cli?.externalReference || '') });
       } catch (e) { falhas.push({ id, rede: e?.status === 502 }); }
     }));
+    // Rodada inteira sem resposta do ASAAS: não insiste nas próximas (cada uma esperaria o tempo todo de novo).
+    if (lidos.length === antes && falhas.slice(-rodada.length).every((f) => f.rede)) break;
   }
   if (lidos.length) await db.rpc('asaas_clientes_info_salvar', { conta, itens: lidos });
   return { lidos, falhas };
 }
 
 // Atualizar contatos (aba ASAAS → Conexão): busca de novo no ASAAS os clientes guardados das contas ligadas, os mais
-// antigos primeiro. Cada pedido para em ~9 s (o limite da função é 15 s); a tela repete com o mesmo desde (a hora do
+// antigos primeiro. Cada pedido não começa rodada nova depois de ~9 s e cada chamada espera no máximo 4 s (o limite
+// da função é 15 s); os que ficaram para trás seguem na fila. A tela repete com o mesmo desde (a hora do
 // servidor no 1º pedido) até não faltar nenhum. Cliente que o ASAAS recusa (ex.: excluído) fica com os dados que tinha
 // e não volta para a fila (conta em recusados); se o ASAAS não responder, para com erro.
 // → { desde, atualizados, recusados, faltam, erro? }
 const LOTE_CONTATOS = 50;
 const TEMPO_CONTATOS_MS = 9000;
+const ESPERA_CONTATO_MS = 4000;
 async function contatosAsaas(b) {
   const contas = Object.keys(PREFIXO).filter((k) => process.env[PREFIXO[k] + '_API_KEY']);
   if (!contas.length) throw new HttpError(400, 'Nenhuma conta do ASAAS configurada na Vercel.');
   const desde = typeof b.desde === 'string' && !Number.isNaN(Date.parse(b.desde)) ? b.desde : new Date().toISOString();
-  const inicio = Date.now();
+  const ate = Date.now() + TEMPO_CONTATOS_MS;
   let atualizados = 0;
   let recusadosTotal = 0;
   let erro;
   for (const conta of contas) {
-    while (!erro && Date.now() - inicio < TEMPO_CONTATOS_MS) {
+    while (!erro && Date.now() < ate) {
       const { ids } = await db.rpc('asaas_clientes_info_pendentes', { conta, desde, limite: LOTE_CONTATOS });
       if (!ids.length) break;
-      const { lidos, falhas } = await buscarClientes(conta, ids);
+      const { lidos, falhas } = await buscarClientes(conta, ids, { ms: ESPERA_CONTATO_MS, ate });
       atualizados += lidos.length;
       const recusados = falhas.filter((f) => !f.rede).map((f) => f.id);
       recusadosTotal += recusados.length;
@@ -129,8 +138,8 @@ async function contatosAsaas(b) {
       if (falhas.some((f) => f.rede)) erro = `O ASAAS da conta ${conta} não respondeu. Tente de novo em instantes.`;
     }
   }
-  let faltam = 0;
-  for (const conta of contas) faltam += (await db.rpc('asaas_clientes_info_pendentes', { conta, desde, limite: 0 })).total;
+  const faltam = (await Promise.all(contas.map((conta) => db.rpc('asaas_clientes_info_pendentes', { conta, desde, limite: 0 }))))
+    .reduce((s, r) => s + r.total, 0);
   return { desde, atualizados, recusados: recusadosTotal, faltam, ...(erro ? { erro } : {}) };
 }
 
@@ -352,6 +361,9 @@ const SITUACAO = {
   AWAITING_RISK_ANALYSIS: ['Em análise', 'pendente'], DELETED: ['Excluído', 'cancelado'],
 };
 const MAX_CLIENTES_BUSCA = 8;
+// Esperas da busca: as duas contas correm juntas e cada uma faz no máximo 3 passos em sequência (clientes pelo nome,
+// cobranças, dados dos clientes novos): 4 + 5 + 4 s no pior caso, abaixo dos 15 s da Vercel.
+const ESPERA_BUSCA_MS = { clientes: 4000, cobrancas: 5000, dados: 4000 };
 const MAX_RESULTADOS = 60;
 const escaparLike = (s) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 const TIPOS_BUSCA = ['nome', 'valor', 'descricao', 'link'];
@@ -389,43 +401,48 @@ export async function buscaAsaas(eu, query) {
     if (!res.has(k)) res.set(k, situar({ ...r, valor: Number(r.valor) || 0 }));
   }
   const avisos = [];
-  for (const k of contas) {
-    if (tipo === 'valor' || tipo === 'descricao') break;
-    if (!process.env[PREFIXO[k] + '_API_KEY']) { avisos.push(`Conta ${k}: sem a chave na Vercel; só o que o app guarda.`); continue; }
+  // Valor e descrição: o ASAAS não filtra por eles; só o guardado.
+  const doAsaas = tipo === 'nome' || tipo === 'link' ? contas : [];
+  const codigo = link.match(/\/i\/([A-Za-z0-9]+)/)?.[1];
+  // Cada conta lê o ASAAS ao mesmo tempo; o resultado entra em res depois, na ordem das contas.
+  const lidas = await Promise.all(doAsaas.map(async (k) => {
+    if (!process.env[PREFIXO[k] + '_API_KEY']) return { k, aviso: `Conta ${k}: sem a chave na Vercel; só o que o app guarda.` };
     try {
       let ids = local.clientes.filter((c) => c.conta === k).map((c) => c.id);
       if (!ids.length && nome) {
-        const r = await chamarAsaas(PREFIXO[k], 'GET', `/customers?name=${encodeURIComponent(nome)}&limit=${MAX_CLIENTES_BUSCA + 1}`, null, 5000);
+        const r = await chamarAsaas(PREFIXO[k], 'GET', `/customers?name=${encodeURIComponent(nome)}&limit=${MAX_CLIENTES_BUSCA + 1}`, null, ESPERA_BUSCA_MS.clientes);
         ids = (r?.data || []).filter((c) => !c.deleted).map((c) => c.id);
       }
       const pagamentos = [];
-      const codigo = link.match(/\/i\/([A-Za-z0-9]+)/)?.[1];
-      if (codigo) {
-        const pg = await chamarAsaas(PREFIXO[k], 'GET', `/payments/pay_${encodeURIComponent(codigo)}`, null, 5000).catch(() => null);
-        if (pg?.id && !pg.deleted) pagamentos.push(pg);
-      }
-      await Promise.all(ids.slice(0, MAX_CLIENTES_BUSCA).map(async (id) => {
-        const r = await chamarAsaas(PREFIXO[k], 'GET', `/payments?customer=${encodeURIComponent(id)}&limit=20`, null, 6000);
-        pagamentos.push(...(r?.data || []).filter((pg) => !pg.deleted));
-      }));
-      if (ids.length > MAX_CLIENTES_BUSCA) avisos.push(`Conta ${k}: muitos clientes com esse nome; mostrando os ${MAX_CLIENTES_BUSCA} primeiros. Digite mais do nome.`);
-      const clientes = await clientesAsaas(k, pagamentos.map((pg) => pg.customer));
-      for (const pg of pagamentos) {
-        const cli = clientes.get(pg.customer) || {};
-        const g = porChave.get(cli.referencia) || (cli.cpfHash && porHash.get(cli.cpfHash)) || null;
-        const chave = `${k}:${pg.id}`;
-        const ant = res.get(chave);
-        res.set(chave, situar({
-          id: pg.id, conta: k,
-          nome: ant?.nome || g?.nome || cli.nome || 'Sem nome no ASAAS',
-          telefone: ant?.telefone || g?.celular || cli.telefone || '',
-          status: pg.status, valor: Number(pg.value) || 0, vencimento: pg.dueDate || null,
-          descricao: String(pg.description || ant?.descricao || ''),
-          link: /^https:\/\//.test(pg.invoiceUrl || '') ? pg.invoiceUrl : (ant?.link || ''),
-        }));
-      }
+      await Promise.all([
+        codigo && chamarAsaas(PREFIXO[k], 'GET', `/payments/pay_${encodeURIComponent(codigo)}`, null, ESPERA_BUSCA_MS.cobrancas)
+          .then((pg) => { if (pg?.id && !pg.deleted) pagamentos.push(pg); }, () => {}),
+        ...ids.slice(0, MAX_CLIENTES_BUSCA).map(async (id) => {
+          const r = await chamarAsaas(PREFIXO[k], 'GET', `/payments?customer=${encodeURIComponent(id)}&limit=20`, null, ESPERA_BUSCA_MS.cobrancas);
+          pagamentos.push(...(r?.data || []).filter((pg) => !pg.deleted));
+        }),
+      ]);
+      const clientes = await clientesAsaas(k, pagamentos.map((pg) => pg.customer), { ms: ESPERA_BUSCA_MS.dados });
+      return { k, pagamentos, clientes, aviso: ids.length > MAX_CLIENTES_BUSCA ? `Conta ${k}: muitos clientes com esse nome; mostrando os ${MAX_CLIENTES_BUSCA} primeiros. Digite mais do nome.` : '' };
     } catch (e) {
-      avisos.push(`Conta ${k}: ${e.message} Mostrando só o que o app guarda.`);
+      return { k, aviso: `Conta ${k}: ${e.message} Mostrando só o que o app guarda.` };
+    }
+  }));
+  for (const { k, pagamentos = [], clientes, aviso } of lidas) {
+    if (aviso) avisos.push(aviso);
+    for (const pg of pagamentos) {
+      const cli = clientes.get(pg.customer) || {};
+      const g = porChave.get(cli.referencia) || (cli.cpfHash && porHash.get(cli.cpfHash)) || null;
+      const chave = `${k}:${pg.id}`;
+      const ant = res.get(chave);
+      res.set(chave, situar({
+        id: pg.id, conta: k,
+        nome: ant?.nome || g?.nome || cli.nome || 'Sem nome no ASAAS',
+        telefone: ant?.telefone || g?.celular || cli.telefone || '',
+        status: pg.status, valor: Number(pg.value) || 0, vencimento: pg.dueDate || null,
+        descricao: String(pg.description || ant?.descricao || ''),
+        link: /^https:\/\//.test(pg.invoiceUrl || '') ? pg.invoiceUrl : (ant?.link || ''),
+      }));
     }
   }
   const resultados = [...res.values()]
