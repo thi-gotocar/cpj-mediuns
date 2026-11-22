@@ -25,19 +25,19 @@ import { calendarioMes, mesMais } from '../calendario.js';
 // gal: foto escolhida para a galeria (base64), descrição e envio.
 // mesAberto: calendário do mês aberto no lugar da faixa da semana; passo: passo aberto do Registro por dia (0 = nenhum);
 // emoEd: sentimentos em edição ('data|campo'; fora disso, os escolhidos aparecem recolhidos com Trocar).
-const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false }, mesAberto: false, passo: {}, emoEd: new Set() };
+const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false }, mesAberto: false, passo: {}, emoEd: new Set(), cuid: null };
 let reconhecimento = null;
-export function limpar() { ui.dia = hoje(); ui.mes = ui.dia.slice(0, 7); ui.mesAberto = false; ui.passo = {}; ui.emoEd.clear(); }
+export function limpar() { ui.dia = hoje(); ui.mes = ui.dia.slice(0, 7); ui.mesAberto = false; ui.passo = {}; ui.emoEd.clear(); ui.cuid = null; }
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 const LINHAS_OK = new Set(LINHAS_DIARIO.map(([k]) => k));
 const copia = (o) => JSON.parse(JSON.stringify(o || {}));
-// Registrar o ciclo: preferência deste aparelho ('on' / 'off'); sem escolha, liga sozinho para quem já tem registro.
-const PREF_CICLO = 'sm-diario-ciclo';
-let prefCicloMem = null;   // sem localStorage (janela privada): vale enquanto a página estiver aberta
-const prefCiclo = () => { try { return localStorage.getItem(PREF_CICLO) ?? prefCicloMem; } catch { return prefCicloMem; } };
-const registraCiclo = () => { const p = prefCiclo(); return p === 'on' || (p !== 'off' && !!estado.diario?.dias?.some((x) => x.dados?.ciclo)); };
 const dadosDe = (data) => estado.diario?.dias?.find((x) => x.data === data)?.dados || {};
+// Olhinho dos sentimentos: esconde as descrições (o que é cada emoção e o subtítulo dos grupos); fica no aparelho.
+const PREF_DESC = 'sm-diario-desc';
+let descOcultaMem = false;
+const descOculta = () => { try { const v = localStorage.getItem(PREF_DESC); return v === null ? descOcultaMem : v === '1'; } catch { return descOcultaMem; } };
+const OLHO = (fechado) => `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>${fechado ? '<path d="M4 4l16 16"/>' : ''}</svg>`;
 
 // Gira na agenda: gira cadastrada nesse dia ou evento do tipo gira. O amaci conta como gira (também tem preceito e banho)
 // e só vale para a corrente e os alunos: o servidor só manda o amaci às turmas marcadas (ex-alunos nem entram no app),
@@ -72,19 +72,21 @@ function rostos(campo, valor) {
 // Emoções em dois grupos; marcadas até MAX_EMOCOES; embaixo, o que é cada uma das marcadas.
 function emocoes(campo, marcadas = []) {
   const chave = ui.dia + '|' + campo;
+  const oculta = descOculta();
+  const olho = `<button type="button" class="btn link small di-olho" data-act="diolho" aria-pressed="${oculta}" aria-label="${oculta ? 'Mostrar as descrições' : 'Ocultar as descrições'}" title="${oculta ? 'Mostrar as descrições' : 'Ocultar as descrições'}">${OLHO(oculta)}</button>`;
   if (marcadas.length && !ui.emoEd.has(chave)) {
     const sel = EMOCOES.filter(([k]) => marcadas.includes(k));
-    return `<div class="di-emo-rec">${sel.map(([, t]) => `<span class="di-chip" aria-pressed="true">${t}</span>`).join('')}<button type="button" class="btn link small" data-act="diemotrocar" data-campo="${campo}">Trocar</button></div>
-      <ul class="di-emo-sel">${sel.map(([, t, x]) => `<li><b>${t}</b> · ${x}</li>`).join('')}</ul>`;
+    return `<div class="di-emo-rec">${sel.map(([, t]) => `<span class="di-chip" aria-pressed="true">${t}</span>`).join('')}<button type="button" class="btn link small" data-act="diemotrocar" data-campo="${campo}">Trocar</button>${olho}</div>
+      ${oculta ? '' : `<ul class="di-emo-sel">${sel.map(([, t, x]) => `<li><b>${t}</b> · ${x}</li>`).join('')}</ul>`}`;
   }
   const pronto = marcadas.length ? `<button type="button" class="btn small di-emo-pronto" data-act="diemopronto" data-campo="${campo}">Pronto</button>` : '';
-  const grupos = GRUPOS_EMOCOES.map((g) => `<div class="di-grupo di-grupo-${g.k}"><p class="di-grupo-h"><b>${g.k === 'leve' ? '☀️' : '🌧️'} ${g.titulo}</b><span>${g.sub}</span></p>
+  const grupos = GRUPOS_EMOCOES.map((g, i) => `<div class="di-grupo di-grupo-${g.k}"><p class="di-grupo-h"><b>${g.k === 'leve' ? '☀️' : '🌧️'} ${g.titulo}${i === 0 ? olho : ''}</b>${oculta ? '' : `<span>${g.sub}</span>`}</p>
     <div class="di-chips">${g.itens.map(([k, t]) => {
       const on = marcadas.includes(k);
       return `<button type="button" class="di-chip" data-act="diemo" data-campo="${campo}" data-v="${k}" aria-pressed="${on}" ${!on && marcadas.length >= MAX_EMOCOES ? 'aria-disabled="true"' : ''}>${on ? '✓ ' : ''}${t}</button>`;
     }).join('')}</div></div>`).join('');
   const sel = EMOCOES.filter(([k]) => marcadas.includes(k));
-  return `${grupos}${sel.length ? `<ul class="di-emo-sel">${sel.map(([, t, x]) => `<li><b>${t}</b> · ${x}</li>`).join('')}</ul>` : ''}${pronto}`;
+  return `${grupos}${sel.length && !oculta ? `<ul class="di-emo-sel">${sel.map(([, t, x]) => `<li><b>${t}</b> · ${x}</li>`).join('')}</ul>` : ''}${pronto}`;
 }
 // Energia: barra de 1 (vermelho) a 5 (verde). Sem marcação, o pino fica apagado no meio até a pessoa tocar.
 const NIVEL_ENERGIA = ['', 'Muito baixa', 'Baixa', 'Média', 'Boa', 'Alta'];
@@ -137,17 +139,17 @@ function cuidados(d) {
       <span class="di-cuid-t">${t}</span><small>${extra}</small></button>`;
   };
   const C = d.ciclo || {};
-  const cicloOn = registraCiclo();
-  const blocoCiclo = cicloOn ? `<button type="button" class="di-cuid di-cuid-ciclo" data-act="diciclo" aria-pressed="${!!C.menstruada}">
+  const blocoCiclo = `<button type="button" class="di-cuid di-cuid-ciclo" data-act="diciclo" aria-pressed="${!!C.menstruada}">
       <span class="di-cuid-i"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE_CUIDADO.ciclo}</svg></span>
-      <span class="di-cuid-t">Menstruada</span><small>${C.menstruada ? (FLUXOS.find(([k]) => k === C.fluxo)?.[1] || 'sim') : 'tocar'}</small></button>` : '';
+      <span class="di-cuid-t">Menstruada</span><small>${C.menstruada ? (FLUXOS.find(([k]) => k === C.fluxo)?.[1] || 'sim') : 'tocar'}</small></button>`;
   let h = `<div class="di-hab"><p class="muted di-hab-n">Cuidados do dia · ${feitos} de 4</p>
-    <div class="di-cuids${cicloOn ? ' cinco' : ''}">${bloco('preceito', 'Preceito')}${bloco('atividade', 'Atividade física')}${bloco('agua', 'Água')}${bloco('banho', 'Banho de ervas')}${blocoCiclo}</div>`;
-  if (cicloOn && C.menstruada) h += painelCiclo(C);
-  if (H.agua) {
+    <div class="di-cuids cinco">${bloco('preceito', 'Preceito')}${bloco('atividade', 'Atividade física')}${bloco('agua', 'Água')}${bloco('banho', 'Banho de ervas')}${blocoCiclo}</div>`;
+  // Só os detalhes do último bloco tocado (e marcado): Água, Banho de ervas ou Menstruada.
+  if (ui.cuid === 'ciclo' && C.menstruada) h += painelCiclo(C);
+  if (ui.cuid === 'agua' && H.agua) {
     h += `<label class="field di-hab-sub">Quantos litros?<input type="text" inputmode="decimal" maxlength="5" data-act="dilitros" placeholder="Ex.: 1,5" value="${H.litros ? String(H.litros).replace('.', ',') : ''}"></label>`;
   }
-  if (H.banho) {
+  if (ui.cuid === 'banho' && H.banho) {
     h += `<div class="di-hab-sub"><label class="field">Banho de orixá<select data-act="dihaborixa"><option value="">—</option>
       ${ORIXAS_BANHO.map((o) => `<option value="${esc(o)}" ${o === H.orixa ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`;
     if (H.orixa) {
@@ -177,7 +179,7 @@ function marcasDosDias(D) {
     if (x?.banho?.feito || x?.habitos?.banho) M.push('<i class="di-folha">🌿</i>');
     if (x?.habitos?.atividade) M.push('<i class="di-folha">🏋️</i>');
     if (amaciNaAgenda(data)) M.push('<i class="di-folha">🕊️</i>');
-    if (x?.ciclo?.menstruada && registraCiclo()) M.push('<i class="di-p di-p-ciclo"></i>');
+    if (x?.ciclo?.menstruada) M.push('<i class="di-p di-p-ciclo"></i>');
     return M.join('');
   };
   return { porData, marcas };
@@ -191,7 +193,7 @@ function seletorDia(D) {
   const hj = hoje();
   if (ui.mesAberto) {
     return `<div class="di-cal">${calendarioMes({ mes: ui.mes, sel: ui.dia, acaoDia: 'didia', acaoMes: 'dimes', ate: hj, marcas, classe: (data) => (!porData[data] && agendaTemGira(data) ? 'agenda' : '') })}
-      <div class="di-leg muted"><span><i class="di-p di-p-gira"></i> gira</span><span><i class="di-p di-p-dia"></i> manhã e noite</span><span>🌿 banho tomado</span><span>🏋️ atividade física</span><span>🕊️ amaci</span>${registraCiclo() ? '<span><i class="di-p di-p-ciclo"></i> ciclo</span>' : ''}</div></div>`;
+      <div class="di-leg muted"><span><i class="di-p di-p-gira"></i> gira</span><span><i class="di-p di-p-dia"></i> manhã e noite</span><span>🌿 banho tomado</span><span>🏋️ atividade física</span><span>🕊️ amaci</span><span><i class="di-p di-p-ciclo"></i> ciclo</span></div></div>`;
   }
   // Os 7 dias em volta do escolhido (até 3 depois dele), sem passar de hoje.
   const fim = maisDias(ui.dia, 3) > hj ? hj : maisDias(ui.dia, 3);
@@ -250,12 +252,6 @@ function galeria(D) {
   return h + '</div>';
 }
 
-function cardPrefs() {
-  const on = registraCiclo();
-  return `<div class="card di-prefs"><label class="of-sw"><input type="checkbox" role="switch" data-act="dicicloon" ${on ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Registrar meu ciclo menstrual</b></label>
-    <p class="muted" style="margin:0;font-size:.85rem">${on ? 'O bloco Menstruada aparece nos cuidados do dia. Só você vê esses registros.' : 'Liga o bloco Menstruada nos cuidados do dia, com fluxo, sintomas e a previsão do próximo ciclo. Só você vê.'}</p></div>`;
-}
-
 function cardRoot(D) {
   if (!D.root) return '';
   return `<div class="card adm ervas-pub"><label class="of-sw"><input type="checkbox" role="switch" data-act="dipub" ${D.publicada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label>
@@ -279,7 +275,7 @@ function paraHoje(D) {
       <span class="muted">${dDM(x.data)} · ${ORIGEM[x.dados.banho.origem] || ORIGEM.guia}</span></div>
       <button class="btn small" data-act="ditomei" data-d="${x.data}">Tomei</button></div>`).join('')}</div></div>` : '';
   let cic = '';
-  if (registraCiclo() && !dadosDe(hoje()).ciclo?.menstruada) {
+  if (!dadosDe(hoje()).ciclo?.menstruada) {
     const R = resumoCiclo(D.dias, hoje());
     if (R.proximo) cic = `<div class="di-pend"><p class="eyebrow">Ciclo</p><p class="di-ciclo-p">Próximo previsto por volta de <b>${dDM(R.proximo)}</b> <span class="muted">(média de ${R.media} dias; é uma estimativa)</span></p></div>`;
   }
@@ -378,7 +374,7 @@ export function render() {
   if (D.erro) return `<section class="panel"><div class="card"><p class="erro">${esc(D.erro)}</p><button class="btn" data-act="direcarregar">Tentar de novo</button></div></section>`;
   if (ui.dia > hoje()) limpar();
   // A Galeria de fotos vem logo depois do Como você está hoje? (segundo card).
-  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardPrefs()}${cardRoot(D)}</section>`;
+  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardRoot(D)}</section>`;
 }
 
 // ---------- ações ----------
@@ -484,7 +480,7 @@ function ouvir(campo) {
 
 export const cliques = {
   direcarregar() { estado.diario = null; avisar(); },
-  didia(el) { if (reconhecimento) reconhecimento.stop(); ui.dia = el.dataset.d; ui.mes = ui.dia.slice(0, 7); avisar(); },
+  didia(el) { if (reconhecimento) reconhecimento.stop(); ui.dia = el.dataset.d; ui.mes = ui.dia.slice(0, 7); ui.cuid = null; avisar(); },
   // Faixa da semana: anda 7 dias (nunca depois de hoje).
   disemana(el) {
     if (reconhecimento) reconhecimento.stop();
@@ -495,7 +491,13 @@ export const cliques = {
   },
   dimesabrir() { ui.mesAberto = !ui.mesAberto; ui.mes = ui.dia.slice(0, 7); avisar(); },
   // Ciclo: Menstruada liga e desliga (desligar tira fluxo e sintomas); fluxo é um só, sintomas vários.
-  diciclo() { salvar((d) => { if (d.ciclo?.menstruada) delete d.ciclo; else d.ciclo = { menstruada: true }; }); },
+  // Menstruada: desmarcado → marca e abre; marcado e fechado → só abre; marcado e aberto → desmarca.
+  diciclo() {
+    const on = !!dadosDe(ui.dia).ciclo?.menstruada;
+    if (on && ui.cuid !== 'ciclo') { ui.cuid = 'ciclo'; avisar(); return; }
+    ui.cuid = on ? null : 'ciclo';
+    salvar((d) => { if (on) delete d.ciclo; else d.ciclo = { menstruada: true }; });
+  },
   dicicloval(el) {
     const { k, v } = el.dataset;
     salvar((d) => {
@@ -507,12 +509,18 @@ export const cliques = {
     });
   },
   dipasso(el) { const n = Number(el.dataset.n); ui.passo[ui.dia] = ui.passo[ui.dia] === n ? 0 : n; avisar(); },
+  diolho() { descOcultaMem = !descOculta(); try { localStorage.setItem(PREF_DESC, descOcultaMem ? '1' : '0'); } catch { /* fica na memória */ } avisar(); },
   diemotrocar(el) { ui.emoEd.add(ui.dia + '|' + el.dataset.campo); avisar(); },
   diemopronto(el) { ui.emoEd.delete(ui.dia + '|' + el.dataset.campo); avisar(); },
-  // Bloco do cuidado: um toque marca ou desmarca (desmarcar Água e Banho limpa os detalhes).
+  // Bloco do cuidado: só os detalhes do bloco tocado ficam abertos. Preceito e Atividade marcam e desmarcam; Água e
+  // Banho: desmarcado → marca e abre; marcado e fechado → só abre; marcado e aberto → desmarca (limpa os detalhes).
   dihabt(el) {
     const k = el.dataset.k;
-    const on = !(dadosDe(ui.dia).habitos || {})[k];
+    const marcado = !!(dadosDe(ui.dia).habitos || {})[k];
+    const comDetalhe = k === 'agua' || k === 'banho';
+    if (comDetalhe && marcado && ui.cuid !== k) { ui.cuid = k; avisar(); return; }
+    const on = !marcado;
+    ui.cuid = comDetalhe && on ? k : null;
     mudarHabitos((h) => {
       if (on) { h[k] = true; return; }
       delete h[k];
@@ -616,7 +624,6 @@ export const mudancas = {
     if (!e) return;
     mudarHabitos((h) => { h.ervas = [...new Set([...(h.ervas || []), e])].slice(0, MAX_ERVAS_BANHO); });
   },
-  dicicloon(t) { prefCicloMem = t.checked ? 'on' : 'off'; try { localStorage.setItem(PREF_CICLO, prefCicloMem); } catch { /* fica na memória */ } avisar(); },
   digalfoto(t) { const f = t.files?.[0]; t.value = ''; if (f) escolherFotoGaleria(f); },
   ditexto(t) { if (ui.ouvindo !== t.dataset.diario) salvarTexto(t.dataset.diario); },
 };

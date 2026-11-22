@@ -413,19 +413,29 @@ export async function carregarDiario() {
   avisar();
 }
 // Grava o dia inteiro (o servidor limpa e devolve o que ficou). Falhou: o dia volta ao que estava.
+// Toques seguidos no mesmo dia: as gravações vão em fila (o servidor recebe na ordem dos toques) e só a resposta da
+// última é aplicada. Sem isso, a resposta de um toque antigo chegava depois de um toque novo e a tela voltava atrás, e
+// o toque seguinte partia desse estado velho.
+const filaDiario = {};   // data → { ultima: número do último toque, promessa: a gravação em curso, ok: o último estado salvo }
 export async function salvarDiaDiario(data, dados) {
   const D = estado.diario;
   if (!D?.dias) return false;
-  const antes = D.dias.find((x) => x.data === data);
-  const trocar = (dia) => { D.dias = [...D.dias.filter((x) => x.data !== data), ...(dia && Object.keys(dia.dados || {}).length ? [dia] : [])].sort((a, b) => a.data.localeCompare(b.data)); };
+  const F = (filaDiario[data] ||= { ultima: 0, promessa: Promise.resolve(), ok: D.dias.find((x) => x.data === data) });
+  const meu = ++F.ultima;
+  const trocar = (dia) => { const L = estado.diario?.dias; if (!L) return; estado.diario.dias = [...L.filter((x) => x.data !== data), ...(dia && Object.keys(dia.dados || {}).length ? [dia] : [])].sort((a, b) => a.data.localeCompare(b.data)); };
   trocar({ data, dados });
   avisar();
   estado.salvando++;
+  const gravar = F.promessa.then(() => api('POST', '/pessoas', { acao: 'diario', op: 'salvar', data, dados }));
+  F.promessa = gravar.catch(() => {});
   try {
-    trocar(await api('POST', '/pessoas', { acao: 'diario', op: 'salvar', data, dados }));
+    const r = await gravar;
+    F.ok = r;
+    if (meu === F.ultima) trocar(r);   // um toque mais novo já está na tela: a resposta dele é que vale
     return true;
   } catch (e) {
-    trocar(antes);
+    // Deu erro: volta para o último estado que o servidor confirmou (se nenhum toque mais novo veio depois).
+    if (meu === F.ultima) trocar(F.ok);
     toast(e.message);
     return false;
   } finally {
