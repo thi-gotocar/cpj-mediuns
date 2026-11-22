@@ -2,12 +2,11 @@
 
 import { estado, pode, veErvas, girasLista, carregarAusPrevias, carregarErvas, carregarOferendas } from '../estado.js';
 import { esc, dDM } from '../util.js';
-import { abertos } from './giraComum.js';
 import { status, nomeEntidadeGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, linhaDaEntidade, usaLinhas, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM, chaveDaLinha } from '/shared/oferendas.js';
 
-// Admin: tocar na turma abre a escolha manual da turma da vez.
+// Admin (passo Preparar): a escolha manual da turma da vez.
 export function escolhaTurma(g) {
   const atual = Number(g.limpeza) || 0;
   const bt = (t, rotulo, sub) => `<button class="btn small limp-t${(t || 0) === atual ? ' on' : ''}" data-act="limpturma" data-v="${t || ''}" aria-pressed="${(t || 0) === atual}">${rotulo}${sub ? `<small>${sub}</small>` : ''}</button>`;
@@ -15,16 +14,12 @@ export function escolhaTurma(g) {
   return `<div class="limp-turmas" role="group" aria-label="Escolher a turma da vez">${TURMAS_LIMPEZA.map((t) => bt(t, `Turma ${t}`, qtd(t))).join('')}${bt(0, 'Nenhuma')}</div>`;
 }
 
-export function blocoLimpeza(g, editar = false) {
+// Limpeza (só leitura; o admin escolhe a turma no passo Preparar): a turma, quem está de licença e quem ajuda.
+export function blocoLimpeza(g) {
   if (g.evento || !temLimpeza(g)) return '';
   const L = limpezaDaGira(estado.pessoas, g, girasLista());
-  if (!L && !editar) return '';
-  const aberta = editar && abertos.has('limp:' + g.data);
-  const titulo = `🧹 Limpeza · ${L ? `Turma ${L.turma}` : 'escolher turma'}`;
-  const cab = editar
-    ? `<button class="limp-cab limp-bt" data-act="limpabrir" aria-expanded="${aberta}" title="Escolher a turma da vez"><b>${titulo}</b><span class="seta" aria-hidden="true">${aberta ? '▾' : '▸'}</span></button>${aberta ? escolhaTurma(g) : ''}`
-    : `<div class="limp-cab"><b>${titulo}</b></div>`;
-  if (!L) return `<div class="limpeza">${cab}</div>`;
+  if (!L) return '';
+  const cab = `<div class="limp-cab"><b>🧹 Limpeza · Turma ${L.turma}</b></div>`;
   const nomes = (l) => l.map((p) => (['a', 'f'].includes(status(p, g)) ? `<s class="limp-nao">${esc(p.nome)}</s>` : esc(p.nome))).join(', ');
   return `<div class="limpeza">${cab}
     <span>${L.membros.length ? nomes(L.membros) : '<span class="muted">Ninguém cadastrado nesta turma (cadastre no Perfil → Pessoas).</span>'}</span>
@@ -32,23 +27,6 @@ export function blocoLimpeza(g, editar = false) {
     ${L.ajudantes.length ? `<span><b>Ajudam</b> <span class="muted">(faltaram na Turma ${L.anterior.limpeza} em ${dDM(L.anterior.data)}${L.anterior.entidade ? ` · ${esc(nomeEntidadeGira(L.anterior))}` : ''})</span>: ${nomes(L.ajudantes)}</span>`
       : L.anterior ? `<span class="muted" style="font-size:.85rem">Ninguém da Turma ${L.anterior.limpeza} faltou na gira de ${dDM(L.anterior.data)}.</span>` : ''}
   </div>`;
-}
-
-// Recado: o admin edita no próprio bloco (até 5 linhas, salva ao sair do campo); os outros só leem.
-export function blocoRecado(g, editar = false) {
-  if (editar) {
-    const r = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : g.recado || '';
-    return `<div class="limpeza recado"><b><span aria-hidden="true">📢</span> Recado</b><textarea id="ev-recado" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" aria-label="Recado para a corrente" placeholder="Até 5 linhas. Aparece para todos no evento.">${esc(r)}</textarea></div>`;
-  }
-  if (!g.recado) return '';
-  return `<div class="limpeza recado"><b><span aria-hidden="true">📢</span> Recado</b><span class="recado-txt">${esc(g.recado)}</span></div>`;
-}
-
-export function blocoLicenca(ps, g) {
-  const quem = ps.filter((p) => licencaEm(p, g.data));
-  if (!quem.length) return '';
-  return `<div class="limpeza licenca"><b><span class="cruz-vermelha" aria-hidden="true">✚</span> De licença · ${quem.length}</b>
-    <span>${quem.map((p) => `${esc(p.nome)} <span class="muted">(até ${dDM(licencaEm(p, g.data).fim)})</span>`).join(', ')}</span></div>`;
 }
 
 export function blocoBanho(g) {
@@ -72,16 +50,6 @@ export function blocoAusPrevia(ps, g) {
     ${livres.length ? `<span class="aus-prev-add"><select id="ausprev-pessoa" aria-label="Pessoa que não vem"><option value="">&lt;escolha a pessoa&gt;</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
       <button class="btn small" data-act="ausprevadd">Marcar ausência</button></span>` : ''}</div>`;
 }
-
-function blocoNomesFora(ps, g, st, classe, titulo) {
-  const quem = ps.filter((p) => status(p, g) === st);
-  if (!quem.length) return '';
-  return `<div class="limpeza ${classe}"><b><span class="aus-ico" aria-hidden="true">✖</span> ${titulo} · ${quem.length}</b>
-    <span class="aus-nomes">${quem.map((p) => `<span class="aus-nome">${esc(p.nome)}</span>`).join('')}</span></div>`;
-}
-
-export const blocoAusencia = (ps, g) => blocoNomesFora(ps, g, 'a', 'ausencia', 'Ausência');
-export const blocoFaltas = (ps, g) => blocoNomesFora(ps, g, 'f', 'faltas', 'Faltas');
 
 export function avisoEntidade(ps, g, editar, admin) {
   const comLinhas = ps.filter(usaLinhas);

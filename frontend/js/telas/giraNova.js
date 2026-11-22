@@ -1,7 +1,6 @@
-// Aba Gira (layout novo, para todos; a sub-aba "Gira antiga" fica para quem administra): conduzir em cima, a corrente embaixo.
-// Monta as mesmas peças e usa as mesmas ações da aba Gira (gira.js passa tudo pronto em ctx); só muda a arrumação:
-// faixa da semana, cabeçalho com um Compartilhar só, os 4 passos do admin (Preparar → Escala → Presença → Encerrar)
-// e, embaixo, o mesmo que a corrente vê.
+// Aba Gira, a arrumação da tela: conduzir em cima, a corrente embaixo. gira.js monta as peças e as ações e passa tudo
+// em ctx; aqui ficam a faixa da semana, o cabeçalho com um Compartilhar só, os 4 passos do admin (Preparar → Escala →
+// Presença → Encerrar) e, embaixo, o mesmo que a corrente vê.
 
 import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, proximaTurma } from '/shared/regras.js';
 import { aniversariantesDoDia, rotuloTipo } from '/shared/eventos.js';
@@ -212,7 +211,7 @@ function daCorrente(ctx) {
   if (realizado) partes.push(`<div class="gn-sec gn-escala">${realizado}</div>`);
   else if (escala) partes.push(`<div class="gn-sec">${escala}</div>`);
   else if (editar && !g.evento && !encerrada) partes.push(`<div class="gn-sec"><div class="gn-sec-h"><h3><span aria-hidden="true">📋</span> Escala</h3><span class="gn-aviso-t">${temDuplas ? 'aguardando publicação' : 'ainda não sorteada'}</span></div><p class="muted gn-nota">A corrente vê a imagem da escala aqui assim que ela for publicada.</p></div>`);
-  if (!encerrada) { const l = blocoLimpeza(g, false); if (l) partes.push(`<div class="gn-sec">${l}</div>`); }
+  if (!encerrada) { const l = blocoLimpeza(g); if (l) partes.push(`<div class="gn-sec">${l}</div>`); }
   const banho = blocoBanho(g);
   if (banho) partes.push(`<div class="gn-sec">${banho}</div>`);
   partes.push(quemNaoVem(ps, g));

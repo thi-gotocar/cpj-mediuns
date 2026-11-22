@@ -1,28 +1,27 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, nomeEntidadeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, orixaDaGira, temLimpeza, limpezaDaGira, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, mudarDataGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
+import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { calendarioMes, mesMais } from '../calendario.js';
 import { painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
 import { config } from '/shared/config.js';
-import { aniversariantesDoDia, mensagensAniversario, rotuloTipo } from '/shared/eventos.js';
-import { banhosDaGira } from '/shared/banhos.js';
+import { aniversariantesDoDia, rotuloTipo } from '/shared/eventos.js';
 import { htmlStatus, abertos, cabDobra, caixaPendente, ICONE_WHATS } from './giraComum.js';
 import { blocoEu } from './giraEu.js';
 import { sugAbertas, blocoSugestao } from './giraSugestao.js';
 import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './giraTopo.js';
-import { blocoLimpeza, blocoRecado, blocoLicenca, blocoBanho, blocoAusPrevia, blocoAusencia, blocoFaltas, avisoEntidade, contagemPresentes, blocoPedirErvas, blocosOferenda } from './giraInformacoes.js';
-import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra, linhaEscala } from './giraEscala.js';
+import { blocoAusPrevia, avisoEntidade, contagemPresentes } from './giraInformacoes.js';
+import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra } from './giraEscala.js';
 import { cardConduta, cliquesConduta, mudancasConduta } from './giraConduta.js';
 import { cardAtrasos, cliquesAtrasos } from './giraAtrasos.js';
 import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
 import { montarNova, cliquesNova, fecharCompartilhar } from './giraNova.js';
 export { enviarOracao } from './giraTopo.js';
 export { enviarConduta, digitarConduta } from './giraConduta.js';
-import { imagemOracoesPronta, prepararOracoes, imagemNiverPronta, prepararNiver, botaoWhats, botaoWhatsLimpeza, imagemPronta, imagemEventoPronta, botaoImagemEvento, prepararImagemEvento, prepararImagem, blocoImagemEscala, atualizarJanela } from './giraJanelas.js';
+import { imagemOracoesPronta, prepararOracoes, imagemNiverPronta, prepararNiver, botaoWhatsLimpeza, imagemPronta, imagemEventoPronta, botaoImagemEvento, prepararImagemEvento, prepararImagem, blocoImagemEscala, atualizarJanela } from './giraJanelas.js';
 
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
 // Atendimentos da gira: o admin preenche na gira aberta (salva sozinho); na encerrada, todos veem.
@@ -90,7 +89,7 @@ function presencaRapida(ps, g, antesDoDia) {
 }
 
 function blocosFora(ps, g) {
-  // Licença fica no card da gira (blocoLicenca).
+  // Faltaram e Ausentes (quem vê a escala sem editar); a licença fica em Quem não vem.
   return [['f', 'Faltaram'], ['a', 'Ausentes']].map(([st, titulo]) => {
     const quem = ps.filter((p) => status(p, g) === st);
     return quem.length ? `<div class="grp fora"><div class="grp-h"><h3>${titulo}</h3><span class="count">${quem.length}</span></div><p style="margin:0">${quem.map((p) => esc(p.nome)).join(', ')}</p></div>` : '';
@@ -100,11 +99,11 @@ function blocosFora(ps, g) {
 // Quadro "Gira encerrada" (para todos, só informa): atendimentos e presença.
 const numeroParticipantes = (g) => `<div class="atend-nums participantes"><div class="at-participantes"><b>${Number(g.participantes) || 0}</b><span>Participantes</span></div></div>`;
 // Na mesma linha do ✓ Encerrado: o WhatsApp do resumo e, para o admin, o Reabrir (só o ícone, pouco usado).
-// semBotaoResumo (Gira nova): o Resumo abre pelo Compartilhar; aqui só fica o Fechar com o painel aberto.
-function blocoEncerrada(ps, g, { resumo: verResumo = false, reabrir = false, semBotaoResumo = false } = {}) {
+// O Resumo abre pelo Compartilhar; aqui só fica o Fechar com o painel aberto.
+function blocoEncerrada(ps, g, { resumo: verResumo = false, reabrir = false } = {}) {
   const resumo = dadosResumo(estado.pessoas, g);
   const aberto = estado.resumo?.data === g.data;
-  const btResumo = verResumo && (!semBotaoResumo || aberto) ? `<button class="btn small wa-bt enc-rs" data-act="rsabrir" data-d="${g.data}">${aberto ? '<span aria-hidden="true">✕</span> Fechar' : `<span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Resumo`}</button>` : '';
+  const btResumo = verResumo && aberto ? `<button class="btn small wa-bt enc-rs" data-act="rsabrir" data-d="${g.data}">${aberto ? '<span aria-hidden="true">✕</span> Fechar' : `<span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Resumo`}</button>` : '';
   const btReabrir = reabrir ? '<button class="btn small enc-reabrir" data-act="reabrir" title="Reabrir a gira" aria-label="Reabrir a gira">↺</button>' : '';
   return `<div class="enc-quadro"><div class="enc-titulo"><span aria-hidden="true">✓</span><h3>Encerrado</h3>${btResumo || btReabrir ? `<div class="enc-acoes">${btResumo}${btReabrir}</div>` : ''}</div>
     ${verResumo ? painelResumo(g) : ''}
@@ -126,17 +125,6 @@ function caixaEncerrar() {
   return `<div class="infobox enc"><span><b>Encerrar a gira?</b> Confira os atendimentos (em branco conta 0).</span>
     <span class="muted" style="font-size:.85rem">Quem estava para cambonar e não ficou com nenhum médium, e médium de passe sem médium, vão para o <b>Suporte</b>. Depois disso a escala não muda até ser reaberta; ao reabrir, essas pessoas voltam para a lista.</span>
     <span class="row"><button class="btn small primary" data-act="encerrar">Encerrar</button><button class="btn small" data-act="cancelenc">Cancelar</button></span></div>`;
-}
-
-// Cabeçalho da gira, igual para aberta e encerrada; a linha tracejada o separa do resto do bloco.
-function cabecalhoGira(g) {
-  // Admin, com a gira em aberto: o nome é um campo; em branco volta ao nome automático.
-  const editavel = pode('giras:editar') && !g.encerrada && estado.giras[g.data];
-  const rascunho = estado.tituloTxt?.data === g.data ? estado.tituloTxt.texto : null;
-  const titulo = editavel
-    ? `<input type="text" id="gira-titulo" class="dia gira-nome gira-nome-ed" data-act="giratitulo" data-d="${esc(g.data)}" maxlength="120" enterkeyhint="done" aria-label="Nome da gira" placeholder="${esc(tituloAutomaticoGira(g))}" value="${esc(rascunho ?? tituloGira(g))}">`
-    : `<span class="dia gira-nome">${esc(tituloGira(g))}</span>`;
-  return `<div class="datehead cab-gira"><span class="eyebrow">${esc(dLong(g.data))}</span>${titulo}${orixaDaGira(g) ? `<span class="ent">Orixá: ${esc(orixaDaGira(g))}</span>` : ''}</div>`;
 }
 
 // Calendário do mês (o mesmo do Diário) com as giras e os eventos marcados (os cadastrados na gira e os da agenda do
@@ -180,9 +168,6 @@ function seletorData(g) {
   </div>`;
 }
 
-// Moldura dourada: o que só o admin vê ou edita.
-const ouro = (html) => (html ? `<div class="gira-adm">${html}</div>` : '');
-
 // Quem está logado tem o bloco "Você nesta gira" (lá vai o aviso de pendente).
 const temBlocoEu = () => !!(estado.me?.pessoaId && estado.pessoas.some((x) => x.id === estado.me.pessoaId));
 
@@ -198,7 +183,7 @@ function resultado(g) {
 // Pedido de oração: até 3 linhas.
 
 export function render() {
-  if (prefs.tab === 'agenda' || prefs.tab === 'giraantiga') return renderGira(prefs.tab === 'agenda');
+  if (prefs.tab === 'agenda') return renderGira();
   if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
   if (visaoAtiva() === 'alunos' && estado.me?.aguardando) return `<section class="panel">${cardAguardando()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
   // Grupo Oferenda: os compromissos que o admin atribuiu (cardCompromissos só aparece com oferendas:doar ou :ver).
@@ -216,8 +201,9 @@ function cardAguardando() {
     <p class="muted">Enquanto isso, você já pode ver os próximos eventos e pedir uma oração. Axé! 🙏</p></div>`;
 }
 
-// nova: a sub-aba "Gira nova" (layout em avaliação), montada em giraNova.js com as mesmas peças e ações.
-function renderGira(nova = false) {
+// A aba Gira: as peças são montadas aqui e arrumadas em giraNova.js (faixa da semana, Compartilhar, os passos do admin
+// e o que a corrente vê).
+function renderGira() {
   const g = giraAtual();
   // Curimba fica fora da presença; quem entrou na corrente depois desta data também.
   const ps = daGira(pessoasComSaidas(), g).filter(contaNaPresenca);
@@ -227,16 +213,11 @@ function renderGira(nova = false) {
   const editar = admin && !encerrada;
   const sortearOk = pode('giras:sortear') && !encerrada;
   const existe = !!estado.giras[g.data];
-  const ano = cardAno();   // bloco do ano: no topo para todos (na Gira nova, no fim)
+  const ano = cardAno();   // bloco do ano, no fim da tela
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    if (nova) return montarNova({ g, ps, ano, semGira: true, calendario: seletorData(g), marcas: marcasDosDias(), ausPrevia: g.data >= hoje() ? blocoAusPrevia(ps, g) : '' });
-    return `<section class="panel">${ano}<div class="card card-novo adm">
-      <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
-      ${seletorData(g)}
-      <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>
-      ${g.data >= hoje() ? blocoAusPrevia(ps, g) : ''}</div></section>`;
+    return montarNova({ g, ps, ano, semGira: true, calendario: seletorData(g), marcas: marcasDosDias(), ausPrevia: g.data >= hoje() ? blocoAusPrevia(ps, g) : '' });
   }
   const { lista, validos, passesV, semPasse } = paresPorMedium(estado.pessoas, escalaDaGira(g));
   const temDuplas = !g.evento && (validos.length || passesV.length);
@@ -254,10 +235,8 @@ function renderGira(nova = false) {
     let h;
     if (editar) {
       const ab = abertos.has('pres');
-      // Gira nova: sem moldura nem título (o passo Presença já tem); a Trava fica no passo Escala.
-      h = nova ? '<div class="gira-sec">' : `<div class="gira-adm gira-sec"><div class="grp-h"><h2>📋 Presença</h2>${htmlTrava()}</div>
-      ${g.travada ? '<p class="muted" style="margin:0;font-size:.85rem">Escala travada: marcar falta ou ausência não muda a escala.</p>' : ''}`;
-      h += `
+      // Sem moldura nem título (o passo Presença já tem); a Trava fica no passo Escala.
+      h = `<div class="gira-sec">
       ${presencaRapida(ps, g, antesDoDia)}
       <button class="btn link small ver-mais" data-act="dobrarcard" data-k="pres" aria-expanded="${ab}">${ab ? '− Esconder lista' : '+ Ver lista'}</button>`;
     } else h = `<div class="gira-sec">${cabDobra('pres', 'Presença', partes)}`;
@@ -350,10 +329,10 @@ function renderGira(nova = false) {
       ${pas.length ? `<select data-act="addpasse" data-m="${x.m.id}" aria-label="Adicionar médium de passe a ${esc(x.m.nome)}"><option value="">+ médium de passe</option>${pas.map((c) => opt(c, 'passes', 'sai de')).join('')}</select>` : ''}
     </div>`;
     };
-    // Gira nova (admin): o passo Escala já abre e fecha; o bloco vem sempre aberto, sem título nem moldura.
-    const semTitulo = nova && editar;
+    // Admin: o passo Escala já abre e fecha; o bloco vem sempre aberto, sem título.
+    const semTitulo = editar;
     const aberto = semTitulo || ajuste || duplasAbertas.has(g.data);
-    const caixa = semTitulo ? 'gira-sec' : editar ? 'gira-adm gira-sec' : 'gira-sec';
+    const caixa = 'gira-sec';
     // Depois do sorteio, os botões e o aviso de publicada (ou Publicar) ficam à vista; as duplas vêm recolhidas
     // e tocar no título (ou em Ver mais) expande e recolhe.
     const titDobra = (ab) => `<button class="grp-h dobra" data-act="dobrarduplas" aria-expanded="${ab}">${tituloSorteio(true)}<span class="count"><span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
@@ -400,7 +379,7 @@ function renderGira(nova = false) {
         ? `<div class="sup-lista">${sup.map((p) => `<div class="sup-l"><span>${esc(p.nome)}</span>${botaoFalta(p.id)}</div>${confirmaFalta(p.id)}`).join('')}</div>`
         : `<p style="margin:0">${sup.map((p) => esc(p.nome)).join(', ')}</p>`}</div>`;
     }
-    // Gira nova: Faltaram e Ausentes ficam só em Quem não vem.
+    // Admin: Faltaram e Ausentes ficam só em Quem não vem.
     return h + `${semTitulo ? '' : blocosFora(ps, g)}${ajuste || semTitulo ? '' : botaoDobrar(true)}</div>`;
   };
 
@@ -418,70 +397,35 @@ function renderGira(nova = false) {
     escala = '';
   } else if (!pode('escala:completa') && !g.evento) {
     escala = resultado(g);
-  } else {
+  } else if (!editar) {
+    // Quem vê a escala completa sem editar (o admin tem os passos): a presença e, antes de publicar, o sorteio.
     escala = secaoPresenca();
-    // Escala publicada: a imagem está em "Sorteio realizado"; quem não edita a gira não vê os controles.
     if (!g.evento && !(temDuplas && g.publicada && !admin)) escala += secaoSorteio();
-    if (!g.evento && editar) escala += ouro(blocoSugestao(ps, g));
   }
 
-  if (nova) {
-    setTimeout(atualizarJanela, 0);
-    const publicada = !!(temDuplas && g.publicada);
-    const tituloEd = estado.tituloTxt?.data === g.data ? estado.tituloTxt.texto : null;
-    return montarNova({
-      g, ps, ano, admin, editar, existe, encerrada, temDuplas, publicada, whats, rodape,
-      calendario: seletorData(g), marcas: marcasDosDias(),
-      escala: editar ? '' : escala,
-      presenca: editar ? secaoPresenca() : '',
-      sorteio: editar && !g.evento ? secaoSorteio() : '',
-      sugestao: editar && !g.evento ? blocoSugestao(ps, g) : '',
-      trava: editar ? htmlTrava() : '',
-      entidade: seletorEntidade(g.entidade, g.entidadeNome || '', publicada),
-      orixa: temOrixa(g) ? seletorOrixa(g, publicada) : '',
-      avisoEntidade: avisoEntidade(ps, g, editar, admin),
-      titulo: `<input type="text" id="gira-titulo" data-act="giratitulo" data-d="${esc(g.data)}" maxlength="120" enterkeyhint="done" aria-label="Nome da gira" placeholder="${esc(tituloAutomaticoGira(g))}" value="${esc(tituloEd ?? tituloGira(g))}">`,
-      atend: g.evento ? campoParticipantes(g) : camposAtend(g),
-      encerrar: editar ? botaoEncerrar(g) + (estado.confirm === 'enc:' + g.data ? caixaEncerrar() : '') : '',
-      encerradaQuadro: encerrada ? blocoEncerrada(ps, g, { resumo: admin ? pode('escala:completa') : whats, reabrir: admin, semBotaoResumo: true }) : '',
-      resumoOk: encerrada && (admin ? pode('escala:completa') : whats),
-      realizado: !g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala(false) : '',
-      eventoImagem: g.evento && !encerrada && (editar || whats) ? botaoImagemEvento(g, ps) : '',
-      previa: editar ? botaoWhatsLimpeza(g) : '',
-    });
-  }
-
-  const topo = cabecalhoGira(g) + seletorData(g);
-  const informes = blocoBanho(g) + blocoAusencia(ps, g) + blocoFaltas(ps, g) + blocoLicenca(ps, g);
-  const realizado = !g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala(whats) : '';
-  const novos = existe ? blocoPedirErvas(g) + blocosOferenda(g) : '';
   setTimeout(atualizarJanela, 0);
-
-  if (encerrada) {
-    const verResumo = admin ? pode('escala:completa') : whats;
-    return `<section class="panel">${ano}<div class="card card-gira">${topo}${blocoEncerrada(ps, g, { resumo: verResumo, reabrir: admin })}${blocoRecado(g)}${informes}${realizado}${novos}</div>${rodape}</section>`;
-  }
-
-  const btEscala = whats ? botaoWhats(temDuplas, 'Escala Gira') : '';
-  const btEvento = g.evento ? botaoImagemEvento(g, ps) : '';
-  // Escala publicada (Sorteio realizado): gira, orixá, Evento e data ficam fixos (o servidor também recusa);
-  // no lugar de Alterar data, o WhatsApp das orações do bloco Geral.
   const publicada = !!(temDuplas && g.publicada);
-  const temOracoes = !!(estado.oracoes || []).length;
-  const btData = publicada
-    ? `<button class="btn" data-act="oraabrir" ${temOracoes ? 'title="Mandar os pedidos de oração no WhatsApp"' : 'disabled title="Nenhum pedido de oração"'}><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar orações</button>`
-    : `<button class="btn" data-act="mudardata" title="Alterar a data da gira (hoje: ${esc(dLong(g.data))})"><span aria-hidden="true">📅</span> Alterar data · ${esc(dDM(g.data))}</button>`;
-  // Admin: um bloco só com os botões, os dados da gira e os atendidos.
-  const painelAdm = !editar ? '' : ouro(`<div class="gira-bts">${botaoWhatsLimpeza(g)}${botaoEncerrar(g)}</div>
-      ${estado.confirm === 'enc:' + g.data ? caixaEncerrar() : ''}
-      <div class="gira-bts">${btEscala}${btEvento}${btData}</div>
-      <div class="gira-campos"><div class="row"><label class="field grow">Gira / entidade do dia${seletorEntidade(g.entidade, g.entidadeNome || '', publicada)}</label>
-        <label class="ev-toggle"><input type="checkbox" data-act="evento" aria-label="Marcar esta atividade como evento" ${g.evento ? 'checked' : ''} ${publicada ? 'disabled' : ''}><span>Evento</span></label></div>
-      ${avisoEntidade(ps, g, editar, admin)}
-      ${temOrixa(g) ? `<label class="field">Orixá${seletorOrixa(g, publicada)}</label>` : ''}</div>
-      <div class="atend-sec gira-campos">${g.evento ? campoParticipantes(g) : `<span class="atend-tit">Atendidos nesta gira</span>${camposAtend(g)}`}</div>`);
-  const botoes = editar ? painelAdm : btEscala || btEvento ? `<div class="gira-bts">${btEscala}${btEvento}</div>` : '';
-  return `<section class="panel">${ano}<div class="card card-gira${existe ? ' aberta' : ''}">${topo}${botoes}${escala}${blocoLimpeza(g, editar)}${blocoRecado(g, editar)}${informes}${realizado}${novos}</div>${rodape}</section>`;
+  const tituloEd = estado.tituloTxt?.data === g.data ? estado.tituloTxt.texto : null;
+  return montarNova({
+    g, ps, ano, admin, editar, existe, encerrada, temDuplas, publicada, whats, rodape,
+    calendario: seletorData(g), marcas: marcasDosDias(),
+    escala: editar ? '' : escala,
+    presenca: editar ? secaoPresenca() : '',
+    sorteio: editar && !g.evento ? secaoSorteio() : '',
+    sugestao: editar && !g.evento ? blocoSugestao(ps, g) : '',
+    trava: editar ? htmlTrava() : '',
+    entidade: seletorEntidade(g.entidade, g.entidadeNome || '', publicada),
+    orixa: temOrixa(g) ? seletorOrixa(g, publicada) : '',
+    avisoEntidade: avisoEntidade(ps, g, editar, admin),
+    titulo: `<input type="text" id="gira-titulo" data-act="giratitulo" data-d="${esc(g.data)}" maxlength="120" enterkeyhint="done" aria-label="Nome da gira" placeholder="${esc(tituloAutomaticoGira(g))}" value="${esc(tituloEd ?? tituloGira(g))}">`,
+    atend: g.evento ? campoParticipantes(g) : camposAtend(g),
+    encerrar: editar ? botaoEncerrar(g) + (estado.confirm === 'enc:' + g.data ? caixaEncerrar() : '') : '',
+    encerradaQuadro: encerrada ? blocoEncerrada(ps, g, { resumo: admin ? pode('escala:completa') : whats, reabrir: admin }) : '',
+    resumoOk: encerrada && (admin ? pode('escala:completa') : whats),
+    realizado: !g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala(false) : '',
+    eventoImagem: g.evento && !encerrada && (editar || whats) ? botaoImagemEvento(g, ps) : '',
+    previa: editar ? botaoWhatsLimpeza(g) : '',
+  });
 }
 
 // ---------- ações ----------
@@ -491,7 +435,7 @@ export const cliques = {
   ...cliquesAtrasos,
   ...cliquesAno,
   ...cliquesNova,
-  // Resumo pelo Compartilhar da Gira nova (data-de="comp"): só abre (não fecha se já estiver aberto) e rola até ele.
+  // Resumo pelo Compartilhar (data-de="comp"): só abre (não fecha se já estiver aberto) e rola até ele.
   rsabrir(el) {
     if (el.dataset.de === 'comp') {
       fecharCompartilhar();
@@ -502,7 +446,7 @@ export const cliques = {
     cliquesResumo.rsabrir(el);
   },
   dobrarcard(el) { const k = el.dataset.k; if (abertos.has(k)) abertos.delete(k); else abertos.add(k); avisar(); },
-  // Gira nova já vem com a próxima turma da limpeza (depois da última gira encerrada, pulando turmas vazias).
+  // Gira criada já vem com a próxima turma da limpeza (depois da última gira encerrada, pulando turmas vazias).
   criargira() {
     const d = giraAtual().data;
     abertos.clear(); abertos.add('oracoes'); duplasAbertas.delete(d);
@@ -543,14 +487,8 @@ export const cliques = {
     if (await acaoAusPrevia(giraAtual().data, id, true)) toast(`Ausência de ${nome(id)} marcada.`);
   },
   async ausprevtira(el) { if (await acaoAusPrevia(giraAtual().data, el.dataset.id, false)) toast(`Ausência de ${nome(el.dataset.id)} retirada.`); },
-  // Limpeza: tocar na turma abre a escolha manual; escolher grava e fecha.
-  limpabrir() {
-    const k = 'limp:' + giraAtual().data;
-    if (abertos.has(k)) abertos.delete(k); else abertos.add(k);
-    avisar();
-  },
+  // Turma da limpeza (passo Preparar): escolher grava.
   limpturma(el) {
-    abertos.delete('limp:' + giraAtual().data);
     editarGira({ limpeza: el.dataset.v ? Number(el.dataset.v) : null });
     avisar();
   },

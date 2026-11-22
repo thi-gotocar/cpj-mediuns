@@ -82,11 +82,6 @@ function janelaOracoes() {
   </div></div>`;
 }
 
-// Botão do WhatsApp da escala: abre a janela para escolher texto ou imagem.
-// Sem sorteio feito fica desabilitado (não há escala para mandar).
-export const botaoWhats = (ok, rotulo = 'WhatsApp') => (ok
-  ? `<button class="btn btn-grande wa-bt" data-act="waabrir"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> ${rotulo}</button>`
-  : `<button class="btn btn-grande wa-bt" disabled title="Faça o sorteio primeiro"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> ${rotulo}</button>`);
 // Admin: abre a prévia da gira, com o texto pronto para ajustar antes de mandar no WhatsApp.
 export function botaoWhatsLimpeza(g) {
   if (g.evento || !temLimpeza(g) || !limpezaDaGira(estado.pessoas, g, girasLista())) return '';
@@ -223,7 +218,7 @@ let raizJanela = null;
 export function atualizarJanela() {
   // Prévia aberta: a atualização da tela não pode apagar o que a pessoa está escrevendo.
   if (estado.previaGira && raizJanela?.querySelector('#pv-texto')) return;
-  const html = prefs.tab === 'agenda' || prefs.tab === 'giraantiga'
+  const html = prefs.tab === 'agenda'
     ? janelaCompartilhar() || janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala() || janelaOracoes()
     : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() || janelaNiver() : '';
   if (!raizJanela) {

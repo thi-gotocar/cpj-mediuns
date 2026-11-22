@@ -534,8 +534,6 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 /* Turma da limpeza */
 .limpeza{display:flex;flex-direction:column;gap:4px;border-left:3px solid var(--orange);background:var(--bg);border-radius:8px;padding:8px 12px;font-size:.92rem}
 /* Gira em aberto: borda realçada para chamar a atenção. */
-.card-gira.aberta{border:2px solid var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 16%,transparent),0 6px 18px color-mix(in srgb,var(--accent) 14%,transparent)}
-.limpeza.licenca{border-left-color:var(--off)}
 /* Histórico: bloco Eventos com o Cadastrar evento e os Eventos cadastrados dentro. */
 .ev-grupo{gap:10px}
 .ev-grupo>.card{padding:12px;background:var(--bg);box-shadow:none}
@@ -552,12 +550,7 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 .aus-nomes{display:flex;flex-wrap:wrap;gap:6px}
 .aus-nome{font-size:.85rem;border:1px solid color-mix(in srgb,var(--off) 40%,var(--line));border-radius:20px;padding:2px 10px;background:var(--surface)}
 /* Recado do admin: primeiro bloco do evento em andamento (mantém as quebras de linha) */
-.limpeza.recado{border-left-color:var(--accent)}
-.recado-txt{white-space:pre-line;overflow-wrap:anywhere}
 /* Faltas: logo abaixo da Ausência, no mesmo padrão, em vermelho vivo */
-.limpeza.faltas{border-left-color:var(--falta);background:color-mix(in srgb,var(--falta) 10%,var(--bg))}
-.limpeza.faltas>b,.limpeza.faltas .aus-ico{color:var(--falta)}
-.limpeza.faltas .aus-nome{border-color:var(--falta);color:var(--falta);font-weight:600}
 /* Banho orixá / Banho guia: ervas em pílulas, borda verde */
 .limpeza.banho{border-left-color:var(--ok);gap:8px}
 .banho-p{display:grid;gap:5px}
@@ -661,8 +654,6 @@ button.eu-avatar{cursor:zoom-in}
 .enc-situacao>b{font:700 1.2rem/1 var(--f-display);color:var(--fn)}
 .enc-situacao>span{font-size:.62rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;line-height:1.15;overflow-wrap:anywhere}
 .enc-situacao>small{font-size:.68rem;color:var(--muted);font-variant-numeric:tabular-nums}
-.atend-sec{display:grid;gap:6px}
-.atend-tit{font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .atend-nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .atend-nums > div,.atend-nums > label{--fn:var(--accent);display:grid;justify-items:center;gap:3px;background:color-mix(in srgb,var(--fn) 7%,var(--surface));border:1px solid color-mix(in srgb,var(--fn) 30%,var(--line));border-top:3px solid var(--fn);border-radius:10px;padding:8px 4px}
 .atend-nums .at-normal{--fn:var(--accent)}
@@ -1459,14 +1450,11 @@ section.panel.pf-tela{gap:14px}
 .es-l{display:flex;gap:8px;padding:3px 0;border-top:1px solid var(--line)}
 .es-m{flex:0 0 42%;min-width:0;font-weight:700;overflow-wrap:anywhere}
 .limp-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.limp-bt{width:100%;min-height:36px;background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;cursor:pointer}
-.limp-bt .seta{color:var(--accent);font-size:1.1rem}
 .limp-turmas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:4px 0 6px}
 .limp-t{display:grid;gap:1px;justify-items:center;min-height:48px;margin:0;line-height:1.15}
 .limp-t small{font-size:.74rem;font-weight:500;color:var(--muted)}
 .limp-t.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .limp-t:last-child:nth-child(odd){grid-column:1/-1}
-.gira-campos{display:grid;gap:10px;min-width:0;padding-top:10px;border-top:1px dashed color-mix(in srgb,var(--gold) 55%,var(--line))}
 .sug-resumo{display:grid;gap:8px;cursor:pointer}
 .sugestao>.grp-h.dobra .count{margin-left:auto}
 .limp-nao{color:var(--off);text-decoration-thickness:2px}
@@ -1623,20 +1611,11 @@ button.eu-av{cursor:zoom-in}
 .adm-sec:first-child{padding-top:0}
 .adm-sec:last-child{padding-bottom:0}
 .adm-sec + .adm-sec{border-top:1px dashed color-mix(in srgb,var(--gold) 55%,var(--line))}
-.datehead input.gira-nome-ed{font-family:var(--f-display);font-size:1.5rem;font-weight:700;line-height:1.25;background:transparent;border-color:var(--gold);padding:3px 9px;margin-top:2px}
-.cab-gira{padding-bottom:12px;border-bottom:1px dashed color-mix(in srgb,var(--muted) 55%,var(--line))}
 .gira-sec{display:grid;gap:14px;min-width:0}
 .gira-adm{display:grid;gap:10px;min-width:0;padding:10px;border:2px solid var(--gold);border-radius:12px;background:color-mix(in srgb,var(--gold) 5%,var(--surface))}
 .gira-adm>.row{margin:0}
-.gira-bts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.gira-bts:empty{display:none}
-.gira-bts>:only-child{grid-column:1/-1}
-.gira-bts>.btn{width:100%;min-width:0;margin:0;height:48px;padding:4px 8px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;font-size:.9rem;line-height:1.15;white-space:normal;border-radius:10px;text-decoration:none}
-.gira-bts .wa-bt{border-width:1px}
-.gira-bts .wa-ico svg{width:18px;height:18px;flex:none}
 .atend-editar input{width:100%;min-height:0;padding:2px;box-sizing:border-box;text-align:center;font:700 1.35rem var(--f-display);color:var(--fn);background:transparent;border:1px dashed color-mix(in srgb,var(--fn) 45%,var(--line));border-radius:6px;-moz-appearance:textfield;appearance:textfield}
 .atend-editar input::-webkit-outer-spin-button,.atend-editar input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.limpeza.recado textarea{font-family:var(--f-body);width:100%;box-sizing:border-box;min-height:calc(2lh + 20px);max-height:calc(5lh + 20px);height:auto;field-sizing:content;resize:none}
 .limpeza.pedir-ervas{flex-direction:row;align-items:center;gap:8px;width:100%;border:0;border-left:3px solid var(--ok);color:inherit;font:inherit;font-size:.92rem;text-align:left;cursor:pointer}
 .pedir-ervas>b{flex:1 1 auto}
 .pedir-ervas .seta{color:var(--accent);font-size:1.2rem;line-height:1}
@@ -1667,8 +1646,6 @@ button.iem-tot-n{cursor:pointer}
 .ofg-nome small{font-size:.75rem}
 .ofg-l>.btn,.ofg-qtd{flex:none}
 .ofg-qtd{display:flex;align-items:center;gap:8px}
-.ev-toggle{display:flex;align-items:center;align-self:end;gap:8px;min-height:42px;padding:0 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-weight:700;cursor:pointer}
-.ev-toggle input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
 /* Ausência antecipada (data ainda sem gira) */
 .aus-prev-l{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .aus-prev-l .lock-x{width:28px;height:28px;padding:0;flex:none}
