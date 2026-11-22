@@ -2470,3 +2470,49 @@ div.pf-of-total{cursor:default}
 .gn-x{display:inline-block;width:1em;text-align:center}
 .gn-x.fino{font-weight:400}
 .gn-x.grosso{font-weight:900}
+/* Diário: faixa da semana no cabeçalho, cuidados em blocos, Para hoje e o Registro em passos */
+.di-semana{display:grid;grid-template-columns:28px repeat(7,minmax(0,1fr)) 28px;gap:3px;align-items:center;margin-top:4px}
+.di-sem-s{padding:0;min-height:32px}
+.di-sem-d{display:flex;flex-direction:column;align-items:center;gap:1px;min-height:54px;padding:4px 0;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--bg) 70%,transparent);color:var(--ink);font:inherit;cursor:pointer;min-width:0}
+.di-sem-d small{font-size:.66rem;font-weight:700;color:var(--muted)}
+.di-sem-d b{font-size:.98rem}
+.di-sem-d.agenda b{color:var(--gold)}
+.di-sem-d.sel{border:2px solid var(--gold);background:color-mix(in srgb,var(--di-lilas) 22%,var(--surface))}
+.di-sem-d:disabled{opacity:.35;cursor:default}
+.di-cab .di-cal{display:grid;gap:8px;margin-top:4px}
+.di-cab-l{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.di-lua-t{margin:0;font-size:.82rem}
+.di-hab-n{margin:0;font-size:.82rem}
+.di-cuids{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.di-cuid{--c:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px;min-height:92px;padding:10px 2px 8px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--bg) 70%,transparent);color:var(--muted);font:inherit;cursor:pointer;min-width:0}
+.di-cuid-preceito{--c:var(--gold)}.di-cuid-atividade{--c:var(--accent)}.di-cuid-agua{--c:#6cc4e8}.di-cuid-banho{--c:var(--ok)}
+.di-cuid-i{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.di-cuid-t{font-size:.74rem;font-weight:700;line-height:1.15;text-align:center;color:var(--ink)}
+.di-cuid small{font-size:.68rem;color:color-mix(in srgb,var(--muted) 75%,transparent)}
+.di-cuid[aria-pressed="true"]{border:1.5px solid var(--c);background:color-mix(in srgb,var(--c) 10%,var(--surface))}
+.di-cuid[aria-pressed="true"] .di-cuid-i{background:var(--c);color:var(--surface)}
+.di-cuid[aria-pressed="true"] small{color:var(--c);font-weight:700}
+.di-tela .di-hab-sub{margin:0}
+.di-gal .grp-h{align-items:center}
+.di-gal-l .di-gal-i{flex:0 0 46%}
+.di-gal-i img{aspect-ratio:5/6}
+.di-hoje{gap:14px}
+.di-hoje .di-pilula{background:none!important;border:0;padding:0;display:grid;gap:4px}
+.di-hoje .di-pend{display:grid;gap:8px}
+.di-hoje .di-pilula+.di-pend{padding-top:12px;border-top:1px solid var(--line)}
+.di-hoje .eyebrow{margin:0}
+.di-reg{gap:0;padding:0;overflow:hidden}
+.di-reg>h3{padding:16px 16px 6px}
+.di-passo{border-top:1px solid var(--line)}
+.di-passo-h{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:10px 16px;border:0;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.di-passo-t{flex:1;min-width:0;display:grid;gap:1px}
+.di-passo-t b{font-size:1rem}
+.di-passo-t small{color:var(--muted);font-size:.84rem;overflow-wrap:anywhere}
+.di-passo-h .seta{color:var(--muted)}
+.di-num{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--di-lilas);color:var(--di-lilas);font-weight:700;font-size:.85rem;box-sizing:border-box}
+.di-num.ok{background:var(--di-lilas);color:var(--surface)}
+.di-passo-c{display:grid;gap:12px;padding:0 16px 18px;min-width:0}
+.di-emo-rec{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.di-emo-pronto{justify-self:start}
+.di-termo{display:grid;gap:8px;padding:12px;border-radius:14px;border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 70%,transparent)}
+.di-banho{display:grid;gap:10px}

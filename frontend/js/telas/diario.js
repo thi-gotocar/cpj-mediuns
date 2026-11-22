@@ -1,9 +1,11 @@
 // Aba Diário: o registro pessoal de cada dia (regras em shared/diario.js; servidor em api/_lib/diario.js).
-// No topo, "Como você está hoje?" com os cuidados do dia (preceito, atividade física, água e banho de ervas); depois a
-// Pílula de sabedoria (um conselho do guia de um dia anterior), os banhos que faltam tomar e o calendário do mês (ponto
-// dourado: gira registrada; lilás: dia comum com manhã e noite; 🌿: banho tomado; 🏋️: atividade física) com a lua do
-// dia escolhido. No fim, a Galeria de fotos da corrente (carrossel, curtidas, uma foto por pessoa) e o bloco do root. O dia muda conforme a agenda (ou o interruptor "Dia de gira"): na gira, Chegada, Saída, Linha, Banho e
-// Conselho do guia; no dia comum, Manhã, Noite, Reflexão e o Orientador, que sugere um banho quando o estado é pesado.
+// No topo, "Como você está hoje?" com a faixa da semana (o botão Mês abre o calendário inteiro; ponto dourado: gira
+// registrada; lilás: dia comum com manhã e noite; 🌿: banho tomado; 🏋️: atividade física), a lua do dia, o Dia de gira e
+// os cuidados do dia em blocos de toque (preceito, atividade física, água e banho de ervas). Depois a Galeria de fotos
+// (carrossel, curtidas, uma foto por pessoa), o card Para hoje (Pílula de sabedoria e banhos para tomar) e o Registro em
+// passos, um aberto por vez. O dia muda conforme a agenda (ou o interruptor "Dia de gira"): na gira, Chegada, Saída,
+// Orientações do guia e Banho; no dia comum, Manhã, Fim do dia e Banho (com o Orientador, que sugere um banho quando o
+// estado é pesado). No fim, o bloco do root.
 // Cada check-in tem a escala de rostos (1 a 5), as emoções em dois grupos (leve e densa; até 3) e a energia (barra de
 // 1 a 5, do vermelho ao verde).
 // Toques salvam na hora; os textos salvam ao sair do campo. O root liga "Visível para todos"; desligado, só ele vê.
@@ -21,9 +23,11 @@ import { calendarioMes, mesMais } from '../calendario.js';
 
 // dia: data aberta; mes: mês do calendário; rasc: textos ainda não salvos por data; ouvindo: campo com o microfone ligado;
 // gal: foto escolhida para a galeria (base64), descrição e envio.
-const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false } };
+// mesAberto: calendário do mês aberto no lugar da faixa da semana; passo: passo aberto do Registro por dia (0 = nenhum);
+// emoEd: sentimentos em edição ('data|campo'; fora disso, os escolhidos aparecem recolhidos com Trocar).
+const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false }, mesAberto: false, passo: {}, emoEd: new Set() };
 let reconhecimento = null;
-export function limpar() { ui.dia = hoje(); ui.mes = ui.dia.slice(0, 7); }
+export function limpar() { ui.dia = hoje(); ui.mes = ui.dia.slice(0, 7); ui.mesAberto = false; ui.passo = {}; ui.emoEd.clear(); }
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 const LINHAS_OK = new Set(LINHAS_DIARIO.map(([k]) => k));
@@ -62,13 +66,20 @@ function rostos(campo, valor) {
 }
 // Emoções em dois grupos; marcadas até MAX_EMOCOES; embaixo, o que é cada uma das marcadas.
 function emocoes(campo, marcadas = []) {
+  const chave = ui.dia + '|' + campo;
+  if (marcadas.length && !ui.emoEd.has(chave)) {
+    const sel = EMOCOES.filter(([k]) => marcadas.includes(k));
+    return `<div class="di-emo-rec">${sel.map(([, t]) => `<span class="di-chip" aria-pressed="true">${t}</span>`).join('')}<button type="button" class="btn link small" data-act="diemotrocar" data-campo="${campo}">Trocar</button></div>
+      <ul class="di-emo-sel">${sel.map(([, t, x]) => `<li><b>${t}</b> · ${x}</li>`).join('')}</ul>`;
+  }
+  const pronto = marcadas.length ? `<button type="button" class="btn small di-emo-pronto" data-act="diemopronto" data-campo="${campo}">Pronto</button>` : '';
   const grupos = GRUPOS_EMOCOES.map((g) => `<div class="di-grupo di-grupo-${g.k}"><p class="di-grupo-h"><b>${g.k === 'leve' ? '☀️' : '🌧️'} ${g.titulo}</b><span>${g.sub}</span></p>
     <div class="di-chips">${g.itens.map(([k, t]) => {
       const on = marcadas.includes(k);
       return `<button type="button" class="di-chip" data-act="diemo" data-campo="${campo}" data-v="${k}" aria-pressed="${on}" ${!on && marcadas.length >= MAX_EMOCOES ? 'aria-disabled="true"' : ''}>${on ? '✓ ' : ''}${t}</button>`;
     }).join('')}</div></div>`).join('');
   const sel = EMOCOES.filter(([k]) => marcadas.includes(k));
-  return `${grupos}${sel.length ? `<ul class="di-emo-sel">${sel.map(([, t, x]) => `<li><b>${t}</b> · ${x}</li>`).join('')}</ul>` : ''}`;
+  return `${grupos}${sel.length ? `<ul class="di-emo-sel">${sel.map(([, t, x]) => `<li><b>${t}</b> · ${x}</li>`).join('')}</ul>` : ''}${pronto}`;
 }
 // Energia: barra de 1 (vermelho) a 5 (verde). Sem marcação, o pino fica apagado no meio até a pessoa tocar.
 const NIVEL_ENERGIA = ['', 'Muito baixa', 'Baixa', 'Média', 'Boa', 'Alta'];
@@ -91,14 +102,26 @@ const corEnergia = (n) => `var(--di-en-${n})`;
 const ORIGEM = { guia: 'recomendado pelo guia', orientador: 'sugerido pelo Orientador', proprio: 'anotado por você' };
 
 // ---------- cuidados do dia ----------
+const ICONE_CUIDADO = {
+  preceito: '<path d="M12 3c2 3 3 4.5 3 6.5a3 3 0 0 1-6 0C9 7.5 10 6 12 3z"/><path d="M9 14h6v7H9z"/>',
+  atividade: '<circle cx="14" cy="4.5" r="1.8"/><path d="M7 21l3-6 3 2v4"/><path d="M9 11l3-3 3 3 3 1"/><path d="M10 15l2-7"/>',
+  agua: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  banho: '<path d="M5 19c8 0 13-5 14-14-9 1-14 6-14 14z"/><path d="M5 19l7-7"/>',
+};
 function cuidados(d) {
   const H = d.habitos || {};
-  const caixa = (k, t) => `<label class="di-hab-c"><input type="checkbox" data-act="dihab" data-k="${k}" ${H[k] ? 'checked' : ''}><span>${t}</span></label>`;
-  let h = `<div class="di-hab">${caixa('preceito', '🕯️ Preceito ok')}${caixa('atividade', '🏋️ Fez atividade física?')}${caixa('agua', '💧 Tomou água?')}`;
+  const feitos = ['preceito', 'atividade', 'agua', 'banho'].filter((k) => H[k]).length;
+  const bloco = (k, t) => {
+    const extra = !H[k] ? 'tocar' : k === 'agua' && H.litros ? `${String(H.litros).replace('.', ',')} L` : 'feito';
+    return `<button type="button" class="di-cuid di-cuid-${k}" data-act="dihabt" data-k="${k}" aria-pressed="${!!H[k]}">
+      <span class="di-cuid-i"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE_CUIDADO[k]}</svg></span>
+      <span class="di-cuid-t">${t}</span><small>${extra}</small></button>`;
+  };
+  let h = `<div class="di-hab"><p class="muted di-hab-n">Cuidados do dia · ${feitos} de 4</p>
+    <div class="di-cuids">${bloco('preceito', 'Preceito')}${bloco('atividade', 'Atividade física')}${bloco('agua', 'Água')}${bloco('banho', 'Banho de ervas')}</div>`;
   if (H.agua) {
     h += `<label class="field di-hab-sub">Quantos litros?<input type="text" inputmode="decimal" maxlength="5" data-act="dilitros" placeholder="Ex.: 1,5" value="${H.litros ? String(H.litros).replace('.', ',') : ''}"></label>`;
   }
-  h += caixa('banho', '🌿 Tomou banho de ervas?');
   if (H.banho) {
     h += `<div class="di-hab-sub"><label class="field">Banho de orixá<select data-act="dihaborixa"><option value="">—</option>
       ${ORIXAS_BANHO.map((o) => `<option value="${esc(o)}" ${o === H.orixa ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`;
@@ -118,73 +141,8 @@ function cuidados(d) {
   return h + '</div>';
 }
 
-function cabecalho() {
-  const d = dadosDe(ui.dia);
-  const gira = ehGira(ui.dia, d);
-  const auto = agendaTemGira(ui.dia);
-  const nome = String(estado.me?.nome || '').split(' ')[0];
-  const ehHoje = ui.dia === hoje();
-  return `<div class="card di-cab"><p class="di-ola">${ehHoje ? `Olá${nome ? ', ' + esc(nome) : ''} 🤍` : 'Seu registro de'}</p>
-    <h2>${ehHoje ? 'Como você está hoje?' : dLong(ui.dia)}</h2>${ehHoje ? `<p class="muted di-data">${dLong(ui.dia)}</p>` : ''}
-    <label class="of-sw"><input type="checkbox" role="switch" data-act="digira" ${gira ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>${ehHoje ? 'Hoje é dia de gira' : 'Dia de gira'}</b>
-      <span class="muted">${auto ? (amaciNaAgenda(ui.dia) && !giraDaAgenda(ui.dia) ? '(amaci na agenda)' : '(pela agenda)') : ''}</span></label>${cuidados(d)}</div>`;
-}
-
-// ---------- Galeria de fotos da corrente ----------
-// src: só no modo demo (a foto fica na memória da página).
-const fotoUrl = (f) => f.src || `/api/pessoas?lista=diarioFoto&id=${encodeURIComponent(f.id)}&v=${encodeURIComponent(f.v)}`;
-function galeria(D) {
-  if (!D.galeria) return '';
-  const L = D.galeria, g = ui.gal;
-  let h = `<div class="card di-gal"><div class="grp-h"><h2>📸 Galeria de fotos</h2>${L.length ? `<span class="count">${L.length}</span>` : ''}</div>
-    <p class="muted di-gal-sub">Uma foto por pessoa. Toda terça-feira a galeria recomeça do zero.</p>`;
-  h += L.length ? `<div class="di-gal-l" role="list">${L.map((f) => {
-    const apagar = f.minha || D.root;
-    const conf = estado.confirm === 'dg:' + f.id;
-    return `<figure class="di-gal-i" role="listitem"><img src="${fotoUrl(f)}" alt="${esc(f.descricao || 'Foto de ' + f.nome)}" loading="lazy">
-      <figcaption><b>${esc(f.nome)}</b>${f.descricao ? `<span>${esc(f.descricao)}</span>` : ''}</figcaption>
-      <div class="di-gal-a"><button type="button" class="di-cur" data-act="dicurtir" data-id="${f.id}" aria-pressed="${f.curti}" aria-label="${f.curti ? 'Descurtir' : 'Curtir'}">${f.curti ? '❤️' : '🤍'} ${f.curtidas}</button>
-        ${apagar ? (conf ? `<button type="button" class="btn small danger" data-act="digalexcluir" data-id="${f.id}">Excluir?</button>`
-          : `<button type="button" class="btn small link" data-act="askdel" data-k="dg:${f.id}">Excluir</button>`) : ''}</div></figure>`;
-  }).join('')}</div>` : '<p class="muted" style="margin:0">Nenhuma foto nesta semana ainda.</p>';
-  if (!L.some((f) => f.minha)) {
-    h += g.foto ? `<div class="di-gal-novo"><img class="di-gal-prev" src="data:image/jpeg;base64,${g.foto}" alt="Foto escolhida">
-        <label class="field">Descrição<input type="text" maxlength="200" data-diario="galdesc" placeholder="Opcional" value="${esc(g.desc)}"></label>
-        <div class="di-gal-bt"><button type="button" class="btn primary" data-act="digalenviar" ${g.enviando ? 'disabled' : ''}>${g.enviando ? 'Enviando…' : 'Confirmar'}</button>
-          <button type="button" class="btn" data-act="digalcancelar" ${g.enviando ? 'disabled' : ''}>Cancelar</button></div></div>`
-      : `<label class="btn primary di-gal-subir">📷 Subir foto<input type="file" accept="image/*" data-act="digalfoto" hidden></label>`;
-  }
-  return h + '</div>';
-}
-
-function cardRoot(D) {
-  if (!D.root) return '';
-  return `<div class="card adm ervas-pub"><label class="of-sw"><input type="checkbox" role="switch" data-act="dipub" ${D.publicada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label>
-    <p class="muted" style="margin:0;font-size:.85rem">${D.publicada ? 'A corrente e os alunos veem a aba (cada um, só o próprio diário).' : 'Desligado: só o root vê esta aba.'}</p></div>`;
-}
-
-// Pílula de sabedoria: um conselho do guia de um dia anterior; troca a cada dia.
-function pilula(D) {
-  const L = D.dias.filter((x) => x.dados.conselho && x.data < hoje());
-  if (!L.length) return '';
-  const n = Math.floor(pd(hoje()).getTime() / 864e5);
-  const c = L[((n % L.length) + L.length) % L.length];
-  const quem = c.dados.linha && LINHA_LABEL[c.dados.linha] ? `seu ${LINHA_LABEL[c.dados.linha]}` : 'seu guia';
-  const t = c.dados.conselho.length > 280 ? c.dados.conselho.slice(0, 280).trimEnd() + '…' : c.dados.conselho;
-  return `<div class="card di-pilula"><p class="eyebrow">💊 Pílula de sabedoria</p>
-    <p class="di-pilula-t">Em ${dDM(c.data)}, ${esc(quem)} aconselhou: <q>${esc(t)}</q></p></div>`;
-}
-
-function pendencias(D) {
-  const L = D.dias.filter((x) => x.dados.banho?.ervas?.length && !x.dados.banho.feito).sort((a, b) => b.data.localeCompare(a.data));
-  if (!L.length) return '';
-  return `<div class="card di-pend"><div class="grp-h"><h2>🌿 Banhos para tomar</h2><span class="count">${L.length}</span></div>
-    <div class="di-pend-l" data-rolar="4">${L.map((x) => `<div class="di-pend-i"><div><b>${esc(x.dados.banho.ervas.join(', '))}</b>
-      <span class="muted">${dDM(x.data)} · ${ORIGEM[x.dados.banho.origem] || ORIGEM.guia}</span></div>
-      <button class="btn small" data-act="ditomei" data-d="${x.data}">Tomei</button></div>`).join('')}</div></div>`;
-}
-
-function calendario(D) {
+// Marcas do calendário (faixa da semana e mês): gira, manhã e noite, banho, atividade física e amaci.
+function marcasDosDias(D) {
   const porData = Object.fromEntries(D.dias.map((x) => [x.data, x.dados]));
   const marcas = (data) => {
     const x = porData[data];
@@ -196,11 +154,100 @@ function calendario(D) {
     if (amaciNaAgenda(data)) M.push('<i class="di-folha">🕊️</i>');
     return M.join('');
   };
+  return { porData, marcas };
+}
+const maisDias = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+const diaSemana = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).getUTCDay(); };
+
+// O dia escolhido: a faixa da semana (‹ ›, até hoje) ou, com Mês, o calendário inteiro com a legenda.
+function seletorDia(D) {
+  const { porData, marcas } = marcasDosDias(D);
+  const hj = hoje();
+  if (ui.mesAberto) {
+    return `<div class="di-cal">${calendarioMes({ mes: ui.mes, sel: ui.dia, acaoDia: 'didia', acaoMes: 'dimes', ate: hj, marcas, classe: (data) => (!porData[data] && agendaTemGira(data) ? 'agenda' : '') })}
+      <div class="di-leg muted"><span><i class="di-p di-p-gira"></i> gira</span><span><i class="di-p di-p-dia"></i> manhã e noite</span><span>🌿 banho tomado</span><span>🏋️ atividade física</span><span>🕊️ amaci</span></div></div>`;
+  }
+  // Os 7 dias em volta do escolhido (até 3 depois dele), sem passar de hoje.
+  const fim = maisDias(ui.dia, 3) > hj ? hj : maisDias(ui.dia, 3);
+  const ini = maisDias(fim, -6);
+  const dias = Array.from({ length: 7 }, (_, i) => maisDias(ini, i));
+  const prox = maisDias(fim, 1);
+  return `<div class="di-semana">
+    <button type="button" class="btn small di-sem-s" data-act="disemana" data-v="-7" aria-label="Semana anterior">‹</button>
+    ${dias.map((d, i) => `<button type="button" class="di-sem-d${d === ui.dia ? ' sel' : ''}${!porData[d] && agendaTemGira(d) ? ' agenda' : ''}" data-act="didia" data-d="${d}" ${d > hj ? 'disabled' : ''} aria-pressed="${d === ui.dia}" aria-label="${dLong(d)}">
+      <small>${'DSTQQSS'[diaSemana(d)]}</small><b>${Number(d.slice(8))}</b><span class="di-marcas">${marcas(d)}</span></button>`).join('')}
+    <button type="button" class="btn small di-sem-s" data-act="disemana" data-v="7" aria-label="Próxima semana" ${prox > hj ? 'disabled' : ''}>›</button></div>`;
+}
+
+function cabecalho(D) {
+  const d = dadosDe(ui.dia);
+  const gira = ehGira(ui.dia, d);
+  const auto = agendaTemGira(ui.dia);
+  const nome = String(estado.me?.nome || '').split(' ')[0];
+  const ehHoje = ui.dia === hoje();
   const [, nomeLua, iconeLua, textoLua] = faseDaLua(ui.dia);
-  return `<div class="card di-cal">
-    ${calendarioMes({ mes: ui.mes, sel: ui.dia, acaoDia: 'didia', acaoMes: 'dimes', ate: hoje(), marcas, classe: (data) => (!porData[data] && agendaTemGira(data) ? 'agenda' : '') })}
-    <div class="di-leg muted"><span><i class="di-p di-p-gira"></i> gira</span><span><i class="di-p di-p-dia"></i> manhã e noite</span><span>🌿 banho tomado</span><span>🏋️ atividade física</span><span>🕊️ amaci</span></div>
-    <p class="di-lua" title="${esc(textoLua)}"><span aria-hidden="true">${iconeLua}</span> <b>${nomeLua}</b> · ${esc(textoLua)}</p></div>`;
+  return `<div class="card di-cab"><p class="di-ola">${ehHoje ? `Olá${nome ? ', ' + esc(nome) : ''} 🤍` : 'Seu registro de'}</p>
+    <h2>${ehHoje ? 'Como você está hoje?' : dLong(ui.dia)}</h2>
+    <p class="muted di-data">${ehHoje ? `${dLong(ui.dia)} · ` : ''}<span title="${esc(textoLua)}"><span aria-hidden="true">${iconeLua}</span> ${nomeLua}</span></p>
+    ${seletorDia(D)}
+    <div class="di-cab-l"><label class="of-sw"><input type="checkbox" role="switch" data-act="digira" ${gira ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>${ehHoje ? 'Hoje é dia de gira' : 'Dia de gira'}</b>
+      <span class="muted">${auto ? (amaciNaAgenda(ui.dia) && !giraDaAgenda(ui.dia) ? '(amaci na agenda)' : '(pela agenda)') : ''}</span></label>
+      <button type="button" class="btn small" data-act="dimesabrir" aria-expanded="${ui.mesAberto}">${ui.mesAberto ? 'Semana' : 'Mês'}</button></div>
+    <p class="muted di-lua-t">${esc(textoLua)}</p>
+    ${cuidados(d)}</div>`;
+}
+
+// ---------- Galeria de fotos da corrente ----------
+// src: só no modo demo (a foto fica na memória da página).
+const fotoUrl = (f) => f.src || `/api/pessoas?lista=diarioFoto&id=${encodeURIComponent(f.id)}&v=${encodeURIComponent(f.v)}`;
+function galeria(D) {
+  if (!D.galeria) return '';
+  const L = D.galeria, g = ui.gal;
+  const subir = !L.some((f) => f.minha) && !g.foto ? `<label class="btn small di-gal-subir">📷 Subir foto<input type="file" accept="image/*" data-act="digalfoto" hidden></label>` : '';
+  let h = `<div class="card di-gal"><div class="grp-h"><h2>📸 Galeria da semana${L.length ? ` <span class="count">${L.length}</span>` : ''}</h2>${subir}</div>
+    <p class="muted di-gal-sub">Uma foto por pessoa · recomeça toda terça-feira.</p>`;
+  h += L.length ? `<div class="di-gal-l" role="list">${L.map((f) => {
+    const apagar = f.minha || D.root;
+    const conf = estado.confirm === 'dg:' + f.id;
+    return `<figure class="di-gal-i" role="listitem"><img src="${fotoUrl(f)}" alt="${esc(f.descricao || 'Foto de ' + f.nome)}" loading="lazy">
+      <figcaption><b>${esc(f.nome)}</b>${f.descricao ? `<span>${esc(f.descricao)}</span>` : ''}</figcaption>
+      <div class="di-gal-a"><button type="button" class="di-cur" data-act="dicurtir" data-id="${f.id}" aria-pressed="${f.curti}" aria-label="${f.curti ? 'Descurtir' : 'Curtir'}">${f.curti ? '❤️' : '🤍'} ${f.curtidas}</button>
+        ${apagar ? (conf ? `<button type="button" class="btn small danger" data-act="digalexcluir" data-id="${f.id}">Excluir?</button>`
+          : `<button type="button" class="btn small link" data-act="askdel" data-k="dg:${f.id}">Excluir</button>`) : ''}</div></figure>`;
+  }).join('')}</div>` : '<p class="muted" style="margin:0">Nenhuma foto nesta semana ainda.</p>';
+  if (!L.some((f) => f.minha) && g.foto) {
+    h += `<div class="di-gal-novo"><img class="di-gal-prev" src="data:image/jpeg;base64,${g.foto}" alt="Foto escolhida">
+        <label class="field">Descrição<input type="text" maxlength="200" data-diario="galdesc" placeholder="Opcional" value="${esc(g.desc)}"></label>
+        <div class="di-gal-bt"><button type="button" class="btn primary" data-act="digalenviar" ${g.enviando ? 'disabled' : ''}>${g.enviando ? 'Enviando…' : 'Confirmar'}</button>
+          <button type="button" class="btn" data-act="digalcancelar" ${g.enviando ? 'disabled' : ''}>Cancelar</button></div></div>`;
+  }
+  return h + '</div>';
+}
+
+function cardRoot(D) {
+  if (!D.root) return '';
+  return `<div class="card adm ervas-pub"><label class="of-sw"><input type="checkbox" role="switch" data-act="dipub" ${D.publicada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label>
+    <p class="muted" style="margin:0;font-size:.85rem">${D.publicada ? 'A corrente e os alunos veem a aba (cada um, só o próprio diário).' : 'Desligado: só o root vê esta aba.'}</p></div>`;
+}
+
+// Para hoje: a Pílula de sabedoria (um conselho do guia de um dia anterior; troca a cada dia) e os banhos para tomar.
+function paraHoje(D) {
+  let pil = '';
+  const L = D.dias.filter((x) => x.dados.conselho && x.data < hoje());
+  if (L.length) {
+    const n = Math.floor(pd(hoje()).getTime() / 864e5);
+    const c = L[((n % L.length) + L.length) % L.length];
+    const quem = c.dados.linha && LINHA_LABEL[c.dados.linha] ? `seu ${LINHA_LABEL[c.dados.linha]}` : 'seu guia';
+    const t = c.dados.conselho.length > 280 ? c.dados.conselho.slice(0, 280).trimEnd() + '…' : c.dados.conselho;
+    pil = `<div class="di-pilula"><p class="eyebrow">💊 Pílula de sabedoria</p><p class="di-pilula-t">Em ${dDM(c.data)}, ${esc(quem)} aconselhou: <q>${esc(t)}</q></p></div>`;
+  }
+  const B = D.dias.filter((x) => x.dados.banho?.ervas?.length && !x.dados.banho.feito).sort((a, b) => b.data.localeCompare(a.data));
+  const ban = B.length ? `<div class="di-pend"><p class="eyebrow">🌿 Banhos para tomar · ${B.length}</p>
+    <div class="di-pend-l" data-rolar="4">${B.map((x) => `<div class="di-pend-i"><div><b>${esc(x.dados.banho.ervas.join(', '))}</b>
+      <span class="muted">${dDM(x.data)} · ${ORIGEM[x.dados.banho.origem] || ORIGEM.guia}</span></div>
+      <button class="btn small" data-act="ditomei" data-d="${x.data}">Tomei</button></div>`).join('')}</div></div>` : '';
+  if (!pil && !ban) return '';
+  return `<div class="card di-hoje">${pil}${ban}</div>`;
 }
 
 function termometro(d, gira) {
@@ -212,7 +259,7 @@ function termometro(d, gira) {
   const msg = delta > 0 ? (gira ? 'Você saiu da gira mais forte do que chegou.' : 'Você termina o dia com mais energia.')
     : delta < 0 ? (gira ? 'Você saiu com menos energia: descanse e cuide-se.' : 'O dia pesou: um banho de manutenção ajuda.')
     : 'Energia estável.';
-  return `<div class="card di-termo"><p class="eyebrow">🌡️ Termômetro de Axé</p>${humor}
+  return `<div class="di-termo"><p class="eyebrow">🌡️ Termômetro de Axé</p>${humor}
     <div class="di-termo-b" style="background:linear-gradient(90deg, ${corEnergia(a)}, ${corEnergia(b)})">
       <span>${gira ? 'Chegada' : 'Manhã'} ${a}</span><span>${gira ? 'Saída' : 'Noite'} ${b}</span></div>
     <p class="di-termo-t"><b>Delta de Axé ${delta > 0 ? '+' : ''}${delta}</b> · ${msg}</p></div>`;
@@ -235,7 +282,7 @@ function banho(d, gira) {
       <p>Você registrou <b>${esc(EMOCOES.find(([k]) => k === sug.emo)[1])}</b>. Sugestão de banho de manutenção: <b>${sug.nome}</b>.</p>
       <p class="muted">${sug.fundamento}</p>
       ${B.ervas.some((e) => e.toLowerCase() === sug.nome.toLowerCase()) ? '' : `<button class="btn small" data-act="disugestao">Quero esse banho</button>`}</div>` : '';
-  return `<div class="card di-banho"><h3>🌿 ${gira ? 'Banho recomendado pelo guia' : 'Banho'}</h3>${chave}${orientador}
+  return `<div class="di-banho">${chave}${orientador}
     ${lista ? `<div class="di-ervas">${lista}</div>` : '<p class="muted" style="margin:0">Nenhuma erva anotada.</p>'}${quente}
     <form id="f-di-erva" class="di-add"><input type="text" id="di-erva" list="di-ervas-lista" placeholder="Erva (ex.: alecrim)" maxlength="60" autocomplete="off">
       <button class="btn small">Adicionar</button></form>
@@ -243,29 +290,49 @@ function banho(d, gira) {
     ${B.ervas.length ? `<label class="of-sw"><input type="checkbox" role="switch" data-act="difeito" ${B.feito ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Banho tomado</b></label>` : ''}</div>`;
 }
 
+// Resumo de um check-in fechado: o rosto, os sentimentos e a energia.
+function resumoCheck(b, vazio) {
+  if (!completo(b)) return vazio;
+  const h = HUMOR.find(([n]) => n === b.humor);
+  const emo = EMOCOES.filter(([k]) => (b.emo || []).includes(k)).map(([, t]) => t.split(' / ')[0]);
+  return [h ? `${h[1]} ${h[2]}` : '', emo.join(', '), b.energia ? `energia ${b.energia}` : ''].filter(Boolean).join(' · ');
+}
+function passo(n, num, titulo, resumo, feito, aberto, corpo) {
+  return `<div class="di-passo${aberto ? ' aberto' : ''}"><button type="button" class="di-passo-h" data-act="dipasso" data-n="${n}" aria-expanded="${aberto}">
+    <span class="di-num${feito ? ' ok' : ''}" aria-hidden="true">${feito ? '✓' : num}</span>
+    <span class="di-passo-t"><b>${titulo}</b><small>${esc(resumo)}</small></span><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>
+    ${aberto ? `<div class="di-passo-c">${corpo}</div>` : ''}</div>`;
+}
+
 function dia() {
   const d = dadosDe(ui.dia);
   const gira = ehGira(ui.dia, d);
   const linha = gira ? linhaDoDia(ui.dia, d) : '';
   const A = d.antes || {}, P = d.depois || {};
-  let h = `<div class="card di-check di-check-a"><h3>${gira ? '🕯️ Antes da gira' : '🌅 Ao acordar'}</h3>
-    <p class="di-rot">${gira ? 'Como você está chegando?' : 'Como você acordou?'}</p>${rostos('antes.humor', A.humor)}
+  const B = d.banho || { ervas: [] };
+  const c1 = `<p class="di-rot">${gira ? 'Como você está chegando?' : 'Como você acordou?'}</p>${rostos('antes.humor', A.humor)}
     <p class="di-rot">O que você sente? <span class="muted">(até ${MAX_EMOCOES})</span></p>${emocoes('antes.emo', A.emo)}
     ${gira ? '' : `<p class="di-rot">Sono e sonhos</p>${chips('antes.sono', SONO, A.sono)}`}
-    <p class="di-rot">Energia ${gira ? 'física e espiritual' : 'da manhã'}</p>${energia('antes.energia', A.energia)}</div>`;
-  h += `<div class="card di-check di-check-b"><h3>${gira ? '✨ Depois da gira' : '🌙 Ao fim do dia'}</h3>
-    <p class="di-rot">${gira ? 'Como você está saindo?' : 'Como você está encerrando o dia?'}</p>${rostos('depois.humor', P.humor)}
+    <p class="di-rot">Energia ${gira ? 'física e espiritual' : 'da manhã'}</p>${energia('antes.energia', A.energia)}`;
+  const c2 = `<p class="di-rot">${gira ? 'Como você está saindo?' : 'Como você está encerrando o dia?'}</p>${rostos('depois.humor', P.humor)}
     <p class="di-rot">O que você sente? <span class="muted">(até ${MAX_EMOCOES})</span></p>${emocoes('depois.emo', P.emo)}
     <p class="di-rot">Energia ${gira ? 'depois do trabalho' : 'da noite'}</p>${energia('depois.energia', P.energia)}
     ${gira ? `<p class="di-rot">Sensação</p>${GRUPOS_SENSACOES.map((g) => `<div class="di-sens"><span class="muted">${g.titulo}</span>${chips('depois.sensacao', g.itens, P.sensacao)}</div>`).join('')}`
-      : campoTexto('reflexao', 'Reflexão, gratidão ou sincronicidades (opcional)', d.reflexao, MAX_REFLEXAO, true)}</div>`;
-  h += termometro(d, gira);
-  if (gira) {
-    h += `<div class="card"><h3>🙏 Orientações do guia</h3>
-      <label class="field">Linha / falange<select data-act="dilinha"><option value="">—</option>${LINHAS_DIARIO.map(([k, t]) => `<option value="${k}" ${k === linha ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-      ${campoTexto('conselho', 'Conselho do guia', d.conselho, MAX_CONSELHO, true, true)}</div>`;
-  }
-  return h + banho(d, gira);
+      : campoTexto('reflexao', 'Reflexão, gratidão ou sincronicidades (opcional)', d.reflexao, MAX_REFLEXAO, true)}
+    ${termometro(d, gira)}`;
+  const c3 = `<label class="field">Linha / falange<select data-act="dilinha"><option value="">—</option>${LINHAS_DIARIO.map(([k, t]) => `<option value="${k}" ${k === linha ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      ${campoTexto('conselho', 'Conselho do guia', d.conselho, MAX_CONSELHO, true, true)}`;
+  const c4 = banho(d, gira);
+  const rBanho = B.ervas.length ? `${B.ervas.join(', ')}${B.feito ? ' · tomado' : ''}` : 'Nenhuma erva anotada';
+  const lista = [[1, gira ? 'Antes · Chegada' : 'Manhã', resumoCheck(A, gira ? 'Emoção, sentimentos e energia' : 'Emoção, sono e energia'), completo(A), c1],
+    [2, gira ? 'Depois · Saída' : 'Fim do dia', resumoCheck(P, gira ? 'Emoção, energia, sensação e Termômetro de Axé' : 'Emoção, energia e reflexão'), completo(P), c2]];
+  if (gira) lista.push([3, 'Orientações do guia', d.conselho ? `${linha && LINHA_LABEL[linha] ? LINHA_LABEL[linha] + ' · ' : ''}conselho anotado` : (linha && LINHA_LABEL[linha]) || 'Linha e conselho do guia', !!d.conselho, c3]);
+  lista.push([4, gira ? 'Banho recomendado pelo guia' : 'Banho', rBanho, !!B.feito, c4]);
+  // Passo aberto: o que a pessoa escolheu ou, sem escolha, o primeiro que falta.
+  if (!(ui.dia in ui.passo)) ui.passo[ui.dia] = (lista.find(([, , , ok]) => !ok) || lista.at(-1))[0];
+  const aberto = ui.passo[ui.dia];
+  return `<div class="card di-reg"><h3>${gira ? 'Registro da gira' : 'Registro do dia'}</h3>
+    ${lista.map(([n, t, r, ok, c], i) => passo(n, i + 1, t, r, ok, aberto === n, c)).join('')}</div>`;
 }
 
 export function render() {
@@ -273,7 +340,8 @@ export function render() {
   if (D === null) { carregarDiario(); return '<div class="loading">Carregando o diário…</div>'; }
   if (D.erro) return `<section class="panel"><div class="card"><p class="erro">${esc(D.erro)}</p><button class="btn" data-act="direcarregar">Tentar de novo</button></div></section>`;
   if (ui.dia > hoje()) limpar();
-  return `<section class="panel di-tela">${cabecalho()}${pilula(D)}${pendencias(D)}${calendario(D)}${dia()}${galeria(D)}${cardRoot(D)}</section>`;
+  // A Galeria de fotos vem logo depois do Como você está hoje? (segundo card).
+  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardRoot(D)}</section>`;
 }
 
 // ---------- ações ----------
@@ -379,7 +447,30 @@ function ouvir(campo) {
 
 export const cliques = {
   direcarregar() { estado.diario = null; avisar(); },
-  didia(el) { if (reconhecimento) reconhecimento.stop(); ui.dia = el.dataset.d; avisar(); },
+  didia(el) { if (reconhecimento) reconhecimento.stop(); ui.dia = el.dataset.d; ui.mes = ui.dia.slice(0, 7); avisar(); },
+  // Faixa da semana: anda 7 dias (nunca depois de hoje).
+  disemana(el) {
+    if (reconhecimento) reconhecimento.stop();
+    const d = maisDias(ui.dia, Number(el.dataset.v));
+    ui.dia = d > hoje() ? hoje() : d;
+    ui.mes = ui.dia.slice(0, 7);
+    avisar();
+  },
+  dimesabrir() { ui.mesAberto = !ui.mesAberto; ui.mes = ui.dia.slice(0, 7); avisar(); },
+  dipasso(el) { const n = Number(el.dataset.n); ui.passo[ui.dia] = ui.passo[ui.dia] === n ? 0 : n; avisar(); },
+  diemotrocar(el) { ui.emoEd.add(ui.dia + '|' + el.dataset.campo); avisar(); },
+  diemopronto(el) { ui.emoEd.delete(ui.dia + '|' + el.dataset.campo); avisar(); },
+  // Bloco do cuidado: um toque marca ou desmarca (desmarcar Água e Banho limpa os detalhes).
+  dihabt(el) {
+    const k = el.dataset.k;
+    const on = !(dadosDe(ui.dia).habitos || {})[k];
+    mudarHabitos((h) => {
+      if (on) { h[k] = true; return; }
+      delete h[k];
+      if (k === 'agua') delete h.litros;
+      if (k === 'banho') { delete h.orixa; delete h.ervas; }
+    });
+  },
   dimes(el) {
     const mes = mesMais(ui.mes, Number(el.dataset.v));
     if (mes <= hoje().slice(0, 7)) ui.mes = mes;
@@ -392,6 +483,7 @@ export const cliques = {
     const atual = dadosDe(ui.dia)[g]?.[k] || [];
     const v = el.dataset.v;
     if (!atual.includes(v) && atual.length >= MAX_EMOCOES) { toast(`Escolha até ${MAX_EMOCOES}: desmarque uma para trocar.`); return; }
+    ui.emoEd.add(ui.dia + '|' + el.dataset.campo);
     salvar((d) => {
       d[g] = d[g] || {};
       const L = (d[g][k] || []).includes(v) ? d[g][k].filter((x) => x !== v) : [...(d[g][k] || []), v];
@@ -462,15 +554,6 @@ export const mudancas = {
     const v = Number(t.value);
     if (dadosDe(ui.dia)[g]?.[k] === v) return;
     salvar((d) => { d[g] = d[g] || {}; d[g][k] = v; });
-  },
-  dihab(t) {
-    const k = t.dataset.k;
-    mudarHabitos((h) => {
-      if (t.checked) { h[k] = true; return; }
-      delete h[k];
-      if (k === 'agua') delete h.litros;
-      if (k === 'banho') { delete h.orixa; delete h.ervas; }
-    });
   },
   dilitros(t) {
     const v = t.value.trim();
