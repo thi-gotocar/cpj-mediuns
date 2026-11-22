@@ -304,7 +304,34 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .cp-qtd .btn{min-width:30px;width:30px;height:30px;padding:0;font-size:1rem}
 .cp-qtd .n{min-width:1.5em;font-size:.9rem}
 .cp-ed{width:30px;height:30px;min-width:0;padding:0}
-.ervas-pub{margin-top:10px}
+/* Ervas: cabeçalho com selos, Seu pedido com o total no topo, listas no lugar de tabelas e o fim do admin. */
+.ervas-cab{display:grid;gap:6px;padding:4px 2px 0}
+.ervas-cab>.muted{font-size:.9rem}
+.ervas-cab h1{margin:0;font-size:1.75rem;line-height:1.12;overflow-wrap:anywhere}
+.ervas-selos{display:flex;flex-wrap:wrap;gap:6px}
+.selo-erva{display:inline-flex;align-items:center;padding:3px 11px;border-radius:999px;background:color-mix(in srgb,var(--ink) 9%,var(--surface));color:var(--ink);font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums}
+.selo-erva.ok{background:var(--ok-soft);color:var(--ok)}
+.selo-erva.fech{background:var(--warn-soft);color:var(--warn)}
+.ervas-pedido-cab{align-items:flex-start}
+.ervas-tot{display:grid;justify-items:end;gap:1px;text-align:right}
+.ervas-tot b{color:var(--ok);font-size:1.3rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ervas-tot small{font-size:.8rem}
+.ervas-quem .ervas-pedido-pessoa{max-width:100%}
+.ervas-pes{display:grid}
+.ervas-pe{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.ervas-pe:first-child{border-top:0}
+.ervas-pe.eu .ervas-pe-n b{color:var(--ok)}
+.ervas-pe-n,.ervas-pe-v{display:grid;gap:1px;min-width:0}
+.ervas-pe-n small{overflow-wrap:anywhere}
+.ervas-pe-v{text-align:right;font-variant-numeric:tabular-nums}
+.ervas-pe-v b{white-space:nowrap}
+.ervas-pe-v small{font-size:.78rem;white-space:nowrap}
+.ervas-pe-a{grid-column:1/-1;display:flex;gap:6px;justify-content:flex-end}
+.ervas-pe-tot{display:flex;justify-content:space-between;padding-top:9px;border-top:1px solid var(--line);font-weight:700;font-variant-numeric:tabular-nums}
+.ervas-compra{display:grid;gap:12px;min-width:0}
+.ervas-fim{gap:12px}
+.ervas-fim-l{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ervas-fim-l>span{display:grid;gap:1px}
 .ervas-pessoa-sel select{flex:1 1 auto;min-width:0;max-width:100%;min-height:0;padding:0 2px;border:0;background:transparent;color:inherit;font:inherit;font-weight:700}
 .ervas-pessoa-sel select option,.ervas-pessoa-sel select optgroup{color:var(--ink);background:var(--surface)}
 .bt-iguais{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;align-items:stretch}
