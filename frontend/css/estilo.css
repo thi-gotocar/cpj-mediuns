@@ -2503,3 +2503,29 @@ div.pf-of-total{cursor:default}
 .di-olho{min-width:36px;min-height:32px;padding:2px 6px;color:var(--muted);vertical-align:middle}
 .di-olho[aria-pressed="true"]{color:var(--accent)}
 .di-grupo-h b{display:flex;align-items:center;justify-content:space-between;gap:6px}
+/* Perfil: sub-abas, cabeçalho com foto e o que falta, Informações em leitura e os blocos numa lista */
+.pf-subabas{margin-bottom:-4px}
+.pf-cab{display:flex;align-items:center;gap:14px}
+.pf-cab .pf-foto{width:auto}
+.pf-cab .pf-foto-img{width:76px;height:76px}
+.pf-cab .pf-foto-img span{font-size:1.5rem}
+.pf-cab-t{display:grid;gap:2px;min-width:0}
+.pf-cab-t h1{margin:0;font-family:var(--f-display);font-size:1.7rem;line-height:1.1;overflow-wrap:anywhere}
+.pf-cab-f{font-size:.9rem;font-weight:700;color:var(--gold)}
+.pf-cab-pills{display:flex;flex-wrap:wrap;gap:6px}
+.pf-pill{border:0;border-radius:999px;padding:5px 11px;font:700 .8rem var(--f-body);background:var(--warn-soft);color:var(--warn);cursor:pointer}
+.pf-pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pf-info-h{display:flex;align-items:center;gap:8px}
+.pf-lin{display:grid;grid-template-columns:118px minmax(0,1fr);gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:.95rem;overflow-wrap:anywhere}
+.pf-lin>span:first-child{font-size:.78rem;font-weight:700;color:var(--muted);padding-top:2px}
+.pf-info-1 .pf-lin:first-child{border-top:0}
+.pf-info-contato .pf-lin:first-child{border-top:0}
+.pf-blocos{gap:0;padding:0;overflow:hidden}
+.pf-bloco+.pf-bloco{border-top:1px solid var(--line)}
+.pf-bloco-h{display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:10px 14px;border:0;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.pf-bloco-t{flex:1;min-width:0;display:grid;gap:1px}
+.pf-bloco-t b{font-size:1rem}
+.pf-bloco-t small{color:var(--muted);font-size:.83rem;overflow-wrap:anywhere}
+.pf-bloco-h .seta{color:var(--muted)}
+.pf-bloco-h .selo-preench{flex:none}
+.pf-bloco-c{display:grid;gap:12px;padding:0 14px 16px;min-width:0}

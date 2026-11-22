@@ -1,7 +1,9 @@
 // Tela "Perfil": cada pessoa registra as suas informações, os seus orixás, guias e outros guias.
-// O admin também acompanha a corrente: a Anamnese, os guias de todos e as oferendas pendentes.
+// Duas sub-abas (para quem tem a corrente para ver): **Meu perfil** — cabeçalho com foto e o que falta, Informações em
+// modo leitura (Editar abre os campos) e os outros blocos numa lista, um aberto por vez — e **Corrente** — ver o perfil
+// (ou o contato) de alguém, a Anamnese de todos e o bloco Pessoas.
 
-import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS } from '/shared/regras.js';
+import { ORIXAS, LINHAS_CADASTRO, LINHA_KEYS, FUNCOES } from '/shared/regras.js';
 import { POSICOES_ORIXA, POSICOES_GUIA, GUIAS, NOME_GUIA_MAX, respondeu, lerNascimento, nascimentoBR, telefoneBR, soNumeros, emailValido, blocosAfinidade, cadastraEspiritual, cpfValido, cpfBR,
   ANAMNESE_TIPOS, ANAMNESE_PERGUNTA_MAX, ANAMNESE_TEXTO_MAX, ANAMNESE_SIMNAO, ANAMNESE_TIPO_LABEL, anamnesePreenchida, respostasPorPessoa, textoAnamnese, valorAnamnese } from '/shared/perfil.js';
 import { estado, pode, visaoAtiva, vePessoas, avisar, carregarPerfil, mudarPerfil, salvarAfinidade, carregarFoto, salvarFoto, salvarInfoDe, carregarAnamnese, acaoAnamnese, lerCpf, salvarCpf } from '../estado.js';
@@ -14,6 +16,8 @@ const ROT_ORIXA = { frente: 'frente', ancestral: 'ancestral', adjunto: 'adjunto'
 const U = () => estado.pfUi;
 const admin = () => pode('perfil:corrente') && Array.isArray(estado.perfil?.todos);
 const soAluno = () => visaoAtiva() === 'alunos';
+// Sub-aba Corrente: quem administra o Perfil, quem vê Pessoas e quem pode ver o contato de alguém da corrente.
+const temCorrente = () => !soAluno() && (admin() || vePessoas() || (estado.perfil?.contatos || []).length > 1);
 
 // Cabeçalho do card: toca para minimizar/expandir (os da corrente só para o admin; os meus, para todos).
 function cab(k, titulo, count, aberto, dobra) {
@@ -148,8 +152,9 @@ function normalizarBusca(texto) {
 
 // De quem são os dados do bloco Informações: a pessoa do combo (começa na própria).
 // Quem não é admin só recebe o contato das outras pessoas (parcial).
+const naCorrente = () => U().sub === 'corrente' && temCorrente();
 function pessoaDoBloco(eu) {
-  const id = estado.infoPessoa || eu?.pessoaId || '';
+  const id = naCorrente() ? estado.infoPessoa || '' : eu?.pessoaId || '';
   if (!id) return null;
   if (id === eu?.pessoaId) return { pessoaId: id, nome: eu.nome, info: eu.perfil.info || {}, propria: true };
   const t = admin() ? estado.perfil.todos.find((x) => x.pessoaId === id) : null;
@@ -168,7 +173,10 @@ function cardInfo(eu) {
   const editando = !!x && u.infoEdit === x.pessoaId;
   const I = x?.info || {};
   const atual = { nome: x?.parcial ? x.nome : I.nome, nascimento: nascimentoBR(I.nascimento), celular: telefoneBR(I.celular), email: I.email, contatoNome: I.contatoNome, contatoTelefone: telefoneBR(I.contatoTelefone) };
-  const campo = (k, rotulo, attrs, dica, cls = '') => `<label class="field pf-info-c${cls}">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} ${editando || k === 'nome' ? `placeholder="${esc(dica)}"` : ''} ${editando ? '' : 'disabled'} value="${esc((editando ? u.infoRasc[k] : atual[k]) || '')}"></label>`;
+  // Fora da edição: rótulo e valor (vazio, "—"); em Editar, os campos.
+  const campo = (k, rotulo, attrs, dica, cls = '') => (editando
+    ? `<label class="field pf-info-c${cls}">${rotulo}<input id="pf-i-${k}" data-act="pfinfo" data-k="${k}" ${attrs} placeholder="${esc(dica)}" value="${esc(u.infoRasc[k] || '')}"></label>`
+    : `<div class="pf-lin"><span>${rotulo}</span><span${atual[k] ? '' : ' class="muted"'}>${esc(atual[k] || '—')}</span></div>`);
   const sv = estado.perfilSalvo;
   const sel = x?.pessoaId || '';
   const busca = normalizarBusca(u.infoBusca || '');
@@ -181,23 +189,26 @@ function cardInfo(eu) {
       <button class="btn pf-info-busca-bt" type="button" data-act="infobusca" aria-label="Buscar pessoa" title="Buscar pessoa" ${editando ? 'disabled' : ''}>🔍</button>
     </div>
     <label class="pf-info-busca" id="info-busca" ${u.infoBuscaVisivel ? '' : 'hidden'}><span aria-hidden="true">🔍</span><input type="search" id="info-pessoa-busca" placeholder="Buscar pelo nome" aria-label="Buscar pessoa" value="${esc(u.infoBusca || '')}"></label>`;
-  const cabeca = `<div class="grp-h"><h2><span aria-hidden="true">👤</span> Informações</h2><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span></div>`;
-  if (!x) return `<div class="card pf-info-card">${cabeca}${escolha}<p class="muted" style="margin:0;font-size:.88rem">Escolha uma pessoa para ver as informações.</p></div>`;
-  return `<div class="card pf-info-card">${cabeca}${soAluno() ? '' : escolha}
-    <div class="pf-info-sec"><h3>${x.propria ? 'Seus dados' : 'Dados'}</h3><div class="pf-dados"><div class="pf-info pf-info-1">
+  const btEditar = x && podeEditarInfo(x) && !editando ? '<button class="btn small" data-act="pfinfoeditar">Editar</button>' : '';
+  const cabeca = `<div class="grp-h"><h2>Informações</h2><span class="pf-info-h"><span id="pf-salvo" class="pf-salvo ${sv || ''}">${sv === 'salvando' ? 'Salvando…' : sv === 'salvo' ? '✓ Salvo' : sv === 'erro' ? 'Não salvou' : ''}</span>${btEditar}</span></div>`;
+  // Na sub-aba Corrente: o combo para escolher a pessoa (o próprio perfil fica no Meu perfil).
+  const combo = naCorrente() && !soAluno();
+  if (!x) return combo ? `<div class="card pf-info-card"><div class="grp-h"><h2>${admin() ? 'Ver o perfil de alguém' : 'Contato de alguém'}</h2></div>${escolha}<p class="muted" style="margin:0;font-size:.88rem">${admin() ? 'Abre as informações, os orixás e guias, os guias de atendimento e a anamnese da pessoa.' : 'Mostra a pessoa para contato de alguém da corrente.'}</p></div>` : '';
+  return `${combo ? `<div class="card pf-info-card pf-escolha-card"><div class="grp-h"><h2>${admin() ? 'Ver o perfil de alguém' : 'Contato de alguém'}</h2></div>${escolha}</div>` : ''}<div class="card pf-info-card" id="pf-info">${cabeca}
+    <div class="pf-info-sec"><div class="pf-dados"><div class="pf-info pf-info-1">
       ${campo('nome', 'Nome completo', 'type="text" maxlength="80" autocomplete="name"', x.nome, ' inteiro')}
       ${x.parcial ? '' : campo('nascimento', 'Data de nascimento', 'type="text" inputmode="numeric" maxlength="10" data-mascara="data" autocomplete="bday"', '31/10/1990')}
       ${x.parcial ? '' : campo('celular', 'Celular', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel" autocomplete="tel"', '(11) 91234-5678')}
       ${x.parcial ? '' : campo('email', 'E-mail', 'type="email" inputmode="email" maxlength="120" autocomplete="email"', 'nome@exemplo.com', ' inteiro')}
-    </div>${blocoFoto(x.pessoaId, x.nome, editando)}</div></div>
+    </div>${editando || !x.propria ? blocoFoto(x.pessoaId, x.nome, editando) : ''}</div></div>
     ${blocoCpf(x)}
-    <div class="pf-info-sec pf-info-contato"><h3><span aria-hidden="true">📞</span> Pessoa para contato</h3><div class="pf-info">
+    <div class="pf-info-sec pf-info-contato"><h3>Pessoa para contato</h3><div class="pf-info">
       ${campo('contatoNome', 'Nome', 'type="text" maxlength="80"', 'Quem chamar')}
       ${campo('contatoTelefone', 'Telefone', 'type="tel" inputmode="numeric" maxlength="15" data-mascara="tel"', '(11) 91234-5678')}
     </div>${!editando && !x.propria && numeroContato ? `<a class="btn small pf-ligar" href="tel:${numeroContato}"><span aria-hidden="true">📞</span> Ligar</a>` : ''}</div>
-    ${podeEditarInfo(x) ? `<div class="pf-bts">
-      <button class="btn" data-act="${editando ? 'pfinfocancelar' : 'pfinfoeditar'}"><span aria-hidden="true">${editando ? '✕' : '✏️'}</span> ${editando ? 'Cancelar' : 'Editar'}</button>
-      <button class="btn primary" data-act="pfinfosalvar" ${editando ? '' : 'disabled'}><span aria-hidden="true">💾</span> Salvar</button>
+    ${editando ? `<div class="pf-bts">
+      <button class="btn" data-act="pfinfocancelar">Cancelar</button>
+      <button class="btn primary" data-act="pfinfosalvar">Salvar</button>
     </div>` : ''}</div>`;
 }
 
@@ -330,18 +341,18 @@ const AFIN = {
   extra: { titulo: 'Atendimento extra', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento extra.', funcao: 'atendimento extra' },
   passe: { titulo: 'Passe', texto: 'Marque as entidades que você tem 100% de afinidade e segurança para estar pronto para a escala de atendimento Passe.', funcao: 'passe' },
 };
-function cardsAfinidade(eu) {
+function blocosAfin(eu) {
   return blocosAfinidade(eu.funcao).map(({ tipo, campo }) => {
     const A = AFIN[tipo];
     const ls = (campo === 'linhas' ? eu.linhas : campo === 'extra' ? eu.afinidadeExtra : eu.afinidadePasse) || [];
-    // Começa minimizado; tocar no título expande.
-    return card('afin-' + tipo, A.titulo, selo(ls.length > 0), false, () => `
+    const todas = LINHA_KEYS.every((k) => ls.includes(k));
+    return { k: 'afin-' + tipo, titulo: A.titulo, resumo: todas ? 'Todas as linhas' : ls.length ? `${ls.length} ${ls.length === 1 ? 'linha marcada' : 'linhas marcadas'}` : 'Nenhuma linha marcada', ok: ls.length > 0, selo: selo(ls.length > 0), corpo: () => `
       <p class="muted" style="margin:0;font-size:.9rem">${A.texto}</p>
       ${campo === 'linhas' ? `<p class="muted" style="margin:0;font-size:.82rem">Vale para o sorteio: nas giras das entidades que não estiverem marcadas, você entra como cambone. Marque “Todas” para atuar em todas. Sem nenhuma marcada, você não está apto a nenhuma e cambona.</p>` : ''}
       <label class="chip chip-todas"><input type="checkbox" id="af-${tipo}-todas" data-act="afintodas" data-tipo="${tipo}" ${LINHA_KEYS.every((k) => ls.includes(k)) ? 'checked' : ''}> Todas</label>
       ${LINHAS_CADASTRO.map((grp) => `<div class="lgrp"><span class="tag">${grp.grupo}</span><div class="lchips">${grp.itens.map(([k, label]) =>
-        `<label class="chip"><input type="checkbox" id="af-${tipo}-${k}" data-act="afin" data-tipo="${tipo}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}`, true);
-  }).join('');
+        `<label class="chip"><input type="checkbox" id="af-${tipo}-${k}" data-act="afin" data-tipo="${tipo}" data-l="${k}" ${ls.includes(k) ? 'checked' : ''}> ${k === 'mista' ? 'Encontro das Linhas (Mista)' : label}</label>`).join('')}</div></div>`).join('')}` };
+  });
 }
 
 // Uma posição (caixinha): rótulo, combo e "Oferenda realizada" ao lado (verde com ✓ quando marcada).
@@ -371,37 +382,57 @@ function cardEspiritual(P, ver = false) {
   const feitas = todas.filter((x) => x.oferenda).length;
   const pct = Math.round((feitas / todas.length) * 100);
   const secao = (titulo, ok, linhas) => `<div class="pf-sec"><div class="pf-sec-h"><h3>${titulo}</h3>${selo(ok)}</div>${linhas}</div>`;
-  return card('espiritual', '<span aria-hidden="true">🕯️</span> Orixás, guias e oferendas', selo(okTudo), false, () => `
+  const resumo = [P.orixas.frente?.nome || '', GUIA_LABEL[P.guias.chefe?.linha] || '', `${feitas} de ${todas.length} oferendas`].filter(Boolean).join(' · ');
+  return { k: 'espiritual', titulo: 'Orixás, guias e oferendas', resumo, ok: okTudo === true, selo: selo(okTudo), corpo: () => `
     <div class="pf-of-resumo"><div class="pf-of-resumo-h"><span>Oferendas realizadas</span><b>${feitas} de ${todas.length}</b></div>
       <div class="pf-barra${feitas === todas.length ? ' cheia' : ''}" role="img" aria-label="${feitas} de ${todas.length} oferendas realizadas"><span style="width:${pct}%"></span></div></div>
     ${secao('Orixás', okOrixas, POSICOES_ORIXA.map(([k, rotulo]) => linhaEscolha({ grupo: 'orixas', k, rotulo, valor: P.orixas[k].nome, opcoes: ORIXAS.map((o) => [o, o]), oferenda: P.orixas[k].oferenda, ver })).join(''))}
-    ${secao('Guias', okGuias, POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda, ver })).join(''))}`, true);
+    ${secao('Guias', okGuias, POSICOES_GUIA.map(([k, rotulo]) => linhaEscolha({ grupo: 'guias', k, rotulo, valor: P.guias[k].linha, opcoes: GUIAS, oferenda: P.guias[k].oferenda, ver })).join(''))}` };
 }
 
 // Guias de atendimento (nome do guia em cada linha). ver: só visualização.
 function cardOutros(P, ver = false) {
   const nOutros = GUIAS.filter(([k]) => (P.outros || {})[k]).length;
   const okOutros = nOutros === GUIAS.length ? true : nOutros ? 'andamento' : false;
-  return card('outros', 'Guias de atendimento', selo(okOutros), false, () => `
+  return { k: 'outros', titulo: 'Guias de atendimento', resumo: `${nOutros} de ${GUIAS.length} com o nome do guia`, ok: okOutros === true, selo: selo(okOutros), corpo: () => `
     ${ver ? '' : '<p class="muted" style="margin:0 0 8px;font-size:.85rem">Escreva o nome do seu guia em cada linha.</p>'}
     ${GUIAS.map(([k, label]) => `<div class="pf-linha pf-outro">
       <label class="pf-rot" for="pf-outro-${k}">${esc(label)}</label>
       <input id="pf-outro-${k}" type="text" maxlength="${NOME_GUIA_MAX}" placeholder="${ver ? '—' : 'Nome do guia'}" autocomplete="off" ${ver ? 'disabled' : `data-act="pfnome" data-k="${k}"`} value="${esc(P.outros[k] || '')}">
-    </div>`).join('')}`, true);
+    </div>`).join('')}` };
 }
 
 // ---------- meu perfil ----------
-function meusCards(eu) {
-  // Orixás e guias (num bloco só) e outros guias começam minimizados (para todos); tocar no título expande.
-  // Curimba: só as informações pessoais (não cadastra orixás, guias nem guias de atendimento).
-  if (!cadastraEspiritual(eu.funcao)) return '';
-  return cardsAfinidade(eu) + cardEspiritual(eu.perfil) + cardOutros(eu.perfil);
+// Lista dos blocos (um card só): cada linha com título, resumo e selo; um aberto por vez (U().bloco).
+function listaBlocos(itens) {
+  const L = itens.filter(Boolean);
+  if (!L.length) return '';
+  const ab = U().bloco;
+  return `<div class="card pf-blocos">${L.map((b) => `<div class="pf-bloco pf-c-${b.k}${ab === b.k ? ' aberto' : ''}" id="pf-b-${b.k}">
+    <button class="pf-bloco-h" data-act="pfbloco" data-k="${b.k}" aria-expanded="${ab === b.k}"><span class="pf-bloco-t"><b>${b.titulo}</b><small>${esc(b.resumo || '')}</small></span>${b.selo || ''}<span class="seta" aria-hidden="true">${ab === b.k ? '▾' : '▸'}</span></button>
+    ${ab === b.k ? `<div class="pf-bloco-c">${b.corpo()}</div>` : ''}</div>`).join('')}</div>`;
+}
+// Os meus blocos (curimba: só as informações pessoais, sem orixás, guias nem guias de atendimento).
+function meusBlocos(eu) {
+  if (!cadastraEspiritual(eu.funcao)) return [];
+  return [...blocosAfin(eu), cardEspiritual(eu.perfil), cardOutros(eu.perfil)];
+}
+// Cabeçalho do Meu perfil: foto, nome, função e o que falta (uma pílula por bloco; tocar abre o bloco).
+function cabecalho(eu, blocos) {
+  const I = eu.perfil.info || {};
+  const infoOk = !!(I.nome && I.nascimento && I.celular && I.contatoNome && I.contatoTelefone);
+  const itens = [{ k: 'info', titulo: 'Informações', ok: infoOk }, ...blocos.filter(Boolean)];
+  const feitos = itens.filter((b) => b.ok).length;
+  const funcao = soAluno() ? 'Aluno' : FUNCOES.find((f) => f.k === eu.funcao)?.label || (eu.funcao === 'curimba' ? 'Curimba' : '');
+  return `<div class="pf-cab">${blocoFoto(eu.pessoaId, eu.nome, false)}
+    <div class="pf-cab-t"><h1>${esc(I.nome || eu.nome)}</h1>${funcao ? `<span class="pf-cab-f">${esc(funcao)}</span>` : ''}<small class="muted">Perfil ${feitos} de ${itens.length} completo</small></div></div>
+    <div class="pf-cab-pills">${itens.map((b) => `<button type="button" class="pf-pill${b.ok ? ' ok' : ''}" data-act="pfirbloco" data-k="${b.k}">${b.ok ? '✓ ' : ''}${esc(b.titulo.replace(', guias e oferendas', ' e guias'))}</button>`).join('')}</div>`;
 }
 
 // Admin com outra pessoa no combo de Informações: as respostas dela, só para ver.
 function cardsDeOutra(x) {
-  const espiritual = cadastraEspiritual(x.funcao) ? cardEspiritual(x.perfil, true) + cardOutros(x.perfil, true) : '';
-  return `<p class="pf-vendo"><span aria-hidden="true">👁️</span> Respostas de <b>${esc(x.nome)}</b> · só visualização</p>${espiritual}${cardAnamneseDe(x)}`;
+  const espiritual = cadastraEspiritual(x.funcao) ? [cardEspiritual(x.perfil, true), cardOutros(x.perfil, true)] : [];
+  return `<p class="pf-vendo"><span aria-hidden="true">👁️</span> Respostas de <b>${esc(x.nome)}</b> · só visualização</p>${listaBlocos([...espiritual, cardAnamneseDe(x)])}`;
 }
 
 // ---------- Anamnese ----------
@@ -425,26 +456,26 @@ function campoAnamnese(q, i, v, ed) {
 }
 function cardAnamnese() {
   const A = estado.anamnese;
-  if (A?.visivel === false && !admin()) return '';
-  if (!A || A.erro) return card('anamnese', 'Anamnese', '', false, () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>`, true);
+  if (A?.visivel === false && !admin()) return null;
+  if (!A || A.erro) return { k: 'anamnese', titulo: 'Anamnese', resumo: A?.erro ? 'Não carregou' : 'Carregando…', ok: false, selo: '', corpo: () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>` };
   const ok = anamnesePreenchida(A.perguntas, A.minhas);
   const ed = !!U().anaEdit;
   const vals = ed ? U().anaRasc || {} : A.minhas || {};
-  return card('anamnese', 'Anamnese', A.perguntas.length ? selo(ok ? true : 'apreencher') : '', false, () => (!A.perguntas.length
+  return { k: 'anamnese', titulo: 'Anamnese', resumo: 'Ficha para apoio em emergências', ok, selo: A.perguntas.length ? selo(ok ? true : 'apreencher') : '', corpo: () => (!A.perguntas.length
     ? '<p class="muted" style="margin:0">Nenhuma pergunta cadastrada ainda.</p>'
     : `<p class="ana-instr">Ficha para apoio em emergências. Contém dados pessoais e de saúde: só você e administradores do Perfil podem consultar as respostas. Preencha as perguntas obrigatórias (<b>*</b>); campos opcionais ou iniciados por “Se sim” podem ficar em branco quando não se aplicarem.</p>
       <div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, vals[q.id] || '', ed)).join('')}</div>
       <div class="row ana-bts">${ed ? '<button class="btn primary" data-act="anasalvar">Salvar</button><button class="btn" data-act="anacancelar">Cancelar</button>'
-        : '<button class="btn" data-act="anaeditar">Editar</button>'}</div>`), true);
+        : '<button class="btn" data-act="anaeditar">Editar</button>'}</div>`) };
 }
 // Anamnese de outra pessoa (admin): as respostas dela, travadas, sem Editar.
 function cardAnamneseDe(x) {
   const A = estado.anamnese;
-  if (!A || A.erro) return card('anamnese', 'Anamnese', '', false, () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>`, true);
+  if (!A || A.erro) return { k: 'anamnese', titulo: 'Anamnese', resumo: A?.erro ? 'Não carregou' : 'Carregando…', selo: '', corpo: () => `<p class="muted" style="margin:0">${A?.erro ? esc(A.erro) : 'Carregando…'}</p>` };
   const R = respostasPorPessoa(A.todas)[x.pessoaId] || {};
-  return card('anamnese', 'Anamnese', A.perguntas.length ? selo(anamnesePreenchida(A.perguntas, R) ? true : 'apreencher') : '', false, () => (!A.perguntas.length
+  return { k: 'anamnese', titulo: 'Anamnese', resumo: 'Só visualização', selo: A.perguntas.length ? selo(anamnesePreenchida(A.perguntas, R) ? true : 'apreencher') : '', corpo: () => (!A.perguntas.length
     ? '<p class="muted" style="margin:0">Nenhuma pergunta cadastrada ainda.</p>'
-    : `<div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, R[q.id] || '', false)).join('')}</div>`), true);
+    : `<div class="ana-lista">${A.perguntas.map((q, i) => campoAnamnese(q, i, R[q.id] || '', false)).join('')}</div>`) };
 }
 // Os valores que estão na tela (antes de abrir a janela de Salvar).
 function lerAnamneseTela() {
@@ -590,7 +621,8 @@ function renderAluno() {
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu } = estado.perfil;
   if (!eu) return `<section class="panel pf-tela"><div class="card"><p class="muted" style="margin:0">Este usuário não tem perfil de aluno para mostrar nesta visão.</p></div></section>`;
-  return `<section class="panel pf-tela">${cardInfo(eu)}${cardEspiritual(eu.perfil)}${janelaInfo()}</section>`;
+  const blocos = [cardEspiritual(eu.perfil)];
+  return `<section class="panel pf-tela">${cabecalho(eu, blocos)}${cardInfo(eu)}${listaBlocos(blocos)}${janelaInfo()}</section>`;
 }
 
 // Corrente (acesso cpj) sem senha: a aba aparece, mas o perfil só abre depois de criar a senha (aviso em janela).
@@ -610,29 +642,49 @@ export function render() {
   if (estado.perfil.erro) return `<div class="card"><h2>Perfil</h2><p class="muted" style="margin:0">${esc(estado.perfil.erro)}</p></div>`;
   const { eu, todos } = estado.perfil;
   if (estado.anamnese === null) { estado.anamnese = undefined; carregarAnamnese(); }
-  let h = '';
-  // Funções de admin juntas no topo, dentro da moldura dourada "ADMIN".
-  if (admin()) {
-    // Só a Anamnese: começa minimizada; tocar no título expande e recolhe.
-    const ana = anamneseAdmin(todos);
-    const abertaAdm = !!U().abertos['anamnese-adm'];
-    h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN PERFIL</span>
-      <button class="grp-h dobra" data-act="pfdobra" data-k="anamnese-adm" aria-expanded="${abertaAdm}"><h2><span aria-hidden="true">🩺</span> Anamnese${ana ? ` <span class="pf-cab-pct">${ana.pct}%</span>` : ''}</h2>
-        <span class="count">${ana ? `${ana.n} de ${ana.total} ` : ''}<span class="seta" aria-hidden="true">${abertaAdm ? '▾' : '▸'}</span></span></button>
-      ${abertaAdm ? (ana ? ana.corpo() : '<div class="loading">Carregando a anamnese…</div>') : ''}</div>`;
+  const corrente = temCorrente();
+  const naC = naCorrente();
+  const barra = corrente ? `<div class="subabas pf-subabas" role="tablist" aria-label="Perfil"><button class="subaba" role="tab" data-act="pfsub" data-v="meu" aria-selected="${!naC}">Meu perfil</button><button class="subaba" role="tab" data-act="pfsub" data-v="corrente" aria-selected="${naC}">Corrente</button></div>` : '';
+  let h = barra;
+  if (naC) {
+    // Corrente: ver o perfil (ou o contato) de alguém, a Anamnese de todos (admin) e o bloco Pessoas.
+    h += cardInfo(eu);
+    const outra = admin() && estado.infoPessoa && estado.infoPessoa !== eu?.pessoaId ? todos.find((x) => x.pessoaId === estado.infoPessoa) : null;
+    if (outra) h += cardsDeOutra(outra);
+    h += cardPessoas();
+    if (admin()) {
+      const ana = anamneseAdmin(todos);
+      const abertaAdm = !!U().abertos['anamnese-adm'];
+      h += `<div class="pf-adm-area" role="group" aria-label="Só para admin"><span class="pf-adm-rot">ADMIN PERFIL</span>
+        <button class="grp-h dobra" data-act="pfdobra" data-k="anamnese-adm" aria-expanded="${abertaAdm}"><h2><span aria-hidden="true">🩺</span> Anamnese de todos${ana ? ` <span class="pf-cab-pct">${ana.pct}%</span>` : ''}</h2>
+          <span class="count">${ana ? `${ana.n} de ${ana.total} ` : ''}<span class="seta" aria-hidden="true">${abertaAdm ? '▾' : '▸'}</span></span></button>
+        ${abertaAdm ? (ana ? ana.corpo() : '<div class="loading">Carregando a anamnese…</div>') : ''}</div>`;
+    }
+  } else if (eu) {
+    const blocos = [...meusBlocos(eu), cardAnamnese()];
+    h += cabecalho(eu, blocos) + cardInfo(eu) + listaBlocos(blocos);
+  } else {
+    h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.${corrente ? ' Use a sub-aba Corrente.' : ''}</p></div>`;
   }
-  h += cardPessoas();
-  h += cardInfo(eu);
-  const outra = admin() && estado.infoPessoa && estado.infoPessoa !== eu?.pessoaId ? todos.find((x) => x.pessoaId === estado.infoPessoa) : null;
-  if (outra) h += cardsDeOutra(outra);
-  else if (eu) h += meusCards(eu) + cardAnamnese();
-  else if (!admin()) h += `<div class="card"><p class="muted" style="margin:0">Seu usuário não está ligado a uma pessoa da corrente, então não tem perfil próprio.</p></div>`;
-  h += cardGuiasCorrente(estado.perfil.guias || []);
+  if (!naC) h += cardGuiasCorrente(estado.perfil.guias || []);
   return `<section class="panel pf-tela">${h}${janelaAnamnese()}${janelaInfo()}${janelaCpf()}</section>`;
 }
 
 export const cliques = {
   ...cliquesCpf,
+  pfsub(el) { if (U().infoEdit) fecharEdicaoInfo(); U().sub = el.dataset.v; avisar(); window.scrollTo(0, 0); },
+  pfbloco(el) {
+    const k = el.dataset.k;
+    if (emDemo() && k === 'anamnese') { toast('Modo demonstração: a anamnese não abre.'); return; }
+    U().bloco = U().bloco === k ? null : k;
+    avisar();
+  },
+  // Pílula do cabeçalho: abre o bloco e rola até ele (Informações: só rola).
+  pfirbloco(el) {
+    const k = el.dataset.k;
+    if (k !== 'info') { if (emDemo() && k === 'anamnese') { toast('Modo demonstração: a anamnese não abre.'); return; } U().bloco = k; avisar(); }
+    setTimeout(() => document.getElementById(k === 'info' ? 'pf-info' : 'pf-b-' + k)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
+  },
   pfsemsenhafechar() { U().semSenhaFechado = true; avisar(); },
   pfcriarsenha() { U().semSenhaFechado = true; avisar(); document.querySelector('[data-conta="criarsenha"]')?.click(); },
   // Anamnese (pessoa): Editar e Salvar abrem a janela de confirmação.
