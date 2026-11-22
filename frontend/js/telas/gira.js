@@ -19,7 +19,7 @@ import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSortei
 import { cardConduta, cliquesConduta, mudancasConduta } from './giraConduta.js';
 import { cardAtrasos, cliquesAtrasos } from './giraAtrasos.js';
 import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
-import { montarNova, cliquesNova } from './giraNova.js';
+import { montarNova, cliquesNova, fecharCompartilhar } from './giraNova.js';
 export { enviarOracao } from './giraTopo.js';
 export { enviarConduta, digitarConduta } from './giraConduta.js';
 import { imagemOracoesPronta, prepararOracoes, imagemNiverPronta, prepararNiver, botaoWhats, botaoWhatsLimpeza, imagemPronta, imagemEventoPronta, botaoImagemEvento, prepararImagemEvento, prepararImagem, blocoImagemEscala, atualizarJanela } from './giraJanelas.js';
@@ -100,10 +100,11 @@ function blocosFora(ps, g) {
 // Quadro "Gira encerrada" (para todos, só informa): atendimentos e presença.
 const numeroParticipantes = (g) => `<div class="atend-nums participantes"><div class="at-participantes"><b>${Number(g.participantes) || 0}</b><span>Participantes</span></div></div>`;
 // Na mesma linha do ✓ Encerrado: o WhatsApp do resumo e, para o admin, o Reabrir (só o ícone, pouco usado).
-function blocoEncerrada(ps, g, { resumo: verResumo = false, reabrir = false } = {}) {
+// semBotaoResumo (Gira nova): o Resumo abre pelo Compartilhar; aqui só fica o Fechar com o painel aberto.
+function blocoEncerrada(ps, g, { resumo: verResumo = false, reabrir = false, semBotaoResumo = false } = {}) {
   const resumo = dadosResumo(estado.pessoas, g);
   const aberto = estado.resumo?.data === g.data;
-  const btResumo = verResumo ? `<button class="btn small wa-bt enc-rs" data-act="rsabrir" data-d="${g.data}">${aberto ? '<span aria-hidden="true">✕</span> Fechar' : `<span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Resumo`}</button>` : '';
+  const btResumo = verResumo && (!semBotaoResumo || aberto) ? `<button class="btn small wa-bt enc-rs" data-act="rsabrir" data-d="${g.data}">${aberto ? '<span aria-hidden="true">✕</span> Fechar' : `<span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Resumo`}</button>` : '';
   const btReabrir = reabrir ? '<button class="btn small enc-reabrir" data-act="reabrir" title="Reabrir a gira" aria-label="Reabrir a gira">↺</button>' : '';
   return `<div class="enc-quadro"><div class="enc-titulo"><span aria-hidden="true">✓</span><h3>Encerrado</h3>${btResumo || btReabrir ? `<div class="enc-acoes">${btResumo}${btReabrir}</div>` : ''}</div>
     ${verResumo ? painelResumo(g) : ''}
@@ -441,11 +442,11 @@ function renderGira(nova = false) {
       titulo: `<input type="text" id="gira-titulo" data-act="giratitulo" data-d="${esc(g.data)}" maxlength="120" enterkeyhint="done" aria-label="Nome da gira" placeholder="${esc(tituloAutomaticoGira(g))}" value="${esc(tituloEd ?? tituloGira(g))}">`,
       atend: g.evento ? campoParticipantes(g) : camposAtend(g),
       encerrar: editar ? botaoEncerrar(g) + (estado.confirm === 'enc:' + g.data ? caixaEncerrar() : '') : '',
-      encerradaQuadro: encerrada ? blocoEncerrada(ps, g, { resumo: admin ? pode('escala:completa') : whats, reabrir: admin }) : '',
+      encerradaQuadro: encerrada ? blocoEncerrada(ps, g, { resumo: admin ? pode('escala:completa') : whats, reabrir: admin, semBotaoResumo: true }) : '',
+      resumoOk: encerrada && (admin ? pode('escala:completa') : whats),
       realizado: !g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala(false) : '',
       eventoImagem: g.evento && !encerrada && (editar || whats) ? botaoImagemEvento(g, ps) : '',
       previa: editar ? botaoWhatsLimpeza(g) : '',
-      acoes: cliques,
     });
   }
 
@@ -489,6 +490,16 @@ export const cliques = {
   ...cliquesAtrasos,
   ...cliquesAno,
   ...cliquesNova,
+  // Resumo pelo Compartilhar da Gira nova (data-de="comp"): só abre (não fecha se já estiver aberto) e rola até ele.
+  rsabrir(el) {
+    if (el.dataset.de === 'comp') {
+      fecharCompartilhar();
+      if (estado.resumo?.data !== el.dataset.d) cliquesResumo.rsabrir(el);
+      setTimeout(() => document.querySelector('.enc-quadro')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      return;
+    }
+    cliquesResumo.rsabrir(el);
+  },
   dobrarcard(el) { const k = el.dataset.k; if (abertos.has(k)) abertos.delete(k); else abertos.add(k); avisar(); },
   // Gira nova já vem com a próxima turma da limpeza (depois da última gira encerrada, pulando turmas vazias).
   criargira() {
@@ -639,6 +650,7 @@ export const cliques = {
   // Bloco Eventos: só os de hoje ↔ todos.
   evsmais() { estado.evsTodos = !estado.evsTodos; avisar(); },
   eventoimagem() {
+    fecharCompartilhar();
     const g = giraAtual();
     if (!g.evento || g.encerrada) return;
     const ps = daGira(pessoasComSaidas(), g).filter(contaNaPresenca);
@@ -661,7 +673,7 @@ export const cliques = {
   },
   escimg() { estado.escImgVer = true; atualizarJanela(); },
   // Orações (admin): janela com a prévia da imagem; "Compartilhar" abre a lista do aparelho (WhatsApp); sem ela, salva.
-  oraabrir() { estado.oraJanela = true; atualizarJanela(); prepararOracoes(); },
+  oraabrir() { fecharCompartilhar(); estado.oraJanela = true; atualizarJanela(); prepararOracoes(); },
   orafechar() { estado.oraJanela = null; atualizarJanela(); },
   orasalvar() {
     if (!imagemOracoesPronta()) return;
@@ -692,10 +704,10 @@ export const cliques = {
   },
   escimgfechar() { estado.escImgVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).
-  waabrir() { estado.waJanela = true; atualizarJanela(); prepararImagem(); },
+  waabrir() { fecharCompartilhar(); estado.waJanela = true; atualizarJanela(); prepararImagem(); },
   wafechar() { estado.waJanela = null; atualizarJanela(); },
   // Prévia da gira: abre com o texto pronto; o link do Enviar acompanha o que for escrito.
-  pvabrir() { estado.previaGira = { texto: textoLimpeza(estado.pessoas, giraAtual(), girasLista()) }; atualizarJanela(); },
+  pvabrir() { fecharCompartilhar(); estado.previaGira = { texto: textoLimpeza(estado.pessoas, giraAtual(), girasLista()) }; atualizarJanela(); },
   pvfechar() { estado.previaGira = null; atualizarJanela(); },
   pvenviar() { setTimeout(cliques.pvfechar, 0); },
   // O link já abre o WhatsApp; a janela fecha logo depois (sem atrapalhar o toque no link).

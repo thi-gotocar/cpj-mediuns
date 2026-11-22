@@ -2393,10 +2393,7 @@ div.pf-of-total{cursor:default}
 .gn-selo.enc{background:var(--bg);color:var(--muted)}
 .gn-extra{margin:0;font-size:.9rem}
 .gn-comp-bt{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:46px;margin-top:4px}
-.gn-comp{display:grid;gap:6px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-.gn-comp-op{display:grid;gap:2px;text-align:left;padding:10px 12px;min-height:48px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit;cursor:pointer}
-.gn-comp-op:disabled{opacity:.5;cursor:default}
-.gn-comp-op small,.gn-comp-ev small{display:block;color:var(--muted);font-size:.84rem}
+.gn-comp-ev small{display:block;color:var(--muted);font-size:.84rem}
 .gn-comp-ev{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 /* Condução da gira: a moldura dourada de sempre, com os passos dentro */
 .gn-cond{border:2px solid var(--gold);border-radius:14px;background:color-mix(in srgb,var(--gold) 5%,var(--surface));overflow:hidden}
@@ -2449,3 +2446,4 @@ div.pf-of-total{cursor:default}
 .gn-tambem .limpeza.pedir-ervas{border-left:0;background:var(--bg);border-radius:10px;padding:10px 12px;min-height:44px}
 .gn-tambem .limpeza.oferenda{border-left:0;background:var(--bg);border-radius:10px}
 .gn-tambem .limpeza.pedir-ervas>b{font-family:var(--f-body);font-size:1rem}
+.gn-sug-turma{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:8px 10px;border-radius:10px;background:var(--warn-soft);color:var(--ink);font-weight:500;font-size:.92rem}

@@ -3,12 +3,13 @@
 // faixa da semana, cabeçalho com um Compartilhar só, os 4 passos do admin (Preparar → Presença → Escala → Encerrar)
 // e, embaixo, o mesmo que a corrente vê.
 
-import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial } from '/shared/regras.js';
+import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, proximaTurma } from '/shared/regras.js';
 import { aniversariantesDoDia, rotuloTipo } from '/shared/eventos.js';
 import { estado, prefs, salvarPrefs, girasLista, giraAtual, avisar } from '../estado.js';
 import { esc, dLong, dDM } from '../util.js';
 import { ICONE_WHATS } from './giraComum.js';
 import { blocoLimpeza, blocoBanho, blocoPedirErvas, blocosOferenda, escolhaTurma } from './giraInformacoes.js';
+import { atualizarJanela } from './giraJanelas.js';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -25,7 +26,7 @@ const diaDaSemana = (iso) => { const [y, m, d] = iso.split('-').map(Number); ret
 const passos = new Map();   // data → número do passo aberto (0 = todos fechados)
 let mesAberto = false;
 let compAberto = false;
-let acoes = {};             // as ações da aba Gira (para o Compartilhar chamar a escolhida)
+let compOpcoes = { ops: [], eventoImagem: '' };   // as opções da gira aberta, para a janela do Compartilhar
 
 // ---------- faixa da semana ----------
 function faixaSemana(g, marcas, calendario) {
@@ -69,28 +70,51 @@ function cabecalho(ctx) {
 
 // ---------- Compartilhar: um botão só, com as opções que a pessoa tem ----------
 function compartilhar(ctx) {
-  const { g, existe, admin, whats, temDuplas, previa, eventoImagem } = ctx;
+  const { g, existe, admin, editar, whats, temDuplas, previa, eventoImagem, resumoOk } = ctx;
   if (!existe) return '';
   const ops = [];
+  // Gira encerrada: o resumo (texto ou imagem) fica aqui junto com o resto.
+  if (resumoOk) ops.push(['rsabrir', 'Resumo da gira', 'Atendidos, presença e frequência, em texto ou imagem', false, `data-d="${g.data}" data-de="comp"`]);
   if (whats && !g.evento) ops.push(['waabrir', 'Escala', temDuplas ? 'Texto da lista ou imagem da escala' : 'Faça o sorteio primeiro', !temDuplas]);
+  // Prévia: o mesmo texto da Gira antiga (turma da limpeza, senha, orixá quando houver); sem turma não há prévia.
   if (previa) ops.push(['pvabrir', 'Prévia da gira', 'Saudação, senha e turma da limpeza, para ajustar antes de enviar']);
+  else if (editar && !g.evento && temLimpeza(g)) ops.push(['pvabrir', 'Prévia da gira', 'Escolha a turma da limpeza no passo Preparar', true]);
   const nOra = (estado.oracoes || []).length;
   if (admin && nOra) ops.push(['oraabrir', 'Pedidos de oração', `Imagem com ${nOra} ${nOra === 1 ? 'pedido' : 'pedidos'}`]);
+  compOpcoes = { ops, eventoImagem };
   if (!ops.length && !eventoImagem) return '';
-  const lista = compAberto ? `<div class="gn-comp" role="group" aria-label="O que compartilhar">
-      ${ops.map(([act, t, sub, off]) => `<button type="button" class="gn-comp-op" data-act="gncompir" data-alvo="${act}" ${off ? 'disabled' : ''}><b>${t}</b><small>${sub}</small></button>`).join('')}
-      ${eventoImagem ? `<div class="gn-comp-ev"><span><b>Imagem do evento</b><small>Recado, banho, ausências e licenças</small></span>${eventoImagem}</div>` : ''}
-    </div>` : '';
-  return `<button type="button" class="btn gn-comp-bt wa-bt" data-act="gncomp" aria-expanded="${compAberto}"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar no WhatsApp</button>${lista}`;
+  return `<button type="button" class="btn gn-comp-bt wa-bt" data-act="gncomp" aria-haspopup="dialog"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar no WhatsApp</button>`;
 }
 
+// Janela do Compartilhar (por cima de tudo, como as outras janelas da aba): escolher uma opção troca esta janela pela
+// da opção (a da escala, a da prévia, a das orações), sem redesenhar a tela.
+export function janelaCompartilhar() {
+  if (!compAberto || prefs.tab !== 'giranova') return '';
+  const { ops, eventoImagem } = compOpcoes;
+  return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="gn-comp-t"><div class="modal wa-modal">
+    <h3 id="gn-comp-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar no WhatsApp</h3>
+    ${ops.map(([act, t, sub, off, extra = '']) => `<button type="button" class="wa-op" data-act="${act}" ${extra} ${off ? 'disabled' : ''}><span class="wa-op-txt"><b>${t}</b><small>${sub}</small></span></button>`).join('')}
+    ${eventoImagem ? `<div class="gn-comp-ev"><span><b>Imagem do evento</b><small>Recado, banho, ausências e licenças</small></span>${eventoImagem}</div>` : ''}
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="gncompfechar">Fechar</button></div>
+  </div></div>`;
+}
+export const compartilharAberto = () => compAberto && prefs.tab === 'giranova';
+
 // ---------- os passos do admin ----------
+// Gira sem turma: a mesma próxima do rodízio que o Adicionar evento usa (a Gira e a Gira nova têm os mesmos dados).
+// Um toque grava, como escolher a turma à mão.
+function sugestaoTurma(g) {
+  const t = proximaTurma(estado.pessoas, girasLista(), g.data);
+  if (!t) return '';
+  return `<span class="gn-sug-turma"><span>Próxima do rodízio: <b>Turma ${t}</b></span><button type="button" class="btn small primary" data-act="limpturma" data-v="${t}">Usar Turma ${t}</button></span>`;
+}
+
 function passoPadrao(ctx, pend) {
   const { g, temDuplas, publicada } = ctx;
+  // Preparar (sem entidade) → Escala (até publicar) → Presença (no dia: presentes e faltas).
   if (!g.evento && !linhaDaEntidade(g.entidade) && !giraEspecial(g.entidade)) return 1;
   if (g.evento) return pend ? 2 : 4;
-  if (!temDuplas) return 2;
-  return publicada ? 4 : 3;
+  return temDuplas && publicada ? 2 : 3;
 }
 
 function passo(n, num, titulo, resumo, feito, aberto, corpo) {
@@ -121,7 +145,7 @@ function conducao(ctx) {
     <label class="field">Nome no cabeçalho${ctx.titulo}<small class="muted">Em branco volta ao automático.</small></label>
     ${publicada ? '<p class="muted gn-nota">Escala publicada: gira, orixá, Evento e data ficam fixos. Para mudar, oculte a escala no passo Escala.</p>'
       : `<button type="button" class="btn" data-act="mudardata">📅 Alterar data · ${esc(dDM(g.data))}</button>`}
-    ${!g.evento && temLimpeza(g) ? `<div class="field">Turma da limpeza${escolhaTurma(g)}</div>` : ''}
+    ${!g.evento && temLimpeza(g) ? `<div class="field">Turma da limpeza${L ? '' : sugestaoTurma(g)}${escolhaTurma(g)}</div>` : ''}
     <label class="field">Recado para a corrente<textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos.">${esc(recado)}</textarea></label>`;
 
   // 2. Presença
@@ -133,9 +157,7 @@ function conducao(ctx) {
       ${[[nP, 'p'], [nF, 'f'], [nA, 'a'], [nL, 'lic'], [pend.length, 'pend']].filter(([n]) => n).map(([n, k]) => `<span class="b-${k}" style="flex:${n}"></span>`).join('')}</div>
     <div class="gn-legenda">${[[nP, 'presente', 'presentes', 'p'], [nF, 'falta', 'faltas', 'f'], [nA, 'ausente', 'ausentes', 'a'], [nL, 'licença', 'licença', 'lic'], [pend.length, 'pendente', 'pendentes', 'pend']]
       .filter(([n]) => n).map(([n, um, varios, k]) => `<span><b class="t-${k}">${n}</b> ${n === 1 ? um : varios}</span>`).join('')}</div>` : '';
-  // Até 8 nomes; o resto está na lista completa (+ Ver lista).
-  const faltam = pend.length ? `<div class="gn-faltam"><small class="muted">Faltam responder</small>${pend.slice(0, 8).map((p) => `<span class="gn-nome pend">${esc(p.nome)}</span>`).join('')}${pend.length > 8 ? `<span class="muted">+${pend.length - 8}</span>` : ''}</div>` : '';
-  const c2 = barra + ctx.presenca + faltam;
+  const c2 = barra + ctx.presenca;
 
   // 3. Escala
   const nMed = !temDuplas ? 0 : new Set([...(g.pares || []), ...(g.passes || [])].map((p) => p.m)).size;
@@ -148,9 +170,10 @@ function conducao(ctx) {
     ${pend.length ? `<p class="gn-aviso">${pend.length} ${pend.length === 1 ? 'pessoa ainda pendente' : 'pessoas ainda pendentes'} na Presença. Resolva para poder encerrar.</p>` : ''}
     ${ctx.encerrar}`;
 
-  const lista = [[1, 'Preparar', r1, entOk && !!g.entidade || g.evento, c1], [2, 'Presença', r2, !pend.length && total > 0, c2]];
+  const prepOk = g.evento || (entOk && !!g.entidade && (!temLimpeza(g) || !!L));
+  const lista = [[1, 'Preparar', r1, prepOk, c1]];
   if (!g.evento) lista.push([3, 'Escala', r3, publicada, c3]);
-  lista.push([4, 'Encerrar', r4, false, c4]);
+  lista.push([2, 'Presença', r2, !pend.length && total > 0, c2], [4, 'Encerrar', r4, false, c4]);
   return `<div class="gn-cond"><div class="gn-cond-h"><h2>Condução da gira</h2><small class="muted">só admins veem</small></div>
     ${lista.map(([n, t, r, ok, c], i) => passo(n, i + 1, t, r, ok, aberto === n, c)).join('')}</div>`;
 }
@@ -190,7 +213,6 @@ function daCorrente(ctx) {
 
 // ---------- a tela ----------
 export function montarNova(ctx) {
-  acoes = ctx.acoes || acoes;
   const { g, semGira } = ctx;
   const faixa = faixaSemana(g, ctx.marcas, ctx.calendario);
   if (semGira) {
@@ -213,10 +235,13 @@ export const cliquesNova = {
   },
   gnmes() { mesAberto = !mesAberto; avisar(); },
   gnsemana(el) { prefs.data = maisDias(prefs.data, Number(el.dataset.v)); salvarPrefs(); avisar(); },
-  gncomp() { compAberto = !compAberto; avisar(); },
-  gncompir(el) {
-    compAberto = false;
-    avisar();
-    acoes[el.dataset.alvo]?.(el);
-  },
+  gncomp() { compAberto = true; atualizarJanela(); },
+  gncompfechar() { fecharCompartilhar(); },
 };
+
+// As ações do Compartilhar (waabrir, pvabrir, oraabrir, eventoimagem) chamam isto antes de abrir a própria janela.
+export function fecharCompartilhar() {
+  if (!compAberto) return;
+  compAberto = false;
+  atualizarJanela();
+}

@@ -9,6 +9,7 @@ import { aniversariantesDoDia, mensagensAniversario } from '/shared/eventos.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { ICONE_WHATS } from './giraComum.js';
 import { chaveImg, podeCompartilhar, opcoesPapel, cliques } from './gira.js';
+import { janelaCompartilhar, compartilharAberto, fecharCompartilhar } from './giraNova.js';
 
 // ---------- janela do WhatsApp das orações: prévia da imagem, Compartilhar e Salvar ----------
 const chaveOracoes = () => JSON.stringify((estado.oracoes || []).map((o) => [o.id, o.texto, o.reacoes || 0]));
@@ -223,7 +224,7 @@ export function atualizarJanela() {
   // Prévia aberta: a atualização da tela não pode apagar o que a pessoa está escrevendo.
   if (estado.previaGira && raizJanela?.querySelector('#pv-texto')) return;
   const html = prefs.tab === 'agenda' || prefs.tab === 'giranova'
-    ? janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala() || janelaOracoes()
+    ? janelaCompartilhar() || janelaPresenca() || janelaData() || janelaWhats() || janelaPrevia() || janelaFoto() || janelaEscala() || janelaOracoes()
     : prefs.tab === 'gira' ? janelaPresenca() || janelaFoto() || janelaOracoes() || janelaNiver() : '';
   if (!raizJanela) {
     if (!html) return;
@@ -234,6 +235,7 @@ export function atualizarJanela() {
       const b = e.target.closest('[data-act]');
       if (b && cliques[b.dataset.act]) cliques[b.dataset.act](b);
       else if (estado.previaGira) return;   // tocar fora não fecha: perderia o texto ajustado
+      else if (compartilharAberto()) { if (e.target.classList.contains('modal-fundo')) fecharCompartilhar(); }
       else if (e.target.closest('.modal-fundo')) (estado.fotoVer ? cliques.fotofechar : estado.escImgVer ? cliques.escimgfechar : estado.oraJanela && e.target.classList.contains('modal-fundo') ? cliques.orafechar : estado.niverJanela && e.target.classList.contains('modal-fundo') ? cliques.niverfechar : e.target.classList.contains('modal-fundo') ? (estado.waJanela ? cliques.wafechar : estado.mudaData ? cliques.mdcancel : cliques.prescancel) : () => {})();
     });
     raizJanela.addEventListener('input', (e) => {
