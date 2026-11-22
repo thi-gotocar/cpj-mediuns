@@ -18,7 +18,10 @@ const editar = () => pode('asaas:editar');
 const badge = (s) => { const [t, c] = STATUS[s] || [s, '']; return `<span class="badge ${c}">${esc(t)}</span>`; };
 
 // Todos os blocos e sub-blocos começam minimizados.
-const buscaVazia = () => ({ tipo: 'nome', q: '', conta: 'ambas', buscando: false, gerando: false, resultado: null, feita: null });   // feita: a busca da lista mostrada
+// Mês atual (AAAA-MM, Brasília) e último dia de um mês: usados já no estado inicial da busca.
+const mesHoje = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7);
+const ultimoDiaMes = (m) => { const [a, mm] = m.split('-').map(Number); return new Date(Date.UTC(a, mm, 0)).toISOString().slice(0, 10); };
+const buscaVazia = () => ({ q: '', conta: 'ambas', periodo: 'mes', mes: mesHoje(), de: '', ate: '', buscando: false, gerando: false, resultado: null, feita: null });   // feita: a busca da lista mostrada
 const ui = { conexao: false, buscaAberta: false, credito: false, cobrancas: false, eventos: false, cobSel: {}, evValores: new Set(), contatos: '', busca: buscaVazia() };   // cobSel: grupo → quadradinho aberto; contatos: andamento do Atualizar contatos
 export function limpar() { ui.conexao = false; ui.buscaAberta = false; ui.credito = false; ui.cobrancas = false; ui.eventos = false; ui.cobSel = {}; ui.evValores.clear(); ui.busca = buscaVazia(); }
 
@@ -44,17 +47,15 @@ function cardConexao(A) {
     <p class="muted" style="margin:0">${ui.contatos ? esc(ui.contatos) : 'Busca de novo no ASAAS o nome, o telefone e o CPF dos clientes guardados (as leituras do dia a dia só buscam clientes novos).'}</p>` : ''}</div>`;
 }
 
-// Buscar (segundo bloco, minimizado): o tipo (nome, valor, descrição ou link: cada um é uma consulta diferente), a conta e
-// o texto. Procura no que o app guarda e no ASAAS (api/_lib/asaas.js → buscaAsaas). Cada resultado: nome, celular e
-// situação, com um quadradinho para ir marcando (guardado só neste aparelho); tocar no celular copia. A lista sai em imagem ou
-// texto para o WhatsApp.
+// Buscar (segundo bloco, minimizado): por valor, num mês ou entre duas datas (vencimento), na conta escolhida. O servidor
+// lê no ASAAS as cobranças do período e filtra pelo valor (api/_lib/asaas.js → buscaAsaas). Cada resultado: nome, celular
+// e situação, com um quadradinho para ir marcando (guardado só neste aparelho); tocar no celular copia. A lista sai em
+// imagem ou texto para o WhatsApp. (O servidor também busca por nome, descrição e link; a tela não oferece.)
 const TOM = { pago: 'pleno', pendente: 'hot', vencido: 're', cancelado: 'sn-sem' };
-const TIPOS = {
-  nome: ['Nome', 'Nome da pessoa (ou parte)', 'Ex.: Maria', 'text'],
-  valor: ['Valor', 'Valor da cobrança', 'Ex.: 110 ou 110,50', 'decimal'],
-  descricao: ['Descrição', 'Parte da descrição', 'Ex.: Mensalidade', 'text'],
-  link: ['Link', 'Link de pagamento', 'https://…', 'url'],
-};
+const dBR = (d, ano = true) => new Date(d + 'T12:00:00').toLocaleDateString('pt-BR', ano ? { day: '2-digit', month: '2-digit', year: 'numeric' } : { day: '2-digit', month: '2-digit' });
+const mesBR = (m) => new Date(m + '-15T12:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+// Rótulo da busca feita: "R$ 110,00 · novembro de 2026" ou "R$ 110,00 · 01/11 a 15/11/2026".
+const rotuloBusca = (f) => `${/^r\$/i.test(f.q) ? f.q : 'R$ ' + f.q} · ${f.mes ? mesBR(f.mes) : `${dBR(f.de, false)} a ${dBR(f.ate)}`}`;
 const CONTAS_TXT = { ambas: 'as duas contas', A: 'conta A', B: 'conta B' };
 const soDigitos = (t) => String(t || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
 const foneBR = (t) => { const d = soDigitos(t); return d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d; };
@@ -82,7 +83,7 @@ function linhaBusca(r) {
 // Texto para o WhatsApp: uma linha por pessoa, ✅ nos marcados.
 function textoBusca(B) {
   const L = B.resultado.resultados;
-  const cab = `*ASAAS · ${TIPOS[B.feita.tipo][0]}: ${B.feita.q}* (${CONTAS_TXT[B.feita.conta]}) · ${new Date().toLocaleDateString('pt-BR')}`;
+  const cab = `*ASAAS · ${rotuloBusca(B.feita)}* (${CONTAS_TXT[B.feita.conta]}) · ${L.length} ${L.length === 1 ? 'cobrança' : 'cobranças'}`;
   return [cab, ...L.map((r) => {
     const f = foneBR(r.telefone);
     const v = vence(r);
@@ -94,22 +95,24 @@ function cardBusca() {
   const B = ui.busca;
   const L = B.resultado?.resultados || [];
   const n = B.resultado ? L.length : null;
-  const cab = `<button class="grp-h dobra" data-act="asaasdobrar" data-k="buscaAberta" aria-expanded="${ui.buscaAberta}"><h2><span aria-hidden="true">🔍</span> Buscar</h2>
+  const cab = `<button class="grp-h dobra" data-act="asaasdobrar" data-k="buscaAberta" aria-expanded="${ui.buscaAberta}"><h2><span aria-hidden="true">🔍</span> Buscar por valor</h2>
     <span class="count">${n != null ? `${n} ${n === 1 ? 'resultado' : 'resultados'} ` : ''}<span class="seta" aria-hidden="true">${ui.buscaAberta ? '▾' : '▸'}</span></span></button>`;
   if (!ui.buscaAberta) return `<div class="card adm adm-financeiro">${cab}</div>`;
-  const T = TIPOS[B.tipo];
-  const tipos = Object.entries(TIPOS).map(([k, [t]]) => `<button type="button" class="chip${B.tipo === k ? ' on' : ''}" data-act="asaastipo" data-k="${k}" aria-pressed="${B.tipo === k}">${t}</button>`).join('');
+  const per = (k, t) => `<button type="button" class="chip${B.periodo === k ? ' on' : ''}" data-act="asaasperiodo" data-k="${k}" aria-pressed="${B.periodo === k}">${t}</button>`;
   const op = (v, t) => `<option value="${v}"${B.conta === v ? ' selected' : ''}>${t}</option>`;
   const nMarc = L.filter((r) => marcados.has(chaveRes(r))).length;
   const R0 = B.resultado;
   return `<div class="card adm adm-financeiro">${cab}
     <form class="as-busca" data-form="asaasbusca" autocomplete="off">
-      <div class="as-tipos" role="group" aria-label="Buscar por">${tipos}</div>
-      <label class="field">${T[1]}<input type="text" name="q" value="${esc(B.q)}" maxlength="300" inputmode="${T[3]}" enterkeyhint="search" placeholder="${esc(T[2])}"></label>
+      <label class="field">Valor da cobrança<input type="text" name="q" value="${esc(B.q)}" maxlength="20" inputmode="decimal" enterkeyhint="search" placeholder="Ex.: 110 ou 110,50"></label>
+      <div class="as-tipos" role="group" aria-label="Período (vencimento)"><span class="muted as-per-r">Vencimento:</span>${per('mes', 'Mês')}${per('datas', 'Entre datas')}</div>
+      ${B.periodo === 'mes'
+        ? `<label class="field">Mês<input type="month" name="mes" value="${esc(B.mes)}" required></label>`
+        : `<div class="as-datas"><label class="field">De<input type="date" name="de" value="${esc(B.de)}" required></label><label class="field">Até<input type="date" name="ate" value="${esc(B.ate)}" required></label></div>`}
       <div class="as-busca-l"><select name="conta" aria-label="Conta do ASAAS">${op('ambas', 'As duas contas')}${op('A', 'Conta A (Compras)')}${op('B', 'Conta B (mensalidades)')}</select>
         <button class="btn primary" type="submit" ${B.buscando ? 'disabled' : ''}><span aria-hidden="true">🔍</span> ${B.buscando ? 'Buscando…' : 'Buscar'}</button></div>
     </form>
-    <p class="muted as-dica">${B.tipo === 'nome' || B.tipo === 'link' ? 'Procura no app e no ASAAS.' : 'Só acha o que o app guarda (links das Compras e cobranças vencidas): o ASAAS não busca por valor nem por descrição.'}</p>
+    <p class="muted as-dica">Lê no ASAAS todas as cobranças com vencimento no período e mostra as desse valor (pagas, pendentes, vencidas…).</p>
     ${R0 ? `${R0.avisos.map((a) => `<p class="muted as-dica"><span aria-hidden="true">⚠️</span> ${esc(a)}</p>`).join('')}
       ${L.length ? `<div class="as-busca-x"><span class="muted">${nMarc} de ${L.length} marcados${nMarc ? ` · <button type="button" class="linkbtn" data-act="asaasdesmarcar">desmarcar</button>` : ''}</span>
           <span class="as-busca-bts"><button class="btn small wa-bt" data-act="asaasbuscaimg" ${B.gerando ? 'disabled' : ''}><span aria-hidden="true">🖼️</span> ${B.gerando ? 'Gerando…' : 'Imagem'}</button>
@@ -122,8 +125,8 @@ function dadosImagemBusca(B) {
   const L = B.resultado.resultados;
   return {
     rotulo: 'Casa do Pai João · ASAAS',
-    titulo: `${TIPOS[B.feita.tipo][0]}: ${B.feita.q}`.slice(0, 80),
-    subtitulo: `${L.length} ${L.length === 1 ? 'resultado' : 'resultados'} · ${CONTAS_TXT[B.feita.conta]} · ${new Date().toLocaleDateString('pt-BR')}`,
+    titulo: rotuloBusca(B.feita),
+    subtitulo: `${L.length} ${L.length === 1 ? 'cobrança' : 'cobranças'} · ${CONTAS_TXT[B.feita.conta]} · gerada em ${new Date().toLocaleDateString('pt-BR')}`,
     linhas: L.map((r) => {
       const f = foneBR(r.telefone);
       const v = vence(r);
@@ -262,12 +265,19 @@ export const cliques = {
   asaasquadro(el) { const g = el.dataset.g; ui.cobSel[g] = ui.cobSel[g] === el.dataset.k ? null : el.dataset.k; avisar(); },
   asaassub(el) { const s = ui[el.dataset.c]; const k = el.dataset.k; if (s.has(k)) s.delete(k); else s.add(k); avisar(); },
   asaasatualizar() { estado.asaas = null; avisar(); },
-  asaastipo(el) {
-    const q = document.querySelector('form.as-busca input[name=q]');
-    if (q) ui.busca.q = q.value;
-    ui.busca.tipo = el.dataset.k;
+  // Mês ou entre datas: guarda o que já foi digitado antes de redesenhar.
+  asaasperiodo(el) {
+    const f = document.querySelector('form.as-busca');
+    const B = ui.busca;
+    if (f) {
+      B.q = f.elements.q.value;
+      B.conta = f.elements.conta.value;
+      if (f.elements.mes) B.mes = f.elements.mes.value || B.mes;
+      if (f.elements.de) { B.de = f.elements.de.value; B.ate = f.elements.ate.value; }
+    }
+    if (el.dataset.k === 'datas' && !B.de) { B.de = `${B.mes || mesHoje()}-01`; B.ate = ultimoDiaMes(B.mes || mesHoje()); }
+    B.periodo = el.dataset.k;
     avisar();
-    document.querySelector('form.as-busca input[name=q]')?.focus();
   },
   // Toque no celular: copia só os números (com DDD), para colar em outro lugar.
   asaascopiartel(el) {
@@ -342,12 +352,23 @@ export async function enviar(form) {
     const B = ui.busca;
     B.q = form.elements.q.value.trim();
     B.conta = form.elements.conta.value;
-    if (!B.q) { toast('Digite o que procurar.'); return; }
+    if (!B.q) { toast('Digite o valor.'); return; }
+    let de, ate, mes = '';
+    if (B.periodo === 'mes') {
+      B.mes = form.elements.mes.value;
+      if (!/^\d{4}-\d{2}$/.test(B.mes)) { toast('Escolha o mês.'); return; }
+      mes = B.mes; de = `${mes}-01`; ate = ultimoDiaMes(mes);
+    } else {
+      B.de = form.elements.de.value; B.ate = form.elements.ate.value;
+      if (!B.de || !B.ate) { toast('Informe a data inicial e a final.'); return; }
+      if (B.de > B.ate) { toast('A data inicial é depois da final.'); return; }
+      de = B.de; ate = B.ate;
+    }
     if (B.buscando) return;
     B.buscando = true;
     avisar();
     try {
-      const feita = { tipo: B.tipo, q: B.q, conta: B.conta };
+      const feita = { tipo: 'valor', q: B.q, conta: B.conta, de, ate, mes };
       B.resultado = await buscarAsaas(feita);
       B.feita = feita;
     } catch (e) { toast(e.message); }

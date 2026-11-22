@@ -482,8 +482,9 @@ export async function carregarAsaas() {
   avisar();
 }
 // Buscar (aba ASAAS): não guarda no estado; a tela guarda o resultado.
-export async function buscarAsaas({ tipo, q, conta }) {
-  return api('GET', `/oferendas?lista=asaasbusca&tipo=${encodeURIComponent(tipo)}&q=${encodeURIComponent(q)}&conta=${encodeURIComponent(conta)}`);
+export async function buscarAsaas({ tipo, q, conta, de, ate }) {
+  const periodo = de && ate ? `&de=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}` : '';
+  return api('GET', `/oferendas?lista=asaasbusca&tipo=${encodeURIComponent(tipo)}&q=${encodeURIComponent(q)}&conta=${encodeURIComponent(conta)}${periodo}`);
 }
 export async function acaoAsaas(op, dados = {}) {
   try {

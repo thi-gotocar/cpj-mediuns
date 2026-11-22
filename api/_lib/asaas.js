@@ -347,9 +347,13 @@ async function respostaRoot(eu) {
 //   nome      — no ASAAS, as cobranças (GET /payments?customer=) dos clientes achados no cadastro, nos clientes guardados
 //               ou, sem nenhum, no próprio ASAAS (GET /customers?name=);
 //   link      — a cobrança da fatura (/i/<código>) direto no ASAAS (GET /payments/pay_<código>);
-//   valor, descricao — só no que o app guarda (o ASAAS não filtra por eles).
+//   valor     — todas as cobranças com vencimento no período (de/ate) no ASAAS (GET /payments?dueDate[ge]=&dueDate[le]=,
+//               páginas de 100, várias ao mesmo tempo); o filtro pelo valor é feito aqui. O guardado só completa nome e
+//               celular, e entra sozinho (dentro do período) se a conta falhar;
+//   descricao — só no que o app guarda (o ASAAS não filtra por ela).
 // O que veio do ASAAS vale sobre o guardado (situação mais nova); nome e celular, do cadastro quando a pessoa é ligada.
-//   GET /api/oferendas?lista=asaasbusca&tipo=nome|valor|descricao|link&q=<texto>&conta=A|B|ambas
+// A tela hoje só oferece a busca por valor; os outros tipos continuam aqui.
+//   GET /api/oferendas?lista=asaasbusca&tipo=nome|valor|descricao|link&q=<texto>&conta=A|B|ambas[&de=AAAA-MM-DD&ate=AAAA-MM-DD]
 //     → { resultados: [{ id, conta, nome, telefone, status, situacao, tom, valor, vencimento, descricao, link }], avisos }
 const SITUACAO = {
   pendente: ['Aguardando pagamento', 'pendente'], paga: ['Pago', 'pago'], vencida: ['Vencido', 'vencido'],
@@ -364,7 +368,49 @@ const MAX_CLIENTES_BUSCA = 8;
 // Esperas da busca: as duas contas correm juntas e cada uma faz no máximo 3 passos em sequência (clientes pelo nome,
 // cobranças, dados dos clientes novos): 4 + 5 + 4 s no pior caso, abaixo dos 15 s da Vercel.
 const ESPERA_BUSCA_MS = { clientes: 4000, cobrancas: 5000, dados: 4000 };
-const MAX_RESULTADOS = 60;
+// Busca por valor: páginas de 100 do período, 5 ao mesmo tempo, até 30 páginas (3.000 cobranças) por conta e sem começar
+// rodada nova depois de 9 s; período de no máximo 1 ano.
+const POR_PAGINA = 100;
+const PAGINAS_JUNTAS = 5;
+const MAX_PAGINAS_PERIODO = 30;
+const TEMPO_PAGINAS_MS = 9000;
+const MAX_DIAS_PERIODO = 366;
+const DATA = /^\d{4}-\d{2}-\d{2}$/;
+const dataValida = (d) => DATA.test(d) && !Number.isNaN(Date.parse(d + 'T12:00:00Z')) && new Date(d + 'T12:00:00Z').toISOString().slice(0, 10) === d;
+
+// Cobranças de uma conta com vencimento entre de e ate, só as do valor (em centavos). → { lista, cortado }
+async function cobrancasNoPeriodo(conta, de, ate, valor, limite) {
+  const base = `/payments?${encodeURIComponent('dueDate[ge]')}=${de}&${encodeURIComponent('dueDate[le]')}=${ate}&limit=${POR_PAGINA}`;
+  const pagina = (n) => chamarAsaas(PREFIXO[conta], 'GET', `${base}&offset=${n * POR_PAGINA}`, null, ESPERA_BUSCA_MS.cobrancas);
+  const alvo = Math.round(valor * 100);
+  const lista = [];
+  const juntar = (r) => lista.push(...(r?.data || []).filter((pg) => !pg.deleted && Math.round(Number(pg.value) * 100) === alvo));
+  const p0 = await pagina(0);
+  juntar(p0);
+  if (!p0?.hasMore) return { lista, cortado: false };
+  // Com o total, pede as páginas que faltam em rodadas de 5; sem ele, vai em rodadas até uma vir sem hasMore.
+  const total = Number(p0.totalCount) || 0;
+  const precisa = total ? Math.ceil(total / POR_PAGINA) : MAX_PAGINAS_PERIODO + 1;
+  const paginas = Math.min(precisa, MAX_PAGINAS_PERIODO);
+  let n = 1;
+  let acabou = false;
+  while (n < paginas && !acabou && Date.now() < limite) {
+    const rodada = Array.from({ length: Math.min(PAGINAS_JUNTAS, paginas - n) }, (_, i) => n + i);
+    const rs = await Promise.all(rodada.map(pagina));
+    rs.forEach(juntar);
+    n += rodada.length;
+    if (rs.some((r) => !r?.hasMore)) acabou = true;
+  }
+  return { lista, cortado: !acabou && n < precisa };
+}
+
+// Mês atual (de/ate) em Brasília, para a busca por valor sem período.
+function mesAtualBR() {
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  const [a, m] = hoje.split('-').map(Number);
+  return { de: `${hoje.slice(0, 7)}-01`, ate: new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10) };
+}
+const MAX_RESULTADOS = 200;
 const escaparLike = (s) => s.replace(/[\\%_]/g, (c) => '\\' + c);
 const TIPOS_BUSCA = ['nome', 'valor', 'descricao', 'link'];
 // "110", "110,50", "R$ 1.250,00" ou "1250.5" → número; senão null.
@@ -381,9 +427,14 @@ export async function buscaAsaas(eu, query) {
   const texto = String(query.q || '').trim().slice(0, 300);
   const contas = query.conta === 'A' ? ['A'] : query.conta === 'B' ? ['B'] : ['A', 'B'];
   let valor = null, link = '', nome = '', descricao = '';
+  let de = '', ate = '';
   if (tipo === 'valor') {
     valor = valorDaBusca(texto);
     if (valor === null || valor <= 0) throw new HttpError(400, 'Valor inválido. Ex.: 110 ou 110,50.');
+    ({ de, ate } = query.de || query.ate ? { de: String(query.de || ''), ate: String(query.ate || '') } : mesAtualBR());
+    if (!dataValida(de) || !dataValida(ate)) throw new HttpError(400, 'Informe a data inicial e a final.');
+    if (de > ate) throw new HttpError(400, 'A data inicial é depois da final.');
+    if ((Date.parse(ate) - Date.parse(de)) / 86400000 > MAX_DIAS_PERIODO) throw new HttpError(400, 'Período de no máximo 1 ano.');
   } else if (tipo === 'link') {
     if (!/^https:\/\/\S+$/i.test(texto)) throw new HttpError(400, 'Cole o link de pagamento inteiro (começa com https://).');
     link = texto;
@@ -400,14 +451,23 @@ export async function buscaAsaas(eu, query) {
     const k = r.id ? `${r.conta}:${r.id}` : `local:${res.size}`;
     if (!res.has(k)) res.set(k, situar({ ...r, valor: Number(r.valor) || 0 }));
   }
+  // Valor: o ASAAS é a fonte; o guardado fica à parte, para completar nome e celular (e entrar se a conta falhar).
+  const locais = tipo === 'valor' ? new Map(res) : null;
+  if (locais) res.clear();
+  const limitePaginas = Date.now() + TEMPO_PAGINAS_MS;
   const avisos = [];
-  // Valor e descrição: o ASAAS não filtra por eles; só o guardado.
-  const doAsaas = tipo === 'nome' || tipo === 'link' ? contas : [];
+  // Descrição: o ASAAS não filtra por ela; só o guardado.
+  const doAsaas = tipo === 'descricao' ? [] : contas;
   const codigo = link.match(/\/i\/([A-Za-z0-9]+)/)?.[1];
   // Cada conta lê o ASAAS ao mesmo tempo; o resultado entra em res depois, na ordem das contas.
   const lidas = await Promise.all(doAsaas.map(async (k) => {
-    if (!process.env[PREFIXO[k] + '_API_KEY']) return { k, aviso: `Conta ${k}: sem a chave na Vercel; só o que o app guarda.` };
+    if (!process.env[PREFIXO[k] + '_API_KEY']) return { k, falhou: true, aviso: `Conta ${k}: sem a chave na Vercel; só o que o app guarda.` };
     try {
+      if (tipo === 'valor') {
+        const { lista, cortado } = await cobrancasNoPeriodo(k, de, ate, valor, limitePaginas);
+        const clientes = await clientesAsaas(k, lista.map((pg) => pg.customer), { ms: ESPERA_BUSCA_MS.dados });
+        return { k, pagamentos: lista, clientes, aviso: cortado ? `Conta ${k}: período com muitas cobranças; a lista pode estar incompleta. Diminua o período.` : '' };
+      }
       let ids = local.clientes.filter((c) => c.conta === k).map((c) => c.id);
       if (!ids.length && nome) {
         const r = await chamarAsaas(PREFIXO[k], 'GET', `/customers?name=${encodeURIComponent(nome)}&limit=${MAX_CLIENTES_BUSCA + 1}`, null, ESPERA_BUSCA_MS.clientes);
@@ -425,16 +485,19 @@ export async function buscaAsaas(eu, query) {
       const clientes = await clientesAsaas(k, pagamentos.map((pg) => pg.customer), { ms: ESPERA_BUSCA_MS.dados });
       return { k, pagamentos, clientes, aviso: ids.length > MAX_CLIENTES_BUSCA ? `Conta ${k}: muitos clientes com esse nome; mostrando os ${MAX_CLIENTES_BUSCA} primeiros. Digite mais do nome.` : '' };
     } catch (e) {
-      return { k, aviso: `Conta ${k}: ${e.message} Mostrando só o que o app guarda.` };
+      return { k, falhou: true, aviso: `Conta ${k}: ${e.message} Mostrando só o que o app guarda.` };
     }
   }));
-  for (const { k, pagamentos = [], clientes, aviso } of lidas) {
+  for (const { k, pagamentos = [], clientes, aviso, falhou } of lidas) {
     if (aviso) avisos.push(aviso);
+    if (falhou && locais) {
+      for (const [chave, r] of locais) if (r.conta === k && (!r.vencimento || (r.vencimento >= de && r.vencimento <= ate))) res.set(chave, r);
+    }
     for (const pg of pagamentos) {
       const cli = clientes.get(pg.customer) || {};
       const g = porChave.get(cli.referencia) || (cli.cpfHash && porHash.get(cli.cpfHash)) || null;
       const chave = `${k}:${pg.id}`;
-      const ant = res.get(chave);
+      const ant = res.get(chave) || locais?.get(chave);
       res.set(chave, situar({
         id: pg.id, conta: k,
         nome: ant?.nome || g?.nome || cli.nome || 'Sem nome no ASAAS',
@@ -448,6 +511,7 @@ export async function buscaAsaas(eu, query) {
   const resultados = [...res.values()]
     .sort((a, b) => String(b.vencimento || '').localeCompare(String(a.vencimento || '')) || a.nome.localeCompare(b.nome, 'pt-BR'))
     .slice(0, MAX_RESULTADOS);
+  if (res.size > MAX_RESULTADOS) avisos.push(`Mostrando ${MAX_RESULTADOS} de ${res.size} cobranças (as de vencimento mais recente). Diminua o período.`);
   return { resultados, avisos };
 }
 
