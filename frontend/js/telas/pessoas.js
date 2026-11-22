@@ -281,6 +281,12 @@ function janelaExcluir() {
 // embutida: dentro do bloco Pessoas da aba Perfil (a aba Pessoas saiu do menu). Ali aparecem a Corrente (as funções)
 // e as Oferendas pendentes; Turmas da limpeza, licenças, Adicionar, Alunos e Cadastros ficam atrás do "Ver mais"
 // (estado.pessoasMais).
+// Perfil → Corrente: o Adicionar em bloco próprio, o primeiro da sub-aba (fora do Ver mais).
+export function renderAdicionar() {
+  if (!pode('pessoas:editar') && !pode('alunos:editar')) return '';
+  return cardAdicionar(pessoasOrd().filter((p) => !ehCurimba(p)));
+}
+
 export function render({ embutida = false } = {}) {
   return renderPessoas(embutida).replace(/<\/section>$/, janelaExcluir() + '</section>');
 }
@@ -319,7 +325,8 @@ function renderPessoas(embutida = false) {
     ${correnteListaAberta === CURIMBA ? '<p class="nota">A curimba não conta presença nem falta, não entra no sorteio nem no total da corrente.</p>' : ''}
     ${correnteListaAberta ? `<div class="ppl">${pessoasPorFuncao[correnteListaAberta].map(linhaCorrente).join('')}</div>` : ''}
 ${cardOferendasPendentes()}${embutida ? (verAlunos ? cardAlunos({ secao: true }) : '') + cardCadastrosLogin({ secao: true }) : ''}`;
-  const resto = `${blocoTurmas(todas, editar)}${listaLicencas(ps, editar)}${add}`;   // licença: só a corrente
+  // licença: só a corrente; no Perfil, o Adicionar é o primeiro bloco da sub-aba Corrente (renderAdicionar).
+  const resto = `${blocoTurmas(todas, editar)}${listaLicencas(ps, editar)}${embutida ? '' : add}`;
   // Fora do Perfil: Alunos e Cadastros pelo login em blocos próprios, no fim (no Perfil já estão no bloco principal).
   const fim = embutida ? '' : (verAlunos ? cardAlunos() : '') + cardCadastrosLogin();
   if (embutida && !estado.pessoasMais) return h + `<button type="button" class="btn small pp-vermais" data-act="pessoasmais">Ver mais ▾</button></div></section>`;

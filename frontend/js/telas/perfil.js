@@ -647,7 +647,11 @@ export function render() {
   const barra = corrente ? `<div class="subabas pf-subabas" role="tablist" aria-label="Perfil"><button class="subaba" role="tab" data-act="pfsub" data-v="meu" aria-selected="${!naC}">Meu perfil</button><button class="subaba" role="tab" data-act="pfsub" data-v="corrente" aria-selected="${naC}">Corrente</button></div>` : '';
   let h = barra;
   if (naC) {
-    // Corrente: ver o perfil (ou o contato) de alguém, a Anamnese de todos (admin) e o bloco Pessoas.
+    // Corrente: o Adicionar (primeiro), ver o perfil (ou o contato) de alguém, o bloco Pessoas e a Anamnese de todos.
+    if (vePessoas() && telaPessoas) {
+      const add = telaPessoas.renderAdicionar();
+      if (add) h += `<div class="pessoas-tela pf-pessoas pf-add" data-tela="pessoas">${add}</div>`;
+    }
     h += cardInfo(eu);
     const outra = admin() && estado.infoPessoa && estado.infoPessoa !== eu?.pessoaId ? todos.find((x) => x.pessoaId === estado.infoPessoa) : null;
     if (outra) h += cardsDeOutra(outra);
