@@ -286,7 +286,8 @@ function cabecalho(E) {
   const r = E.pedidos;
   const extra = pode('ervas:gerenciar') && r?.pessoas.length ? `<span class="selo-erva">${r.pessoas.length} pessoa${r.pessoas.length === 1 ? '' : 's'} · ${reais(r.totalGeral)}${r.faltamPrecos.length ? ' +?' : ''}</span>` : '';
   return `<div class="ervas-cab"><span class="muted">Compra coletiva de ervas</span><h1>${esc(titulo)}</h1>
-    <div class="ervas-selos"><span class="selo-erva ${E.aberta ? 'ok' : 'fech'}">${E.aberta ? 'Lista aberta' : 'Lista fechada'}</span>${extra}</div></div>`;
+    <div class="ervas-selos"><span class="selo-erva ${E.aberta ? 'ok' : 'fech'}">${E.aberta ? 'Lista aberta' : 'Lista fechada'}</span>${extra}</div>
+    ${pode('ervas:gerenciar') && E.aberta ? '<button class="btn small ervas-cab-ed" data-act="erdata"><span aria-hidden="true">✎</span> Alterar gira e data</button>' : ''}</div>`;
 }
 
 // Admin: a compra em 3 passos (um aberto por vez): Pedidos da corrente → Compra (preço e porções) → Fornecedor e
@@ -525,6 +526,14 @@ export const cliques = {
       toast(encerrar ? 'Compra guardada no Histórico de compras. Nova compra iniciada.' : 'Compra descartada. Nova compra iniciada.');
     }
     avisar();
+  },
+  erdata() {
+    passoErvas = 2;
+    if (!estado.ervasCompra) estado.ervasCompra = compraSalva(estado.ervas);
+    avisar();
+    const d = document.getElementById('ev-data');
+    d?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    d?.focus();
   },
   erpasso(el) { const n = Number(el.dataset.n); passoErvas = (passoErvas ?? (estado.ervas.aberta ? 2 : 3)) === n ? 0 : n; avisar(); },
   dobrarhist() { histAberto = !histAberto; avisar(); },

@@ -309,6 +309,7 @@ table.pedidos tfoot td,table.pedidos tfoot th{font-weight:700;background:var(--b
 .ervas-cab>.muted{font-size:.9rem}
 .ervas-cab h1{margin:0;font-size:1.75rem;line-height:1.12;overflow-wrap:anywhere}
 .ervas-selos{display:flex;flex-wrap:wrap;gap:6px}
+.ervas-cab-ed{justify-self:start}
 .selo-erva{display:inline-flex;align-items:center;padding:3px 11px;border-radius:999px;background:color-mix(in srgb,var(--ink) 9%,var(--surface));color:var(--ink);font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums}
 .selo-erva.ok{background:var(--ok-soft);color:var(--ok)}
 .selo-erva.fech{background:var(--warn-soft);color:var(--warn)}
