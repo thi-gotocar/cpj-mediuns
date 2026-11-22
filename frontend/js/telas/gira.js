@@ -198,7 +198,7 @@ function resultado(g) {
 // Pedido de oração: até 3 linhas.
 
 export function render() {
-  if (prefs.tab === 'agenda' || prefs.tab === 'giranova') return renderGira(prefs.tab === 'giranova');
+  if (prefs.tab === 'agenda' || prefs.tab === 'giraantiga') return renderGira(prefs.tab === 'agenda');
   if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
   if (visaoAtiva() === 'alunos' && estado.me?.aguardando) return `<section class="panel">${cardAguardando()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
   // Grupo Oferenda: os compromissos que o admin atribuiu (cardCompromissos só aparece com oferendas:doar ou :ver).
@@ -227,11 +227,11 @@ function renderGira(nova = false) {
   const editar = admin && !encerrada;
   const sortearOk = pode('giras:sortear') && !encerrada;
   const existe = !!estado.giras[g.data];
-  const ano = nova ? '' : cardAno();   // bloco do ano, no topo para todos (a Gira nova não tem)
+  const ano = cardAno();   // bloco do ano: no topo para todos (na Gira nova, no fim)
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    if (nova) return montarNova({ g, ps, semGira: true, calendario: seletorData(g), marcas: marcasDosDias(), ausPrevia: g.data >= hoje() ? blocoAusPrevia(ps, g) : '' });
+    if (nova) return montarNova({ g, ps, ano, semGira: true, calendario: seletorData(g), marcas: marcasDosDias(), ausPrevia: g.data >= hoje() ? blocoAusPrevia(ps, g) : '' });
     return `<section class="panel">${ano}<div class="card card-novo adm">
       <div class="datehead"><span class="eyebrow">${esc(dLong(g.data))}</span><span class="dia gira-nome">Nenhuma gira nesta data</span></div>
       ${seletorData(g)}
@@ -429,7 +429,7 @@ function renderGira(nova = false) {
     const publicada = !!(temDuplas && g.publicada);
     const tituloEd = estado.tituloTxt?.data === g.data ? estado.tituloTxt.texto : null;
     return montarNova({
-      g, ps, admin, editar, existe, encerrada, temDuplas, publicada, whats, rodape,
+      g, ps, ano, admin, editar, existe, encerrada, temDuplas, publicada, whats, rodape,
       calendario: seletorData(g), marcas: marcasDosDias(),
       escala: editar ? '' : escala,
       presenca: editar ? secaoPresenca() : '',

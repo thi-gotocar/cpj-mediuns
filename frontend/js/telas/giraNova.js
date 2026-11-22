@@ -1,6 +1,6 @@
-// Sub-aba "Gira nova" (layout em avaliação, ao lado da Gira antiga): conduzir em cima, a corrente embaixo.
+// Aba Gira (layout novo, para todos; a sub-aba "Gira antiga" fica para quem administra): conduzir em cima, a corrente embaixo.
 // Monta as mesmas peças e usa as mesmas ações da aba Gira (gira.js passa tudo pronto em ctx); só muda a arrumação:
-// faixa da semana, cabeçalho com um Compartilhar só, os 4 passos do admin (Preparar → Presença → Escala → Encerrar)
+// faixa da semana, cabeçalho com um Compartilhar só, os 4 passos do admin (Preparar → Escala → Presença → Encerrar)
 // e, embaixo, o mesmo que a corrente vê.
 
 import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, proximaTurma } from '/shared/regras.js';
@@ -89,7 +89,7 @@ function compartilhar(ctx) {
 // Janela do Compartilhar (por cima de tudo, como as outras janelas da aba): escolher uma opção troca esta janela pela
 // da opção (a da escala, a da prévia, a das orações), sem redesenhar a tela.
 export function janelaCompartilhar() {
-  if (!compAberto || prefs.tab !== 'giranova') return '';
+  if (!compAberto || prefs.tab !== 'agenda') return '';
   const { ops, eventoImagem } = compOpcoes;
   return `<div class="modal-fundo" role="dialog" aria-modal="true" aria-labelledby="gn-comp-t"><div class="modal wa-modal">
     <h3 id="gn-comp-t"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar no WhatsApp</h3>
@@ -98,7 +98,7 @@ export function janelaCompartilhar() {
     <div class="row" style="justify-content:flex-end"><button type="button" class="btn" data-act="gncompfechar">Fechar</button></div>
   </div></div>`;
 }
-export const compartilharAberto = () => compAberto && prefs.tab === 'giranova';
+export const compartilharAberto = () => compAberto && prefs.tab === 'agenda';
 
 // ---------- os passos do admin ----------
 // Gira sem turma: a mesma próxima do rodízio que o Adicionar evento usa (a Gira e a Gira nova têm os mesmos dados).
@@ -217,14 +217,15 @@ export function montarNova(ctx) {
   const faixa = faixaSemana(g, ctx.marcas, ctx.calendario);
   if (semGira) {
     return `<section class="panel gn">${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span><h1 class="gn-titulo">Nenhuma gira nesta data</h1></div>
-      <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>${ctx.ausPrevia || ''}</section>`;
+      <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>${ctx.ausPrevia || ''}${ctx.ano || ''}</section>`;
   }
   const { existe, editar, encerrada } = ctx;
   let corpo = '';
   if (!ctx.ps.length || !existe) corpo = ctx.rodape || '';
   else if (encerrada) corpo = ctx.encerradaQuadro + daCorrente(ctx);
   else corpo = (editar ? conducao(ctx) : '') + daCorrente(ctx);
-  return `<section class="panel gn">${faixa}${cabecalho(ctx)}${corpo}</section>`;
+  // O bloco do ano (Atendimentos, sua presença, orixá de cabeça) vai no fim: os mesmos dados da Gira antiga.
+  return `<section class="panel gn">${faixa}${cabecalho(ctx)}${corpo}${ctx.ano || ''}</section>`;
 }
 
 export const cliquesNova = {

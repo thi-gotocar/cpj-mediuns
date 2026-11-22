@@ -18,7 +18,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, agenda: gira, giranova: gira, eventos, curimba };
+const TELAS = { gira, agenda: gira, giraantiga: gira, eventos, curimba };
 // As outras abas só são baixadas quando alguém abre.
 const SOB_DEMANDA = {
   pessoas: () => import('./telas/pessoas.js'),
@@ -76,8 +76,8 @@ let arrastoAnamnese = null;
 // Abas com sub-abas: o botão do topo é o da primeira; as outras viram sub-abas dentro dela. Por dentro continuam
 // sendo telas separadas (cada uma com o seu estado e a sua permissão).
 const GRUPOS_ABAS = [
-  // Gira nova: o layout novo da aba Gira, em avaliação ao lado do antigo (só o root real vê).
-  { topo: 'agenda', subs: [['agenda', 'Gira'], ['giranova', 'Gira nova'], ['hist', 'Histórico']] },
+  // Gira: o layout novo, para todos. Gira antiga: o layout de antes, só para quem administra a gira (giras:editar).
+  { topo: 'agenda', subs: [['agenda', 'Gira'], ['giraantiga', 'Gira antiga'], ['hist', 'Histórico']] },
   { topo: 'guias', subs: [['guias', 'Compras'], ['pedidos', 'Pedidos'], ['asaas', 'ASAAS']] },
   // Ervas: entra na barra das sub-abas de Oferendas, logo depois da Iemanjá (a barra é desenhada por oferendas.js).
   { topo: 'oferendas', subs: [['oferendas', 'Oferendas'], ['ervas', 'Ervas']], barraPropria: true },
@@ -142,7 +142,7 @@ function render() {
   const visao = visaoAtiva();
   // Abas que o perfil pode ver.
   let VE = { usuarios: pode('usuarios:gerenciar'), asaas: pode('asaas:ver'), pedidos: vePedidos(), transparencia: veTransparencia(), ervas: veErvas(), oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(),
-    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), gira: true, agenda: true, giranova: ehRootReal() };
+    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), gira: true, agenda: true, giraantiga: pode('giras:editar') };
   if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: false, fotos: false, diario: veDiario(), gira: true, agenda: false };
   // Consulente: a Geral e as abas que o root marcou no perfil Consulentes (Perfil, Compras, Amaci, Vídeos).
   if (visao === 'alunos' && estado.me.consulente) Object.assign(VE, { oferendas: false, perfil: pode('perfil:ver'), guias: veGuias(), amaci: veAmaci(), videos: pode('videos:ver') || !!estado.me.videosPublicada });
