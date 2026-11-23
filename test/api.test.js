@@ -3276,6 +3276,17 @@ test('v164: fila de senhas — sem login, no terreiro, preferencial primeiro, li
   assert.equal((await entrar(T3, 'preferencial', 'Cida')).json.minha.tipo, 'preferencial');
   assert.equal((await cel(T1, 'GET')).json.minha.aFrente, 1, 'a preferencial passa na frente do atendimento');
 
+  // v171: o resumo é igual para todos (sem a própria senha nem nomes), com os números aguardando, e a Vercel pode guardá-lo.
+  const rr = await fetch(base + rota + '?lista=filaResumo');
+  assert.equal(rr.status, 200);
+  assert.match(rr.headers.get('cache-control'), /public.*s-maxage=3/);
+  const res = await rr.json();
+  assert.equal(res.minha, undefined);
+  assert.equal(res.eu, undefined);
+  assert.deepEqual(res.espera, { preferencial: [1], atendimento: [1], passe: [1] });
+  assert.equal(res.aberta, true);
+  assert.ok(!JSON.stringify(res).includes('Ana'), 'o resumo não tem nomes');
+
   // Balcão: sem celular e sem localização; o painel tem nome e telefone.
   const bal = await api('POST', rota, SENHA, { acao: 'filaBalcao', tipo: 'preferencial', nome: 'Dona Maria', telefone: '(11) 9999-0000' });
   assert.equal(bal.status, 200, JSON.stringify(bal.json));
@@ -3352,6 +3363,18 @@ test('v166: a página /fila recebe o nome e o telefone do cadastro de quem está
   assert.deepEqual((await ver(tok)).eu, { nome: 'Fila Cadastro', telefone: '11987650001' });
   assert.equal((await ver(null)).eu, undefined, 'sem login, nada do cadastro');
   assert.equal((await ver('token-que-nao-vale')).eu, undefined, 'login inválido segue como quem não tem cadastro');
+  // Logado, a sessão e a fila vão numa ida só: a senha pega com o login aparece em outro aparelho com o mesmo login.
+  await api('DELETE', '/api/giras/' + hojeBR(), ADMIN);
+  await api('PUT', '/api/giras/' + hojeBR(), ADMIN, { titulo: 'Gira do cadastro' });
+  await api('POST', '/api/giras/' + hojeBR(), ADMIN, { acao: 'filaConfig', aberta: true });
+  const { TERREIRO } = await import('../shared/amaci.js');
+  const pega = await fetch(base + '/api/giras/' + hojeBR(), { method: 'POST', headers: { 'X-Fila-Token': 'aparelho-cadastro-0000000001', Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acao: 'filaEntrar', tipo: 'passe', lat: TERREIRO.lat, lon: TERREIRO.lon }) });
+  assert.equal(pega.status, 200);
+  const outro = await (await fetch(base + rota, { headers: { 'X-Fila-Token': 'aparelho-outro-00000000000002', Authorization: 'Bearer ' + tok } })).json();
+  assert.equal(outro.minha?.nome, 'Fila Cadastro');
+  assert.equal((await (await fetch(base + rota, { headers: { 'X-Fila-Token': 'aparelho-outro-00000000000002' } })).json()).minha, null);
+  await api('DELETE', '/api/giras/' + hojeBR(), ADMIN);
   await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
 });
 

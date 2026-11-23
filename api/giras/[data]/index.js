@@ -17,6 +17,7 @@
 //                            { acao: 'escala', entidade, orixa, papeis, pares, passes }  Histórico → Cadastrar escala (só o root): grava as duplas
 //                              numa gira que já existe, sem mexer na presença nem nos atendidos (sem gira na data, recusa) → { gira, mensagem }
 // GET    /api/giras/:data?lista=fila        resumo da fila de senhas e a própria senha (sem login; X-Fila-Token) — api/_lib/fila.js
+// GET    /api/giras/:data?lista=filaResumo  o mesmo resumo para todos (sem a própria senha), guardado 3 s pela Vercel
 // GET    /api/giras/:data?lista=filaPainel  painel de quem controla a fila (todas as senhas)
 // POST   { acao: 'filaEntrar', tipo, nome, telefone, lat, lon } | { acao: 'filaDesistir' }  (sem login)
 //        { acao: 'filaChamar', fila, quantidade? } | { acao: 'filaMarcar', id, status } | { acao: 'filaConfig', aberta?, limite? } | { acao: 'filaBalcao', tipo, nome, telefone }
@@ -27,7 +28,7 @@ import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
 import { configCasa } from '../../../shared/config.js';
 import { db } from '../../_lib/db.js';
-import { ACOES_FILA_PUBLICAS, ACOES_FILA_PAINEL, filaPublica, acaoFilaPublica, filaPainel, acaoFilaPainel } from '../../_lib/fila.js';
+import { ACOES_FILA_PUBLICAS, ACOES_FILA_PAINEL, filaPublica, filaResumo, acaoFilaPublica, filaPainel, acaoFilaPainel } from '../../_lib/fila.js';
 import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, proximaTurma, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
@@ -163,9 +164,10 @@ async function sortearOuRemanejar(req, acao) {
 const SORTEIO = ['sortear', 'remanejar'];
 
 export default rota({
-  GET: async (req) => {
+  GET: async (req, res) => {
     // Fila de senhas: o resumo é público (sem login); o painel, de quem controla a fila.
     if (req.query.lista === 'fila') return filaPublica(req, validarData(req.query.data));
+    if (req.query.lista === 'filaResumo') return filaResumo(res, validarData(req.query.data));
     if (req.query.lista === 'filaPainel') return filaPainel(req, validarData(req.query.data));
     // Sessão e gira numa ida só ao banco (a data é conferida depois do token, como antes: sem login, 401).
     let data;

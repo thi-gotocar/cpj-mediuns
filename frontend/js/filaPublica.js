@@ -3,6 +3,10 @@
 // vê a própria senha ao reabrir a página. Quem já está logado no app neste navegador vai com o login também.
 // Pegar senha pede a localização (o servidor confere se o celular está no terreiro).
 // A página consulta a fila de tempos em tempos e, quando a senha é chamada, toca um aviso e vibra.
+// A consulta de rotina é o resumo igual para todos (?lista=filaResumo, que a Vercel guarda por 3 s e entrega sem chamar
+// a função); quantos estão na frente sai da lista dos números aguardando. A própria senha (?lista=fila, com o token) só
+// é pedida ao abrir, quando o número sai da espera (foi chamada ou marcada), enquanto ela não está aguardando e, por
+// garantia, a cada PESSOAL_A_CADA consultas.
 // /fila?tv: a tela de TV do salão (a senha chamada, as anteriores e o QR; nunca nomes). /fila?cartaz: o cartaz com o QR
 // para imprimir.
 
@@ -14,6 +18,14 @@ const params = new URLSearchParams(location.search);
 const MODO = params.has('tv') ? 'tv' : params.has('cartaz') ? 'cartaz' : 'senha';
 document.body.classList.add('modo-' + MODO);
 const ATUALIZAR_MS = MODO === 'tv' ? 5000 : 8000;
+// Com senha aguardando, consulta menos quando a vez está longe: mais de 20 na frente, a cada 30 s; de 5 a 20, a cada 15 s;
+// perto (menos de 5) ou fora da espera (chamada, ausente), no ritmo normal, para o aviso chegar na hora.
+function intervalo() {
+  const m = MODO === 'senha' ? fila?.minha : null;
+  if (m?.status !== 'aguardando' || m.aFrente == null) return ATUALIZAR_MS;
+  return m.aFrente > 20 ? 30000 : m.aFrente >= 5 ? 15000 : ATUALIZAR_MS;
+}
+const PESSOAL_A_CADA = 8;
 const ENDERECO = location.origin + '/fila';
 const CHAVE_TOKEN = 'sortmediuns:fila';
 const CHAVE_LOGIN = 'sortmediuns:token';
@@ -33,7 +45,9 @@ const login = () => { const t = ler(CHAVE_LOGIN); return t && !t.startsWith('dem
 const hoje = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-let fila = null;          // resposta de ?lista=fila
+let fila = null;          // o que a tela mostra: resposta de ?lista=fila, ou o resumo com a própria senha calculada
+let pessoal = null;       // última resposta com a própria senha (?lista=fila ou de pegar/desistir)
+let rodadas = 0;          // consultas desde a última da própria senha
 let erro = '';            // erro do último pedido de senha (ou de desistir)
 let erroCarga = '';       // a fila não carregou (sem internet, servidor fora)
 let enviando = false;
@@ -44,13 +58,15 @@ let jaAvisou = '';        // id + hora da chamada já avisada (não repete o som
 let timer = null;
 let tvUltima = null;      // a última chamada que a TV já mostrou (null = ainda não carregou: não toca na abertura)
 
-async function api(metodo, corpo) {
+// lista 'filaResumo': sem token nem login, para a Vercel poder entregar a mesma resposta a todos.
+async function api(metodo, corpo, lista = 'fila') {
   const t = login();
+  const resumo = lista === 'filaResumo';
   let r;
   try {
-    r = await fetch(`/api/giras/${hoje()}${metodo === 'GET' ? '?lista=fila' : ''}`, {
+    r = await fetch(`/api/giras/${hoje()}${metodo === 'GET' ? '?lista=' + lista : ''}`, {
       method: metodo,
-      headers: { 'X-Fila-Token': TOKEN, ...(t ? { Authorization: 'Bearer ' + t } : {}), ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
+      headers: resumo ? {} : { 'X-Fila-Token': TOKEN, ...(t ? { Authorization: 'Bearer ' + t } : {}), ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
       body: corpo ? JSON.stringify(corpo) : undefined,
     });
   } catch {
@@ -236,10 +252,31 @@ function desenhar() {
   manterTelaLigada(m?.status === 'aguardando');
 }
 
+// A própria senha pelo resumo: só enquanto ela está aguardando e o número continua na espera (null = perguntar ao servidor).
+// Quantos estão na frente: a mesma conta de fila_json (no atendimento, as preferenciais vêm antes).
+function minhaPeloResumo(r, m) {
+  const E = r.espera;
+  if (!E || m?.status !== 'aguardando' || !(E[m.tipo] || []).includes(m.numero)) return null;
+  const antes = (L) => (L || []).filter((n) => n < m.numero).length;
+  return { ...m, aFrente: m.tipo === 'atendimento' ? (E.preferencial || []).length + antes(E.atendimento) : antes(E[m.tipo]) };
+}
+
+async function consultar() {
+  if (MODO !== 'senha') return api('GET', null, 'filaResumo');
+  const m = pessoal?.minha;
+  if (pessoal && rodadas < PESSOAL_A_CADA && (!m || m.status === 'aguardando')) {
+    const r = await api('GET', null, 'filaResumo');
+    const minha = m ? minhaPeloResumo(r, m) : null;
+    if (!m || minha) { rodadas++; return { ...r, minha, eu: pessoal.eu }; }
+  }
+  rodadas = 0;
+  return (pessoal = await api('GET'));
+}
+
 async function atualizar() {
   clearTimeout(timer);
   try {
-    fila = await api('GET');
+    fila = await consultar();
     erroCarga = '';
     // Logado no app: o nome e o telefone do cadastro já vêm preenchidos (dá para trocar, se a senha for para outra pessoa).
     if (fila.eu && !mexeu) rascunho = { ...rascunho, nome: fila.eu.nome || '', telefone: fila.eu.telefone || '' };
@@ -248,7 +285,7 @@ async function atualizar() {
     erroCarga = e.message;
   }
   desenhar();
-  if (document.visibilityState === 'visible') timer = setTimeout(atualizar, ATUALIZAR_MS);
+  if (document.visibilityState === 'visible') timer = setTimeout(atualizar, intervalo());
 }
 
 const pegarLocalizacao = () => new Promise((ok, falha) => {
@@ -274,7 +311,7 @@ el.addEventListener('submit', async (e) => {
   enviando = true; erro = ''; desenhar();
   try {
     const pos = await pegarLocalizacao();
-    fila = await api('POST', { acao: 'filaEntrar', tipo: rascunho.tipo, nome: rascunho.nome, telefone: rascunho.telefone, lat: pos.coords.latitude, lon: pos.coords.longitude });
+    fila = pessoal = await api('POST', { acao: 'filaEntrar', tipo: rascunho.tipo, nome: rascunho.nome, telefone: rascunho.telefone, lat: pos.coords.latitude, lon: pos.coords.longitude });
   } catch (x) {
     erro = x.message;
   }
@@ -293,7 +330,7 @@ el.addEventListener('click', async (e) => {
   if (a === 'perguntar') { confirmarDesistir = true; desenhar(); }
   if (a === 'manter') { confirmarDesistir = false; desenhar(); }
   if (a === 'desistir') {
-    try { fila = await api('POST', { acao: 'filaDesistir' }); } catch (x) { erro = x.message; }
+    try { fila = pessoal = await api('POST', { acao: 'filaDesistir' }); rodadas = 0; } catch (x) { erro = x.message; }
     confirmarDesistir = false;
     desenhar();
   }

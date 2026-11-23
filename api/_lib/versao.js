@@ -1,7 +1,8 @@
 // Versão do app em cada aparelho (a marca do service worker, que o app manda no cabeçalho X-App-Versao) e a
 // versão exigida pelo root (Admin root → 📲 Versão do app). Pedido de um app em outra versão volta com o cabeçalho
 // X-App-Versao-Exigida, e o app baixa a versão nova e recarrega (frontend/js/atualizacao.js).
-// A exigida é lida do banco no máximo uma vez por minuto por função (fica guardada na memória).
+// A exigida é lida do banco no máximo uma vez por minuto por função (fica guardada na memória); a primeira leitura da
+// instância vem junto com a conferência do esquema, e o rota() pergunta em paralelo com o pedido, sem atrasá-lo.
 import { db } from './db.js';
 
 const FORMATO = /^[a-f0-9]{6,32}$/;
@@ -16,7 +17,11 @@ export const versaoValida = (v) => v === '' || FORMATO.test(String(v));
 
 export async function versaoExigida() {
   if (Date.now() - cache.em < CACHE_MS) return cache.valor;
-  try { cache = { valor: String((await db.rpc('app_versao_exigida')) || ''), em: Date.now() }; } catch { cache.em = Date.now(); }
+  try {
+    // Instância nova: já veio na ida que confere o esquema (db.js); depois, uma consulta por minuto.
+    const lida = await db.exigidaInicial?.();
+    cache = { valor: String((lida ?? (await db.rpc('app_versao_exigida'))) || ''), em: Date.now() };
+  } catch { cache.em = Date.now(); }
   return cache.valor;
 }
 export const guardarExigida = (valor) => { cache = { valor, em: Date.now() }; };

@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 170;  // v170: versão do app de cada pessoa e a versão exigida (forçar atualização)
+export const VERSAO = 171;  // v171: resumo público da fila (fila_resumo), guardado pela Vercel
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5547,5 +5547,20 @@ export const MIGRACOES = [
      on conflict (chave) do update set valor = excluded.valor;
      return app_versoes_listar();
    end;
+   $$`,
+
+  // ---------- v171: resumo público da fila (guardado pela Vercel) ----------
+  // p = { data } — o mesmo para todos: o resumo sem a própria senha e os números aguardando de cada tipo, em ordem,
+  // para a página /fila calcular sozinha quantos estão na frente (a mesma conta de fila_json). Sem nomes.
+  `create or replace function fila_resumo(p jsonb)
+   returns jsonb language sql stable as $$
+     select fila_json((p ->> 'data')::date, null, null)
+       || jsonb_build_object('espera', jsonb_build_object(
+         'preferencial', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
+                                    where gira_data = (p ->> 'data')::date and tipo = 'preferencial' and status = 'aguardando'), '[]'::jsonb),
+         'atendimento', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
+                                   where gira_data = (p ->> 'data')::date and tipo = 'atendimento' and status = 'aguardando'), '[]'::jsonb),
+         'passe', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
+                             where gira_data = (p ->> 'data')::date and tipo = 'passe' and status = 'aguardando'), '[]'::jsonb)))
    $$`,
 ];

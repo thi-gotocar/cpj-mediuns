@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 import { HttpError, validarId, hojeBR } from './http.js';
 import { db } from './db.js';
-import { exigir, autorDe } from './sessao.js';
+import { exigir, exigirComLeitura, autorDe } from './sessao.js';
 import { limitarPorIp } from './senhas.js';
 import { pode } from '../../shared/permissoes.js';
 import { noTerreiro } from '../../shared/amaci.js';
@@ -44,9 +44,35 @@ function validarTipo(v) {
 }
 
 // GET ?lista=fila — o resumo da fila e a própria senha (sem login).
+// Logado: a sessão e a fila vão numa ida só ao banco (a página consulta de poucos em poucos segundos). O autor é
+// presumido pela sessão; se o cadastro disser outro (ex.: usuário ligado a uma pessoa), relê com o certo.
+// Sessão vencida ou sem permissão segue como quem não tem cadastro; erro do banco não é engolido.
 export async function filaPublica(req, data) {
-  const eu = await talvezLogado(req);
-  return db.rpc('fila_obter', { data, aparelho: aparelhoDe(req), autor: eu ? autorDe(eu) : null });
+  const aparelho = aparelhoDe(req);
+  const h = req.headers.authorization || req.headers.Authorization || '';
+  if (h.startsWith('Bearer ')) {
+    let presumido = null;
+    try {
+      const [eu, fila] = await exigirComLeitura(req, undefined, ({ pessoaId, usuarioId, alunoId }) => {
+        presumido = alunoId ? 'a:' + alunoId : pessoaId ? 'p:' + pessoaId : usuarioId ? 'u:' + usuarioId : null;
+        return [{ funcao: 'fila_obter', p: { data, aparelho, autor: presumido } }];
+      });
+      const autor = autorDe(eu);
+      return autor === presumido ? fila : db.rpc('fila_obter', { data, aparelho, autor });
+    } catch (e) {
+      if (!(e instanceof HttpError) || e.status >= 500) throw e;
+    }
+  }
+  return db.rpc('fila_obter', { data, aparelho, autor: null });
+}
+
+// GET ?lista=filaResumo — só o que é igual para todos (sem a própria senha, sem cadastro): a Vercel guarda a resposta
+// por 3 s e entrega a todos os celulares sem chamar a função. Vem a lista dos números aguardando, para a página
+// calcular sozinha quantos estão na frente da senha dela (api/_lib/fila.js e frontend/js/filaPublica.js).
+export async function filaResumo(res, data) {
+  const r = await db.rpc('fila_resumo', { data });
+  res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=3');
+  return r;
 }
 
 export async function acaoFilaPublica(req, data, b) {
