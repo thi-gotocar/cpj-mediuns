@@ -28,7 +28,7 @@ import { ocultarSorteio } from '../../_lib/escala.js';
 import { configCasa } from '../../../shared/config.js';
 import { db } from '../../_lib/db.js';
 import { ACOES_FILA_PUBLICAS, ACOES_FILA_PAINEL, filaPublica, filaResumo, acaoFilaPublica, filaPainel, acaoFilaPainel } from '../../_lib/fila.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, desfazerAuto, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -298,7 +298,11 @@ export default rota({
     if (b.acao === 'cancelarSorteio') {
       const quem = await exigir(req, 'giras:sortear');
       const data = validarData(req.query.data);
-      const gira = await db.rpc('gira_acao', { acao: 'cancelarSorteio', data, usuario: quem.id });
+      let gira = await db.rpc('gira_acao', { acao: 'cancelarSorteio', data, usuario: quem.id });
+      // Quem o sorteio pôs no Suporte volta à função de antes (shared/regras.js desfazerAuto).
+      if (Object.keys(gira?.suporteAuto || {}).length) {
+        gira = await db.rpc('gira_salvar', { data, usuario: quem.id, papeis: desfazerAuto(gira), suporteAuto: {} });
+      }
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
     if (b.acao === 'encerrar' || b.acao === 'reabrir') return encerrarOuReabrir(req, b);

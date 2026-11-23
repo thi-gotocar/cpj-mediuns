@@ -83,11 +83,14 @@ test('no sorteio, quem vira cambone cambona e não recebe cambone', () => {
   assert.ok(r1.pares.some((p) => p.m === 'x1'), 'Xavier recebe cambone como extra');
   assert.ok(!r1.pares.some((p) => p.c === 'x1'));
   assert.deepEqual(r1.passes.map((p) => p.c), ['p1']);
-  // Gira de Exu: os dois cambonam.
+  // Gira de Exu: os dois cambonam. 2 médiuns e 3 cambones: cada médium com 1 e o que sobra vai para o Suporte.
   const exu = { data: '2026-11-14', entidade: 'Exu', presenca: {}, pares: [], passes: [] };
   const r2 = sortear(pessoas, [], exu).patch;
   assert.ok(!r2.pares.some((p) => p.m === 'x1'), 'Xavier não recebe cambone');
-  assert.deepEqual(new Set(r2.pares.map((p) => p.c)), new Set(['c1', 'x1', 'p1']));
+  assert.equal(r2.pares.length, 2);
+  const noSup = Object.keys(r2.papeis).filter((id) => r2.papeis[id] === 'sup');
+  assert.equal(noSup.length, 1);
+  assert.deepEqual(new Set([...r2.pares.map((p) => p.c), ...noSup]), new Set(['c1', 'x1', 'p1']));
   assert.equal(r2.passes, undefined);
   const { lista } = paresPorMedium(pessoas, { ...exu, ...r2 });
   assert.deepEqual(lista.map((x) => x.m.id).sort(), ['m1', 'm2']);
@@ -465,7 +468,10 @@ test('função do dia: Cambone como Passe/Senha, Passe como At. Extra, Senha com
   assert.equal(pessoasDaGira([pa], g({ p: 'ext' }))[0].funcao, 'extra');
   assert.ok(cambonaHoje(s, g({ s: 'na' })), 'senha como cambone cambona');
   assert.equal(funcaoNaGira(s, g({ s: 'pas' })), 'passe');
-  assert.equal(papelDe({ ...s, funcao: 'medium' }, g({ s: 'sen' })), 'cad', "'sen' só vale para Cambone");
+  // A Senha não é sorteada: qualquer função da escala pode ir para ela (médium, extra, passe, cambone).
+  assert.equal(papelDe({ ...s, funcao: 'medium' }, g({ s: 'sen' })), 'sen', "'sen' vale também para médium");
+  assert.equal(funcaoNaGira({ ...s, funcao: 'medium' }, g({ s: 'sen' })), 'senha');
+  assert.equal(papelDe({ ...s, funcao: 'curimba' }, g({ s: 'sen' })), 'cad', "'sen' não vale para a curimba");
 });
 
 test('sugestão Mi/Mãe Vê: quem marcou a entidade da gira no Perfil', async () => {
@@ -595,10 +601,11 @@ test('Mãe Vê vem sempre primeiro entre os médiuns da escala', async () => {
 
 test('sorteio: médium com médium de passe junto tem preferência para ter 2 cambones', async () => {
   const { sortear, remanejar } = await import('../shared/regras.js');
-  // 5 médiuns (2 com passe junto), 7 cambones: 2 médiuns ficam com 2 cambones — os que têm passe.
+  // 5 médiuns (2 com passe junto), 8 cambones: cada médium com 1, 1 no Suporte (obrigatório) e os 2 que sobram para
+  // quem tem passe junto.
   const pessoas = [
     ...['A', 'B', 'C', 'D', 'E'].map((n, i) => ({ id: 'm' + n, nome: n, funcao: 'medium', experiente: i < 3 })),
-    ...[1, 2, 3, 4, 5, 6, 7].map((n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' })),
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' })),
     { id: 'p1', nome: 'Passe 1', funcao: 'passe' }, { id: 'p2', nome: 'Passe 2', funcao: 'passe' },
   ];
   const g = { data: '2026-11-07', entidade: 'Gira interna', presenca: {}, pares: [], passes: [] };
@@ -608,13 +615,19 @@ test('sorteio: médium com médium de passe junto tem preferência para ter 2 ca
     assert.equal(comPasse.size, 2);
     const dois = ['mA', 'mB', 'mC', 'mD', 'mE'].filter((m) => pares.filter((p) => p.m === m).length === 2);
     assert.deepEqual(new Set(dois), comPasse, 'quem tem passe fica com os 2 cambones');
+    assert.equal(Object.values(sortear(pessoas, [], g).patch.papeis).filter((v) => v === 'sup').length, 1, '1 no Suporte');
   }
   // Remanejar: cambone livre vai primeiro para quem tem passe junto.
   const g2 = { ...g, presenca: {}, passes: [{ m: 'mC', c: 'p1' }],
     pares: [{ m: 'mA', c: 'c1' }, { m: 'mB', c: 'c2' }, { m: 'mC', c: 'c3' }, { m: 'mD', c: 'c4' }, { m: 'mE', c: 'c5' }] };
-  const semC6eC7 = pessoas.filter((p) => p.id !== 'c7' && p.id !== 'p2');
-  const r = remanejar(semC6eC7, [], g2).patch;
-  assert.ok(r.pares.some((p) => p.m === 'mC' && p.c === 'c6'), 'o cambone livre vai para quem tem passe');
+  // Dois livres (c6, c7): um vai para o Suporte (obrigatório) e o outro para quem tem passe junto.
+  const semC8 = pessoas.filter((p) => !['c8', 'p2'].includes(p.id));
+  const r = remanejar(semC8, [], g2).patch;
+  const livresNaDupla = r.pares.filter((p) => ['c6', 'c7'].includes(p.c));
+  assert.equal(livresNaDupla.length, 1);
+  assert.equal(livresNaDupla[0].m, 'mC', 'o cambone livre vai para quem tem passe');
+  assert.equal(Object.values(r.papeis).filter((v) => v === 'sup').length, 1, 'e o outro para o Suporte');
+  assert.ok(Object.keys(r.suporteAuto).length === 1);
 });
 
 test('oferendas: alunos por turma nos grupos', async () => {
@@ -798,4 +811,47 @@ test('o sorteio usa a função do dia (passo Escala → Função nesta gira)', (
   assert.ok(!(passes || []).some((p) => p.c === 'p1'), 'e não vai como médium de passe');
   assert.ok(pares.some((p) => p.c === 'm2') && !pares.some((p) => p.m === 'm2'), 'médium que cambona não recebe cambone');
   assert.deepEqual(new Set(pares.map((p) => p.m)), new Set(['m1', 'p1']));
+});
+
+test('regra da escala: 1 cambone por médium, Suporte obrigatório, 2º cambone só com passe e o resto no Suporte', () => {
+  const med = (n, xp) => ({ id: 'm' + n, nome: 'Médium ' + n, funcao: 'medium', experiente: !!xp });
+  const cam = (n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' });
+  const g = { data: '2026-11-25', entidade: 'Gira interna', presenca: {}, pares: [], passes: [] };
+  // 3 médiuns (1 com passe junto), 1 passe e 7 cambones: 3 + 1 no Suporte + o 2º de quem tem passe; sobram 2 → Suporte.
+  const pessoas = [med(1, true), med(2), med(3), { id: 'p1', nome: 'Passe', funcao: 'passe' }, ...[1, 2, 3, 4, 5, 6, 7].map(cam)];
+  const { patch, mensagem } = sortear(pessoas, [], g);
+  const conta = (m) => patch.pares.filter((p) => p.m === m).length;
+  assert.deepEqual([conta('m1'), conta('m2'), conta('m3')], [2, 1, 1]);
+  const sup = Object.keys(patch.papeis).filter((id) => patch.papeis[id] === 'sup');
+  assert.equal(sup.length, 3);
+  assert.deepEqual(Object.keys(patch.suporteAuto).sort(), sup.sort(), 'guarda quem o sorteio pôs no Suporte');
+  assert.match(mensagem, /ninguém na Senha/, 'a Senha não é sorteada: só avisa');
+  // Sortear de novo desfaz o Suporte do sorteio anterior antes de distribuir (ninguém fica preso lá).
+  const g2 = { ...g, ...patch };
+  assert.equal(Object.values(sortear(pessoas, [], g2).patch.papeis).filter((v) => v === 'sup').length, 3);
+  // Com alguém da Senha presente, não avisa; quem já está no Suporte conta como o obrigatório.
+  const comSenha = [...pessoas, { id: 's1', nome: 'Senha', funcao: 'senha' }];
+  const g3 = { ...g, papeis: { c7: 'sup' } };
+  const r3 = sortear(comSenha, [], g3);
+  assert.doesNotMatch(r3.mensagem, /ninguém na Senha/);
+  assert.equal(r3.patch.papeis.c7, 'sup');
+  // 6 cambones para cambonar (c7 já no Suporte): 3 + o 2º de m1 + sobram 2 → Suporte (o obrigatório já está cumprido).
+  assert.equal(r3.patch.pares.length, 4);
+  // Cambones a menos que médiuns: todo mundo cambona e um cambone acompanha dois médiuns; ninguém vai para o Suporte.
+  const poucos = [med(1), med(2), med(3), cam(1), cam(2)];
+  const r4 = sortear(poucos, [], g).patch;
+  assert.deepEqual(new Set(r4.pares.map((p) => p.m)), new Set(['m1', 'm2', 'm3']));
+  assert.equal(Object.values(r4.papeis).filter((v) => v === 'sup').length, 0);
+});
+
+test('Suporte roda entre os cambones: quem esteve lá na última gira volta a cambonar', () => {
+  const pessoas = [{ id: 'm1', nome: 'Ana', funcao: 'medium' }, { id: 'm2', nome: 'Bia', funcao: 'medium' },
+    ...[1, 2, 3].map((n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' }))];
+  const anterior = { data: '2026-11-18', entidade: 'Gira interna', pares: [{ m: 'm1', c: 'c1' }, { m: 'm2', c: 'c2' }], papeis: { c3: 'sup' } };
+  const g = { data: '2026-11-25', entidade: 'Gira interna', presenca: {}, pares: [], passes: [] };
+  for (let i = 0; i < 20; i++) {
+    const { papeis } = sortear(pessoas, [anterior], g).patch;
+    assert.notEqual(papeis.c3, 'sup', 'c3 esteve no Suporte na última gira');
+    assert.equal(Object.values(papeis).filter((v) => v === 'sup').length, 1);
+  }
 });

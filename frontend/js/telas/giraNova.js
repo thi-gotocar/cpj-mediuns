@@ -183,8 +183,7 @@ function conducao(ctx) {
   const L = !g.evento && temLimpeza(g) ? limpezaDaGira(estado.pessoas, g, girasLista()) : null;
   const entOk = g.evento || !!linhaDaEntidade(g.entidade) || !!giraEspecial(g.entidade);
   const r1 = [g.evento ? 'Evento' : g.entidade ? esc(nomeEntidadeGira(g)) : 'Escolha a entidade', orixaDaGira(g) ? esc(orixaDaGira(g)) : '',
-    !g.evento && temLimpeza(g) ? (L ? `Turma ${L.turma}` : 'sem turma') : '', g.recado ? 'recado escrito' : 'sem recado'].filter(Boolean).join(' · ');
-  const recado = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : g.recado || '';
+    !g.evento && temLimpeza(g) ? (L ? `Turma ${L.turma}` : 'sem turma') : ''].filter(Boolean).join(' · ');
   const c1 = `<label class="field">Gira / entidade do dia${ctx.entidade}</label>
     <label class="gn-check"><input type="checkbox" data-act="evento" ${g.evento ? 'checked' : ''} ${publicada ? 'disabled' : ''}> É evento <small class="muted">(sem escala nem limpeza)</small></label>
     ${ctx.avisoEntidade}
@@ -193,7 +192,6 @@ function conducao(ctx) {
     ${publicada ? '<p class="muted gn-nota">Escala publicada: gira, orixá, Evento e data ficam fixos. Para mudar, oculte a escala no passo Escala.</p>'
       : `<button type="button" class="btn" data-act="mudardata">📅 Alterar data · ${esc(dDM(g.data))}</button>`}
     ${!g.evento && temLimpeza(g) ? campoTurma(g, L) : ''}
-    <label class="field">Recado para a corrente<textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos.">${esc(recado)}</textarea></label>
     ${excluir(g)}`;
 
   // 2. Presença
@@ -249,7 +247,6 @@ function quemNaoVem(ps, g) {
 function daCorrente(ctx) {
   const { g, ps, admin, editar, encerrada, temDuplas, realizado, escala } = ctx;
   const partes = [];
-  if (g.recado) partes.push(`<div class="gn-recado"><small>Recado</small><p>${esc(g.recado)}</p></div>`);
   if (realizado) partes.push(`<div class="gn-sec gn-escala">${realizado}</div>`);
   else if (escala) partes.push(`<div class="gn-sec">${escala}</div>`);
   else if (editar && !g.evento && !encerrada) partes.push(`<div class="gn-sec"><div class="gn-sec-h"><h3><span aria-hidden="true">📋</span> Escala</h3><span class="gn-aviso-t">${temDuplas ? 'aguardando publicação' : 'ainda não sorteada'}</span></div><p class="muted gn-nota">A corrente vê a imagem da escala aqui assim que ela for publicada.</p></div>`);
@@ -262,6 +259,30 @@ function daCorrente(ctx) {
   const html = partes.filter(Boolean).join('');
   if (!html) return '';
   return `<div class="gn-corrente">${admin && !encerrada ? '<small class="muted gn-legenda-c">Abaixo, o mesmo que a corrente vê</small>' : ''}${html}</div>`;
+}
+
+// ---------- recado para a corrente ----------
+// O primeiro bloco da aba, com o ⚠️: o recado da gira, para todos. Vazio, não aparece para ninguém; quem edita a gira
+// vê só uma linha discreta para escrever. Editar abre o campo ali mesmo; o texto grava ao sair do campo.
+const recadoAberto = new Set();   // datas com o campo do recado aberto
+function blocoRecado(ctx) {
+  const { g, editar } = ctx;
+  const texto = g.recado || '';
+  const aberto = editar && recadoAberto.has(g.data);
+  if (aberto) {
+    const valor = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : texto;
+    return `<div class="gn-aviso-rec ed"><span class="gn-aviso-ico" aria-hidden="true">⚠️</span>
+      <div class="gn-aviso-c"><label class="gn-aviso-t" for="ev-recado">Recado para a corrente</label>
+        <textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos no topo da aba.">${esc(valor)}</textarea>
+        <div class="gn-aviso-bts"><button type="button" class="btn small primary" data-act="gnrecadofechar">Pronto</button>
+          <small class="muted">Em branco, o recado some para todos.</small></div></div></div>`;
+  }
+  if (!texto) {
+    return editar ? `<button type="button" class="gn-aviso-novo" data-act="gnrecado"><span aria-hidden="true">⚠️</span> Escrever um recado para a corrente</button>` : '';
+  }
+  return `<div class="gn-aviso-rec" role="note"><span class="gn-aviso-ico" aria-hidden="true">⚠️</span>
+    <div class="gn-aviso-c"><span class="gn-aviso-t">Recado da casa</span><p class="gn-aviso-txt">${esc(texto)}</p></div>
+    ${editar ? '<button type="button" class="btn link small gn-aviso-ed" data-act="gnrecado">Editar</button>' : ''}</div>`;
 }
 
 // ---------- a tela ----------
@@ -279,7 +300,8 @@ export function montarNova(ctx) {
   else corpo = (editar ? conducao(ctx) : '') + daCorrente(ctx);
   // O bloco do ano (Atendimentos, sua presença, orixá de cabeça) vai no fim: os mesmos dados da Gira antiga.
   // Por último, o bloco Admin (dia da semana das giras), só para quem edita a Gira.
-  return `<section class="panel gn">${faixa}${cabecalho(ctx)}${corpo}${ctx.ano || ''}${ctx.adminGira || ''}</section>`;
+  // O recado para a corrente é o primeiro bloco da aba.
+  return `<section class="panel gn">${blocoRecado(ctx)}${faixa}${cabecalho(ctx)}${corpo}${ctx.ano || ''}${ctx.adminGira || ''}</section>`;
 }
 
 export const cliquesNova = {
@@ -298,6 +320,13 @@ export const cliquesNova = {
     avisar();
   },
   gnmes() { mesAberto = !mesAberto; avisar(); },
+  gnrecado() {
+    recadoAberto.add(giraAtual().data);
+    avisar();
+    setTimeout(() => { const t = document.getElementById('ev-recado'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 0);
+  },
+  // Pronto: o campo perde o foco (o recado grava no change) e fecha.
+  gnrecadofechar() { document.getElementById('ev-recado')?.blur(); recadoAberto.delete(giraAtual().data); avisar(); },
   gnturma() {
     const g = giraAtual();
     if (turmaAberta.has(g.data)) turmaAberta.delete(g.data); else turmaAberta.set(g.data, Number(g.limpeza) || 0);

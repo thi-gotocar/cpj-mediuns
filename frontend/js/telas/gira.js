@@ -61,15 +61,17 @@ function confirmaFalta(id) {
 }
 
 // 2º combo da presença (função nesta gira), conforme o cadastro:
-// Cambone → Cambone / Passe / Senha / Suporte · Passe → Passe / Cambone / At. Extra / Suporte
-// Senha → Senha / Cambone / Passe / Suporte · Extra → At. Extra / Passe / Cambone / Suporte · demais → função / Cambone / Suporte.
+// Cambone → Cambone / Passe / Senha / Suporte · Passe → Passe / Cambone / At. Extra / Senha / Suporte
+// Senha → Senha / Cambone / Passe / Suporte · Extra → At. Extra / Passe / Cambone / Senha / Suporte
+// Médium → Médium / Cambone / Senha / Suporte. A Senha não é sorteada: qualquer um pode ir para ela.
 const NOME_FUNCAO = { medium: 'Médium', cambone: 'Cambone', passe: 'Passe', extra: 'At. Extra', senha: 'Senha' };
 export function opcoesPapel(p) {
   const cad = ['cad', NOME_FUNCAO[p.funcao] || p.funcao];
   if (p.funcao === 'cambone') return [cad, ['pas', 'Passe'], ['sen', 'Senha'], ['sup', 'Suporte']];
-  if (p.funcao === 'passe') return [cad, ['na', 'Cambone'], ['ext', 'At. Extra'], ['sup', 'Suporte']];
+  if (p.funcao === 'passe') return [cad, ['na', 'Cambone'], ['ext', 'At. Extra'], ['sen', 'Senha'], ['sup', 'Suporte']];
   if (p.funcao === 'senha') return [cad, ['na', 'Cambone'], ['pas', 'Passe'], ['sup', 'Suporte']];
-  if (p.funcao === 'extra') return [cad, ['pas', 'Passe'], ['na', 'Cambone'], ['sup', 'Suporte']];
+  if (p.funcao === 'extra') return [cad, ['pas', 'Passe'], ['na', 'Cambone'], ['sen', 'Senha'], ['sup', 'Suporte']];
+  if (p.funcao === 'medium') return [cad, ['na', 'Cambone'], ['sen', 'Senha'], ['sup', 'Suporte']];
   return [cad, ['na', 'Cambone'], ['sup', 'Suporte']];
 }
 const htmlPapel = (p, papel) => opcoesPapel(p).map(([k, t]) => `<option value="${k}" ${k === papel ? 'selected' : ''}>${t}</option>`).join('');

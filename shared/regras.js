@@ -167,8 +167,9 @@ export function foraDaLinha(p, g) {
   return ![linha, ...(JUNTAS[linha] || [])].some((l) => p.linhas.includes(l));
 }
 // Trocas de função só nesta gira (2º combo da presença): 'pas' → Passe (Extra, Cambone, Senha),
-// 'ext' → At. Extra (Passe), 'sen' → Senha (Cambone). 'na' (Cambone / Não atende) cambona.
-export const TROCAS_DIA = { pas: ['passe', ['extra', 'cambone', 'senha']], ext: ['extra', ['passe']], sen: ['senha', ['cambone']] };
+// 'ext' → At. Extra (Passe), 'sen' → Senha (qualquer função da escala: a Senha não é sorteada, o admin escolhe).
+// 'na' (Cambone / Não atende) cambona.
+export const TROCAS_DIA = { pas: ['passe', ['extra', 'cambone', 'senha']], ext: ['extra', ['passe']], sen: ['senha', ['cambone', 'passe', 'extra', 'medium']] };
 export function funcaoNaGira(p, g) {
   // Já convertida (pessoasDaGira): não converte de novo.
   if (p.funcaoCadastro) return p.funcao;
@@ -479,8 +480,103 @@ function balancear(big, small, cost, fixos, prefere = null) {
   return best;
 }
 
-// Sorteio completo. Mantém só as duplas fixadas. Retorna o que mudar na gira.
-export function sortear(pessoas, giras, g) {
+// Quem o sorteio (ou o Remanejar) pôs no Suporte guarda em suporteAuto a função do dia de antes ('cad', 'na' ou outra
+// troca), para voltar quando sortear de novo ou cancelar o sorteio. Só volta quem ainda está no Suporte.
+// Encerrar guarda o do sorteio em suporteAuto._sorteio (o resto é de quem o encerramento pôs lá); reabrir devolve.
+export const autoDoSorteio = (g) => Object.fromEntries(Object.entries(g.suporteAuto || {}).filter(([id]) => id !== '_sorteio'));
+export function desfazerAuto(g) {
+  const papeis = { ...(g.papeis || {}) };
+  for (const [id, antes] of Object.entries(autoDoSorteio(g))) {
+    if (papeis[id] !== 'sup') continue;
+    if (antes === 'na' || TROCAS_DIA[antes]) papeis[id] = antes; else delete papeis[id];
+  }
+  return papeis;
+}
+
+// Histórico de quem ficou no Suporte nas giras ANTERIORES a "ate", com o mesmo peso das duplas: a última gira com escala
+// pesa 1, a anterior 1/2… e "recente" se esteve lá na última. Serve para rodar o Suporte entre os cambones: quem esteve
+// lá há pouco (ou muitas vezes) volta a cambonar.
+export function custosSuporte(giras, ate) {
+  const h = (giras || []).filter((g) => g.data < ate && ((g.pares || []).length || (g.passes || []).length))
+    .sort((a, b) => b.data.localeCompare(a.data));
+  const map = {};
+  h.forEach((g, k) => {
+    const ids = new Set(Object.entries(g.papeis || {}).filter(([, v]) => v === 'sup').map(([id]) => id));
+    Object.entries(g.presenca || {}).forEach(([id, v]) => { if (v === 'sup') ids.add(id); });   // formato antigo
+    ids.forEach((id) => {
+      const e = map[id] || (map[id] = { n: 0, peso: 0, recente: false });
+      e.n++;
+      e.peso += 1 / (k + 1);
+      if (k === 0) e.recente = true;
+    });
+  });
+  return map;
+}
+export const custoSuporte = (map, id) => { const e = map[id]; return e ? e.peso * 4 + e.n + (e.recente ? 6 : 0) : 0; };
+
+// Regra da escala (nesta ordem de prioridade):
+//  1) todo médium (e At. Extra) recebe 1 cambone — faltando cambone, um cambone acompanha mais de um médium;
+//  2) pelo menos 1 pessoa no Suporte: sem ninguém lá, um cambone que sobra vai para o Suporte;
+//  3) o médium com médium de passe junto recebe o 2º cambone, se ainda sobrar;
+//  4) quem sobrar depois disso vai para o Suporte.
+// A Senha não entra no sorteio: é quem tem a função Senha no cadastro ou foi escolhido antes na troca do dia.
+// O Suporte roda entre os cambones (custosSuporte), junto com o custo de repetir as duplas; das 600 tentativas, fica a de
+// menor custo total.
+function distribuirCambones(meds, cams, comPasse, map, fixos, faltaSuporte, mapSup) {
+  const sobra = cams.length - meds.length;
+  if (sobra <= 0) {
+    // Cambones não bastam (ou bastam certinho): todos cambonam; médiuns repartem cambone se faltar.
+    const mm = meds.length >= cams.length;
+    const r = mm
+      ? balancear(meds, cams, (b, s) => custo(map, b, s), fixos.map((f) => ({ b: f.m, s: f.c })))
+      : balancear(cams, meds, (b, s) => custo(map, s, b), fixos.map((f) => ({ b: f.c, s: f.m })));
+    return { pares: r.map((x) => (mm ? { m: x.b, c: x.s, fixo: x.fixo } : { m: x.s, c: x.b, fixo: x.fixo })), suporte: [] };
+  }
+  const presos = new Set(fixos.map((f) => f.c));   // dupla fixada não vai para o Suporte
+  const querSuporte = faltaSuporte ? 1 : 0;
+  const hosts = meds.filter((m) => comPasse.has(m));
+  const nSegundo = Math.min(hosts.length, Math.max(0, sobra - querSuporte));
+  const nFora = sobra - nSegundo;   // vão para o Suporte (inclui o obrigatório)
+  let melhor = null;
+  for (let t = 0; t < 600; t++) {
+    // Primeiro quem fica no Suporte: os que estiveram lá há mais tempo (com um pouco de sorteio para desempatar).
+    const suporte = cams.filter((c) => !presos.has(c))
+      .map((c) => [c, custoSuporte(mapSup, c) + Math.random() * 1.5]).sort((a, b) => a[1] - b[1]).slice(0, nFora).map(([c]) => c);
+    let total = suporte.reduce((s2, c) => s2 + custoSuporte(mapSup, c), 0);
+    // Depois as duplas com quem sobrou: o 1º cambone de cada médium e, em seguida, o 2º de quem tem passe junto.
+    const vagas = Object.fromEntries(meds.map((m) => [m, 1]));
+    shuffle(hosts).slice(0, nSegundo).forEach((m) => { vagas[m] = 2; });
+    const usados = new Set(suporte);
+    const pares = [];
+    fixos.forEach((f) => {
+      if (usados.has(f.c) || !(vagas[f.m] > 0)) return;
+      usados.add(f.c); vagas[f.m]--; pares.push({ m: f.m, c: f.c, fixo: true }); total += custo(map, f.m, f.c);
+    });
+    for (const rodada of [1, 2]) {
+      for (const m of shuffle(meds)) {
+        if (!(vagas[m] > 0) || pares.filter((p) => p.m === m).length >= rodada) continue;
+        let pick = null, pc = Infinity;
+        for (const c of cams) {
+          if (usados.has(c)) continue;
+          const v = custo(map, m, c) + Math.random() * 0.6;
+          if (v < pc) { pc = v; pick = c; }
+        }
+        if (pick === null) continue;
+        usados.add(pick); vagas[m]--; pares.push({ m, c: pick, fixo: false }); total += custo(map, m, pick);
+      }
+    }
+    // Cambone que ainda sobrou (duplas fixadas mudam as contas): vai para o Suporte também.
+    const resto = cams.filter((c) => !usados.has(c));
+    if (total < (melhor?.total ?? Infinity) - 1e-9) melhor = { total, pares, suporte: [...suporte, ...resto] };
+  }
+  return melhor;
+}
+
+// Sorteio completo. Mantém só as duplas fixadas. Retorna o que mudar na gira: duplas, médiuns de passe e quem foi para o
+// Suporte (papeis + suporteAuto, para desfazer). Antes, desfaz o Suporte que o sorteio anterior tinha posto.
+export function sortear(pessoas, giras, g0) {
+  const papeisLimpos = desfazerAuto(g0);
+  const g = { ...g0, papeis: papeisLimpos };
   const ps = ordenarPessoas(pessoasDaGira(pessoas, g));
   const pres = ps.filter((p) => presente(p, g));
   const meds = pres.filter(recebe).map((p) => p.id);
@@ -505,18 +601,26 @@ export function sortear(pessoas, giras, g) {
   }
   const comPasse = new Set((patch.passes || []).map((p) => p.m));
 
+  const papeis = { ...papeisLimpos };
+  const auto = {};
   if (meds.length && cams.length) {
     const map = custos(giras, g.data, 'pares');
     const fx = (g.pares || []).filter((p) => p.fixo && meds.includes(p.m) && cams.includes(p.c));
-    const mm = meds.length >= cams.length;
-    const r = mm
-      ? balancear(meds, cams, (b, s) => custo(map, b, s), fx.map((f) => ({ b: f.m, s: f.c })))
-      : balancear(cams, meds, (b, s) => custo(map, s, b), fx.map((f) => ({ b: f.c, s: f.m })), comPasse);
-    patch.pares = r.map((x) => (mm ? { m: x.b, c: x.s, fixo: x.fixo } : { m: x.s, c: x.b, fixo: x.fixo }));
+    const faltaSuporte = !ps.some((p) => status(p, g) === 'sup');
+    const r = distribuirCambones(meds, cams, comPasse, map, fx, faltaSuporte, custosSuporte(giras, g.data));
+    patch.pares = r.pares;
+    const nome = (id) => ps.find((p) => p.id === id)?.nome || '';
+    r.suporte.forEach((id) => { auto[id] = papelDe(ps.find((p) => p.id === id), g); papeis[id] = 'sup'; });
     msgs.push(patch.pares.filter((p) => !map[p.m + '|' + p.c]).length + ' de ' + patch.pares.length + ' duplas novas');
+    if (r.suporte.length) msgs.push(`no Suporte: ${r.suporte.map(nome).join(', ')}`);
+    else if (faltaSuporte) msgs.push('ninguém no Suporte (não sobrou cambone)');
   } else {
     msgs.push(!meds.length ? 'nenhum médium presente' : 'nenhum cambone presente');
   }
+  // A Senha vem do cadastro ou da troca do dia; o sorteio só avisa quando não há ninguém.
+  if (!pres.some((p) => p.funcao === 'senha')) msgs.push('ninguém na Senha: escolha no Função nesta gira');
+  patch.papeis = papeis;
+  patch.suporteAuto = auto;
   msgs.push(...msgPasse);
   return { patch, mensagem: 'Sorteado: ' + msgs.join('; ') + '.' };
 }
@@ -594,23 +698,8 @@ export function remanejar(pessoas, giras, g) {
     add(pp.m, c);
     livres = livres.filter((x) => x !== c);
   }
-  // 3) cambones livres vão para médiuns com um só cambone (máximo dois); quem tem médium de passe junto vem antes
-  const comPasse = new Set((g.passes || []).map((p) => p.m));
-  while (livres.length) {
-    const alvo = R.filter((m) => camsDe(m).length < 2);
-    if (!alvo.length) break;
-    const c = livres[0];
-    const m = best(alvo, (m) => camsDe(m).length * 100 + (comPasse.has(m) ? 0 : 50) + custo(map, m, c));
-    add(m, c);
-    livres.shift();
-  }
-  // 4) excedente vai para o suporte
-  livres.forEach((c) => {
-    pa[c] = 'sup';
-    notas.push(nome(c) + ' foi para o suporte');
-  });
-
-  // Médiuns de passe cujo médium faltou vão para o médium experiente com menos passes
+  // Médiuns de passe cujo médium faltou vão para o médium experiente com menos passes (antes do 2º cambone, que segue
+  // quem fica com passe junto).
   const hosts = all.filter((p) => presente(p, gx) && p.funcao === 'medium' && p.experiente).map((p) => p.id);
   const passeIds = all.filter((p) => presente(p, gx) && p.funcao === 'passe').map((p) => p.id);
   const passes = (g.passes || []).filter((p) => hosts.includes(p.m) && passeIds.includes(p.c)).map((p) => ({ ...p }));
@@ -623,11 +712,46 @@ export function remanejar(pessoas, giras, g) {
       passes.push({ m, c: id, fixo: false, remanejado: true });
     });
 
+  // A regra da escala (ver distribuirCambones): Suporte com pelo menos 1, 2º cambone só para quem tem passe junto e o
+  // resto no Suporte. Quem vai para o Suporte guarda a função de antes em suporteAuto (o Sortear e o Cancelar desfazem).
+  const auto = {};
+  const mapSup = custosSuporte(giras, g.data);
+  const paraSuporte = (c) => {
+    auto[c] = papelDe(all.find((p) => p.id === c), gx);
+    if (pr[c] === 'na') pr[c] = 'p';   // formato antigo
+    pa[c] = 'sup';
+    notas.push(nome(c) + ' foi para o suporte');
+  };
+  const temSuporte = () => all.some((p) => status(p, gx) === 'sup');
+  // Os livres em ordem: quem esteve no Suporte há mais tempo primeiro (vai para lá); quem esteve há pouco, por último (cambona).
+  livres.sort((a, b) => custoSuporte(mapSup, a) - custoSuporte(mapSup, b));
+  // 3) ninguém no Suporte: o primeiro livre vai.
+  if (!temSuporte() && livres.length) paraSuporte(livres.shift());
+  // 4) o 2º cambone de quem tem médium de passe junto (máximo dois), com quem esteve no Suporte há menos tempo.
+  const comPasse = new Set(passes.map((p) => p.m));
+  while (livres.length) {
+    const alvo = R.filter((m) => comPasse.has(m) && camsDe(m).length < 2);
+    if (!alvo.length) break;
+    const c = livres.pop();
+    add(best(alvo, (m) => custo(map, m, c)), c);
+  }
+  // 5) o resto vai para o Suporte.
+  livres.forEach(paraSuporte);
+  // Ainda ninguém no Suporte (não sobrou livre): sai o 2º cambone de um médium que tem dois (não fixado).
+  if (!temSuporte()) {
+    const dois = pares.filter((p) => !p.fixo && camsDe(p.m).length >= 2);
+    if (dois.length) {
+      const pp = best(dois, (p) => custoSuporte(mapSup, p.c));
+      tira(pp);
+      paraSuporte(pp.c);
+    }
+  }
+
   const n = pares.filter((p) => p.remanejado).length + passes.filter((p) => p.remanejado).length;
   const mensagem = n || notas.length
     ? 'Remanejado: ' + n + ' ajuste(s)' + (notas.length ? '. ' + notas.join('; ') : '') + '.'
     : 'Nada a remanejar.';
-  return { patch: { pares, passes, presenca: pr, papeis: pa }, mensagem };
+  return { patch: { pares, passes, presenca: pr, papeis: pa, suporteAuto: { ...autoDoSorteio(g), ...auto } }, mensagem };
 }
 
 // Agrupa as duplas válidas por médium, para exibir e exportar.
@@ -690,6 +814,9 @@ export function encerrar(pessoas, g) {
     : ' Todos os presentes estão na escala.');
   // Retrato tirado com a gira como fica encerrada (presença e função do dia não entram: ficam na própria gira).
   const retrato = retratoDaGira(pessoas, g);
+  // O Suporte posto pelo sorteio fica guardado à parte, para o reabrir devolver e o Sortear/Cancelar poderem desfazer.
+  const doSorteio = autoDoSorteio(g);
+  if (Object.keys(doSorteio).length) suporteAuto._sorteio = doSorteio;
   return { patch: { presenca, papeis, pares: validos, passes: passesV, encerrada: true, suporteAuto, retrato }, movidos, mensagem };
 }
 
@@ -700,6 +827,7 @@ export function reabrir(pessoas, g) {
   const nomes = [];
   const ps = pessoasDe(pessoas, g);   // nomes como estavam na gira (mesmo de quem já foi apagado)
   for (const [id, antes] of Object.entries(g.suporteAuto || {})) {
+    if (id === '_sorteio') continue;
     if (papeis[id] === 'sup') {
       if (antes === 'na' || TROCAS_DIA[antes]) papeis[id] = antes; else delete papeis[id];
     } else if (presenca[id] === 'sup') {
@@ -711,7 +839,7 @@ export function reabrir(pessoas, g) {
   nomes.sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const mensagem = 'Gira reaberta.' + (nomes.length ? ` ${nomes.length === 1 ? 'Voltou' : 'Voltaram'} do Suporte: ${nomes.join(', ')}.` : '');
   // Reaberta, a gira volta a seguir o cadastro (encerrar de novo tira um retrato novo).
-  return { patch: { presenca, papeis, encerrada: false, suporteAuto: {}, retrato: null }, mensagem };
+  return { patch: { presenca, papeis, encerrada: false, suporteAuto: g.suporteAuto?._sorteio || {}, retrato: null }, mensagem };
 }
 
 // Sugestão de Passe / Atendimento extra para a gira (aba Gira, admin), pelo que cada um marcou no Perfil

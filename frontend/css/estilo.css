@@ -2414,7 +2414,8 @@ div.pf-of-total{cursor:default}
 .gn-passo-t small{color:var(--muted);font-size:.85rem}
 .gn-passo-h .seta{color:var(--muted)}
 .gn-num{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--gold);color:var(--gold);font-weight:700;font-size:.9rem;box-sizing:border-box}
-.gn-num.ok{background:var(--gold);color:var(--surface)}
+/* Passo ok: o círculo amarelo ganha o contorno verde (e o ✓ em verde). */
+.gn-num.ok{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
 .gn-passo.aberto .gn-num:not(.ok){background:color-mix(in srgb,var(--gold) 18%,transparent)}
 .gn-passo-c{display:grid;gap:12px;padding:0 14px 16px;min-width:0}
 .gn-passo-c .field{display:grid;gap:4px;font-size:.85rem;font-weight:700;color:var(--muted)}
@@ -2424,6 +2425,19 @@ div.pf-of-total{cursor:default}
 .gn-nota{margin:0;font-size:.88rem}
 .gn-excluir{justify-self:start}
 .gn-excluir-c{display:grid;gap:8px;padding:10px 12px;border:1px solid color-mix(in srgb,var(--falta) 45%,var(--line));border-radius:10px}
+/* Recado para a corrente: o primeiro bloco da aba Gira (⚠️ + o texto em destaque) */
+.gn-aviso-rec{display:grid;grid-template-columns:auto 1fr auto;align-items:start;gap:10px;padding:12px 14px;border-radius:12px;
+  background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-left-width:4px;border-left-color:var(--warn)}
+.gn-aviso-ico{font-size:1.35rem;line-height:1.2}
+.gn-aviso-c{display:grid;gap:4px;min-width:0}
+.gn-aviso-t{font-weight:700;font-size:.82rem;color:var(--warn)}
+.gn-aviso-txt{margin:0;font-family:var(--f-display);font-size:1.18rem;line-height:1.35;color:var(--ink);white-space:pre-line;overflow-wrap:anywhere}
+.gn-aviso-ed{align-self:start;color:var(--warn)}
+.gn-aviso-rec.ed{grid-template-columns:auto 1fr}
+.gn-aviso-bts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gn-aviso-novo{display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border-radius:12px;background:transparent;
+  border:1px dashed color-mix(in srgb,var(--warn) 45%,transparent);color:var(--warn);font:inherit;font-size:.92rem;text-align:left;cursor:pointer}
+.gn-aviso-novo:focus-visible,.gn-aviso-ed:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
 .gn-recado-ed{font-family:var(--f-body);font-size:1rem;min-height:calc(2lh + 20px);max-height:calc(5lh + 20px);height:auto;field-sizing:content;resize:none}
 .gn-barra{display:flex;gap:2px;height:10px;border-radius:6px;overflow:hidden}
 .gn-barra .b-p{background:var(--ok)}.gn-barra .b-f{background:var(--falta)}.gn-barra .b-a{background:var(--off)}.gn-barra .b-lic{background:var(--muted)}.gn-barra .b-pend{background:var(--warn)}
@@ -2441,11 +2455,8 @@ div.pf-of-total{cursor:default}
 /* Parte da corrente: seções separadas por fio, sem a borda colorida de cada bloco */
 .gn-corrente{display:grid;min-width:0}
 .gn-legenda-c{padding-bottom:6px}
-.gn-recado{display:grid;gap:2px;padding:12px 14px;border-radius:12px;background:var(--accent-soft);margin-bottom:6px}
-.gn-recado small{font-weight:700;color:var(--accent);font-size:.82rem}
-.gn-recado p{margin:0;font-family:var(--f-display);font-size:1.2rem;line-height:1.3;white-space:pre-line}
 .gn-sec{display:grid;gap:8px;padding:16px 0;border-top:1px solid var(--line);min-width:0}
-.gn-corrente>.gn-recado+.gn-sec,.gn-corrente>.gn-legenda-c+.gn-sec{border-top:0}
+.gn-corrente>.gn-legenda-c+.gn-sec{border-top:0}
 .gn-sec-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .gn-sec h3,.gn-tambem h3{font-family:var(--f-display);font-size:1.2rem;margin:0}
 .gn-sec .limpeza{border-left:0;background:none;padding:0;border-radius:0;font-size:.95rem}
