@@ -3401,3 +3401,39 @@ test('v168: a fila na aba Geral tem o interruptor Visível para todos, só do ro
   assert.equal((await publico()).blocoGeral, true, 'o bloco lê pela rota da fila');
   await api('POST', '/api/giras', ADMIN, { acao: 'filaGeral', ativa: false });
 });
+
+test('v169: Vou ao amaci — só a corrente marca, até o dia; todos da corrente veem quem vai; não mexe na presença dos alunos', async () => {
+  const ev = (await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2035-03-10', nome: 'Amaci da corrente', tipo: 'amaci' })).json.find((e) => e.nome === 'Amaci da corrente');
+  const outro = (await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2035-03-11', nome: 'Festa sem amaci', tipo: 'evento' })).json.find((e) => e.nome === 'Festa sem amaci');
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Vai Ao Amaci', funcao: 'cambone' });
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Olha Quem Vai', funcao: 'medium' });
+  const VAI = await tokenCorrente('Vai Ao Amaci');
+  const OLHA = await tokenCorrente('Olha Quem Vai');
+  const ler = (tok) => api('GET', '/api/giras?lista=amaciVou&evento=' + ev.id, tok);
+  const marcar = (tok, vou, eventoId = ev.id) => api('POST', '/api/giras', tok, { acao: 'amaciVou', eventoId, vou });
+
+  assert.deepEqual((await ler(VAI)).json, { pessoas: [], eu: false, podeMarcar: true });
+  assert.equal((await marcar(ADMIN, true)).status, 403, 'o root sem cadastro na corrente não marca');
+  assert.equal((await marcar(VAI, 'sim')).status, 400);
+  assert.equal((await marcar(VAI, true, outro.id)).status, 404, 'só evento de amaci');
+  const m = await marcar(VAI, true);
+  assert.equal(m.status, 200, JSON.stringify(m.json));
+  assert.equal(m.json.eu, true);
+  const visto = (await ler(OLHA)).json;
+  assert.deepEqual(visto.pessoas.map((p) => p.nome), ['Vai Ao Amaci']);
+  assert.equal(visto.eu, false);
+  assert.equal((await ler(ADMIN)).json.podeMarcar, false, 'o root vê a lista');
+  assert.equal(sql(`select count(*) from amaci_presencas where evento_id = '${ev.id}'`), '0', 'não é presença de aluno');
+  assert.deepEqual((await marcar(VAI, false)).json.pessoas, []);
+  // Amaci que já passou: não marca mais.
+  await marcar(VAI, true);
+  sql(`update eventos set data = '2001-01-01' where id = '${ev.id}'`);
+  assert.equal((await marcar(OLHA, true)).status, 409);
+  assert.equal((await ler(OLHA)).json.pessoas.length, 1, 'a lista continua');
+  await api('POST', '/api/giras', ADMIN, { acao: 'excluirEvento', id: ev.id });
+  await api('POST', '/api/giras', ADMIN, { acao: 'excluirEvento', id: outro.id });
+  for (const n of ['Vai Ao Amaci', 'Olha Quem Vai']) {
+    const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === n);
+    if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+  }
+});

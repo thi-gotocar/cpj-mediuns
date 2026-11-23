@@ -1,4 +1,5 @@
 // GET  /api/giras — todas as giras (com presença e duplas), da mais recente para a mais antiga.
+// GET  /api/giras?lista=amaciVou&evento=id · POST { acao: 'amaciVou', eventoId, vou } — quem da corrente vai ao amaci → { pessoas, eu, podeMarcar }
 // GET  /api/giras?lista=filaGeral · POST { acao: 'filaGeral', ativa } — bloco da fila na aba Geral visível para todos (só o root) → { ativa }
 //      O frontend usa a lista para o histórico, os selos de rodízio e a tabela "quem já cambonou quem".
 // GET  /api/giras?lista=eventos — eventos da casa (a corrente vê todos; alunos, gira, evento e os tipos da sua turma; curimba, sem avisos)
@@ -89,6 +90,12 @@ export default rota({
       if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para ver os relatos.');
       return condutas(eu);
     }
+    // Amaci: quem da corrente vai (aviso, não é a presença dos alunos). Todos da corrente veem a lista.
+    if (req.query.lista === 'amaciVou') {
+      const eu = await exigir(req, 'giras:ler');
+      const pessoas = await db.rpc('amaci_vou_listar', { eventoId: validarId(req.query.evento, 'Amaci') });
+      return { pessoas, eu: !!eu.pessoaId && pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: !!eu.pessoaId };
+    }
     // Bloco da fila na aba Geral: o interruptor "Visível para todos" (só o root lê e liga; o bloco lê pela rota da fila).
     if (req.query.lista === 'filaGeral') {
       await exigir(req, 'usuarios:gerenciar');
@@ -114,6 +121,13 @@ export default rota({
     if (b.acao === 'entidadesApelidos') {
       await exigir(req, 'usuarios:gerenciar');
       return db.rpc('entidades_apelidos_salvar', { apelidos: validarApelidos(b.apelidos) });
+    }
+    if (b.acao === 'amaciVou') {
+      const eu = await exigir(req, 'giras:ler');
+      if (!eu.pessoaId) throw new HttpError(403, 'Só quem é da corrente marca que vai ao amaci.');
+      if (typeof b.vou !== 'boolean') throw new HttpError(400, 'Informe se você vai.');
+      const pessoas = await db.rpc('amaci_vou_marcar', { eventoId: validarId(b.eventoId, 'Amaci'), pessoaId: eu.pessoaId, vou: b.vou });
+      return { pessoas, eu: pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: true };
     }
     if (b.acao === 'filaGeral') {
       await exigir(req, 'usuarios:gerenciar');

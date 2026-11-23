@@ -32,6 +32,8 @@ export const TIPO_EVENTO_LABEL = Object.fromEntries(TIPOS_EVENTO);
 export const TIPOS_TODOS_ALUNOS = ['gira', 'evento'];
 // Nome do tipo no selo: o cadastrado (tipoNome vem do servidor) ou o dos quatro de sempre.
 export const rotuloTipo = (e) => e.tipoNome || TIPO_EVENTO_LABEL[e.tipo] || 'Evento';
+// Amaci: o tipo fixo Amaci ou um tipo com "Amaci" no nome (T09 - Amaci…), como no servidor.
+export const ehAmaci = (e) => e.tipo === 'amaci' || /amaci/i.test(e.tipoNome || '');
 
 const porData = (a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0);
 // Eventos de hoje até daqui a 7 dias.

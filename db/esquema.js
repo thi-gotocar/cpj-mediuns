@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 168;  // v168: fila — interruptor do root para o bloco da fila na aba Geral
+export const VERSAO = 169;  // v169: amaci — a corrente avisa que vai (Vou ao amaci / Ver quem vai)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5467,6 +5467,44 @@ export const MIGRACOES = [
      insert into sistema (chave, valor) values ('fila_bloco_geral', case when (p ->> 'ativa')::boolean then 'true' else 'false' end)
      on conflict (chave) do update set valor = excluded.valor;
      return fila_bloco_geral();
+   end;
+   $$`,
+
+  // ================================================== v169: amaci — "Vou ao amaci" da corrente (aba Gira)
+  // Só um controle da corrente: quem da corrente pretende ir. Não mexe na presença dos alunos (amaci_presencas).
+  // Amaci = evento cujo tipo é o Amaci ou tem "Amaci" no nome (como em amaci_presencas_dados).
+  `create table if not exists amaci_vou (
+     evento_id  uuid not null references eventos (id) on delete cascade,
+     pessoa_id  uuid not null references pessoas (id) on delete cascade,
+     criado_em  timestamptz not null default now(),
+     primary key (evento_id, pessoa_id)
+   )`,
+  // p = { eventoId } → [{ pessoaId, nome }] de quem vai (ativos na corrente), por nome.
+  `create or replace function amaci_vou_listar(p jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('pessoaId', pe.id, 'nome', pe.nome) order by lower(pe.nome)), '[]'::jsonb)
+       from amaci_vou v join pessoas pe on pe.id = v.pessoa_id and pe.saida is null
+      where v.evento_id = (p ->> 'eventoId')::uuid
+   $$`,
+  // p = { eventoId, pessoaId, vou } — marca ou desmarca, até o dia do amaci.
+  `create or replace function amaci_vou_marcar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_ev uuid := (p ->> 'eventoId')::uuid;
+     v_data date;
+   begin
+     select e.data into v_data from eventos e join eventos_tipos t on t.chave = e.tipo
+      where e.id = v_ev and (t.chave = 'amaci' or t.nome ilike '%amaci%');
+     if not found then raise exception using errcode = 'SM404', message = 'Amaci não encontrado.'; end if;
+     if v_data < (now() at time zone 'America/Sao_Paulo')::date then
+       raise exception using errcode = 'SM409', message = 'Este amaci já passou.';
+     end if;
+     if coalesce((p ->> 'vou')::boolean, false) then
+       insert into amaci_vou (evento_id, pessoa_id) values (v_ev, (p ->> 'pessoaId')::uuid) on conflict do nothing;
+     else
+       delete from amaci_vou where evento_id = v_ev and pessoa_id = (p ->> 'pessoaId')::uuid;
+     end if;
+     return amaci_vou_listar(p);
    end;
    $$`,
 ];

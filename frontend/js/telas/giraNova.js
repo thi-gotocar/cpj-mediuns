@@ -3,9 +3,10 @@
 // Presença → Encerrar) e, embaixo, o mesmo que a corrente vê.
 
 import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, proximaTurma } from '/shared/regras.js';
-import { aniversariantesDoDia, rotuloTipo } from '/shared/eventos.js';
+import { aniversariantesDoDia, rotuloTipo, ehAmaci } from '/shared/eventos.js';
 import { estado, prefs, salvarPrefs, pode, girasLista, giraAtual, excluirGira, avisar } from '../estado.js';
-import { esc, dLong, dDM, hoje } from '../util.js';
+import { esc, dLong, dDM, hoje, toast } from '../util.js';
+import { api } from '../api.js';
 import { ICONE_WHATS, htmlStatus } from './giraComum.js';
 import { blocoLimpeza, blocoBanho, blocoPedirErvas, blocosOferenda, escolhaTurma } from './giraInformacoes.js';
 import { atualizarJanela } from './giraJanelas.js';
@@ -48,7 +49,8 @@ function faixaSemana(g, marcas, calendario) {
 // ---------- cabeçalho ----------
 function cabecalho(ctx) {
   const { g, existe, encerrada, temDuplas, publicada, editar } = ctx;
-  const titulo = existe ? tituloGira(g) : 'Nenhuma gira nesta data';
+  // Dia sem gira cadastrada: sem título; ficam a data e o que está na agenda.
+  const titulo = existe ? tituloGira(g) : '';
   const selos = [];
   if (existe) {
     if (orixaDaGira(g)) selos.push(`<span class="gn-selo">${esc(orixaDaGira(g))}</span>`);
@@ -59,7 +61,7 @@ function cabecalho(ctx) {
     }
   }
   return `<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span>
-    <h1 class="gn-titulo">${esc(titulo)}</h1>
+    ${titulo ? `<h1 class="gn-titulo">${esc(titulo)}</h1>` : ''}
     ${selos.length ? `<div class="gn-selos">${selos.join('')}</div>` : ''}
     ${extrasDoDia(g.data, existe ? titulo : null)}
     ${compartilhar(ctx)}</div>`;
@@ -67,10 +69,37 @@ function cabecalho(ctx) {
 
 // Os eventos da agenda na data (fora o que já é o título) e quem faz aniversário; também no dia sem gira cadastrada.
 function extrasDoDia(data, titulo) {
-  const agenda = (estado.eventos || []).filter((e) => e.data === data && e.nome !== titulo).map((e) => `${esc(e.nome)} <span class="muted">(${esc(rotuloTipo(e))})</span>`);
+  // Cada evento numa linha, com o ícone de calendário; o amaci tem embaixo o Vou ao amaci da corrente.
+  const agenda = (estado.eventos || []).filter((e) => e.data === data && e.nome !== titulo)
+    .map((e) => `<p class="gn-extra gn-evento"><span aria-hidden="true">📅</span> ${esc(e.nome)} <span class="muted">(${esc(rotuloTipo(e))})</span></p>${ehAmaci(e) ? amaciVou(e) : ''}`);
   const niver = aniversariantesDoDia(estado.pessoas, data);
-  return `${agenda.length ? `<p class="gn-extra">${agenda.join(' · ')}</p>` : ''}
+  return `${agenda.join('')}
     ${niver.length ? `<p class="gn-extra"><span aria-hidden="true">🎈</span> Aniversário: ${niver.map((p) => esc(p.nome)).join(', ')}</p>` : ''}`;
+}
+
+// ---------- Amaci: quem da corrente vai ----------
+// Só um controle da corrente (não é a presença dos alunos no amaci): cada pessoa marca Vou ao amaci até o dia, e todos
+// da corrente veem a lista em Ver quem vai. Lido do servidor quando o amaci aparece na tela.
+const amaciLendo = new Set();
+const amaciAbertos = new Set();
+function lerAmaciVou(id) {
+  if (amaciLendo.has(id)) return;
+  amaciLendo.add(id);
+  api('GET', `/giras?lista=amaciVou&evento=${id}`)
+    .then((r) => { estado.amaciVou = { ...(estado.amaciVou || {}), [id]: r }; }, () => { estado.amaciVou = { ...(estado.amaciVou || {}), [id]: { pessoas: [], eu: false, podeMarcar: false, erro: true } }; })
+    .finally(() => { amaciLendo.delete(id); avisar(); });
+}
+function amaciVou(e) {
+  const v = estado.amaciVou?.[e.id];
+  if (!v) { lerAmaciVou(e.id); return '<div class="gn-amaci"><span class="muted">Carregando quem vai…</span></div>'; }
+  if (v.erro) return '';
+  const aberto = amaciAbertos.has(e.id);
+  const n = v.pessoas.length;
+  const marcar = v.podeMarcar && e.data >= hoje()
+    ? `<button type="button" class="btn small ${v.eu ? 'gn-amaci-vou' : 'primary'}" data-act="amacivou" data-id="${esc(e.id)}" data-v="${v.eu ? '0' : '1'}" aria-pressed="${v.eu}">${v.eu ? '✓ Você vai · desmarcar' : '🙋 Vou ao amaci'}</button>` : '';
+  const lista = aberto ? `<div class="gn-amaci-lista">${n ? v.pessoas.map((p) => `<span class="gn-nome">${esc(p.nome)}</span>`).join('') : '<span class="muted">Ninguém marcou ainda.</span>'}</div>` : '';
+  return `<div class="gn-amaci"><div class="gn-amaci-bts">${marcar}
+      <button type="button" class="btn small" data-act="amaciquem" data-id="${esc(e.id)}" aria-expanded="${aberto}">Ver quem vai (${n}) <span aria-hidden="true">${aberto ? '▾' : '▸'}</span></button></div>${lista}</div>`;
 }
 
 // ---------- Compartilhar: um botão só, com as opções que a pessoa tem ----------
@@ -240,7 +269,7 @@ export function montarNova(ctx) {
   const { g, semGira } = ctx;
   const faixa = faixaSemana(g, ctx.marcas, ctx.calendario);
   if (semGira) {
-    return `<section class="panel gn">${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span><h1 class="gn-titulo">Nenhuma gira nesta data</h1>${extrasDoDia(g.data, null)}</div>
+    return `<section class="panel gn">${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span>${extrasDoDia(g.data, null)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>${ctx.ausPrevia || ''}${ctx.ano || ''}</section>`;
   }
   const { existe, editar, encerrada } = ctx;
@@ -253,6 +282,16 @@ export function montarNova(ctx) {
 }
 
 export const cliquesNova = {
+  async amacivou(el) {
+    const id = el.dataset.id;
+    el.disabled = true;
+    try {
+      estado.amaciVou = { ...(estado.amaciVou || {}), [id]: await api('POST', '/giras', { acao: 'amaciVou', eventoId: id, vou: el.dataset.v === '1' }) };
+      toast(el.dataset.v === '1' ? 'Marcado: você vai ao amaci.' : 'Desmarcado.');
+    } catch (e) { toast(e.message); }
+    avisar();
+  },
+  amaciquem(el) { const id = el.dataset.id; if (amaciAbertos.has(id)) amaciAbertos.delete(id); else amaciAbertos.add(id); avisar(); },
   gnpasso(el) {
     const d = giraAtual().data, n = Number(el.dataset.n);
     passos.set(d, passos.get(d) === n ? 0 : n);

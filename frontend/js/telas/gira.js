@@ -392,9 +392,8 @@ function renderGira() {
     rodape = `<div class="card empty"><h2>Nenhuma pessoa cadastrada</h2><p class="muted">${pode('pessoas:editar') ? 'Cadastre a corrente no Perfil → Pessoas.' : 'Um admin precisa cadastrar a corrente.'}</p>
       ${pode('pessoas:editar') ? '<button class="btn primary" data-act="goto" data-tab="perfil">Cadastrar pessoas</button>' : ''}</div>`;
   } else if (!editar && !existe) {
-    const completa = pode('escala:completa');
-    rodape = `<div class="card empty"><h2>Escala ainda não montada</h2><p class="muted">Não há escala salva para esta data.${completa ? ' Escolha outra data ou veja as giras no Histórico.' : ' Escolha outra data.'}</p>
-      ${completa ? '<button class="btn" data-act="goto" data-tab="hist">Ver histórico</button>' : ''}</div>`;
+    // Dia sem gira: não há escala para avisar; o cabeçalho mostra a data e o que está na agenda.
+    rodape = '';
   } else if (encerrada || (g.evento && !editar)) {
     escala = '';
   } else if (!pode('escala:completa') && !g.evento) {

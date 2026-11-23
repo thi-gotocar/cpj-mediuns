@@ -2674,3 +2674,8 @@ div.pf-of-total{cursor:default}
 .fila-doa-qr{width:min(220px,70%);justify-self:center;border-radius:8px;background:#fff;padding:6px}
 .fila-doa-pix .btn.primary{text-align:center;text-decoration:none}
 .fila-geral-sw{gap:6px}
+/* Aba Gira: Vou ao amaci (controle da corrente; não é a presença dos alunos) */
+.gn-amaci{display:grid;gap:8px;margin:2px 0 4px 1.6em}
+.gn-amaci-bts{display:flex;flex-wrap:wrap;gap:6px}
+.gn-amaci-vou{border-color:var(--ok);color:var(--ok)}
+.gn-amaci-lista{display:flex;flex-wrap:wrap;gap:6px}
