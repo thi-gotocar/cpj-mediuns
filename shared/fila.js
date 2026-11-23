@@ -11,8 +11,8 @@ export const tipoFila = (k) => TIPOS_FILA.find((t) => t.k === k);
 
 // O painel chama em duas filas: atendimento (preferenciais primeiro) e passe.
 export const FILAS_CHAMADA = ['atendimento', 'passe'];
-// O que quem controla a fila pode marcar numa senha.
-export const STATUS_MARCAR = ['chamada', 'ausente', 'aguardando', 'cancelada'];
+// O que quem controla a fila pode marcar numa senha. 'atendida' = OK: a pessoa já foi para o atendimento (sai da TV).
+export const STATUS_MARCAR = ['chamada', 'ausente', 'aguardando', 'cancelada', 'atendida'];
 
 // P01, A12, PS03
 export const rotuloSenha = (tipo, numero) => `${tipoFila(tipo)?.prefixo || ''}${String(numero).padStart(2, '0')}`;

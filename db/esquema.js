@@ -5737,4 +5737,47 @@ export const MIGRACOES = [
      return config_casa();
    end;
    $$`,
+
+  // ---------- v176: fila — OK (atendida) e o nome de quem está sendo chamado na TV ----------
+  // OK no painel (lista Chamadas): a pessoa já foi para o atendimento; a senha sai das chamadas (e da TV) e vai para
+  // Atendidas. As chamadas (só as que estão com status chamada) levam o nome, para a TV mostrar número e nome.
+  `alter table fila_senhas drop constraint if exists fila_senhas_status_check`,
+  `alter table fila_senhas add constraint fila_senhas_status_check check (status in ('aguardando', 'chamada', 'ausente', 'cancelada', 'atendida'))`,
+  `create or replace function fila_json(v_data date, v_aparelho text, v_autor text)
+   returns jsonb language sql stable as $$
+     with g as (select data, fila_aberta, fila_limite, fila_manual, encerrada from giras where data = v_data),
+     s as (select * from fila_senhas where gira_data = v_data),
+     minha as (
+       select * from s
+        where status <> 'cancelada'
+          and ((v_aparelho is not null and s.aparelho = v_aparelho) or (v_autor is not null and s.autor = v_autor))
+        order by s.criada_em desc limit 1
+     )
+     select case when not exists (select 1 from g) then jsonb_build_object('existe', false) else jsonb_build_object(
+       'existe', true,
+       'aberta', (select fila_aberta and not encerrada from g),
+       'encerrada', (select encerrada from g),
+       'limite', (select fila_limite from g),
+       'manual', (select fila_manual from g),
+       'emitidas', jsonb_build_object(
+         'preferencial', (select count(*) from s where tipo = 'preferencial' and status <> 'cancelada'),
+         'atendimento', (select count(*) from s where tipo = 'atendimento' and status <> 'cancelada'),
+         'passe', (select count(*) from s where tipo = 'passe' and status <> 'cancelada')),
+       'aguardando', jsonb_build_object(
+         'preferencial', (select count(*) from s where tipo = 'preferencial' and status = 'aguardando'),
+         'atendimento', (select count(*) from s where tipo = 'atendimento' and status = 'aguardando'),
+         'passe', (select count(*) from s where tipo = 'passe' and status = 'aguardando')),
+       'atendimentoLotado', coalesce((select g.fila_limite is not null
+           and (select count(*) from s where tipo = 'atendimento' and status <> 'cancelada') >= g.fila_limite from g), false),
+       'chamadas', coalesce((select jsonb_agg(jsonb_build_object('tipo', c.tipo, 'numero', c.numero, 'nome', c.nome, 'chamadaEm', c.chamada_em) order by c.chamada_em desc)
+           from (select * from s where status = 'chamada' order by chamada_em desc limit 10) c), '[]'::jsonb),
+       'minha', (select jsonb_build_object('id', m.id, 'tipo', m.tipo, 'numero', m.numero, 'nome', m.nome, 'status', m.status,
+                   'chamadaEm', m.chamada_em,
+                   'aFrente', case when m.status <> 'aguardando' then null
+                                   when m.tipo = 'atendimento' then (select count(*) from s where status = 'aguardando'
+                                      and (tipo = 'preferencial' or (tipo = 'atendimento' and numero < m.numero)))
+                                   else (select count(*) from s where status = 'aguardando' and tipo = m.tipo and numero < m.numero) end)
+                   from minha m)
+     ) end
+   $$`,
 ];

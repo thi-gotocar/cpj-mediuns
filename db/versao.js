@@ -2,4 +2,4 @@
 // as migrações (centenas de KB de SQL): db/esquema.js só é carregado quando o banco está atrás (api/_lib/db.js).
 // Ao acrescentar comandos no fim de MIGRACOES (db/esquema.js), aumente aqui.
 
-export const VERSAO = 175;  // v175: recado para a corrente, um só para todos os dias (sistema.recado_corrente)
+export const VERSAO = 176;  // v176: fila — OK (atendida) e o nome de quem está sendo chamado na TV

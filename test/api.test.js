@@ -3281,7 +3281,16 @@ test('v164: fila de senhas — sem login, no terreiro, preferencial primeiro, li
   assert.equal(quem(await chamar('passe')), 'passe1');
   const pub = (await cel(T1, 'GET')).json;
   assert.equal(pub.minha.status, 'chamada');
-  assert.ok(pub.chamadas.every((c) => !('nome' in c)), 'o público não vê os nomes');
+  // v176: a TV mostra o nome de quem está sendo chamado agora; telefone, nunca.
+  assert.ok(pub.chamadas.every((c) => !('telefone' in c)), 'o público não vê o telefone');
+  assert.equal(pub.chamadas.find((c) => c.tipo === 'atendimento' && c.numero === 1)?.nome, 'Ana');
+  // OK (atendida): sai das chamadas (e da TV).
+  const idAna = bal.json.senhas.find((s) => s.nome === 'Ana').id;
+  const ok = await api('POST', rota, SENHA, { acao: 'filaMarcar', id: idAna, status: 'atendida' });
+  assert.equal(ok.status, 200, JSON.stringify(ok.json));
+  assert.ok(!ok.json.chamadas.some((c) => c.tipo === 'atendimento' && c.numero === 1), 'atendida sai da TV');
+  assert.equal(ok.json.senhas.find((s) => s.id === idAna).status, 'atendida');
+  await api('POST', rota, SENHA, { acao: 'filaMarcar', id: idAna, status: 'chamada' });
 
   // Ausente e volta para a fila; desistir libera a vaga do atendimento.
   const idA1 = bal.json.senhas.find((s) => s.nome === 'Ana').id;

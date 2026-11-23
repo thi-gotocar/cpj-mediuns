@@ -10,7 +10,7 @@ import { TIPOS_FILA, tipoFila, rotuloSenha, CHAMAR_LOTE } from '/shared/fila.js'
 
 const ATUALIZAR_MS = 10000;
 let timer = null;
-let aba = 'aguardando';   // lista aberta: aguardando | chamada | ausente | cancelada
+let aba = 'aguardando';   // lista aberta: aguardando | chamada | atendida | ausente | cancelada
 let balcaoAberto = false;
 let ajustesAberto = null;  // null = aberto só no começo (fila fechada e sem senhas)
 
@@ -72,13 +72,15 @@ function acoes(s) {
   }
   const cancelar = `<button type="button" class="btn small" data-act="askdel" data-k="filacanc:${esc(s.id)}" aria-label="Cancelar a senha ${esc(rot(s))}">✕</button>`;
   if (s.status === 'aguardando') return `<span class="fila-acoes">${b('chamada', 'Chamar')}${b('ausente', 'Ausente')}${cancelar}</span>`;
-  if (s.status === 'chamada') return `<span class="fila-acoes">${b('chamada', 'Chamar de novo')}${b('ausente', 'Ausente')}</span>`;
+  // OK: a pessoa já foi para o atendimento; a senha sai da TV e vai para Atendidas.
+  if (s.status === 'chamada') return `<span class="fila-acoes">${b('atendida', 'OK', 'primary')}${b('chamada', 'Chamar de novo')}${b('ausente', 'Ausente')}</span>`;
+  if (s.status === 'atendida') return `<span class="fila-acoes">${b('chamada', 'Desfazer')}</span>`;
   if (s.status === 'ausente') return `<span class="fila-acoes">${b('aguardando', 'Voltar à fila')}${cancelar}</span>`;
   return '';
 }
 
 function linha(s) {
-  const quando = s.status === 'chamada' ? `Chamada às ${hora(s.chamadaEm)}` : `Pegou às ${hora(s.criadaEm)}`;
+  const quando = s.status === 'chamada' || s.status === 'atendida' ? `Chamada às ${hora(s.chamadaEm)}` : `Pegou às ${hora(s.criadaEm)}`;
   const extra = [s.balcao ? 'no balcão' : '', s.telefone ? `<a href="tel:${esc(s.telefone)}">${esc(s.telefone)}</a>` : ''].filter(Boolean).join(', ');
   return `<li class="fila-l ${s.tipo}"><span class="fila-num">${esc(rot(s))}</span>
     <span class="fila-quem"><b>${esc(s.nome)}</b><small>${quando}${extra ? `, ${extra}` : ''}</small></span>
@@ -86,9 +88,9 @@ function linha(s) {
 }
 
 function lista(L) {
-  const grupos = [['aguardando', 'Na fila'], ['chamada', 'Chamadas'], ['ausente', 'Ausentes'], ['cancelada', 'Canceladas']];
+  const grupos = [['aguardando', 'Na fila'], ['chamada', 'Chamadas'], ['atendida', 'Atendidas'], ['ausente', 'Ausentes'], ['cancelada', 'Canceladas']];
   const de = (st) => L.filter((s) => s.status === st);
-  const itens = de(aba).sort(aba === 'chamada' ? (a, b) => String(b.chamadaEm).localeCompare(String(a.chamadaEm)) : aba === 'aguardando' ? ordem : (a, b) => a.criadaEm.localeCompare(b.criadaEm));
+  const itens = de(aba).sort(aba === 'chamada' || aba === 'atendida' ? (a, b) => String(b.chamadaEm).localeCompare(String(a.chamadaEm)) : aba === 'aguardando' ? ordem : (a, b) => a.criadaEm.localeCompare(b.criadaEm));
   return `<div class="fila-sec"><div class="seg fila-seg">${grupos.map(([k, t]) => `<button type="button" data-act="filaver" data-v="${k}" aria-pressed="${aba === k}">${t} <span class="fila-n">${de(k).length}</span></button>`).join('')}</div>
     ${itens.length ? `<ul class="fila-lista">${itens.map(linha).join('')}</ul>` : `<p class="muted fila-vazio">${aba === 'aguardando' ? 'Ninguém aguardando.' : 'Nenhuma senha aqui.'}</p>`}</div>`;
 }

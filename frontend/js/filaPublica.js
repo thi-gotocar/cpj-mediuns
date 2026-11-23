@@ -7,7 +7,8 @@
 // a função); quantos estão na frente sai da lista dos números aguardando. A própria senha (?lista=fila, com o token) só
 // é pedida ao abrir, quando o número sai da espera (foi chamada ou marcada), enquanto ela não está aguardando e, por
 // garantia, a cada PESSOAL_A_CADA consultas.
-// /fila?tv: a tela de TV do salão (a senha chamada, as anteriores e o QR; nunca nomes). /fila?cartaz: o cartaz com o QR
+// /fila?tv: a tela de TV do salão (a senha chamada com o nome da pessoa, as anteriores e o QR). Quem já foi para o
+// atendimento (OK no painel) sai da TV. /fila?cartaz: o cartaz com o QR
 // para imprimir.
 
 import { TIPOS_FILA, tipoFila, rotuloSenha } from '/shared/fila.js';
@@ -134,12 +135,13 @@ function minhaSenha(m) {
   let canhoto;
   if (m.status === 'aguardando') canhoto = m.aFrente ? `<span>Na sua frente</span><b>${plural(m.aFrente, 'pessoa', 'pessoas')}</b>` : '<b>Você é a próxima</b>';
   else if (chamada) canhoto = '<b>Sua senha foi chamada</b>';
+  else if (m.status === 'atendida') canhoto = '<b>Você já foi para o atendimento</b>';
   else canhoto = '<b>Chamada quando você não estava</b>';
   const aviso = chamada ? '<p class="fp-chamou">Sua senha foi chamada. Pode ir.</p>'
     : m.status === 'ausente' ? '<p class="fp-alerta">Procure quem está cuidando da fila para voltar ao seu lugar.</p>' : '';
   const som = m.status === 'aguardando' && !somLiberado()
     ? '<button type="button" class="fp-bt fp-som" data-act="som">🔔 Ligar o aviso sonoro</button>' : '';
-  const desistir = m.status === 'chamada' ? '' : confirmarDesistir
+  const desistir = m.status === 'chamada' || m.status === 'atendida' ? '' : confirmarDesistir
     ? `<div class="fp-conf"><span>Desistir da senha ${esc(rotuloSenha(m.tipo, m.numero))}? Ela sai da fila.</span>
         <div class="fp-linha"><button type="button" class="fp-bt fp-perigo" data-act="desistir">Desistir</button><button type="button" class="fp-bt" data-act="manter">Manter a senha</button></div></div>`
     : '<button type="button" class="fp-link" data-act="perguntar">Desistir da senha</button>';
@@ -201,9 +203,10 @@ function desenharTv() {
   else if (!ult) centro = '<p class="tv-msg">Nenhuma senha chamada ainda.</p>';
   else {
     centro = `<div class="fila-cartao tv-cartao ${ult.tipo}${nova ? ' nova' : ''}"><div class="fila-cartao-c">
-        <div class="fila-cartao-topo"><span class="fila-cartao-tipo">${esc(tipoFila(ult.tipo)?.nome || '')}</span><span>chamada agora</span></div>
-        <b class="fila-cartao-n">${esc(rotuloSenha(ult.tipo, ult.numero))}</b></div>
-      ${L.length > 1 ? `<div class="fila-canhoto"><span>Antes</span><span class="tv-antes">${L.slice(1).map((c) => `<b class="fp-ch ${c.tipo}">${esc(rotuloSenha(c.tipo, c.numero))}</b>`).join('')}</span></div>` : ''}</div>`;
+        <div class="fila-cartao-topo"><span class="fila-cartao-tipo">${esc(tipoFila(ult.tipo)?.nome || '')}</span><span>chamada para a fila!</span></div>
+        <b class="fila-cartao-n">${esc(rotuloSenha(ult.tipo, ult.numero))}</b>
+        ${ult.nome ? `<span class="fila-cartao-q tv-nome">${esc(ult.nome)}</span>` : ''}</div>
+      ${L.length > 1 ? `<div class="fila-canhoto"><span>Antes</span><span class="tv-antes">${L.slice(1).map((c) => `<span class="tv-antes-i"><b class="fp-ch ${c.tipo}">${esc(rotuloSenha(c.tipo, c.numero))}</b>${c.nome ? `<small>${esc(c.nome)}</small>` : ''}</span>`).join('')}</span></div>` : ''}</div>`;
   }
   const espera = fila?.existe && !fila.encerrada ? `<p class="tv-espera">Aguardando ${TIPOS_FILA.map((t) => `<span class="fila-c ${t.k}"><b>${fila.aguardando?.[t.k] || 0}</b> ${t.nome.toLowerCase()}</span>`).join('')}</p>` : '';
   const som = somLiberado() ? '' : '<button type="button" class="fp-bt tv-som" data-act="som">🔔 Toque aqui para ligar o som das chamadas</button>';

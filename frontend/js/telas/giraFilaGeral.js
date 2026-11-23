@@ -156,7 +156,7 @@ export function cardFilaGeral() {
   let linha;
   if (m) {
     const txt = m.status === 'aguardando' ? (m.aFrente ? `${m.aFrente} ${m.aFrente === 1 ? 'pessoa' : 'pessoas'} na sua frente` : 'Você é a próxima')
-      : m.status === 'chamada' ? 'Sua senha foi chamada' : 'Chamada quando você não estava';
+      : m.status === 'chamada' ? 'Sua senha foi chamada' : m.status === 'atendida' ? 'Você já foi para o atendimento' : 'Chamada quando você não estava';
     linha = `<a class="fila-geral-l" href="/fila"><span class="fila-geral-n">${esc(rotuloSenha(m.tipo, m.numero))}</span>
       <span class="fila-geral-t"><small>Sua senha de ${esc((tipoFila(m.tipo)?.nome || '').toLowerCase())}</small><b>${txt}</b></span>
       <span class="seta" aria-hidden="true">›</span></a>`;

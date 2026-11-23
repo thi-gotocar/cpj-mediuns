@@ -145,3 +145,8 @@ body.modo-cartaz{background:#fff;color:#111;color-scheme:light}
 .fp-cadastro small{color:var(--muted);font-size:.9rem}
 .fp-cadastro .fp-bt{text-decoration:none;display:inline-flex;align-items:center}
 .fp-voltar{display:flex;align-items:center;justify-content:center;text-decoration:none;width:100%}
+
+/* TV: o nome de quem está sendo chamado, embaixo do número; nas anteriores, o nome pequeno embaixo de cada uma */
+.tv-nome{font-size:clamp(1.4rem,4vw,2.6rem);font-weight:700}
+.tv-antes-i{display:inline-grid;justify-items:center;gap:2px}
+.tv-antes-i small{font-size:clamp(.8rem,1.6vw,1.1rem);opacity:.85;max-width:12ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
