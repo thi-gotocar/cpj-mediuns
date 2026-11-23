@@ -117,13 +117,22 @@ export function giraDaFila() {
   const g = estado.giras[hoje()];
   return g && !g.encerrada && !g.evento ? g : null;
 }
-// A sub-aba aparece só no dia da gira, para quem controla a fila.
-export const veFila = () => { const g = giraDaFila(); return !!g && operadorFila(g); };
+// A sub-aba aparece sempre para quem controla a fila (a troca do dia para Senha vale pela gira de hoje).
+export const veFila = () => operadorFila(estado.giras[hoje()] || {});
+
+// Fora do dia da gira: diz por que não há fila hoje e deixa a TV e o cartaz à mão (dá para preparar antes).
+function semFila() {
+  const g = estado.giras[hoje()];
+  const motivo = !g ? 'Hoje não tem gira cadastrada.' : g.encerrada ? 'A gira de hoje já foi encerrada.' : 'Hoje é evento: não tem fila de senhas.';
+  return `<section class="panel"><div class="fila-card"><div class="fila-h"><h2>Fila de senhas</h2><span class="fila-selo">Sem fila hoje</span></div>
+    <div class="fila-vazia"><b>${motivo}</b><p class="muted">A fila funciona no dia da gira: abra aqui e ligue <b>Aberta pelo QR</b> nos Ajustes da fila.</p></div>
+    <div class="fila-links"><a class="btn small" href="/fila?tv" target="_blank" rel="noopener">📺 Tela de TV</a><a class="btn small" href="/fila?cartaz" target="_blank" rel="noopener">🖨️ Cartaz com o QR</a></div></div></section>`;
+}
 
 export function render() {
+  if (!operadorFila(estado.giras[hoje()] || {})) return '<section class="panel"><div class="card"><p class="muted">Só quem cuida da fila vê esta tela.</p></div></section>';
   const g = giraDaFila();
-  if (!g || !operadorFila(g)) return '<section class="panel"><div class="card"><p class="muted">Hoje não tem gira em aberto com fila.</p></div></section>';
-  return `<section class="panel">${blocoFila(g)}</section>`;
+  return g ? `<section class="panel">${blocoFila(g)}</section>` : semFila();
 }
 
 function blocoFila(g) {

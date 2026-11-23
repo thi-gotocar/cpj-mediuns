@@ -16,7 +16,10 @@ export function render(erro, email = '') {
     <p class="muted" style="margin:0;font-size:.85rem">Primeiro acesso ou senha apagada pela administração? Digite o e-mail ou o celular, deixe a senha em branco e toque em Entrar. Não sabe o que está no seu cadastro? Toque em <b>Criar cadastro</b> e digite o seu CPF: se você já tem cadastro, o app acha.</p>
     <button class="btn link" data-conta="esqueci">Esqueci a senha</button>
     <button class="btn" data-conta="cadastro">Criar cadastro</button>
-  </div>`;
+  </div>
+  <a class="card login-fila" href="/fila"><span class="login-fila-ico" aria-hidden="true">🎟️</span>
+    <span><b>Pegar senha da fila</b><small>Veio para a gira? Pegue a sua senha sem precisar de cadastro.</small></span>
+    <span class="seta" aria-hidden="true">›</span></a>`;
 }
 
 // Quem entrou com e-mail ou celular e ainda não tem senha: confirma com o outro contato do cadastro e cria a senha.

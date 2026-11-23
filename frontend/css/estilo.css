@@ -2630,3 +2630,12 @@ div.pf-of-total{cursor:default}
 .fila-cartao-n,.fila-num,.fila-canhoto b,.fila-chamar small b,.fila-c b{font-variant-numeric:lining-nums tabular-nums}
 .fila-links{display:flex;flex-wrap:wrap;gap:8px}
 .fila-links .btn{text-decoration:none}
+.fila-vazia{display:grid;gap:4px;padding:16px;border:1px dashed var(--line);border-radius:12px}
+.fila-vazia p{margin:0;font-size:.92rem}
+/* Tela de login: atalho para a página pública da fila de senhas (quem vem para a gira não precisa de cadastro) */
+.login-fila{max-width:400px;margin:14px auto 0;width:100%;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;text-decoration:none;color:var(--ink);border-left:4px solid var(--accent)}
+.login-fila:hover,.login-fila:focus-visible{border-color:var(--accent)}
+.login-fila-ico{font-size:1.6rem}
+.login-fila b{display:block;font-size:1.05rem}
+.login-fila small{display:block;color:var(--muted);font-size:.88rem}
+.login-fila .seta{font-size:1.6rem;color:var(--muted)}
