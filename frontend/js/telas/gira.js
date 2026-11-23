@@ -183,16 +183,26 @@ function resultado(g) {
 
 // Pedido de oração: até 3 linhas.
 
+// A gira da aba Geral: a de hoje ou a próxima, ainda não encerrada (gira nova cadastrada ou em andamento).
+function giraDaGeral() {
+  const d = Object.keys(estado.giras).filter((x) => x >= hoje() && !estado.giras[x].encerrada).sort()[0];
+  return d ? estado.giras[d] : null;
+}
+
 export function render() {
   if (prefs.tab === 'agenda') return renderGira();
-  if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
+  if (visaoAtiva() === 'curimba') return `<section class="panel geral">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
   // Quem não é da corrente (alunos, consulentes, grupo Oferenda) não tem a aba Gira: a fila de senhas aparece aqui no dia.
-  if (visaoAtiva() === 'alunos' && estado.me?.aguardando) return `<section class="panel">${cardFilaGeral()}${cardAguardando()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
+  if (visaoAtiva() === 'alunos' && estado.me?.aguardando) return `<section class="panel geral">${cardFilaGeral()}${cardAguardando()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
   // Grupo Oferenda: os compromissos que o admin atribuiu (cardCompromissos só aparece com oferendas:doar ou :ver).
-  if (visaoAtiva() === 'alunos') return `<section class="panel">${cardFilaGeral()}${cardAtrasos()}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
-  const g = giraAtual();
-  const eu = estado.me?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
-  return `<section class="panel">${cardAtrasos()}${eu}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;
+  if (visaoAtiva() === 'alunos') return `<section class="panel geral">${cardFilaGeral()}${cardAtrasos()}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
+  // O bloco da gira (Você nesta gira) mostra sempre a gira de hoje ou a próxima, ainda não encerrada, sem depender da
+  // data escolhida no calendário da aba Gira. As ações do bloco (presença, ausência, entidade) gravam na data em uso,
+  // então ela passa a ser a desta gira (a aba Gira volta para hoje ao abrir).
+  const g = giraDaGeral();
+  if (g && prefs.data !== g.data) prefs.data = g.data;
+  const eu = g && estado.me?.pessoaId ? blocoEu(g) : '';
+  return `<section class="panel geral">${cardAtrasos()}${eu}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;
 }
 
 // Cadastro novo pelo login (aluno sem turma): boas-vindas enquanto a administração libera o acesso.

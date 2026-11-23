@@ -262,6 +262,8 @@ tabs.addEventListener('click', (e) => {
   // As abas abrem na hora com o que já está no aparelho e buscam de novo por trás (atualizarAoAbrir; a primeira vez
   // carrega). O que volta ao padrão ao entrar (blocos minimizados, janelas fechadas) continua voltando.
   // Admin root: o bloco Senhas volta minimizado.
+  // Aba Gira: abre sempre no calendário de hoje (a Geral mostra a próxima gira por conta própria).
+  if (b.dataset.tab === 'agenda') { prefs.data = hoje(); salvarPrefs(); }
   if (b.dataset.tab === 'usuarios') { atualizarUsuariosAoAbrir(); estado.senhasAberto = false; estado.senhaEdit = null; estado.visitas = null; }
   if (b.dataset.tab === 'ervas') { atualizarAoAbrir('ervas', '/ervas'); estado.ervasCompra = null; estado.ervasFechar = false; estado.ervasNova = null; estado.ervasHist = null; }
   // Oferendas: abre com o que já está no aparelho e busca de novo por trás (para ver as que o admin acabou de publicar).

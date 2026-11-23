@@ -2679,3 +2679,20 @@ div.pf-of-total{cursor:default}
 .gn-amaci-bts{display:flex;flex-wrap:wrap;gap:6px}
 .gn-amaci-vou{border-color:var(--ok);color:var(--ok)}
 .gn-amaci-lista{display:flex;flex-wrap:wrap;gap:6px}
+
+/* Aba Geral (layout): o bloco da gira é o destaque; os outros ficam quietos. Sem faixa colorida decorativa (a cor
+   fica só onde quer dizer algo: pendência em amarelo, admin em dourado, a gira em azul) e as listas dentro dos blocos
+   viram linhas com um fio entre elas, em vez de caixas dentro da caixa. Títulos num tamanho só. */
+.geral .card h2{font-size:1.2rem}
+.geral .card.ev-semana,.geral .card.cd-card{border-top:1px solid var(--line)}
+.geral .card.or-card{border-top-color:var(--line)}
+.geral .evs-lista{gap:0}
+.geral .evs-l{border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;padding:10px 2px}
+.geral .evs-l:last-child{border-bottom:0}
+.geral .evs-l.hoje{background:none;border-color:var(--line)}
+.geral .evs-l.hoje .evs-nome{color:var(--gold)}
+/* Orações: a cor de quem pediu (azul aluno, roxo corrente) vira um fio à esquerda da linha */
+.geral .evs-l.or-l{border-left:3px solid transparent;padding-left:10px}
+.geral .evs-l.or-l.or-aluno{border-color:var(--line);border-left-color:#4f8ef7}
+.geral .evs-l.or-l.or-corrente{border-color:var(--line);border-left-color:#a066e8}
+.geral .evs-l.or-l:last-child{border-bottom-color:transparent}

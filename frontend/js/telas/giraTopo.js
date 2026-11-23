@@ -128,7 +128,7 @@ export function cardCompromissos() {
   const grupos = compromissosDe(estado.oferendas.oferendas, eu.chave, hoje());
   if (!grupos.length) return '';
   const etq = (k) => `<span class="st-med ${k}">${ROTULO_MEDIUM[k] || k}</span>`;
-  return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos nas oferendas</h2></div>
+  return `<div class="card comp-of"><div class="grp-h"><h2><span aria-hidden="true">⚠️</span> Seus compromissos</h2></div>
     ${grupos.map(({ of, itens, linha }) => `<div class="comp-of-g"><div><b>${esc(of.titulo)}</b> <span class="muted">· ${dataBR(of.data)}</span></div>
       ${linha ? `<div class="comp-of-med"><span><span class="muted">Pagamento:</span> ${etq(linha.pagamento)}</span><span><span class="muted">Entrega:</span> ${etq(linha.entrega)}</span></div>` : ''}
       ${itens.length ? `<ul>${itens.map(({ i, q, todos }) => `<li>${esc(i.nome)} <b>${qtdTxt(q, i.unidade)}</b> <span class="muted">· ${todos ? 'com todos da lista · ' : ''}entrega ${textoEntrega(i)}</span></li>`).join('')}</ul>` : ''}</div>`).join('')}
