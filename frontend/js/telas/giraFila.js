@@ -5,6 +5,7 @@
 
 import { estado, pode, prefs, carregarFila, acaoFila, avisar } from '../estado.js';
 import { esc, hoje, toast } from '../util.js';
+import { api } from '../api.js';
 import { TIPOS_FILA, tipoFila, rotuloSenha, CHAMAR_LOTE } from '/shared/fila.js';
 
 const ATUALIZAR_MS = 10000;
@@ -38,17 +39,24 @@ const naFila = (L, fila) => L.filter((s) => s.status === 'aguardando' && (fila =
 const proxima = (L, fila) => naFila(L, fila)[0];
 
 // Chamar as próximas 10 de uma vez (cada celular recebe o aviso), com confirmação que mostra quais senhas vão.
+// Um lote é de um tipo só, como no servidor: na fila de atendimento, enquanto houver preferencial, o lote é só de
+// preferenciais (até 10 ou até acabar); depois, de atendimento.
+const NOME_LOTE = { preferencial: ['preferencial', 'preferenciais'], atendimento: ['de atendimento', 'de atendimento'], passe: ['de passe', 'de passe'] };
 function chamarLote(L) {
-  const filas = [['atendimento', 'do atendimento'], ['passe', 'do passe']]
-    .map(([k, t]) => [k, t, naFila(L, k).slice(0, CHAMAR_LOTE)]).filter(([, , v]) => v.length >= 2);
+  const filas = ['atendimento', 'passe'].map((k) => {
+    const fila = naFila(L, k);
+    const tipo = fila[0]?.tipo;
+    return [k, tipo, fila.filter((s) => s.tipo === tipo).slice(0, CHAMAR_LOTE), fila.length];
+  }).filter(([, , v, total]) => v.length && total >= 2);
   if (!filas.length) return '';
+  const texto = (tipo, n) => (n === 1 ? `a próxima senha ${NOME_LOTE[tipo][0]}` : `as próximas ${n} senhas ${NOME_LOTE[tipo][1]}`);
   const aberta = filas.find(([k]) => estado.confirm === 'filalote:' + k);
   if (aberta) {
-    const [k, t, v] = aberta;
-    return `<div class="fila-lote-conf"><p><b>Chamar ${v.length} senhas ${t}?</b> ${v.map((s) => esc(rot(s))).join(', ')}.</p>
+    const [k, tipo, v] = aberta;
+    return `<div class="fila-lote-conf"><p><b>Chamar ${texto(tipo, v.length)}?</b> ${v.map((s) => esc(rot(s))).join(', ')}.</p>
       <div class="fila-acoes"><button type="button" class="btn small primary" data-act="filalote" data-f="${k}" data-n="${v.length}">Chamar ${v.length}</button><button type="button" class="btn small" data-act="filavoltar">Voltar</button></div></div>`;
   }
-  return `<div class="fila-lote">${filas.map(([k, t, v]) => `<button type="button" class="btn small" data-act="askdel" data-k="filalote:${k}">Chamar próximas ${v.length} ${t}</button>`).join('')}</div>`;
+  return `<div class="fila-lote">${filas.map(([k, tipo, v]) => `<button type="button" class="btn small fila-lote-${tipo}" data-act="askdel" data-k="filalote:${k}">Chamar ${texto(tipo, v.length)}</button>`).join('')}</div>`;
 }
 
 function botaoChamar(L, fila, titulo) {
@@ -139,15 +147,30 @@ export const veFila = () => operadorFila(estado.giras[hoje()] || {});
 function semFila() {
   const g = estado.giras[hoje()];
   const motivo = !g ? 'Hoje não tem gira cadastrada.' : g.encerrada ? 'A gira de hoje já foi encerrada.' : 'Hoje é evento: não tem fila de senhas.';
-  return `<section class="panel"><div class="fila-card"><div class="fila-h"><h2>Fila de senhas</h2><span class="fila-selo">Sem fila hoje</span></div>
+  return `<section class="panel">${cardBlocoGeral()}<div class="fila-card"><div class="fila-h"><h2>Fila de senhas</h2><span class="fila-selo">Sem fila hoje</span></div>
     <div class="fila-vazia"><b>${motivo}</b><p class="muted">A fila funciona no dia da gira: abra aqui e ligue <b>Aberta pelo QR</b> nos Ajustes da fila.</p></div>
     <div class="fila-links"><a class="btn small" href="/fila?tv" target="_blank" rel="noopener">📺 Tela de TV</a><a class="btn small" href="/fila?cartaz" target="_blank" rel="noopener">🖨️ Cartaz com o QR</a></div></div></section>`;
+}
+
+// Só o root: o bloco da fila (e a doação) na aba Geral de alunos, consulentes e grupo Oferenda, visível ou não.
+// Fica aqui, em qualquer dia, para ligar antes da gira. Começa desligado.
+let lendoBlocoGeral = false;
+function cardBlocoGeral() {
+  if (!pode('usuarios:gerenciar')) return '';
+  if (estado.filaBlocoGeral === undefined && !lendoBlocoGeral) {
+    lendoBlocoGeral = true;
+    api('GET', '/giras?lista=filaGeral').then((r) => { estado.filaBlocoGeral = !!r.ativa; }, (e) => { toast(e.message); })
+      .finally(() => { lendoBlocoGeral = false; avisar(); });
+  }
+  const on = !!estado.filaBlocoGeral;
+  return `<div class="card adm fila-geral-sw"><label class="of-sw"><input type="checkbox" role="switch" data-act="filageralsw" ${on ? 'checked' : ''} ${estado.filaBlocoGeral === undefined ? 'disabled' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Fila na aba Geral visível para todos</b></label>
+    <p class="muted fila-nota">${on ? 'Ligado: alunos, consulentes e grupo Oferenda veem na aba Geral a fila do dia (pegar senha e acompanhar) e a doação.' : 'Desligado: o bloco da fila e da doação não aparece na aba Geral. A página /fila do QR continua funcionando.'}</p></div>`;
 }
 
 export function render() {
   if (!operadorFila(estado.giras[hoje()] || {})) return '<section class="panel"><div class="card"><p class="muted">Só quem cuida da fila vê esta tela.</p></div></section>';
   const g = giraDaFila();
-  return g ? `<section class="panel">${blocoFila(g)}</section>` : semFila();
+  return g ? `<section class="panel">${cardBlocoGeral()}${blocoFila(g)}</section>` : semFila();
 }
 
 function blocoFila(g) {
@@ -182,6 +205,14 @@ export const cliques = {
 };
 
 export const mudancas = {
+  async filageralsw(t) {
+    const ativa = t.checked;
+    try {
+      estado.filaBlocoGeral = !!(await api('POST', '/giras', { acao: 'filaGeral', ativa })).ativa;
+      toast(estado.filaBlocoGeral ? 'A fila aparece na aba Geral.' : 'A fila saiu da aba Geral.');
+    } catch (e) { toast(e.message); }
+    avisar();
+  },
   filaaberta(t) { acaoFila(hoje(), 'filaConfig', { aberta: t.checked }); },
   filalimite(t) {
     const v = t.value.trim();

@@ -3314,7 +3314,7 @@ test('v164: fila de senhas — sem login, no terreiro, preferencial primeiro, li
   }
 });
 
-test('v165: chamar várias senhas de uma vez — preferenciais primeiro, na ordem, só as que aguardam', async () => {
+test('v165/v167: chamar várias senhas de uma vez — um tipo por lote (preferenciais primeiro), na ordem, só as que aguardam', async () => {
   const { hojeBR } = await import('../api/_lib/http.js');
   const rota = '/api/giras/' + hojeBR();
   await api('DELETE', rota, ADMIN);
@@ -3322,14 +3322,21 @@ test('v165: chamar várias senhas de uma vez — preferenciais primeiro, na orde
   const balcao = (tipo, nome) => api('POST', rota, ADMIN, { acao: 'filaBalcao', tipo, nome });
   for (const n of ['A1', 'A2', 'A3']) await balcao('atendimento', n);
   await balcao('preferencial', 'P1');
+  await balcao('preferencial', 'P2');
   await balcao('passe', 'S1');
   assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 21 })).status, 400);
   assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 1.5 })).status, 400);
   const r = await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 10 });
   assert.equal(r.status, 200, JSON.stringify(r.json));
-  // Pediu 10, havia 4 no atendimento (com a preferencial): chama as 4; o passe fica.
-  assert.deepEqual(r.json.chamadas.map((c) => c.tipo + c.numero), ['atendimento3', 'atendimento2', 'atendimento1', 'preferencial1'], 'a última chamada vem primeiro');
-  assert.equal(r.json.senhas.find((s) => s.nome === 'S1').status, 'aguardando');
+  // Pediu 10 com 2 preferenciais e 3 atendimentos: o lote é só das preferenciais (até acabar); o atendimento espera.
+  const nomes = (x, st) => x.json.senhas.filter((s) => s.status === st).map((s) => s.nome).sort();
+  assert.deepEqual(nomes(r, 'chamada'), ['P1', 'P2']);
+  assert.deepEqual(r.json.chamadas.map((c) => c.tipo + c.numero), ['preferencial2', 'preferencial1'], 'a última chamada vem primeiro');
+  // Acabaram as preferenciais: o próximo lote é de atendimento; o passe fica.
+  const r2 = await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 10 });
+  assert.deepEqual(nomes(r2, 'chamada'), ['A1', 'A2', 'A3', 'P1', 'P2']);
+  assert.equal(r2.json.chamadas[0].tipo + r2.json.chamadas[0].numero, 'atendimento3');
+  assert.equal(r2.json.senhas.find((s) => s.nome === 'S1').status, 'aguardando');
   assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 10 })).status, 409);
   await api('DELETE', rota, ADMIN);
 });
@@ -3346,4 +3353,51 @@ test('v166: a página /fila recebe o nome e o telefone do cadastro de quem está
   assert.equal((await ver(null)).eu, undefined, 'sem login, nada do cadastro');
   assert.equal((await ver('token-que-nao-vale')).eu, undefined, 'login inválido segue como quem não tem cadastro');
   await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+});
+
+test('doação pelo bloco da fila: qualquer logado doa (sem senha, sem a aba Compras); o resto das Compras segue travado', async () => {
+  const gu = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'guias', ...b });
+  let G = (await gu(ADMIN, { op: 'grupo', descricao: 'Doações da fila' })).json;
+  const g = G.grupos.find((x) => x.descricao === 'Doações da fila');
+  G = (await gu(ADMIN, { op: 'item', grupoId: g.id, descricao: 'Doação para a casa (fila)', quantidade: 0, valor: '20', visivel: true, cpj: false, doacao: true })).json;
+  G = (await gu(ADMIN, { op: 'item', grupoId: g.id, descricao: 'Vela da fila', quantidade: 5, valor: '10', visivel: true, cpj: false, doacao: false })).json;
+  const itens = G.grupos.find((x) => x.id === g.id).itens;
+  const doacao = itens.find((i) => i.doacao), vela = itens.find((i) => !i.doacao);
+
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Doador Sem Senha', funcao: 'cambone' });
+  const TOK = await tokenCorrente('Doador Sem Senha');   // sem senha criada
+  assert.equal((await api('GET', '/api/oferendas?lista=guias', TOK)).status, 403, 'a aba Compras continua pedindo senha');
+  const L = await api('GET', '/api/oferendas?lista=doacoes', TOK);
+  assert.equal(L.status, 200, JSON.stringify(L.json));
+  assert.ok(L.json.itens.some((i) => i.id === doacao.id && i.valor === 20));
+  assert.ok(!L.json.itens.some((i) => i.id === vela.id), 'só itens de doação');
+
+  assert.equal((await gu(TOK, { op: 'doar', itemId: doacao.id, valor: 0 })).status, 400);
+  assert.equal((await gu(TOK, { op: 'doar', itemId: vela.id, valor: 10 })).status, 400, 'item que não é doação');
+  assert.equal((await gu(TOK, { op: 'pedir', itemId: vela.id, quantidade: 1 })).status, 403, 'pedir item à venda segue travado');
+  const d = await gu(TOK, { op: 'doar', itemId: doacao.id, valor: '15,50' });
+  assert.equal(d.status, 200, JSON.stringify(d.json));
+  const linha = (await gu(ADMIN, { op: 'grupo', id: g.id, descricao: 'Doações da fila' })).json.pedidos.flatMap((p) => p.linhas).find((l) => l.nome === 'Doador Sem Senha');
+  assert.equal(linha?.valor, 15.5, 'a doação entra no pedido do grupo, com o valor digitado');
+
+  // Grupo escondido: a doação some e não aceita mais.
+  await gu(ADMIN, { op: 'grupo', id: g.id, visivel: false });
+  assert.ok(!(await api('GET', '/api/oferendas?lista=doacoes', TOK)).json.itens.some((i) => i.id === doacao.id));
+  assert.equal((await gu(TOK, { op: 'doar', itemId: doacao.id, valor: 10 })).status, 400);
+  await gu(ADMIN, { op: 'excluirGrupo', id: g.id });
+  const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === 'Doador Sem Senha');
+  if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+});
+
+test('v168: a fila na aba Geral tem o interruptor Visível para todos, só do root (começa desligado)', async () => {
+  const { hojeBR } = await import('../api/_lib/http.js');
+  const publico = async () => (await fetch(base + '/api/giras/' + hojeBR() + '?lista=fila')).json();
+  assert.deepEqual((await api('GET', '/api/giras?lista=filaGeral', ADMIN)).json, { ativa: false });
+  assert.equal((await publico()).blocoGeral, false);
+  assert.equal((await api('GET', '/api/giras?lista=filaGeral', USER)).status, 403);
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'filaGeral', ativa: true })).status, 403);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'filaGeral', ativa: 'sim' })).status, 400);
+  assert.deepEqual((await api('POST', '/api/giras', ADMIN, { acao: 'filaGeral', ativa: true })).json, { ativa: true });
+  assert.equal((await publico()).blocoGeral, true, 'o bloco lê pela rota da fila');
+  await api('POST', '/api/giras', ADMIN, { acao: 'filaGeral', ativa: false });
 });

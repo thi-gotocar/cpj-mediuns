@@ -11,6 +11,7 @@
 //                excluirItem { id } · entregue { id, entregue } · itemTodos { id, todos }  (item de todos da lista, só na oferenda por pessoa)
 //                status { id, status: 'rascunho' | 'aguardando' | 'publicado' | 'encerrado' }
 // Aba Compras: GET ?lista=guias e POST { acao: 'guias', op, ... } (veja api/_lib/guias.js).
+//              GET ?lista=doacoes e POST { acao: 'guias', op: 'doar' } — a doação do bloco da fila na Geral, para qualquer logado.
 //              GET ?lista=guiaFoto&id=<item>&v=<versão> — a foto do item (JPEG, sem sessão, com cache longo).
 //              GET ?lista=pedidos — sub-aba Pedidos (só quem administra as Compras); o andamento muda em POST { acao: 'guias', op: 'andamento' }.
 // ASAAS (veja api/_lib/asaas.js): webhook sem sessão, com token, em POST ?webhook=asaas; aba ASAAS (root e quem tem a aba no perfil) em GET ?lista=asaas e POST { acao: 'asaas', op, ... }.
@@ -24,7 +25,7 @@ import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
 import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaPublica, limparDetalhes, detalhesOk, DETALHES_LINHAS, unidadeValida, quantidadeValida, aceitaFracao } from '../../shared/oferendas.js';
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
-import { respostaGuias, acaoGuias, fotoGuia, respostaPedidos } from '../_lib/guias.js';
+import { respostaGuias, acaoGuias, fotoGuia, respostaPedidos, respostaDoacoes } from '../_lib/guias.js';
 import { webhookAsaas, respostaAsaas, acaoAsaas, buscaAsaas } from '../_lib/asaas.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
@@ -77,6 +78,8 @@ export default rota({
   GET: async (req, res) => {
     if (req.query.lista === 'iemanja') return respostaIemanja(await exigir(req));
     if (req.query.lista === 'guias') return respostaGuias(await exigir(req));
+    // Doação pelo bloco da fila na Geral: qualquer pessoa logada (sem senha e sem a aba Compras).
+    if (req.query.lista === 'doacoes') return respostaDoacoes(await exigir(req));
     if (req.query.lista === 'guiaFoto') return fotoGuia(req, res);
     if (req.query.lista === 'asaas') return respostaAsaas(await exigir(req));
     if (req.query.lista === 'asaasbusca') return buscaAsaas(await exigir(req), req.query);

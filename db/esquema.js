@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 166;  // v166: fila — nome e telefone do cadastro para a página /fila (fila_obter redefinida no lugar)
+export const VERSAO = 168;  // v168: fila — interruptor do root para o bloco da fila na aba Geral
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5321,10 +5321,13 @@ export const MIGRACOES = [
    $$`,
   // p = { data, aparelho?, autor? } — com o login (autor 'p:' pessoa da corrente, 'a:' aluno/consulente), vai junto
   // eu: { nome, telefone } do próprio cadastro, para a página /fila já preencher (só a pessoa recebe os próprios dados).
-  // (v166: o eu. Redefinida no lugar: nenhum comando entre a v164 e a v166 a chama.)
+  // blocoGeral: o interruptor do root "bloco da fila na aba Geral visível para todos" (começa desligado).
+  // (v166: o eu; v168: o blocoGeral. Redefinida no lugar: nenhum comando entre a v164 e aqui a chama.)
   `create or replace function fila_obter(p jsonb)
    returns jsonb language sql stable as $$
-     select fila_json((p ->> 'data')::date, nullif(p ->> 'aparelho', ''), nullif(p ->> 'autor', '')) || coalesce((
+     select fila_json((p ->> 'data')::date, nullif(p ->> 'aparelho', ''), nullif(p ->> 'autor', ''))
+       || jsonb_build_object('blocoGeral', coalesce((select valor = 'true' from sistema where chave = 'fila_bloco_geral'), false))
+       || coalesce((
        select jsonb_build_object('eu', jsonb_build_object('nome', x.nome, 'telefone', coalesce(x.celular, '')))
          from (select pe.nome, pe.perfil -> 'info' ->> 'celular' as celular from pessoas pe
                 where p ->> 'autor' like 'p:%' and pe.saida is null and pe.id = substr(p ->> 'autor', 3)::uuid
@@ -5378,26 +5381,30 @@ export const MIGRACOES = [
      return fila_json(v_data, v_aparelho, v_autor);
    end;
    $$`,
-  // p = { data, fila: 'atendimento' | 'passe', quantidade? } — chama as próximas (1 a 20; sem quantidade, uma):
-  // na de atendimento, as preferenciais primeiro. Cada uma leva 1 ms a mais na hora da chamada, para a ordem ficar
-  // (a TV mostra a última como "chamada agora" e as outras em "antes").
+  // p = { data, fila: 'atendimento' | 'passe', quantidade? } — chama as próximas (1 a 20; sem quantidade, uma).
+  // Um lote é de um tipo só: na de atendimento, enquanto houver preferencial aguardando, só preferenciais (até a
+  // quantidade ou até acabar); acabaram, o próximo lote é de atendimento. Cada uma leva 1 ms a mais na hora da chamada,
+  // para a ordem ficar (a TV mostra a última como "chamada agora" e as outras em "antes").
   // skip locked: dois toques juntos (dois celulares no painel) chamam senhas diferentes.
-  // (v165: a quantidade. Redefinida no lugar: nenhum comando entre a v164 e aqui a chama.)
+  // (v165: a quantidade; v167: um tipo por lote. Redefinida no lugar: nenhum comando entre a v164 e aqui a chama.)
   `create or replace function fila_chamar(p jsonb)
    returns jsonb language plpgsql as $$
    declare
      v_data date := (p ->> 'data')::date;
      v_n integer := least(greatest(coalesce((p ->> 'quantidade')::integer, 1), 1), 20);
      v_i integer := 0;
+     v_tipo text;
      r record;
    begin
      if exists (select 1 from giras where data = v_data and encerrada) then
        raise exception using errcode = 'SM409', message = 'A gira já foi encerrada.';
      end if;
+     v_tipo := case when p ->> 'fila' = 'passe' then 'passe'
+                    when exists (select 1 from fila_senhas where gira_data = v_data and status = 'aguardando' and tipo = 'preferencial') then 'preferencial'
+                    else 'atendimento' end;
      for r in select id from fila_senhas
-               where gira_data = v_data and status = 'aguardando'
-                 and case when p ->> 'fila' = 'passe' then tipo = 'passe' else tipo in ('preferencial', 'atendimento') end
-               order by (tipo = 'atendimento'), numero
+               where gira_data = v_data and status = 'aguardando' and tipo = v_tipo
+               order by numero
                limit v_n for update skip locked loop
        v_i := v_i + 1;
        update fila_senhas set status = 'chamada', chamada_em = now() + v_i * interval '1 millisecond', mudou_em = now() where id = r.id;
@@ -5444,6 +5451,22 @@ export const MIGRACOES = [
       where data = v_data;
      if not found then raise exception using errcode = 'SM404', message = 'Esta gira ainda não foi criada.'; end if;
      return fila_painel(jsonb_build_object('data', v_data));
+   end;
+   $$`,
+
+  // ================================================== v168: bloco da fila na aba Geral — "Visível para todos" (só o root)
+  // Desligado (começa assim), alunos, consulentes e grupo Oferenda não veem o bloco da fila nem a doação na Geral.
+  `insert into sistema (chave, valor) values ('fila_bloco_geral', 'false') on conflict (chave) do nothing`,
+  `create or replace function fila_bloco_geral(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(coalesce((select valor = 'true' from sistema where chave = 'fila_bloco_geral'), false))
+   $$`,
+  `create or replace function fila_bloco_geral_ativar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('fila_bloco_geral', case when (p ->> 'ativa')::boolean then 'true' else 'false' end)
+     on conflict (chave) do update set valor = excluded.valor;
+     return fila_bloco_geral();
    end;
    $$`,
 ];

@@ -647,8 +647,6 @@ export async function enviar(form) {
 
 const valorCampo = (v) => Number(v).toFixed(2).replace('.', ',');
 // Balões de valor dos itens de doação (fixos).
-// Doar pelo bloco da fila na Geral: a aba Compras abre já com a confirmação da doação (o Pix e o CPF seguem daqui).
-export function abrirDoacao(itemId, valor) { ui.pedir = { itemId, quantidade: 1, valor }; }
 
 export const cliques = {
   guiadobrar(el) { const id = el.dataset.id; if (ui.abertos.has(id)) ui.abertos.delete(id); else ui.abertos.add(id); avisar(); },

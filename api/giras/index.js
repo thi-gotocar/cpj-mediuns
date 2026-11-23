@@ -1,4 +1,5 @@
 // GET  /api/giras — todas as giras (com presença e duplas), da mais recente para a mais antiga.
+// GET  /api/giras?lista=filaGeral · POST { acao: 'filaGeral', ativa } — bloco da fila na aba Geral visível para todos (só o root) → { ativa }
 //      O frontend usa a lista para o histórico, os selos de rodízio e a tabela "quem já cambonou quem".
 // GET  /api/giras?lista=eventos — eventos da casa (a corrente vê todos; alunos, gira, evento e os tipos da sua turma; curimba, sem avisos)
 // POST /api/giras  { acao: 'evento', id?, data: 'AAAA-MM-DD', nome, tipo: chave do tipo, retroativo? } · { acao: 'excluirEvento', id }  → eventos (só o admin root)
@@ -88,6 +89,11 @@ export default rota({
       if (eu.grupo) throw new HttpError(403, 'Este acesso não tem permissão para ver os relatos.');
       return condutas(eu);
     }
+    // Bloco da fila na aba Geral: o interruptor "Visível para todos" (só o root lê e liga; o bloco lê pela rota da fila).
+    if (req.query.lista === 'filaGeral') {
+      await exigir(req, 'usuarios:gerenciar');
+      return { ativa: await db.rpc('fila_bloco_geral') };
+    }
     if (req.query.lista === 'atrasos') return atrasos(await exigir(req), req.query.atualizar === '1');
     if (req.query.lista === 'transparencia') return transparencia(await exigir(req), req.query);
     if (req.query.lista === 'ausencias') {
@@ -108,6 +114,11 @@ export default rota({
     if (b.acao === 'entidadesApelidos') {
       await exigir(req, 'usuarios:gerenciar');
       return db.rpc('entidades_apelidos_salvar', { apelidos: validarApelidos(b.apelidos) });
+    }
+    if (b.acao === 'filaGeral') {
+      await exigir(req, 'usuarios:gerenciar');
+      if (typeof b.ativa !== 'boolean') throw new HttpError(400, 'Informe se o bloco fica visível.');
+      return { ativa: await db.rpc('fila_bloco_geral_ativar', { ativa: b.ativa }) };
     }
     if (b.acao === 'transparencia') return acaoTransparencia(await exigir(req), b, req.query);
     if (b.acao === 'video' || b.acao === 'excluirVideo') {

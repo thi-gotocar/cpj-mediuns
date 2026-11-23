@@ -1,4 +1,5 @@
 // Aba Compras (rota: GET /api/oferendas?lista=guias · POST /api/oferendas { acao: 'guias', op, ... }).
+//   qualquer logado (bloco da fila na Geral): doar { itemId, valor, cpf? } — veja respostaDoacoes
 //   todos:  pedir { itemId, quantidade, valor? }  — no pedido aberto do grupo do item, sem passar do disponível
 //           (item de doação: valor digitado pela pessoa, quantidade 1, sem estoque)
 //           (com o Pix ligado, pedir { ..., cpf? } já gera o link de pagamento; pix { pedido, cpf? } tenta de novo — veja api/_lib/asaas.js)
@@ -147,7 +148,40 @@ const booleano = (v, oque) => {
   return v;
 };
 
+// ---------- doação pelo bloco da fila na aba Geral ----------
+// Qualquer pessoa logada doa: sem senha, sem a aba Compras no perfil e mesmo com a aba desligada (doar em nome de
+// outra pessoa não tira nada de ninguém). Só os itens de doação visíveis, num grupo visível e com o pedido aberto;
+// o resto das Compras (venda, pedidos, painel) continua com as travas de sempre. O Pix é o mesmo (conta B).
+// GET ?lista=doacoes → { itens: [{ id, descricao, valor }], pix, pixPrecisaCpf?, cobrancas? }
+// POST { acao: 'guias', op: 'doar', itemId, valor, cpf? } → o mesmo, com aviso se o ASAAS falhou.
+export async function respostaDoacoes(eu) {
+  const t = await db.rpc('guias_tela', { chave: chavePessoa(eu), admin: false });
+  const itens = t.estado.grupos.filter((g) => g.visivel && g.aberto)
+    .flatMap((g) => g.itens.filter((i) => i.doacao && podeVerItem(eu, i)).map((i) => ({ id: i.id, descricao: i.descricao, valor: Number(i.valor) })));
+  return { itens, ...pixDe(t.ativo, t.minhas) };
+}
+
+async function doar(eu, b) {
+  const itemId = validarId(b.itemId, 'Item');
+  if (!(await respostaDoacoes(eu)).itens.some((i) => i.id === itemId)) throw new HttpError(400, 'Esta doação não está disponível no momento.');
+  const v = valor(b.valor);
+  if (v <= 0) throw new HttpError(400, 'Informe o valor da doação.');
+  const pix = await pixAntesDePedir(eu, b.cpf);
+  const feito = await db.rpc('guia_pedir', { itemId, quantidade: 1, valor: v, chave: chavePessoa(eu), nome: eu.nome });
+  let aviso;
+  if (pix) {
+    try {
+      await gerarPix(eu, { pedido: feito.pedidoFeito, cpf: b.cpf });
+    } catch (e) {
+      if (!(e instanceof HttpError)) console.error('[asaas] doar', e);
+      aviso = 'Doação registrada, mas o Pix não foi gerado' + (e instanceof HttpError ? ': ' + e.message.replace(/[.!]?$/, '.') : '.') + ' Tente de novo mais tarde.';
+    }
+  }
+  return { ...(await respostaDoacoes(eu)), ...(aviso ? { aviso } : {}) };
+}
+
 export async function acaoGuias(eu, b) {
+  if (b.op === 'doar') return doar(eu, b);
   await exigirAba(eu);
   if (b.op === 'pedir') {
     const p = { itemId: validarId(b.itemId, 'Item'), quantidade: inteiro(b.quantidade, 'Quantidade', 1, 999), chave: chavePessoa(eu), nome: eu.nome };

@@ -2661,3 +2661,16 @@ div.pf-of-total{cursor:default}
 .fila-doa-t small{color:var(--muted);font-size:.88rem}
 .fila-doa-bs{display:flex;flex-wrap:wrap;gap:6px}
 .fila-doa-bs .btn{flex:1 1 auto}
+.fila-lote .btn{border-left:3px solid var(--accent)}
+.fila-lote .fila-lote-preferencial{border-left-color:var(--orange)}
+.fila-lote .fila-lote-passe{border-left-color:var(--ok)}
+.fila-doa-outro{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.fila-doa-outro label{display:flex;align-items:center;gap:6px;flex:1 1 140px;font-weight:700;color:var(--muted)}
+.fila-doa-outro input{flex:1;min-width:0;padding:7px 10px}
+.fila-doa-conf,.fila-doa-pix{display:grid;gap:8px;padding:12px;border:1px solid color-mix(in srgb,var(--cor) 40%,var(--line));border-radius:10px;background:var(--surface)}
+.fila-doa-conf p,.fila-doa-pix p{margin:0;font-size:.92rem}
+.fila-doa-cpf,.fila-doa-cc{display:grid;gap:4px;font-size:.85rem;font-weight:700;color:var(--muted)}
+.fila-doa-cc textarea{font:400 .82rem var(--f-mono);resize:none;height:auto;min-height:0}
+.fila-doa-qr{width:min(220px,70%);justify-self:center;border-radius:8px;background:#fff;padding:6px}
+.fila-doa-pix .btn.primary{text-align:center;text-decoration:none}
+.fila-geral-sw{gap:6px}
