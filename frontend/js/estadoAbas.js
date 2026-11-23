@@ -26,6 +26,15 @@ export async function acaoUsuarios(acao, dados = {}) {
   } catch (e) { toast(e.message); avisar(); return false; }
 }
 
+// Recado para a corrente (topo da aba Gira, todos os dias); a resposta é a config da casa inteira.
+export async function salvarRecadoCorrente(recado) {
+  try {
+    definirConfig(await api('POST', '/giras', { acao: 'recadoCorrente', recado }));
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+
 // Bloco Admin da aba Gira: o dia da semana das giras; a resposta é a config da casa inteira.
 export async function salvarDiaGira(dia) {
   try {

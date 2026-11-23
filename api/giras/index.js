@@ -28,6 +28,7 @@
 // POST /api/giras  { acao: 'fotoAlbum', id?, data, nome }  → { ...fotos, albumId } (com id = editar: só admin)
 //                  { acao: 'fotoEnviar', albumId, foto, miniatura (JPEG em base64), largura, altura }  → { ok }
 //                  { acao: 'fotoExcluir', id } (a própria foto, ou qualquer uma para admin) · { acao: 'fotoExcluirAlbum', id } (admin)  → fotos
+// POST /api/giras  { acao: 'recadoCorrente', recado }  recado para a corrente, o mesmo em todos os dias (quem edita a Gira) → config da casa
 // POST /api/giras  { acao: 'diaGira', dia: 0 a 6 }  dia da semana das giras (quem edita a Gira) → config da casa
 // POST /api/giras  { acao: 'importar', pessoas, giras }  restaurar backup (dados:importar; api/_lib/importar.js) → { pessoasCriadas, pessoasNoArquivo, giras }
 //                  (o app anterior chama POST /api/importar: o vercel.json reescreve para ?acao=importar)
@@ -132,6 +133,14 @@ export default rota({
       if (typeof b.vou !== 'boolean') throw new HttpError(400, 'Informe se você vai.');
       const pessoas = await db.rpc('amaci_vou_marcar', { eventoId: validarId(b.eventoId, 'Amaci'), pessoaId: eu.pessoaId, vou: b.vou });
       return { pessoas, eu: pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: true };
+    }
+    // Recado para a corrente (topo da aba Gira, todos os dias): até 5 linhas e 300 letras; '' tira → a config da casa.
+    if (b.acao === 'recadoCorrente') {
+      await exigir(req, 'giras:editar');
+      const recado = String(b.recado ?? '').replace(/\r/g, '').split('\n').map((l) => l.trim()).join('\n').trim();
+      if (recado.split('\n').length > 5) throw new HttpError(400, 'O recado pode ter até 5 linhas.');
+      if (recado.length > 300) throw new HttpError(400, 'O recado pode ter até 300 letras.');
+      return db.rpc('recado_corrente_salvar', { recado });
     }
     // Bloco Admin da aba Gira: o dia da semana das giras (0 a 6) → a config da casa (shared/config.js diaGira).
     if (b.acao === 'diaGira') {

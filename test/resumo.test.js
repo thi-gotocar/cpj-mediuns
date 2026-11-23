@@ -266,3 +266,21 @@ test('resumo: ausências e faltas repetidas nas últimas 12 giras (só a partir 
   assert.deepEqual(r.ausentes, ['Caio']);
   assert.deepEqual(r.faltas, ['Ana', 'Bia']);
 });
+
+test('recado da casa: vai na prévia da gira aberta; a encerrada usa o recado dela', async () => {
+  const { textoLimpeza } = await import('../shared/resumoGira.js');
+  const { definirConfig, recadoDaGira } = await import('../shared/config.js');
+  const P = (nome, limpeza, extra = {}) => ({ id: nome, nome, funcao: 'cambone', limpeza, linhas: [], licencas: [], ...extra });
+  const pessoas = [P('Ana', 3)];
+  const g = { data: '2026-10-31', limpeza: 3, entidade: 'Caboclo', presenca: {}, papeis: {}, pendentePadrao: true };
+  try {
+    definirConfig({ recado: 'Venham de branco.\nTragam uma vela.' });
+    const t = textoLimpeza(pessoas, g, [g]).split('\n');
+    const i = t.indexOf('📢 *Recado:*');
+    assert.ok(i > 0, 'a prévia leva o recado');
+    assert.deepEqual(t.slice(i, i + 3), ['📢 *Recado:*', 'Venham de branco.', 'Tragam uma vela.']);
+    assert.equal(recadoDaGira({ ...g, encerrada: true, recado: 'O de antes' }), 'O de antes', 'a encerrada guarda o dela');
+    definirConfig({ recado: '' });
+    assert.ok(!textoLimpeza(pessoas, g, [g]).includes('Recado'), 'sem recado, a linha some');
+  } finally { definirConfig(null); }
+});

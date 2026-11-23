@@ -7,6 +7,7 @@ import { aniversariantesDoDia, rotuloTipo, ehAmaci } from '/shared/eventos.js';
 import { estado, prefs, salvarPrefs, pode, girasLista, giraAtual, excluirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, hoje, toast } from '../util.js';
 import { api } from '../api.js';
+import { config } from '/shared/config.js';
 import { ICONE_WHATS, htmlStatus } from './giraComum.js';
 import { blocoLimpeza, blocoBanho, blocoPedirErvas, blocosOferenda, escolhaTurma } from './giraInformacoes.js';
 import { atualizarJanela } from './giraJanelas.js';
@@ -262,18 +263,18 @@ function daCorrente(ctx) {
 }
 
 // ---------- recado para a corrente ----------
-// O primeiro bloco da aba, com o ⚠️: o recado da gira, para todos. Vazio, não aparece para ninguém; quem edita a gira
-// vê só uma linha discreta para escrever. Editar abre o campo ali mesmo; o texto grava ao sair do campo.
-const recadoAberto = new Set();   // datas com o campo do recado aberto
-function blocoRecado(ctx) {
-  const { g, editar } = ctx;
-  const texto = g.recado || '';
-  const aberto = editar && recadoAberto.has(g.data);
-  if (aberto) {
-    const valor = estado.recadoTxt?.data === g.data ? estado.recadoTxt.texto : texto;
+// O primeiro bloco da aba, com o ⚠️: o recado da casa, o mesmo em todos os dias (com ou sem gira), até alguém mudar.
+// Vazio, não aparece para ninguém; quem edita a Gira vê só uma linha discreta para escrever. Editar abre o campo ali
+// mesmo; o texto grava ao sair do campo (gira.js recadogira → salvarRecadoCorrente).
+let recadoAberto = false;
+function blocoRecado() {
+  const editar = pode('giras:editar');
+  const texto = config().recado || '';
+  if (editar && recadoAberto) {
+    const valor = estado.recadoTxt ? estado.recadoTxt.texto : texto;
     return `<div class="gn-aviso-rec ed"><span class="gn-aviso-ico" aria-hidden="true">⚠️</span>
       <div class="gn-aviso-c"><label class="gn-aviso-t" for="ev-recado">Recado para a corrente</label>
-        <textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" data-d="${esc(g.data)}" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos no topo da aba.">${esc(valor)}</textarea>
+        <textarea id="ev-recado" class="gn-recado-ed" data-act="recadogira" rows="2" maxlength="300" placeholder="Até 5 linhas. Aparece para todos, em todos os dias, no topo da aba.">${esc(valor)}</textarea>
         <div class="gn-aviso-bts"><button type="button" class="btn small primary" data-act="gnrecadofechar">Pronto</button>
           <small class="muted">Em branco, o recado some para todos.</small></div></div></div>`;
   }
@@ -290,7 +291,7 @@ export function montarNova(ctx) {
   const { g, semGira } = ctx;
   const faixa = faixaSemana(g, ctx.marcas, ctx.calendario);
   if (semGira) {
-    return `<section class="panel gn">${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span>${extrasDoDia(g.data, null)}</div>
+    return `<section class="panel gn">${blocoRecado()}${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span>${extrasDoDia(g.data, null)}</div>
       <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>${ctx.ausPrevia || ''}${ctx.ano || ''}${ctx.adminGira || ''}</section>`;
   }
   const { existe, editar, encerrada } = ctx;
@@ -301,7 +302,7 @@ export function montarNova(ctx) {
   // O bloco do ano (Atendimentos, sua presença, orixá de cabeça) vai no fim: os mesmos dados da Gira antiga.
   // Por último, o bloco Admin (dia da semana das giras), só para quem edita a Gira.
   // O recado para a corrente é o primeiro bloco da aba.
-  return `<section class="panel gn">${blocoRecado(ctx)}${faixa}${cabecalho(ctx)}${corpo}${ctx.ano || ''}${ctx.adminGira || ''}</section>`;
+  return `<section class="panel gn">${blocoRecado()}${faixa}${cabecalho(ctx)}${corpo}${ctx.ano || ''}${ctx.adminGira || ''}</section>`;
 }
 
 export const cliquesNova = {
@@ -321,12 +322,12 @@ export const cliquesNova = {
   },
   gnmes() { mesAberto = !mesAberto; avisar(); },
   gnrecado() {
-    recadoAberto.add(giraAtual().data);
+    recadoAberto = true;
     avisar();
     setTimeout(() => { const t = document.getElementById('ev-recado'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 0);
   },
   // Pronto: o campo perde o foco (o recado grava no change) e fecha.
-  gnrecadofechar() { document.getElementById('ev-recado')?.blur(); recadoAberto.delete(giraAtual().data); avisar(); },
+  gnrecadofechar() { document.getElementById('ev-recado')?.blur(); recadoAberto = false; avisar(); },
   gnturma() {
     const g = giraAtual();
     if (turmaAberta.has(g.data)) turmaAberta.delete(g.data); else turmaAberta.set(g.data, Number(g.limpeza) || 0);

@@ -8,7 +8,7 @@
 //   textoLimpeza(pessoas, g, giras) → prévia da gira com a turma da limpeza para o grupo do WhatsApp (ou '')
 
 import { status, presencaDe, daGira, pessoasDaGira, presente, licencaEm, nomeGira, nomeEntidadeGira, orixaDaGira, limpezaDaGira, contaNaPresenca, ehCurimba } from './regras.js';
-import { config } from './config.js';
+import { config, recadoDaGira } from './config.js';
 
 export const LOCAL_PADRAO = 'Terreiro';
 const PRES = ['p', 'na', 'sup'];
@@ -143,6 +143,8 @@ export function textoLimpeza(pessoas, g, giras = []) {
     ...(orixa ? [`👑 *Orixá:* ${orixa}`] : []),
     `🗓️ *Data:* ${br(g.data)}`,
     ...(senha ? [`🔑 *Senha:* ${senha}`] : []),
+    // O recado da casa (topo da aba Gira), como no texto da escala.
+    ...(recadoDaGira(g) ? ['', '📢 *Recado:*', ...recadoDaGira(g).split('\n')] : []),
     '',
     '━━━━━━━━━━━━━━━',
     `🧹 *Turma da limpeza: ${L.turma}*`,

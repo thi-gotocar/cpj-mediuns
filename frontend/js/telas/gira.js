@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, salvarDiaGira, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, salvarDiaGira, salvarRecadoCorrente, publicarEscala, travarEscala, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, pd, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { calendarioMes, mesMais } from '../calendario.js';
@@ -877,12 +877,12 @@ export const mudancas = {
     avisar();
   },
   data(t) { if (t.value) { prefs.data = t.value; salvarPrefs(); avisar(); } },
+  // Recado da casa (topo da aba, todos os dias): grava ao sair do campo.
   async recadogira(t) {
     const texto = t.value.replace(/\r/g, '').split('\n').map((l) => l.trim()).join('\n').trim();
-    const data = t.dataset.d;
-    if (texto !== (estado.giras[data]?.recado || '')) await salvarRecado(texto);
+    if (texto !== (config().recado || '')) await salvarRecadoCorrente(texto);
     // Se não salvou, o texto fica no campo para tentar de novo.
-    if ((estado.giras[data]?.recado || '') === texto) { estado.recadoTxt = null; avisar(); }
+    if ((config().recado || '') === texto) { estado.recadoTxt = null; avisar(); }
   },
   // Trava da escala (título da Presença).
   travaesc(t) { travarEscala(t.checked); },

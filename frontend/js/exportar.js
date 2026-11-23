@@ -1,5 +1,6 @@
 // Texto da escala para o WhatsApp (lista ou tabela monoespaçada).
 
+import { recadoDaGira } from '/shared/config.js';
 import { giraEspecial, nomeEntidadeGira, orixaDaGira, limpezaDaGira, paresPorMedium, escalaDaGira, presente, status, cambonaHoje, ordenarPessoas, pessoasDaGira, guiaNaGira, contaNaPresenca, daGira, pessoasDe } from '/shared/regras.js';
 import { pd, dShort } from './util.js';
 
@@ -85,7 +86,8 @@ export function textoWhats(pessoas, g, fmt, giras = []) {
   if (grupo('senha')) L.push(`${ICONE.senha} *Senha:* ${grupo('senha')[1].join(', ')}`);
   if (lista.some((x) => x.cams.some((p) => p.remanejado) || x.passes.some((p) => p.remanejado))) L.push('🔄 *Escala remanejada* (faltas de última hora)');
   // Recado do admin logo depois do cabeçalho; ausências e faltas no fim (como na aba Gira).
-  if (g.recado) L.push('', '📢 *Recado:*', ...g.recado.split('\n'));
+  const recado = recadoDaGira(g);
+  if (recado) L.push('', '📢 *Recado:*', ...recado.split('\n'));
   L.push(LINHA);
   const tab = fmt === 'tabela';
   // Médiuns e At. Extras em seções separadas (como na planilha da casa); quem está sem cambone aparece também.

@@ -1,6 +1,7 @@
 // Aba Gira: as janelas por cima da tela (WhatsApp da escala, das orações e dos aniversariantes, prévia da
 // limpeza, imagem da escala e do evento, foto ampliada, troca de data e confirmação da presença).
 
+import { recadoDaGira } from '/shared/config.js';
 import { STATUS, nomeEntidadeGira, contaNaPresenca, orixaDaGira, temLimpeza, limpezaDaGira, status, daGira, licencaEm } from '/shared/regras.js';
 import { estado, prefs, pessoasComSaidas, nome, girasLista, giraAtual, mudarDataGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, toast, hoje, podeCompartilharImagem } from '../util.js';
@@ -98,7 +99,7 @@ export const imagemPronta = () => { const g = giraAtual(); return !!(estado.img 
 
 function dadosImagemEvento(g, ps) {
   const secoes = [];
-  if (!g.encerrada && g.recado) secoes.push({ titulo: '📢 Recado', itens: [g.recado], cor: '#2c4ea3' });
+  if (!g.encerrada && recadoDaGira(g)) secoes.push({ titulo: '📢 Recado', itens: [recadoDaGira(g)], cor: '#2c4ea3' });
   const banho = banhosDaGira(g);
   for (const [titulo, dados] of [['🌿 Banho orixá', banho.orixa], ['🌿 Banho guia', banho.guia]]) {
     if (dados) secoes.push({ titulo: `${titulo} · ${dados.nome}`, itens: [...dados.ervas, ...(dados.obs ? [dados.obs] : []), ...(dados.aviso ? [`⚠️ ${dados.aviso}`] : [])], cor: '#24785a' });
@@ -116,7 +117,7 @@ function dadosImagemEvento(g, ps) {
     secoes,
   };
 }
-const chaveImagemEvento = (g, ps) => JSON.stringify([g.data, g.entidade, g.orixa, g.recado, g.evento, ps.map((p) => [p.id, p.nome, status(p, g), licencaEm(p, g.data)?.fim]), banhosDaGira(g)]);
+const chaveImagemEvento = (g, ps) => JSON.stringify([g.data, g.entidade, g.orixa, recadoDaGira(g), g.evento, ps.map((p) => [p.id, p.nome, status(p, g), licencaEm(p, g.data)?.fim]), banhosDaGira(g)]);
 export function imagemEventoPronta(g, ps) {
   return !!(estado.eventoImg && estado.eventoImg.key === chaveImagemEvento(g, ps));
 }

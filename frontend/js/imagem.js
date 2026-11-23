@@ -5,6 +5,7 @@
 // (com quem ajuda) e quem não vem (ausências e faltas). Quem faz aniversário no dia da gira leva 🥳 ao lado do nome.
 // Quem faltou e ainda aparece na escala (antes do Remanejar faltas, ou com a Trava ligada) vem em vermelho e riscado.
 
+import { recadoDaGira } from '/shared/config.js';
 import { paresPorMedium, escalaDaGira, guiaNaGira, pessoasDe, temRetrato } from '/shared/regras.js';
 import { gruposExtras, cabecalhoGira, foraDaGira, idsAniversariantes } from './exportar.js';
 import { quebrar, retangulo, carregarLogo, gerarPng } from './canvas.js';
@@ -172,7 +173,8 @@ function desenhar(ctx, cadastro, g, desenhar, giras = [], logo = null) {
   const comFalta = (nomes, naoVao = []) => [...naoVao, ...nomes.filter((n) => faltou.has(n))];
   const q = (k) => (grupo(k) ? { titulo: grupo(k)[0], nomes: grupo(k)[1], naoVao: comFalta(grupo(k)[1]), cor: COR[k] } : null);
   // ---- recado do admin (como na aba Gira): linhas já quebradas na largura do quadro, uma embaixo da outra
-  if (g.recado) { fonte(400, 19); linhaDeQuadros([{ titulo: 'Recado', nomes: quebrar(ctx, g.recado, CW - 44), cor: COR.recado, porLinha: true }]); }
+  const recado = recadoDaGira(g);
+  if (recado) { fonte(400, 19); linhaDeQuadros([{ titulo: 'Recado', nomes: quebrar(ctx, recado, CW - 44), cor: COR.recado, porLinha: true }]); }
 
   // ---- seções em duas colunas, com linhas alternadas; o médium de passe vai embaixo do nome do médium.
   //      A coluna do cambone tem a largura do maior cambone (entre 34% e 55%); o resto fica para o médium,

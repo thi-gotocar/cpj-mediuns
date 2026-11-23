@@ -3519,3 +3519,18 @@ test('v174: ervas — quem já pagou (marca, desmarca, vale com a lista fechada 
   await api('POST', '/api/ervas', ADMIN, { acao: 'novaCompra' });
   assert.deepEqual((await api('GET', '/api/ervas?lista=pagos', ADMIN)).json.pagos, [], 'a Nova compra começa sem ninguém pago');
 });
+
+test('v175: recado para a corrente — um só para todos os dias, vem na config; quem edita a Gira escreve', async () => {
+  const config = async (tok) => (await api('GET', '/api/auth/inicio', tok)).json.config;
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'recadoCorrente', recado: 'x' })).status, 403);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'recadoCorrente', recado: '1\n2\n3\n4\n5\n6' })).status, 400, 'até 5 linhas');
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'recadoCorrente', recado: 'x'.repeat(301) })).status, 400, 'até 300 letras');
+  const r = await api('POST', '/api/giras', ADMIN, { acao: 'recadoCorrente', recado: '  Venham de branco.  \n Tragam uma vela. ' });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.recado, 'Venham de branco.\nTragam uma vela.');
+  assert.equal((await config(USER)).recado, 'Venham de branco.\nTragam uma vela.', 'a corrente recebe na abertura');
+  // As Configurações da casa (root) regravam o JSON inteiro: o recado fica à parte e continua.
+  await api('POST', '/api/usuarios', ADMIN, { acao: 'config', config: { responsavel: 'Michelle' } });
+  assert.equal((await config(ADMIN)).recado, 'Venham de branco.\nTragam uma vela.');
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'recadoCorrente', recado: '' })).json.recado, '', 'em branco tira');
+});

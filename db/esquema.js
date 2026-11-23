@@ -5714,4 +5714,27 @@ export const MIGRACOES = [
      return '[]'::jsonb;
    end;
    $$`,
+
+  // ---------- v175: recado para a corrente, um só para todos os dias ----------
+  // O recado deixa de ser de cada gira: é um só, no topo da aba Gira em todos os dias, até alguém mudar. Fica em
+  // sistema.recado_corrente (sobe a versão dos dados: todo mundo recebe o recado novo) e vai junto com a config.
+  // Começa com o recado da última gira em aberto que tinha um. As giras encerradas continuam com o recado delas.
+  `insert into sistema (chave, valor)
+     values ('recado_corrente', coalesce((select recado from giras where not encerrada and recado <> '' order by data desc limit 1), ''))
+   on conflict (chave) do nothing`,
+  `create or replace function config_casa(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce((select valor::jsonb from sistema where chave = 'config_casa'), '{}'::jsonb)
+         || jsonb_build_object('diaGira', coalesce((select valor from sistema where chave = 'dia_gira'), '3'),
+                               'recado', coalesce((select valor from sistema where chave = 'recado_corrente'), ''));
+   $$`,
+  // p = { recado } → a config da casa, já com o recado novo ('' tira o recado).
+  `create or replace function recado_corrente_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('recado_corrente', coalesce(p ->> 'recado', ''))
+     on conflict (chave) do update set valor = excluded.valor;
+     return config_casa();
+   end;
+   $$`,
 ];
