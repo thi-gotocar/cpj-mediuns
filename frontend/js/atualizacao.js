@@ -35,14 +35,17 @@ function avisar(msg) {
 const lerSessao = (k) => { try { return sessionStorage.getItem(k); } catch { return null; } };
 const gravarSessao = (k, v) => { try { sessionStorage.setItem(k, v); } catch { /* sem armazenamento */ } };
 
-// A versão que está servindo esta página (o service worker responde).
+// A versão que está servindo esta página (o service worker responde). Fica também em window.__smVersao: o api.js
+// manda em todo pedido (X-App-Versao), para o root ver quem está em outra versão e poder exigir a nova.
 function mostrarVersao() {
   const el = document.getElementById('versao-app');
   const ativo = navigator.serviceWorker?.controller;
-  if (!el || !ativo) return;
+  if (!ativo) return;
   const canal = new MessageChannel();
   canal.port1.onmessage = (e) => {
     if (typeof e.data !== 'string') return;
+    window.__smVersao = e.data;
+    if (!el) return;
     el.textContent = 'versão ' + e.data.slice(0, 6);
     el.hidden = false;
   };
@@ -162,6 +165,29 @@ function iniciar() {
     } catch { /* cai na limpeza */ }
     await limparERecarregar();
   });
+
+  // Forçar atualização (o root exigiu outra versão; o api.js chama ao ver o cabeçalho X-App-Versao-Exigida): troca
+  // na hora, mesmo com o aviso ignorado, esperando só terminar o que está salvando ou sendo digitado. Uma vez por
+  // versão exigida e por sessão: se a exigida não chegar (versão que não existe mais), não fica recarregando.
+  let forcando = false;
+  window.__smForcar = async (exigida) => {
+    if (forcando || atualizando || recarregando) return;
+    const chave = 'sm-forcou:' + exigida;
+    if (lerSessao(chave)) return;
+    if (pendente() || digitando()) { setTimeout(() => window.__smForcar(exigida), 5000); return; }
+    forcando = true;
+    gravarSessao(chave, String(Date.now()));
+    avisar('Atualizando o app para a versão nova…');
+    try {
+      if (registro && !registro.waiting) {
+        buscouEm = Date.now();
+        await registro.update().catch(() => {});
+        await esperarInstalar(ESPERA_DOWNLOAD);
+      }
+      if (registro?.waiting) { ativar(); return; }
+    } catch { /* cai na limpeza */ }
+    await limparERecarregar();
+  };
 
   addEventListener('pointerdown', () => { interagiu = true; }, { capture: true });
   addEventListener('keydown', () => { interagiu = true; }, { capture: true });

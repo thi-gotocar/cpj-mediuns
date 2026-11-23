@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 169;  // v169: amaci — a corrente avisa que vai (Vou ao amaci / Ver quem vai)
+export const VERSAO = 170;  // v170: versão do app de cada pessoa e a versão exigida (forçar atualização)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5505,6 +5505,47 @@ export const MIGRACOES = [
        delete from amaci_vou where evento_id = v_ev and pessoa_id = (p ->> 'pessoaId')::uuid;
      end if;
      return amaci_vou_listar(p);
+   end;
+   $$`,
+
+  // ================================================== v170: versão do app de cada pessoa e "forçar atualização"
+  // O app manda a versão (a marca do service worker) em todo pedido; a abertura grava a última de cada pessoa.
+  // O root vê quem está em outra versão e pode exigir a versão do aparelho dele: quem estiver em outra atualiza na hora.
+  `create table if not exists app_versoes (
+     chave     text primary key,
+     nome      text not null default '',
+     versao    text not null,
+     visto_em  timestamptz not null default now()
+   )`,
+  `insert into sistema (chave, valor) values ('app_versao_exigida', '') on conflict (chave) do nothing`,
+  // p = { chave, nome, versao } — a última versão de cada pessoa; quem não abre há 60 dias sai da lista.
+  `create or replace function app_versao_registrar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into app_versoes (chave, nome, versao) values (p ->> 'chave', coalesce(p ->> 'nome', ''), p ->> 'versao')
+     on conflict (chave) do update set nome = excluded.nome, versao = excluded.versao, visto_em = now();
+     delete from app_versoes where visto_em < now() - interval '60 days';
+     return '{}'::jsonb;
+   end;
+   $$`,
+  `create or replace function app_versao_exigida(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(coalesce((select valor from sistema where chave = 'app_versao_exigida'), ''))
+   $$`,
+  // Quem abriu o app nos últimos 30 dias, do mais recente ao mais antigo, e a versão exigida ('' = nenhuma).
+  `create or replace function app_versoes_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('exigida', app_versao_exigida(),
+       'pessoas', coalesce((select jsonb_agg(jsonb_build_object('chave', v.chave, 'nome', v.nome, 'versao', v.versao, 'vistoEm', v.visto_em) order by v.visto_em desc)
+                              from app_versoes v where v.visto_em > now() - interval '30 days'), '[]'::jsonb))
+   $$`,
+  // p = { versao } — a versão exigida ('' para de exigir).
+  `create or replace function app_versao_exigir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('app_versao_exigida', coalesce(p ->> 'versao', ''))
+     on conflict (chave) do update set valor = excluded.valor;
+     return app_versoes_listar();
    end;
    $$`,
 ];

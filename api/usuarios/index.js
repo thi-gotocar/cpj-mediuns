@@ -2,6 +2,8 @@
 // GET  /api/usuarios?lista=perfis   perfis e o que cada um vê/edita por aba
 // GET  /api/usuarios?lista=senhas   pessoas da corrente e se têm senha (PIN)
 // GET  /api/usuarios?lista=tudo     { usuarios, perfis, senhas } numa chamada só (abertura da aba Admin root)
+// GET  /api/usuarios?lista=versoes  versão do app de quem abriu nos últimos 30 dias e a exigida: { exigida, pessoas: [{ chave, nome, versao, vistoEm }] }
+//      POST { acao: 'versaoExigir', versao } exige essa versão ('' para de exigir): app em outra versão atualiza na hora
 // GET  /api/usuarios?lista=visitas  quem entrou em cada aba nos últimos 3 dias: [{ chave, aba, dia, nome, grupo, vezes, ultima }]
 // POST /api/usuarios   { email, senha, papel, pessoaId }  (root: { nome } no lugar de pessoaId)
 //                      { acao: 'perfil', chave?, nome, abas }  cria ou edita um perfil → perfis
@@ -16,6 +18,7 @@ import { gerarHash, SENHA_MINIMA } from '../_lib/senhas.js';
 import { papelValido } from '../_lib/perfis.js';
 import { SEM_CADASTRO, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '../../shared/permissoes.js';
 import { CAMPOS_CONFIG, configCasa } from '../../shared/config.js';
+import { versaoValida, guardarExigida } from '../_lib/versao.js';
 
 // Senha que o root define (6 a 8 números) ou '' para limpar.
 async function hashPinNovo(b) {
@@ -67,6 +70,7 @@ export default rota({
       return { usuarios: semVersao(usuarios), perfis, senhas };
     }
     if (req.query.lista === 'visitas') return db.rpc('visitas_listar');
+    if (req.query.lista === 'versoes') return db.rpc('app_versoes_listar');
     if (req.query.lista === 'perfis') return db.rpc('perfis_config');
     if (req.query.lista === 'senhas') return db.rpc('senhas_listar');
     return semVersao(await db.rpc('usuarios_listar'));
@@ -75,6 +79,14 @@ export default rota({
     await exigir(req, 'usuarios:gerenciar');
     const b = corpo(req);
     if (b.acao === 'perfil' || b.acao === 'excluirPerfil') return acaoPerfil(b);
+    // Forçar atualização: exige a versão do aparelho do root ('' para de exigir).
+    if (b.acao === 'versaoExigir') {
+      const versao = String(b.versao ?? '').trim();
+      if (!versaoValida(versao)) throw new HttpError(400, 'Versão inválida.');
+      const r = await db.rpc('app_versao_exigir', { versao });
+      guardarExigida(versao);
+      return r;
+    }
     if (b.acao === 'config') return configCasa(await db.rpc('config_casa_salvar', { config: validarConfig(b.config) }));
     // limpar: apaga a senha (as sessões abertas caem); a pessoa cria outra ao entrar (e-mail, celular ou CPF,
     // confirmando o celular ou o e-mail do cadastro).

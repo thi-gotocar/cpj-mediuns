@@ -54,6 +54,7 @@ export const estado = {
   pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' },
   perfisCfg: null,     // aba Admin root: perfis e as abas de cada um
   visitas: null,       // aba Admin root: quem entrou em cada aba nos últimos 3 dias (GET /api/usuarios?lista=visitas)
+  versoes: null,       // aba Admin root: versão do app de cada pessoa e a exigida (GET /api/usuarios?lista=versoes)
   senhas: null,        // aba Admin root: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
   alunosAdicionarTurma: null, // aba Pessoas: turma com o formulário de inclusão de alunos aberto

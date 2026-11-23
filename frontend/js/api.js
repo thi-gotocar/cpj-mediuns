@@ -27,12 +27,16 @@ export async function api(metodo, rota, corpo) {
   try {
     r = await fetch('/api' + rota, {
       method: metodo,
-      headers: { Authorization: 'Bearer ' + t, ...(verComo ? { 'X-Ver-Como': verComo } : {}), ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { Authorization: 'Bearer ' + t, ...(verComo ? { 'X-Ver-Como': verComo } : {}), ...(window.__smVersao ? { 'X-App-Versao': window.__smVersao } : {}),
+        ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
       body: corpo ? JSON.stringify(corpo) : undefined,
     });
   } catch {
     throw new ErroApi(0, 'Sem conexão. Verifique a internet e tente de novo.');
   }
+  // O root exigiu outra versão (Admin root → 📲 Versão do app): atualiza agora (frontend/js/atualizacao.js).
+  const exigida = r.headers.get('X-App-Versao-Exigida');
+  if (exigida && window.__smVersao && exigida !== window.__smVersao) window.__smForcar?.(exigida);
   const j = await r.json().catch(() => ({}));
   if (r.status === 401) { sair(); aoExpirar(); }
   if (!r.ok) throw new ErroApi(r.status, j.erro || 'Algo deu errado. Tente de novo.');

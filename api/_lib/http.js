@@ -31,6 +31,11 @@ export const MSG_ENCERRADA = 'Esta gira está encerrada. Toque em Reabrir para a
 export function rota(metodos) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
+    // App numa versão diferente da exigida pelo root: o cabeçalho manda atualizar (api/_lib/versao.js; import
+    // dinâmico porque versao.js usa o db.js, que importa este arquivo). Falha aqui nunca atrapalha o pedido.
+    if (req.headers?.['x-app-versao']) {
+      try { await (await import('./versao.js')).avisarVersao(req, res); } catch { /* segue sem o aviso */ }
+    }
     try {
       const fn = metodos[req.method];
       if (!fn) {

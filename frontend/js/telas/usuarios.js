@@ -1,4 +1,4 @@
-// Aba "Admin root" (só o admin root): Acessos e perfis (um bloco só, por perfil), Quem entrou nas abas e, do Histórico,
+// Aba "Admin root" (só o admin root): Acessos e perfis (um bloco só, por perfil), Quem entrou nas abas, Versão do app e, do Histórico,
 // Cadastrar gira antiga e Cadastrar escala, e os eventos da casa (cadastrar e eventos cadastrados).
 
 import { SEM_CADASTRO, ABAS, ABAS_CONSULENTE, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '/shared/permissoes.js';
@@ -7,6 +7,7 @@ import { esc, toast, ajustarRolagem, hoje } from '../util.js';
 import { ICONE_WHATS } from './giraComum.js';
 import { ABAS_VISITA, VISITAS_DIAS, agruparVisitas, textoVisitas } from '/shared/visitas.js';
 import { emDemo } from '../auth.js';
+import { api } from '../api.js';
 import { renderAjustesPerfil, formSenha } from './perfil.js';
 import { blocosEventos, blocoTipos, cliques as cliquesEventos } from './eventos.js';
 import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, corpoBackup, cliquesBackup } from './historico.js';
@@ -72,7 +73,7 @@ const pessoasLivres = (manter = null) => {
 export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   if (abertosRoot.has('ajperfil') && estado.perfil === null) { estado.perfil = undefined; carregarPerfil(); }
-  let h = `<section class="panel">${cardAcessos()}${cardVisitas()}
+  let h = `<section class="panel">${cardAcessos()}${cardVisitas()}${cardVersoes()}
     ${secao('Configurações da casa')}${cardConfig()}${cardEntidades()}${cardEventos()}
     ${secao('Pessoas e histórico')}${cardAjustesPerfil()}${cardRegistros()}${cardBackup()}</section>`;
   return h;
@@ -106,6 +107,51 @@ function cardVisitas() {
   h += grupos.map((g) => `<div class="vis-grupo"><div class="grp-h"><h3>${esc(g.grupo)}</h3><span class="count">${g.pessoas.length}</span></div>
     ${g.pessoas.map((p) => `<div class="vis-linha"><span class="nm">${esc(p.nome)}</span><span class="muted">${quandoVisita(p.ultima)}${p.vezes > 1 ? ` · ${p.vezes}×` : ''}</span></div>`).join('')}</div>`).join('');
   return h + `<p class="muted" style="margin:0;font-size:.8rem">Hora da última entrada · × = quantas vezes abriu nos ${VISITAS_DIAS} dias. O root não entra na lista.</p></div>`;
+}
+
+// ---------- versão do app ----------
+// A última versão com que cada pessoa abriu (ou voltou ao) app nos últimos 30 dias. A referência é a exigida ou, sem
+// ela, a deste aparelho. Forçar atualização exige a versão deste aparelho: quem estiver em outra troca na hora, no
+// próximo pedido ao servidor (quem está com o app fechado atualiza ao abrir, como sempre).
+const versaoCurta = (v) => String(v || '').slice(0, 6);
+async function lerVersoes() {
+  try { estado.versoes = await api('GET', '/usuarios?lista=versoes'); } catch (e) { toast(e.message); estado.versoes = { exigida: '', pessoas: [] }; }
+  avisar();
+}
+async function exigirVersao(versao) {
+  try {
+    estado.versoes = await api('POST', '/usuarios', { acao: 'versaoExigir', versao });
+    toast(versao ? `Versão ${versaoCurta(versao)} exigida: quem estiver em outra atualiza no próximo uso.` : 'Parou de exigir a versão.');
+  } catch (e) { toast(e.message); }
+  avisar();
+}
+function cardVersoes() {
+  const ab = abertosRoot.has('versoes');
+  const minha = window.__smVersao || '';
+  const V = estado.versoes;
+  const ref = V?.exigida || minha;
+  const outras = (V?.pessoas || []).filter((p) => ref && p.versao !== ref);
+  let h = `<div class="card adm root">${cabRoot('versoes', '<span aria-hidden="true">📲</span> Versão do app', V ? (outras.length ? `${outras.length} em outra versão` : 'todos em dia') : '', ab)}`;
+  if (!ab) return h + '</div>';
+  if (V === null) { estado.versoes = undefined; lerVersoes(); }
+  if (!V) return h + '<div class="loading">Carregando…</div></div>';
+  const linha = (p) => `<div class="vis-linha"><span class="nm">${esc(p.nome || '(sem nome)')}</span><span class="muted">versão ${esc(versaoCurta(p.versao))} · ${quandoVisita(p.vistoEm)}</span></div>`;
+  const naRef = V.pessoas.filter((p) => !ref || p.versao === ref);
+  const forcar = !minha ? '<p class="muted" style="margin:0">Este aparelho não informa a versão (sem o app instalado pelo navegador). Use outro aparelho para exigir a versão.</p>'
+    : estado.confirm === 'verex'
+      ? `<div class="infobox"><span><b>Exigir a versão ${esc(versaoCurta(minha))}?</b> Quem estiver em outra versão atualiza na hora, no próximo uso do app.</span>
+        <span class="row"><button class="btn small primary" data-act="verexigir">Exigir ${esc(versaoCurta(minha))}</button><button class="btn small" data-act="vervoltar">Voltar</button></span></div>`
+      : `<span class="row"><button class="btn small primary" data-act="askdel" data-k="verex" ${V.exigida === minha ? 'disabled' : ''}>Forçar atualização para ${esc(versaoCurta(minha))}</button>
+          ${V.exigida ? '<button class="btn small" data-act="verparar">Parar de exigir</button>' : ''}<button class="btn vis-atual" data-act="veratualizar" title="Atualizar a lista" aria-label="Atualizar a lista">↻</button></span>`;
+  h += `<p style="margin:0">Este aparelho: <b>${minha ? `versão ${esc(versaoCurta(minha))}` : 'versão desconhecida'}</b> · Exigida: <b>${V.exigida ? `versão ${esc(versaoCurta(V.exigida))}` : 'nenhuma'}</b></p>
+    <p class="muted" style="margin:0;font-size:.85rem">Antes de forçar, toque em <b>Atualizar app</b> no rodapé, para este aparelho estar na versão mais nova.</p>
+    ${forcar}
+    <div class="vis-grupo"><div class="grp-h"><h3>Em outra versão</h3><span class="count">${outras.length}</span></div>
+      ${outras.length ? outras.map(linha).join('') : '<p class="muted" style="margin:0">Ninguém.</p>'}</div>
+    <div class="vis-grupo"><div class="grp-h"><h3>Na versão ${esc(versaoCurta(ref))}</h3><span class="count">${naRef.length}</span></div>
+      ${naRef.map(linha).join('')}</div>
+    <p class="muted" style="margin:0;font-size:.8rem">A última versão com que cada pessoa abriu ou voltou ao app nos últimos 30 dias.</p>`;
+  return h + '</div>';
 }
 
 // Uma pessoa com acesso: nome (do cadastro), e-mail, troca de perfil, Nova senha e Excluir.
@@ -280,6 +326,10 @@ function cardRegistros() {
 }
 
 export const cliques = {
+  veratualizar() { estado.versoes = null; avisar(); },
+  vervoltar() { avisar(); },
+  async verexigir() { await exigirVersao(window.__smVersao || ''); },
+  async verparar() { await exigirVersao(''); },
   ...cliquesEventos,
   ...cliquesGiraAntiga,
   ...cliquesEscala,
