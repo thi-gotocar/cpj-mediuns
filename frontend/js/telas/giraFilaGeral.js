@@ -160,6 +160,9 @@ export function cardFilaGeral() {
     linha = `<a class="fila-geral-l" href="/fila"><span class="fila-geral-n">${esc(rotuloSenha(m.tipo, m.numero))}</span>
       <span class="fila-geral-t"><small>Sua senha de ${esc((tipoFila(m.tipo)?.nome || '').toLowerCase())}</small><b>${txt}</b></span>
       <span class="seta" aria-hidden="true">›</span></a>`;
+  } else if (f.aberta && f.manual) {
+    linha = `<div class="fila-geral-l"><span class="fila-geral-ico" aria-hidden="true">🎟️</span>
+      <span class="fila-geral-t"><b>Fila de senhas aberta</b><small>Hoje as senhas são no balcão: peça a sua a quem está cuidando da fila.</small></span></div>`;
   } else if (f.aberta) {
     linha = `<a class="fila-geral-l" href="/fila"><span class="fila-geral-ico" aria-hidden="true">🎟️</span>
       <span class="fila-geral-t"><b>Fila de senhas aberta</b><small>Pegue a sua senha para a gira de hoje.</small></span>

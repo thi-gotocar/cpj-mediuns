@@ -124,6 +124,7 @@ function cartao(f, L) {
 // Encerrar (ou reabrir) a entrada pelo QR sem abrir os Ajustes, que ficam recolhidos depois da primeira senha.
 // Encerrar pede confirmação; quem já tem senha continua na fila e o balcão continua emitindo.
 function entradaQr(f) {
+  if (f.manual) return '';   // só senha manual: o QR não emite, nada a encerrar
   if (!f.aberta) {
     return (f.senhas || []).length ? '<button type="button" class="btn small fila-entrada" data-act="filaentrada" data-v="1">Reabrir a entrada pelo QR</button>' : '';
   }
@@ -137,11 +138,13 @@ function entradaQr(f) {
 function ajustes(f) {
   const aberto = ajustesAberto ?? (!f.aberta && !(f.senhas || []).length);
   const usadas = f.emitidas?.atendimento || 0;
-  const resumo = `${f.aberta ? 'Aberta' : 'Fechada'} pelo QR. ${f.limite != null ? `${usadas} de ${f.limite} senhas de atendimento` : `${usadas} ${usadas === 1 ? 'senha' : 'senhas'} de atendimento, sem limite`}.`;
+  const resumo = `${!f.aberta ? 'Fechada.' : f.manual ? 'Aberta, só senha manual (balcão).' : 'Aberta pelo QR.'} ${f.limite != null ? `${usadas} de ${f.limite} senhas de atendimento` : `${usadas} ${usadas === 1 ? 'senha' : 'senhas'} de atendimento, sem limite`}.`;
   return `<div class="fila-sec fila-ajustes"><button type="button" class="fila-ajustes-h" data-act="filaajustes" aria-expanded="${aberto}">
       <span><b>Ajustes da fila</b><small>${resumo}</small></span><span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></button>
     ${aberto ? `<label class="of-sw"><input type="checkbox" role="switch" data-act="filaaberta" ${f.aberta ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Aberta pelo QR</b></label>
       <p class="muted fila-nota">${f.aberta ? 'Quem está no terreiro pega a senha pelo celular.' : 'Pelo celular ninguém pega senha. O balcão continua emitindo.'}</p>
+      <label class="of-sw"><input type="checkbox" role="switch" data-act="filamanual" ${f.manual ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Só senha manual (balcão)</b></label>
+      <p class="muted fila-nota">${f.manual ? 'Ligado: o celular não pega senha pelo QR; as senhas saem só pelo ＋ Senha no balcão. A página e a TV mostram as chamadas e avisam que as senhas são no balcão.' : 'Ligue para emitir as senhas só no balcão (o QR continua mostrando as chamadas).'}</p>
       <label class="fila-lim">Limite de senhas de atendimento<input type="number" id="fila-limite" data-act="filalimite" inputmode="numeric" min="0" max="1000" step="1" placeholder="sem limite" value="${f.limite ?? ''}"></label>
       <p class="muted fila-nota">Preferencial fica fora do limite e passe não tem limite.</p>
       <div class="fila-links"><a class="btn small" href="/fila?tv" target="_blank" rel="noopener">📺 Tela de TV</a><a class="btn small" href="/fila?cartaz" target="_blank" rel="noopener">🖨️ Cartaz com o QR</a></div>
@@ -190,7 +193,7 @@ function blocoFila(g) {
   const f = estado.fila?.data === g.data ? estado.fila : null;
   if (!f) carregarFila(g.data);
   agendar(g.data);
-  const tit = `<div class="fila-h"><h2>Fila de senhas</h2>${f && !f.erro ? `<span class="fila-selo ${f.aberta ? 'ok' : ''}">${f.aberta ? 'Aberta' : 'Fechada'}</span>` : ''}</div>`;
+  const tit = `<div class="fila-h"><h2>Fila de senhas</h2>${f && !f.erro ? `<span class="fila-selo ${f.aberta ? 'ok' : ''}">${!f.aberta ? 'Fechada' : f.manual ? 'Só balcão' : 'Aberta'}</span>` : ''}</div>`;
   if (!f) return `<div class="fila-card">${tit}<div class="loading">Carregando…</div></div>`;
   if (f.erro) return `<div class="fila-card">${tit}<p class="muted">${esc(f.erro)}</p></div>`;
   const L = f.senhas || [];
@@ -229,6 +232,7 @@ export const mudancas = {
     avisar();
   },
   filaaberta(t) { acaoFila(hoje(), 'filaConfig', { aberta: t.checked }); },
+  filamanual(t) { acaoFila(hoje(), 'filaConfig', { manual: t.checked }); },
   filalimite(t) {
     const v = t.value.trim();
     acaoFila(hoje(), 'filaConfig', { limite: v === '' ? null : Number(v) });

@@ -2713,6 +2713,14 @@ div.pf-of-total{cursor:default}
 .gn-amaci-lista{display:flex;flex-wrap:wrap;gap:6px}
 .gn-nome.pres{background:var(--ok-soft);border-color:transparent;color:var(--ok);margin:0}
 .gn-ok{font-weight:900;margin-right:4px}
+.er-pagos{display:grid;gap:6px}
+.er-pagos-h h3{margin:0}
+.er-pagos-l{display:grid;gap:4px}
+.er-pago{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:.92rem}
+.er-pago input{width:20px;height:20px;margin:0}
+.er-pago-n{min-width:0;overflow-wrap:anywhere}
+.er-pago.ok{background:var(--ok-soft);border-color:transparent}
+.er-pago.ok .er-pago-n{color:var(--ok)}
 .gn-admin{display:grid;gap:8px}
 .gn-admin h3{margin:0}
 .gn-admin-nota{margin:0;font-size:.85rem}

@@ -5594,4 +5594,124 @@ export const MIGRACOES = [
      return config_casa();
    end;
    $$`,
+
+  // ---------- v174: fila só com senha manual (balcão) ----------
+  // Interruptor do painel (Ajustes da fila): com a fila aberta, o celular não pega senha pelo QR; quem controla a fila
+  // emite no balcão. A página e a TV continuam mostrando as chamadas e dizem que as senhas são no balcão.
+  // fila_json ganha 'manual', fila_entrar recusa pelo celular e fila_config grava (redefinidas aqui; só a última vale).
+  `alter table giras add column if not exists fila_manual boolean not null default false`,
+  `create or replace function fila_json(v_data date, v_aparelho text, v_autor text)
+   returns jsonb language sql stable as $$
+     with g as (select data, fila_aberta, fila_limite, fila_manual, encerrada from giras where data = v_data),
+     s as (select * from fila_senhas where gira_data = v_data),
+     minha as (
+       select * from s
+        where status <> 'cancelada'
+          and ((v_aparelho is not null and s.aparelho = v_aparelho) or (v_autor is not null and s.autor = v_autor))
+        order by s.criada_em desc limit 1
+     )
+     select case when not exists (select 1 from g) then jsonb_build_object('existe', false) else jsonb_build_object(
+       'existe', true,
+       'aberta', (select fila_aberta and not encerrada from g),
+       'encerrada', (select encerrada from g),
+       'limite', (select fila_limite from g),
+       'manual', (select fila_manual from g),
+       'emitidas', jsonb_build_object(
+         'preferencial', (select count(*) from s where tipo = 'preferencial' and status <> 'cancelada'),
+         'atendimento', (select count(*) from s where tipo = 'atendimento' and status <> 'cancelada'),
+         'passe', (select count(*) from s where tipo = 'passe' and status <> 'cancelada')),
+       'aguardando', jsonb_build_object(
+         'preferencial', (select count(*) from s where tipo = 'preferencial' and status = 'aguardando'),
+         'atendimento', (select count(*) from s where tipo = 'atendimento' and status = 'aguardando'),
+         'passe', (select count(*) from s where tipo = 'passe' and status = 'aguardando')),
+       'atendimentoLotado', coalesce((select g.fila_limite is not null
+           and (select count(*) from s where tipo = 'atendimento' and status <> 'cancelada') >= g.fila_limite from g), false),
+       'chamadas', coalesce((select jsonb_agg(jsonb_build_object('tipo', c.tipo, 'numero', c.numero, 'chamadaEm', c.chamada_em) order by c.chamada_em desc)
+           from (select * from s where status = 'chamada' order by chamada_em desc limit 10) c), '[]'::jsonb),
+       'minha', (select jsonb_build_object('id', m.id, 'tipo', m.tipo, 'numero', m.numero, 'nome', m.nome, 'status', m.status,
+                   'chamadaEm', m.chamada_em,
+                   'aFrente', case when m.status <> 'aguardando' then null
+                                   when m.tipo = 'atendimento' then (select count(*) from s where status = 'aguardando'
+                                      and (tipo = 'preferencial' or (tipo = 'atendimento' and numero < m.numero)))
+                                   else (select count(*) from s where status = 'aguardando' and tipo = m.tipo and numero < m.numero) end)
+                   from minha m)
+     ) end
+   $$`,
+  `create or replace function fila_entrar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_tipo text := p ->> 'tipo';
+     v_balcao boolean := coalesce((p ->> 'balcao')::boolean, false);
+     v_aparelho text := nullif(p ->> 'aparelho', '');
+     v_autor text := nullif(p ->> 'autor', '');
+     g giras;
+   begin
+     select * into g from giras where data = v_data for update;
+     if not found then raise exception using errcode = 'SM404', message = 'Hoje não tem gira cadastrada.'; end if;
+     if g.encerrada then raise exception using errcode = 'SM409', message = 'A gira já foi encerrada.'; end if;
+     if not v_balcao then
+       if not g.fila_aberta then raise exception using errcode = 'SM409', message = 'A fila ainda não está aberta.'; end if;
+       if g.fila_manual then raise exception using errcode = 'SM409', message = 'Hoje as senhas são só no balcão. Peça a sua a quem está cuidando da fila.'; end if;
+       if exists (select 1 from fila_senhas where gira_data = v_data and status in ('aguardando', 'ausente')
+                    and ((v_aparelho is not null and aparelho = v_aparelho) or (v_autor is not null and autor = v_autor))) then
+         return fila_json(v_data, v_aparelho, v_autor);
+       end if;
+     end if;
+     if v_tipo = 'atendimento' and g.fila_limite is not null
+        and (select count(*) from fila_senhas where gira_data = v_data and tipo = 'atendimento' and status <> 'cancelada') >= g.fila_limite then
+       raise exception using errcode = 'SM409', message = 'As senhas de atendimento acabaram. Pegue uma senha de passe.';
+     end if;
+     insert into fila_senhas (gira_data, tipo, numero, nome, telefone, autor, aparelho, balcao)
+     values (v_data, v_tipo,
+             coalesce((select max(numero) from fila_senhas where gira_data = v_data and tipo = v_tipo), 0) + 1,
+             btrim(p ->> 'nome'), btrim(coalesce(p ->> 'telefone', '')), v_autor, v_aparelho, v_balcao);
+     if v_balcao then return fila_painel(jsonb_build_object('data', v_data)); end if;
+     return fila_json(v_data, v_aparelho, v_autor);
+   end;
+   $$`,
+  `create or replace function fila_config(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_data date := (p ->> 'data')::date;
+   begin
+     update giras
+        set fila_aberta = case when p ? 'aberta' then (p ->> 'aberta')::boolean else fila_aberta end,
+            fila_limite = case when p ? 'limite' then (p ->> 'limite')::integer else fila_limite end,
+            fila_manual = case when p ? 'manual' then (p ->> 'manual')::boolean else fila_manual end
+      where data = v_data;
+     if not found then raise exception using errcode = 'SM404', message = 'Esta gira ainda não foi criada.'; end if;
+     return fila_painel(jsonb_build_object('data', v_data));
+   end;
+   $$`,
+
+  // ---------- v174: ervas — quem já pagou a cobrança ----------
+  // Passo Cobrar a turma (aba Ervas, admin): um checkbox por pessoa da cobrança. Tabela própria (e não sistema, que sobe a
+  // versão dos dados da abertura a cada gravação). Vale para a compra atual: Nova compra / Encerrar limpa.
+  `create table if not exists ervas_pagos (
+     chave   text primary key,
+     pago_em timestamptz not null default now()
+   )`,
+  `create or replace function ervas_pagos(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(chave order by chave), '[]'::jsonb) from ervas_pagos
+   $$`,
+  // p = { chave, pago } → a lista de chaves pagas.
+  `create or replace function ervas_pago_marcar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if coalesce((p ->> 'pago')::boolean, false) then
+       insert into ervas_pagos (chave) values (p ->> 'chave') on conflict (chave) do nothing;
+     else
+       delete from ervas_pagos where chave = p ->> 'chave';
+     end if;
+     return ervas_pagos();
+   end;
+   $$`,
+  `create or replace function ervas_pagos_limpar(p jsonb default '{}'::jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from ervas_pagos;
+     return '[]'::jsonb;
+   end;
+   $$`,
 ];

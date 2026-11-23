@@ -11,6 +11,7 @@
 //                   precoEstimado = preço de referência do cadastro; preco = o real, que o bloco Compra preenche · excluirErva { id } · config { frete?, aberta?, gira?, data? } · novaCompra
 //        salvarCompra { gira, data, frete, itens: [{ id, quantidade, preco }] }  — bloco Compra (preço da porção; vazio = a definir)
 //        reatribuir { chave, pessoaId }  — passa o pedido para uma pessoa da corrente
+//        pago { chave, pago }  → { pagos }  — passo Cobrar a turma (vale com a lista fechada); GET ?lista=pagos → { pagos }
 //        encerrarCompra  — grava o retrato final da compra no Histórico de compras e começa uma nova
 //        novaCompra  — descarta: começa uma nova sem guardar (tira do histórico o que foi guardado ao fechar)
 //        config { aberta: false }  — fechar a lista também guarda o retrato da compra atual no histórico
@@ -82,6 +83,11 @@ export default rota({
       await exigir(req, 'ervas:gerenciar');
       return db.rpc('ervas_historico');
     }
+    // Passo Cobrar a turma: as chaves de quem já pagou a compra atual.
+    if (req.query.lista === 'pagos') {
+      await exigir(req, 'ervas:gerenciar');
+      return { pagos: await db.rpc('ervas_pagos') };
+    }
     const eu = await exigirAba(req);
     return resposta(await db.rpc('ervas_estado'), eu);
   },
@@ -132,6 +138,12 @@ export default rota({
     if (b.acao === 'publicar') {
       if (typeof b.publicada !== 'boolean') throw new HttpError(400, 'Informe se a aba fica visível.');
       return { publicada: await db.rpc('ervas_publicar', { publicada: b.publicada }) };
+    }
+    // Quem já pagou (passo Cobrar a turma): vale também com a lista fechada, que é quando a cobrança acontece.
+    if (b.acao === 'pago') {
+      const chave = String(b.chave || '');
+      if (!chave || chave.length > 140 || typeof b.pago !== 'boolean') throw new HttpError(400, 'Pedido inválido.');
+      return { pagos: await db.rpc('ervas_pago_marcar', { chave, pago: b.pago }) };
     }
     // Lista fechada: ninguém altera nada (pedidos, Compra, cadastro); só reabrir ou começar nova compra.
     const soAbrir = (b.acao === 'config' && !['frete', 'gira', 'data'].some((k) => k in b)) || ['novaCompra', 'encerrarCompra'].includes(b.acao);
@@ -184,11 +196,13 @@ export default rota({
       // Descartar: apaga sem guardar (e tira do histórico o que foi guardado ao fechar a lista).
       case 'novaCompra':
         estado = await db.rpc('ervas_compra_descartar');
+        await db.rpc('ervas_pagos_limpar');   // quem pagou vale só para a compra que acabou
         break;
       case 'encerrarCompra': {
         const r = retrato(await db.rpc('ervas_estado'));
         if (!r) throw new HttpError(400, 'Não há nada nesta compra para guardar. Use Descartar.');
         estado = await db.rpc('ervas_compra_encerrar', r);
+        await db.rpc('ervas_pagos_limpar');
         break;
       }
       // Passa um pedido (de um nome digitado errado, por exemplo) para uma pessoa da corrente.

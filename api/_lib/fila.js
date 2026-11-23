@@ -129,6 +129,11 @@ export async function acaoFilaPainel(req, data, b) {
       if (typeof b.aberta !== 'boolean') throw new HttpError(400, 'Opção inválida.');
       p.aberta = b.aberta;
     }
+    // Só senha manual: o celular não pega senha pelo QR; o balcão emite (v174).
+    if ('manual' in b) {
+      if (typeof b.manual !== 'boolean') throw new HttpError(400, 'Opção inválida.');
+      p.manual = b.manual;
+    }
     if ('limite' in b) {
       const n = b.limite === null || b.limite === '' ? null : Number(b.limite);
       if (n !== null && (!Number.isInteger(n) || n < 0 || n > LIMITE_MAX)) throw new HttpError(400, `O limite vai de 0 a ${LIMITE_MAX} (vazio = sem limite).`);

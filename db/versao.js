@@ -2,4 +2,4 @@
 // as migrações (centenas de KB de SQL): db/esquema.js só é carregado quando o banco está atrás (api/_lib/db.js).
 // Ao acrescentar comandos no fim de MIGRACOES (db/esquema.js), aumente aqui.
 
-export const VERSAO = 173;  // v173: dia da semana das giras (dia_gira), no bloco Admin da aba Gira
+export const VERSAO = 174;  // v174: fila só com senha manual (balcão) e quem já pagou as ervas (ervas_pagos)

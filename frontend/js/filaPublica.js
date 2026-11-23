@@ -183,6 +183,7 @@ function formulario() {
 const relogio = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
 function blocoQr() {
   if (!fila?.aberta) return `<aside class="tv-qr fechada"><h2>Pegue a sua senha</h2><p>A fila abre em breve.</p></aside>`;
+  if (fila.manual) return `<aside class="tv-qr fechada"><h2>Senhas no balcão</h2><p>Peça a sua a quem está cuidando da fila.</p></aside>`;
   return `<aside class="tv-qr"><div class="tv-qr-img">${qrSvg(ENDERECO, { titulo: 'QR para pegar a senha' })}</div>
     <h2>Pegue a sua senha</h2><p>Aponte a câmera do celular para o código.</p></aside>`;
 }
@@ -235,6 +236,7 @@ function desenhar() {
   else if (!fila.existe) html = '<div class="fp-vazio"><h2>Hoje não tem gira</h2><p class="fp-muted">A fila de senhas abre no dia da gira.</p></div>';
   else if (fila.encerrada) html = `<div class="fp-vazio"><h2>A gira de hoje já foi encerrada</h2><p class="fp-muted">Obrigado pela visita.</p></div>`;
   else if (!fila.aberta) html = `<div class="fp-vazio"><h2>A fila ainda não abriu</h2><p class="fp-muted">Quando abrir, esta página atualiza sozinha.</p></div>${chamadasAgora()}`;
+  else if (fila.manual) html = `<div class="fp-vazio"><h2>Hoje as senhas são no balcão</h2><p class="fp-muted">Peça a sua a quem está cuidando da fila. Esta página continua mostrando as senhas chamadas.</p></div>${chamadasAgora()}`;
   else html = formulario();
   // Quem não está logado neste navegador: o atalho para criar o cadastro no app (com cadastro, o nome já vem preenchido).
   if (fila && !login()) html += `<section class="fp-cadastro"><div><b>Ainda não tem cadastro no app?</b>

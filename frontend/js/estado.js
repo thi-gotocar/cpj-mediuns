@@ -20,6 +20,7 @@ export const estado = {
   usuarios: null,      // só admin
   ervas: null,         // compra de ervas (GET /api/ervas)
   ervasVista: null,
+  ervasPagos: undefined,   // aba Ervas (admin): chaves de quem já pagou a compra atual (undefined = ainda não leu)
   ervasImg: null,      // imagem gerada do pedido ao fornecedor / cobrança
   ervasCompra: null,   // admin editando o bloco Compra: { gira, data, frete, itens: { ervaId: { qtd, preco } } } (null = travado)
   ervasFechar: false,  // janela "Fechar a lista?" aberta

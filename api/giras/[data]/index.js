@@ -19,7 +19,7 @@
 // GET    /api/giras/:data?lista=filaResumo  o mesmo resumo para todos (sem a própria senha), guardado 3 s pela Vercel
 // GET    /api/giras/:data?lista=filaPainel  painel de quem controla a fila (todas as senhas)
 // POST   { acao: 'filaEntrar', tipo, nome, telefone, lat, lon } | { acao: 'filaDesistir' }  (sem login)
-//        { acao: 'filaChamar', fila, quantidade? } | { acao: 'filaMarcar', id, status } | { acao: 'filaConfig', aberta?, limite? } | { acao: 'filaBalcao', tipo, nome, telefone }
+//        { acao: 'filaChamar', fila, quantidade? } | { acao: 'filaMarcar', id, status } | { acao: 'filaConfig', aberta?, limite?, manual? } | { acao: 'filaBalcao', tipo, nome, telefone }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA, hojeBR } from '../../_lib/http.js';
 import { exigir, exigirComLeitura } from '../../_lib/sessao.js';

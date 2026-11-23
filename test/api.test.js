@@ -3482,3 +3482,40 @@ test('v173: dia da semana das giras — quem edita a Gira marca; vem na config e
   assert.equal((await inicio(ADMIN)).diaGira, '6');
   await api('POST', '/api/giras', ADMIN, { acao: 'diaGira', dia: 3 });
 });
+
+test('v174: fila só com senha manual — o celular não pega senha; o balcão emite', async () => {
+  const { TERREIRO } = await import('../shared/amaci.js');
+  const { hojeBR } = await import('../api/_lib/http.js');
+  const rota = '/api/giras/' + hojeBR();
+  await api('DELETE', rota, ADMIN);
+  await api('PUT', rota, ADMIN, { titulo: 'Gira só no balcão' });
+  const cfg = await api('POST', rota, ADMIN, { acao: 'filaConfig', aberta: true, manual: true });
+  assert.equal(cfg.status, 200, JSON.stringify(cfg.json));
+  assert.equal(cfg.json.manual, true);
+  assert.equal((await api('POST', rota, ADMIN, { acao: 'filaConfig', manual: 'sim' })).status, 400);
+  const cel = await fetch(base + rota, { method: 'POST', headers: { 'X-Fila-Token': 'aparelho-manual-000000000001', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acao: 'filaEntrar', tipo: 'atendimento', nome: 'Ana', lat: TERREIRO.lat, lon: TERREIRO.lon }) });
+  assert.equal(cel.status, 409);
+  assert.match((await cel.json()).erro, /balcão/);
+  assert.equal((await (await fetch(base + rota + '?lista=filaResumo')).json()).manual, true, 'a página e a TV sabem');
+  const bal = await api('POST', rota, ADMIN, { acao: 'filaBalcao', tipo: 'atendimento', nome: 'Dona Rosa' });
+  assert.equal(bal.status, 200);
+  assert.equal(bal.json.senhas.length, 1);
+  await api('DELETE', rota, ADMIN);
+});
+
+test('v174: ervas — quem já pagou (marca, desmarca, vale com a lista fechada e a Nova compra limpa)', async () => {
+  assert.equal((await api('GET', '/api/ervas?lista=pagos', USER)).status, 403);
+  assert.equal((await api('POST', '/api/ervas', USER, { acao: 'pago', chave: 'p:x', pago: true })).status, 403);
+  assert.equal((await api('POST', '/api/ervas', ADMIN, { acao: 'pago', chave: 'p:x', pago: 'sim' })).status, 400);
+  await api('POST', '/api/ervas', ADMIN, { acao: 'config', aberta: false });
+  let r = await api('POST', '/api/ervas', ADMIN, { acao: 'pago', chave: 'p:teste-pago', pago: true });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual(r.json.pagos, ['p:teste-pago']);
+  assert.deepEqual((await api('GET', '/api/ervas?lista=pagos', ADMIN)).json.pagos, ['p:teste-pago']);
+  r = await api('POST', '/api/ervas', ADMIN, { acao: 'pago', chave: 'p:teste-pago', pago: false });
+  assert.deepEqual(r.json.pagos, []);
+  await api('POST', '/api/ervas', ADMIN, { acao: 'pago', chave: 'p:teste-pago', pago: true });
+  await api('POST', '/api/ervas', ADMIN, { acao: 'novaCompra' });
+  assert.deepEqual((await api('GET', '/api/ervas?lista=pagos', ADMIN)).json.pagos, [], 'a Nova compra começa sem ninguém pago');
+});
