@@ -2228,6 +2228,9 @@ div.pf-of-total{cursor:default}
 .di-cab h2::first-letter{text-transform:uppercase}
 .di-termo-b{display:flex;justify-content:space-between;border-radius:10px;padding:10px 12px;color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .di-termo-t{margin:0}
+.di-priv{margin:0;display:flex;gap:6px;align-items:flex-start;font-size:.85rem;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.di-priv b{color:var(--ink)}
+.di-gal-aviso{margin:0;font-size:.85rem;color:var(--warn)}
 /* Diário: Seu acompanhamento */
 .di-acomp{display:grid;gap:10px}
 .di-acomp .grp-h h2{margin:0}

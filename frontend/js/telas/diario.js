@@ -220,6 +220,7 @@ function cabecalho(D) {
   return `<div class="card di-cab"><p class="di-ola">${ehHoje ? `Olá${nome ? ', ' + esc(nome) : ''} 🤍` : 'Seu registro de'}</p>
     <h2>${ehHoje ? 'Como você está hoje?' : dLong(ui.dia)}</h2>
     <p class="muted di-data">${ehHoje ? `${dLong(ui.dia)} · ` : ''}<span title="${esc(textoLua)}"><span aria-hidden="true">${iconeLua}</span> ${nomeLua}</span></p>
+    <p class="di-priv"><span aria-hidden="true">🔒</span> <span><b>Seu diário é só seu.</b> Ninguém da Casa lê o que você registra aqui, nem a administração.${D.galeria ? ' Só as fotos que você põe na Galeria são vistas pelos outros.' : ''}</span></p>
     ${seletorDia(D)}
     <div class="di-cab-l"><label class="of-sw"><input type="checkbox" role="switch" data-act="digira" ${gira ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>${ehHoje ? 'Hoje é dia de gira' : 'Dia de gira'}</b>
       <span class="muted">${auto ? (amaciNaAgenda(ui.dia) && !giraDaAgenda(ui.dia) ? '(amaci na agenda)' : '(pela agenda)') : ''}</span></label>
@@ -248,6 +249,7 @@ function galeria(D) {
   }).join('')}</div>` : '<p class="muted" style="margin:0">Nenhuma foto nesta semana ainda.</p>';
   if (!L.some((f) => f.minha) && g.foto) {
     h += `<div class="di-gal-novo"><img class="di-gal-prev" src="data:image/jpeg;base64,${g.foto}" alt="Foto escolhida">
+        <p class="di-gal-aviso">👀 Esta foto e a descrição ficam visíveis para a corrente e os alunos.</p>
         <label class="field">Descrição<input type="text" maxlength="200" data-diario="galdesc" placeholder="Opcional" value="${esc(g.desc)}"></label>
         <div class="di-gal-bt"><button type="button" class="btn primary" data-act="digalenviar" ${g.enviando ? 'disabled' : ''}>${g.enviando ? 'Enviando…' : 'Confirmar'}</button>
           <button type="button" class="btn" data-act="digalcancelar" ${g.enviando ? 'disabled' : ''}>Cancelar</button></div></div>`;
