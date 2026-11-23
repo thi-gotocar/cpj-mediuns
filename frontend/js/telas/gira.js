@@ -16,7 +16,7 @@ import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './gi
 import { blocoAusPrevia, avisoEntidade, contagemPresentes } from './giraInformacoes.js';
 import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra } from './giraEscala.js';
 import { cardConduta, cliquesConduta, mudancasConduta } from './giraConduta.js';
-import { cardFilaGeral } from './giraFilaGeral.js';
+import { cardFilaGeral, cliquesFilaGeral } from './giraFilaGeral.js';
 import { cardAtrasos, cliquesAtrasos } from './giraAtrasos.js';
 import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
 import { montarNova, cliquesNova, fecharCompartilhar } from './giraNova.js';
@@ -434,6 +434,7 @@ function renderGira() {
 export const cliques = {
   ...cliquesResumo,
   ...cliquesConduta,
+  ...cliquesFilaGeral,
   ...cliquesAtrasos,
   ...cliquesAno,
   ...cliquesNova,

@@ -21,3 +21,5 @@ export const LIMITE_MAX = 1000;
 // Chamar várias de uma vez (botão Chamar próximas 10): o servidor aceita até 20.
 export const CHAMAR_LOTE = 10;
 export const CHAMAR_MAX = 20;
+// Balões de valor da doação (cartão de doação das Compras e o bloco da fila na Geral).
+export const VALORES_DOACAO = [10, 30, 100];

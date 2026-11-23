@@ -3333,3 +3333,17 @@ test('v165: chamar várias senhas de uma vez — preferenciais primeiro, na orde
   assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 10 })).status, 409);
   await api('DELETE', rota, ADMIN);
 });
+
+test('v166: a página /fila recebe o nome e o telefone do cadastro de quem está logado (e só os dela)', async () => {
+  const { hojeBR } = await import('../api/_lib/http.js');
+  const rota = '/api/giras/' + hojeBR() + '?lista=fila';
+  const ver = async (auth) => (await fetch(base + rota, { headers: { 'X-Fila-Token': 'aparelho-cadastro-0000000001', ...(auth ? { Authorization: 'Bearer ' + auth } : {}) } })).json();
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Fila Cadastro', funcao: 'cambone' });
+  const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === 'Fila Cadastro');
+  await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: p.id, info: { celular: '11987650001' } });
+  const tok = await tokenCorrente('Fila Cadastro');
+  assert.deepEqual((await ver(tok)).eu, { nome: 'Fila Cadastro', telefone: '11987650001' });
+  assert.equal((await ver(null)).eu, undefined, 'sem login, nada do cadastro');
+  assert.equal((await ver('token-que-nao-vale')).eu, undefined, 'login inválido segue como quem não tem cadastro');
+  await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+});

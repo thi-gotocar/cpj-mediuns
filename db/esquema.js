@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 165;  // v165: fila — chamar várias senhas de uma vez (fila_chamar e fila_json redefinidas no lugar)
+export const VERSAO = 166;  // v166: fila — nome e telefone do cadastro para a página /fila (fila_obter redefinida no lugar)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5319,10 +5319,19 @@ export const MIGRACOES = [
                    from minha m)
      ) end
    $$`,
-  // p = { data, aparelho?, autor? }
+  // p = { data, aparelho?, autor? } — com o login (autor 'p:' pessoa da corrente, 'a:' aluno/consulente), vai junto
+  // eu: { nome, telefone } do próprio cadastro, para a página /fila já preencher (só a pessoa recebe os próprios dados).
+  // (v166: o eu. Redefinida no lugar: nenhum comando entre a v164 e a v166 a chama.)
   `create or replace function fila_obter(p jsonb)
    returns jsonb language sql stable as $$
-     select fila_json((p ->> 'data')::date, nullif(p ->> 'aparelho', ''), nullif(p ->> 'autor', ''))
+     select fila_json((p ->> 'data')::date, nullif(p ->> 'aparelho', ''), nullif(p ->> 'autor', '')) || coalesce((
+       select jsonb_build_object('eu', jsonb_build_object('nome', x.nome, 'telefone', coalesce(x.celular, '')))
+         from (select pe.nome, pe.perfil -> 'info' ->> 'celular' as celular from pessoas pe
+                where p ->> 'autor' like 'p:%' and pe.saida is null and pe.id = substr(p ->> 'autor', 3)::uuid
+               union all
+               select al.nome, al.perfil -> 'info' ->> 'celular' from alunos al
+                where p ->> 'autor' like 'a:%' and al.saida is null and al.id = substr(p ->> 'autor', 3)::uuid) x
+        limit 1), '{}'::jsonb)
    $$`,
   // Painel de quem controla a fila: o resumo e todas as senhas, com nome e telefone.
   `create or replace function fila_painel(p jsonb)

@@ -39,6 +39,7 @@ let erroCarga = '';       // a fila não carregou (sem internet, servidor fora)
 let enviando = false;
 let confirmarDesistir = false;
 let rascunho = { tipo: '', nome: '', telefone: '' };
+let mexeu = false;         // a pessoa já mexeu no nome ou no telefone (o cadastro não sobrescreve mais)
 let jaAvisou = '';        // id + hora da chamada já avisada (não repete o som a cada consulta)
 let timer = null;
 let tvUltima = null;      // a última chamada que a TV já mostrou (null = ainda não carregou: não toca na abertura)
@@ -154,6 +155,7 @@ function formulario() {
       </fieldset>
       <label class="fp-campo">Seu nome<input type="text" name="nome" maxlength="80" autocomplete="name" required value="${esc(rascunho.nome)}"></label>
       <label class="fp-campo"><span>Telefone <small>(opcional)</small></span><input type="tel" name="telefone" maxlength="20" inputmode="tel" autocomplete="tel" value="${esc(rascunho.telefone)}"></label>
+      ${fila.eu ? '<p class="fp-muted">Nome e telefone vêm do seu cadastro. Se a senha for para outra pessoa, é só trocar.</p>' : ''}
       ${erro ? `<p class="fp-erro">${esc(erro)}</p>` : ''}
       <button class="fp-bt fp-principal" type="submit" ${enviando ? 'disabled' : ''}>${enviando ? 'Conferindo a localização…' : 'Pegar senha'}</button>
       <p class="fp-muted">A página pede a sua localização para conferir que você está no terreiro. Se não der, peça a senha para quem está cuidando da fila.</p>
@@ -218,6 +220,12 @@ function desenhar() {
   else if (fila.encerrada) html = `<div class="fp-vazio"><h2>A gira de hoje já foi encerrada</h2><p class="fp-muted">Obrigado pela visita.</p></div>`;
   else if (!fila.aberta) html = `<div class="fp-vazio"><h2>A fila ainda não abriu</h2><p class="fp-muted">Quando abrir, esta página atualiza sozinha.</p></div>${chamadasAgora()}`;
   else html = formulario();
+  // Quem não está logado neste navegador: o atalho para criar o cadastro no app (com cadastro, o nome já vem preenchido).
+  if (fila && !login()) html += `<section class="fp-cadastro"><div><b>Ainda não tem cadastro no app?</b>
+      <small>Com o cadastro, o seu nome e o telefone já vêm preenchidos aqui.</small></div>
+      <a class="fp-bt" href="/?cadastro">Criar cadastro</a></section>`;
+  // Logado no app: volta para o app (sem senha ainda é "Cancelar"; com senha, a fila continua guardada).
+  if (fila && login()) html += `<a class="fp-bt fp-voltar" href="/">${fila.minha ? '‹ Voltar ao app' : 'Cancelar'}</a>`;
   // Não redesenha com alguém digitando (o campo perderia o foco).
   const ativo = document.activeElement;
   if (ativo?.closest?.('#fp-form') && /^(INPUT|TEXTAREA)$/.test(ativo.tagName) && !enviando && fila && !fila.minha) return;
@@ -233,6 +241,8 @@ async function atualizar() {
   try {
     fila = await api('GET');
     erroCarga = '';
+    // Logado no app: o nome e o telefone do cadastro já vêm preenchidos (dá para trocar, se a senha for para outra pessoa).
+    if (fila.eu && !mexeu) rascunho = { ...rascunho, nome: fila.eu.nome || '', telefone: fila.eu.telefone || '' };
     if (!fila.minha) confirmarDesistir = false;
   } catch (e) {
     erroCarga = e.message;
@@ -251,6 +261,7 @@ const pegarLocalizacao = () => new Promise((ok, falha) => {
 el.addEventListener('input', (e) => {
   const f = e.target.form;
   if (f?.id !== 'fp-form') return;
+  if (e.target.name === 'nome' || e.target.name === 'telefone') mexeu = true;
   rascunho = { tipo: f.querySelector('[name="tipo"]:checked')?.value || '', nome: f.nome.value, telefone: f.telefone.value };
 });
 

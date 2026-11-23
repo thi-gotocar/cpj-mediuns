@@ -6,6 +6,7 @@ import { estado, pode, visaoAtiva, carregarGuias, acaoGuias, avisar } from '../e
 import { esc, toast, baixar, hoje } from '../util.js';
 import { centavos, reais } from '/shared/ervas.js';
 import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
+import { VALORES_DOACAO } from '/shared/fila.js';
 
 const R = (v) => reais(centavos(v));
 const dataUrl = (b64) => 'data:image/jpeg;base64,' + b64;
@@ -646,7 +647,8 @@ export async function enviar(form) {
 
 const valorCampo = (v) => Number(v).toFixed(2).replace('.', ',');
 // Balões de valor dos itens de doação (fixos).
-const VALORES_DOACAO = [10, 30, 100];
+// Doar pelo bloco da fila na Geral: a aba Compras abre já com a confirmação da doação (o Pix e o CPF seguem daqui).
+export function abrirDoacao(itemId, valor) { ui.pedir = { itemId, quantidade: 1, valor }; }
 
 export const cliques = {
   guiadobrar(el) { const id = el.dataset.id; if (ui.abertos.has(id)) ui.abertos.delete(id); else ui.abertos.add(id); avisar(); },

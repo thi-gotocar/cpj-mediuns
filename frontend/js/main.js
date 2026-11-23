@@ -67,6 +67,8 @@ function abrirTela(tab) {
 let erroLogin = '';
 let emailLogin = '';
 let telaLogin = '';           // '' (entrar) · 'cadastro' (Criar cadastro) · 'esqueci' (Esqueci a senha) · 'criarsenha'
+// /?cadastro (botão Criar cadastro da página /fila): já abre no Criar cadastro; o endereço volta a ser o do app.
+if (new URLSearchParams(location.search).has('cadastro')) { telaLogin = 'cadastro'; history.replaceState(null, '', '/'); }
 let confirmarLogin = '';      // criar senha sem login: 'celular' ou 'email' (o outro contato do cadastro)
 let cadastroDigitado = null;  // o que a pessoa digitou no Criar cadastro (volta depois de um erro)
 let cadastroCpf = null;       // Criar cadastro depois do CPF: { cpf, existe, temSenha, confirmar }

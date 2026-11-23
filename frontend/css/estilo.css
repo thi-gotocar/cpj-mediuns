@@ -2643,14 +2643,21 @@ div.pf-of-total{cursor:default}
 .fila-lote .btn{white-space:normal}
 .fila-lote-conf{display:grid;gap:8px;padding:12px;border:1px solid var(--accent);border-radius:10px;background:var(--accent-soft)}
 .fila-lote-conf p{margin:0;font-size:.92rem;overflow-wrap:anywhere}
-/* Aba Geral (quem não é da corrente): a fila de senhas do dia, com a própria senha quando já pegou */
-.fila-geral{--cor:var(--accent);display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;text-decoration:none;color:var(--ink);border-left:4px solid var(--cor);background:color-mix(in srgb,var(--cor) 8%,var(--surface))}
+/* Aba Geral (quem não é da corrente): a fila de senhas do dia, com a própria senha quando já pegou, e a doação das Compras */
+.fila-geral{--cor:var(--accent);gap:0;padding:0;overflow:hidden;border-left:4px solid var(--cor);background:color-mix(in srgb,var(--cor) 8%,var(--surface))}
 .fila-geral.preferencial{--cor:var(--orange)}
 .fila-geral.passe{--cor:var(--ok)}
 .fila-geral.chamada{box-shadow:0 0 0 2px color-mix(in srgb,var(--ok) 60%,transparent)}
+.fila-geral-l{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;padding:16px;text-decoration:none;color:var(--ink)}
 .fila-geral-ico{font-size:1.8rem}
 .fila-geral-n{font:700 2.2rem/1 var(--f-display);font-variant-numeric:lining-nums tabular-nums;color:var(--cor)}
 .fila-geral-t{display:grid;min-width:0}
 .fila-geral-t b{font-size:1.05rem}
 .fila-geral-t small{color:var(--muted);font-size:.88rem}
 .fila-geral .seta{font-size:1.6rem;color:var(--muted)}
+.fila-doa{display:grid;gap:12px;padding:12px 16px 16px;border-top:1px dashed color-mix(in srgb,var(--cor) 35%,var(--line))}
+.fila-doa-i{display:grid;gap:8px}
+.fila-doa-t{display:grid;min-width:0}
+.fila-doa-t small{color:var(--muted);font-size:.88rem}
+.fila-doa-bs{display:flex;flex-wrap:wrap;gap:6px}
+.fila-doa-bs .btn{flex:1 1 auto}

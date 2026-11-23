@@ -138,3 +138,10 @@ body.modo-cartaz{background:#fff;color:#111;color-scheme:light}
   .cartaz-bt{display:none}
   .cartaz{padding:0}
 }
+
+/* atalho para criar o cadastro no app (quem não está logado neste navegador) */
+.fp-cadastro{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;margin-top:8px;padding:14px;border:1px dashed var(--line);border-radius:12px}
+.fp-cadastro div{display:grid;gap:2px;min-width:0}
+.fp-cadastro small{color:var(--muted);font-size:.9rem}
+.fp-cadastro .fp-bt{text-decoration:none;display:inline-flex;align-items:center}
+.fp-voltar{display:flex;align-items:center;justify-content:center;text-decoration:none;width:100%}
