@@ -215,7 +215,7 @@ function conducao(ctx) {
   // 3. Escala
   const nMed = !temDuplas ? 0 : new Set([...(g.pares || []), ...(g.passes || [])].map((p) => p.m)).size;
   const r3 = !temDuplas ? 'Ainda não sorteada' : `Sorteada · ${nMed} ${nMed === 1 ? 'médium' : 'médiuns'} · ${publicada ? 'publicada' : 'falta publicar'}${g.travada ? ' · travada' : ''}`;
-  const c3 = `${ctx.sugestao}${ctx.sorteio}${ctx.trava ? `<div class="gn-trava">${ctx.trava}<small class="muted">${g.travada ? 'Escala travada: marcar falta ou ausência não muda a escala.' : 'Ligue quando a escala já valeu e só falta registrar quem faltou.'}</small></div>` : ''}`;
+  const c3 = `${ctx.funcoes || ''}${ctx.sugestao}${ctx.sorteio}${ctx.trava ? `<div class="gn-trava">${ctx.trava}<small class="muted">${g.travada ? 'Escala travada: marcar falta ou ausência não muda a escala.' : 'Ligue quando a escala já valeu e só falta registrar quem faltou.'}</small></div>` : ''}`;
 
   // 4. Encerrar
   const r4 = g.evento ? 'Participantes e fechamento' : 'Atendidos e fechamento da gira';

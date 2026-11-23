@@ -85,6 +85,57 @@ function presencaRapida(ps, g, antesDoDia) {
       <button class="btn small bt-ok" data-act="rapok">OK</button></span>` : ''}</div>`;
 }
 
+// Passo Escala (admin): trocar a função de alguém só nesta gira, antes (ou depois) de sortear. Embaixo, as trocas do dia
+// e quem não vem (ausência, falta, licença), para conferir tudo o que muda a escala num lugar só. O sorteio e o
+// Remanejar faltas usam a função do dia (shared/regras.js funcaoNaGira / status).
+function blocoFuncoes(ps, g, temDuplas) {
+  const r = estado.funcDia?.data === g.data ? estado.funcDia : null;
+  const vem = ps.filter((p) => !licencaEm(p, g.data) && !['a', 'f'].includes(presencaDe(p, g)));
+  const p = r && vem.find((x) => x.id === r.id);
+  const nomeDe = (x, papel) => opcoesPapel(x).find(([k]) => k === papel)?.[1] || STATUS[papel] || papel;
+  const muda = p && r.papel !== papelDe(p, g);
+  const aviso = muda && temDuplas ? `<small class="muted fn-nota">${g.travada ? 'Escala travada: as duplas não mudam.' : 'A escala já foi sorteada: as duplas são refeitas (Remanejar faltas).'}</small>` : '';
+  const combo = `<div class="warnbox pres-rap fn-rap"><select class="pr-pessoa" data-act="fnpessoa" aria-label="Pessoa para trocar a função nesta gira">
+      <option value="">&lt;escolha a pessoa&gt;</option>${vem.map((x) => `<option value="${x.id}" ${x.id === p?.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select>
+    ${p ? `<span class="pr-ctl"><select data-act="fnpapel" aria-label="Função de ${esc(p.nome)} nesta gira">${htmlPapel(p, r.papel)}</select>
+      <button class="btn small bt-ok" data-act="fnok" ${muda ? '' : 'disabled'}>OK</button></span>${aviso}` : ''}</div>`;
+  // Trocas do dia: quem não está na função do cadastro (Extra/Passe fora da linha entram sozinhos como Cambone).
+  const trocas = vem.filter((x) => papelDe(x, g) !== 'cad');
+  const linhaTroca = (x) => {
+    const papel = papelDe(x, g);
+    const auto = papel === 'na' && !(g.papeis || {})[x.id] && foraDaLinha(x, g);
+    return `<div class="fn-l"><span class="nm-mudou">${esc(x.nome)}</span><span class="fn-de">${esc(NOME_FUNCAO[x.funcao] || x.funcao)} → <b>${esc(nomeDe(x, papel))}</b>${auto ? ' <small class="muted">(fora da linha)</small>' : ''}</span>
+      ${auto ? '' : `<button class="btn small" data-act="fnvolta" data-id="${x.id}" aria-label="${esc(x.nome)} volta para a função do cadastro" title="Volta para a função do cadastro">✕</button>`}</div>`;
+  };
+  const aus = ps.filter((x) => status(x, g) === 'a');
+  const fal = ps.filter((x) => status(x, g) === 'f');
+  const lic = ps.filter((x) => licencaEm(x, g.data));
+  const nomes = (l) => l.map((x) => esc(x.nome)).join(', ');
+  const fora = aus.length || fal.length || lic.length ? `<div class="fn-fora">
+      ${aus.length ? `<p><b>Ausência</b> ${nomes(aus)}</p>` : ''}${fal.length ? `<p><b>Falta</b> ${nomes(fal)}</p>` : ''}
+      ${lic.length ? `<p><b>Licença</b> ${lic.map((x) => `${esc(x.nome)} <span class="muted">até ${dDM(licencaEm(x, g.data).fim)}</span>`).join(', ')}</p>` : ''}</div>` : '';
+  return `<div class="gira-sec fn-dia"><div class="grp-h"><h3>🔁 Função nesta gira</h3></div>${combo}
+    ${trocas.length ? `<div class="fn-lista">${trocas.map(linhaTroca).join('')}</div>` : '<p class="muted fn-nota">Todos na função do cadastro.</p>'}
+    ${fora}</div>`;
+}
+
+// Grava a função do dia (como o 2º combo da presença) e, com a escala já sorteada e sem trava, refaz as duplas.
+async function gravarFuncao(id, papel) {
+  const g = giraAtual();
+  const p = estado.pessoas.find((x) => x.id === id);
+  if (!p) return;
+  const pa = { ...(g.papeis || {}) };
+  if (papel === 'cad') { if (foraDaLinha(p, g)) pa[id] = 'cad'; else delete pa[id]; } else pa[id] = papel;
+  const pr = { ...(g.presenca || {}) };
+  if (pr[id] === 'sup' || pr[id] === 'na') pr[id] = 'p';   // formato antigo
+  const temDuplas = (g.pares || []).length || (g.passes || []).length;
+  editarGira({ papeis: pa, presenca: pr });
+  const fn = opcoesPapel(p).find(([k]) => k === papel)?.[1] || papel;
+  if (temDuplas && !g.travada) { await remanejar(`${p.nome}: ${fn} nesta gira. Escala refeita.`); return; }
+  toast(`${p.nome}: ${fn} nesta gira.${temDuplas ? ' A escala está travada e não mudou.' : ''}`);
+  avisar();
+}
+
 function blocosFora(ps, g) {
   // Faltaram e Ausentes (quem vê a escala sem editar); a licença fica em Quem não vem.
   return [['f', 'Faltaram'], ['a', 'Ausentes']].map(([st, titulo]) => {
@@ -420,6 +471,7 @@ function renderGira() {
     presenca: editar ? secaoPresenca() : '',
     sorteio: editar && !g.evento ? secaoSorteio() : '',
     sugestao: editar && !g.evento ? blocoSugestao(ps, g) : '',
+    funcoes: editar && !g.evento ? blocoFuncoes(ps, g, temDuplas) : '',
     trava: editar ? htmlTrava() : '',
     entidade: seletorEntidade(g.entidade, g.entidadeNome || '', publicada),
     orixa: temOrixa(g) ? seletorOrixa(g, publicada) : '',
@@ -562,6 +614,13 @@ export const cliques = {
     avisar();
   },
   remanejar: () => { estado.confirm = null; duplasAbertas.add(giraAtual().data); remanejar(); },
+  // Passo Escala: grava a função do dia escolhida no combo; ✕ na lista volta a pessoa para a função do cadastro.
+  fnok() {
+    const r = estado.funcDia;
+    estado.funcDia = null;
+    if (r) gravarFuncao(r.id, r.papel);
+  },
+  fnvolta(el) { if (estado.funcDia?.id === el.dataset.id) estado.funcDia = null; gravarFuncao(el.dataset.id, 'cad'); },
   cancelsort: () => { estado.confirm = null; cancelarSorteio(); },
   faltaask(el) { estado.faltaConf = el.dataset.id; avisar(); },
   faltacancel() { estado.faltaConf = null; avisar(); },
@@ -764,6 +823,14 @@ export const mudancas = {
     avisar();
   },
   rapst(t) { if (estado.presRapida) estado.presRapida.st = t.value; },
+  // Passo Escala: escolher a pessoa traz a função do dia dela; trocar a função liga o OK.
+  fnpessoa(t) {
+    const g = giraAtual();
+    const p = t.value && estado.pessoas.find((x) => x.id === t.value);
+    estado.funcDia = p ? { data: g.data, id: p.id, papel: papelDe(p, g) } : null;
+    avisar();
+  },
+  fnpapel(t) { if (estado.funcDia) { estado.funcDia.papel = t.value; avisar(); } },
   rappapel(t) { if (estado.presRapida) estado.presRapida.papel = t.value; },
   evento(t) { editarGira({ evento: t.checked }); avisar(); },
   orixagira(t) { editarGira({ orixa: t.value }); avisar(); },

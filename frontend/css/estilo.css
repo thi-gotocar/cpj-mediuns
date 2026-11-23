@@ -703,6 +703,17 @@ button.eu-avatar{cursor:zoom-in}
 .pres-rap .pr-pessoa{flex:1 1 160px}
 .pres-rap .pr-ctl{display:flex;align-items:center;gap:6px;flex:1 1 auto;min-width:0}
 .pres-rap .pr-ctl select{flex:1 1 0}
+/* Passo Escala: função nesta gira (combo, trocas do dia e quem não vem) */
+.fn-dia{display:grid;gap:8px}
+.fn-dia .grp-h h3{margin:0}
+.fn-rap .fn-nota{flex:1 1 100%}
+.fn-nota{margin:0;font-size:.85rem}
+.fn-lista{display:grid;gap:4px}
+.fn-l{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.9rem}
+.fn-l .fn-de{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.fn-fora{display:grid;gap:2px;font-size:.88rem;border-top:1px solid var(--line);padding-top:6px}
+.fn-fora p{margin:0;overflow-wrap:anywhere}
+.fn-fora b{color:var(--off);margin-right:4px}
 .btn.bt-ok{background:var(--ok);border-color:var(--ok);color:#fff;flex:none}
 .sup-bt{font:700 .75rem var(--f-body);border-radius:6px;padding:5px 8px;border:1px solid var(--line);background:var(--line);color:var(--muted);cursor:pointer}
 .sup-bt.on{background:var(--ok);border-color:var(--ok);color:#fff}

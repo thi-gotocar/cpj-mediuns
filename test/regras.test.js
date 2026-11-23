@@ -777,3 +777,25 @@ test('consulente: só o Ver das abas dos consulentes, sem os nomes da corrente',
   assert.deepEqual(p.sort(), ['alunos:ver', 'guias:pedir', 'perfil:ver']);
   assert.ok(!p.includes('pessoas:ler') && !p.includes('giras:ler'));
 });
+
+test('o sorteio usa a função do dia (passo Escala → Função nesta gira)', () => {
+  const pessoas = [
+    { id: 'm1', nome: 'Ana', funcao: 'medium', experiente: true },
+    { id: 'm2', nome: 'Bia', funcao: 'medium' },
+    { id: 'c1', nome: 'Caio', funcao: 'cambone' },
+    { id: 'c2', nome: 'Duda', funcao: 'cambone' },
+    { id: 'c3', nome: 'Edu', funcao: 'cambone' },
+    { id: 'p1', nome: 'Paula', funcao: 'passe', linhas: ['caboclo'] },
+  ];
+  // Caio vira Senha (fora das duplas), Edu vai para o Suporte, Paula (Passe) vira At. Extra (recebe cambone)
+  // e a Bia (médium) cambona nesta gira.
+  const g = { data: '2026-11-28', entidade: 'Caboclo', presenca: {}, pares: [], passes: [], papeis: { c1: 'sen', c3: 'sup', p1: 'ext', m2: 'na' } };
+  const { pares, passes } = sortear(pessoas, [], g).patch;
+  const todos = [...pares, ...(passes || [])];
+  assert.ok(!todos.some((p) => p.c === 'c1' || p.m === 'c1'), 'Senha fica fora das duplas');
+  assert.ok(!todos.some((p) => p.c === 'c3' || p.m === 'c3'), 'Suporte fica fora do sorteio');
+  assert.ok(pares.some((p) => p.m === 'p1'), 'Passe que vira At. Extra recebe cambone');
+  assert.ok(!(passes || []).some((p) => p.c === 'p1'), 'e não vai como médium de passe');
+  assert.ok(pares.some((p) => p.c === 'm2') && !pares.some((p) => p.m === 'm2'), 'médium que cambona não recebe cambone');
+  assert.deepEqual(new Set(pares.map((p) => p.m)), new Set(['m1', 'p1']));
+});
