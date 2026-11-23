@@ -19,7 +19,7 @@
 // GET    /api/giras/:data?lista=fila        resumo da fila de senhas e a própria senha (sem login; X-Fila-Token) — api/_lib/fila.js
 // GET    /api/giras/:data?lista=filaPainel  painel de quem controla a fila (todas as senhas)
 // POST   { acao: 'filaEntrar', tipo, nome, telefone, lat, lon } | { acao: 'filaDesistir' }  (sem login)
-//        { acao: 'filaChamar', fila } | { acao: 'filaMarcar', id, status } | { acao: 'filaConfig', aberta?, limite? } | { acao: 'filaBalcao', tipo, nome, telefone }
+//        { acao: 'filaChamar', fila, quantidade? } | { acao: 'filaMarcar', id, status } | { acao: 'filaConfig', aberta?, limite? } | { acao: 'filaBalcao', tipo, nome, telefone }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA, hojeBR } from '../../_lib/http.js';
 import { exigir, exigirComLeitura } from '../../_lib/sessao.js';

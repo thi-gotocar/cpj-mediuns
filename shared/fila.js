@@ -18,3 +18,6 @@ export const STATUS_MARCAR = ['chamada', 'ausente', 'aguardando', 'cancelada'];
 export const rotuloSenha = (tipo, numero) => `${tipoFila(tipo)?.prefixo || ''}${String(numero).padStart(2, '0')}`;
 
 export const LIMITE_MAX = 1000;
+// Chamar várias de uma vez (botão Chamar próximas 10): o servidor aceita até 20.
+export const CHAMAR_LOTE = 10;
+export const CHAMAR_MAX = 20;

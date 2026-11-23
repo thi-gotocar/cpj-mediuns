@@ -8,7 +8,7 @@
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 164;  // v164: fila digital de senhas
+export const VERSAO = 165;  // v165: fila — chamar várias senhas de uma vez (fila_chamar e fila_json redefinidas no lugar)
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5309,7 +5309,7 @@ export const MIGRACOES = [
        'atendimentoLotado', coalesce((select g.fila_limite is not null
            and (select count(*) from s where tipo = 'atendimento' and status <> 'cancelada') >= g.fila_limite from g), false),
        'chamadas', coalesce((select jsonb_agg(jsonb_build_object('tipo', c.tipo, 'numero', c.numero, 'chamadaEm', c.chamada_em) order by c.chamada_em desc)
-           from (select * from s where status = 'chamada' order by chamada_em desc limit 6) c), '[]'::jsonb),
+           from (select * from s where status = 'chamada' order by chamada_em desc limit 10) c), '[]'::jsonb),
        'minha', (select jsonb_build_object('id', m.id, 'tipo', m.tipo, 'numero', m.numero, 'nome', m.nome, 'status', m.status,
                    'chamadaEm', m.chamada_em,
                    'aFrente', case when m.status <> 'aguardando' then null
@@ -5369,24 +5369,31 @@ export const MIGRACOES = [
      return fila_json(v_data, v_aparelho, v_autor);
    end;
    $$`,
-  // p = { data, fila: 'atendimento' | 'passe' } — chama a próxima: na de atendimento, as preferenciais primeiro.
+  // p = { data, fila: 'atendimento' | 'passe', quantidade? } — chama as próximas (1 a 20; sem quantidade, uma):
+  // na de atendimento, as preferenciais primeiro. Cada uma leva 1 ms a mais na hora da chamada, para a ordem ficar
+  // (a TV mostra a última como "chamada agora" e as outras em "antes").
   // skip locked: dois toques juntos (dois celulares no painel) chamam senhas diferentes.
+  // (v165: a quantidade. Redefinida no lugar: nenhum comando entre a v164 e aqui a chama.)
   `create or replace function fila_chamar(p jsonb)
    returns jsonb language plpgsql as $$
    declare
      v_data date := (p ->> 'data')::date;
-     v_id uuid;
+     v_n integer := least(greatest(coalesce((p ->> 'quantidade')::integer, 1), 1), 20);
+     v_i integer := 0;
+     r record;
    begin
      if exists (select 1 from giras where data = v_data and encerrada) then
        raise exception using errcode = 'SM409', message = 'A gira já foi encerrada.';
      end if;
-     select id into v_id from fila_senhas
-      where gira_data = v_data and status = 'aguardando'
-        and case when p ->> 'fila' = 'passe' then tipo = 'passe' else tipo in ('preferencial', 'atendimento') end
-      order by (tipo = 'atendimento'), numero
-      limit 1 for update skip locked;
-     if v_id is null then raise exception using errcode = 'SM409', message = 'Ninguém aguardando nesta fila.'; end if;
-     update fila_senhas set status = 'chamada', chamada_em = now(), mudou_em = now() where id = v_id;
+     for r in select id from fila_senhas
+               where gira_data = v_data and status = 'aguardando'
+                 and case when p ->> 'fila' = 'passe' then tipo = 'passe' else tipo in ('preferencial', 'atendimento') end
+               order by (tipo = 'atendimento'), numero
+               limit v_n for update skip locked loop
+       v_i := v_i + 1;
+       update fila_senhas set status = 'chamada', chamada_em = now() + v_i * interval '1 millisecond', mudou_em = now() where id = r.id;
+     end loop;
+     if v_i = 0 then raise exception using errcode = 'SM409', message = 'Ninguém aguardando nesta fila.'; end if;
      return fila_painel(jsonb_build_object('data', v_data));
    end;
    $$`,

@@ -10,7 +10,7 @@ import { exigir, autorDe } from './sessao.js';
 import { limitarPorIp } from './senhas.js';
 import { pode } from '../../shared/permissoes.js';
 import { noTerreiro } from '../../shared/amaci.js';
-import { TIPO_KEYS, FILAS_CHAMADA, STATUS_MARCAR, LIMITE_MAX } from '../../shared/fila.js';
+import { TIPO_KEYS, FILAS_CHAMADA, STATUS_MARCAR, LIMITE_MAX, CHAMAR_MAX } from '../../shared/fila.js';
 
 export const ACOES_FILA_PUBLICAS = ['filaEntrar', 'filaDesistir'];
 export const ACOES_FILA_PAINEL = ['filaChamar', 'filaMarcar', 'filaConfig', 'filaBalcao'];
@@ -89,7 +89,9 @@ export async function acaoFilaPainel(req, data, b) {
   await exigirOperador(req, data);
   if (b.acao === 'filaChamar') {
     if (!FILAS_CHAMADA.includes(b.fila)) throw new HttpError(400, 'Fila inválida.');
-    return db.rpc('fila_chamar', { data, fila: b.fila });
+    const quantidade = b.quantidade == null ? 1 : Number(b.quantidade);
+    if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > CHAMAR_MAX) throw new HttpError(400, `Chame de 1 a ${CHAMAR_MAX} senhas por vez.`);
+    return db.rpc('fila_chamar', { data, fila: b.fila, quantidade });
   }
   if (b.acao === 'filaMarcar') {
     if (!STATUS_MARCAR.includes(b.status)) throw new HttpError(400, 'Situação inválida.');

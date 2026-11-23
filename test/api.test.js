@@ -3313,3 +3313,23 @@ test('v164: fila de senhas — sem login, no terreiro, preferencial primeiro, li
     if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
   }
 });
+
+test('v165: chamar várias senhas de uma vez — preferenciais primeiro, na ordem, só as que aguardam', async () => {
+  const { hojeBR } = await import('../api/_lib/http.js');
+  const rota = '/api/giras/' + hojeBR();
+  await api('DELETE', rota, ADMIN);
+  await api('PUT', rota, ADMIN, { titulo: 'Gira do lote' });
+  const balcao = (tipo, nome) => api('POST', rota, ADMIN, { acao: 'filaBalcao', tipo, nome });
+  for (const n of ['A1', 'A2', 'A3']) await balcao('atendimento', n);
+  await balcao('preferencial', 'P1');
+  await balcao('passe', 'S1');
+  assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 21 })).status, 400);
+  assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 1.5 })).status, 400);
+  const r = await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 10 });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  // Pediu 10, havia 4 no atendimento (com a preferencial): chama as 4; o passe fica.
+  assert.deepEqual(r.json.chamadas.map((c) => c.tipo + c.numero), ['atendimento3', 'atendimento2', 'atendimento1', 'preferencial1'], 'a última chamada vem primeiro');
+  assert.equal(r.json.senhas.find((s) => s.nome === 'S1').status, 'aguardando');
+  assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', quantidade: 10 })).status, 409);
+  await api('DELETE', rota, ADMIN);
+});

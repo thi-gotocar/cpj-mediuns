@@ -16,6 +16,7 @@ import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './gi
 import { blocoAusPrevia, avisoEntidade, contagemPresentes } from './giraInformacoes.js';
 import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra } from './giraEscala.js';
 import { cardConduta, cliquesConduta, mudancasConduta } from './giraConduta.js';
+import { cardFilaGeral } from './giraFilaGeral.js';
 import { cardAtrasos, cliquesAtrasos } from './giraAtrasos.js';
 import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
 import { montarNova, cliquesNova, fecharCompartilhar } from './giraNova.js';
@@ -185,9 +186,10 @@ function resultado(g) {
 export function render() {
   if (prefs.tab === 'agenda') return renderGira();
   if (visaoAtiva() === 'curimba') return `<section class="panel">${cardAulaCurimba()}${cardSemana({ ocultarAvisos: true })}</section>`;
-  if (visaoAtiva() === 'alunos' && estado.me?.aguardando) return `<section class="panel">${cardAguardando()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
+  // Quem não é da corrente (alunos, consulentes, grupo Oferenda) não tem a aba Gira: a fila de senhas aparece aqui no dia.
+  if (visaoAtiva() === 'alunos' && estado.me?.aguardando) return `<section class="panel">${cardFilaGeral()}${cardAguardando()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
   // Grupo Oferenda: os compromissos que o admin atribuiu (cardCompromissos só aparece com oferendas:doar ou :ver).
-  if (visaoAtiva() === 'alunos') return `<section class="panel">${cardAtrasos()}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
+  if (visaoAtiva() === 'alunos') return `<section class="panel">${cardFilaGeral()}${cardAtrasos()}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes({ aluno: true })}</section>`;
   const g = giraAtual();
   const eu = estado.me?.pessoaId && (estado.giras[g.data] || licencaEm(estado.pessoas.find((x) => x.id === estado.me.pessoaId) || {}, g.data)) ? blocoEu(g) : '';
   return `<section class="panel">${cardAtrasos()}${eu}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;

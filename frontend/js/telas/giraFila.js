@@ -5,7 +5,7 @@
 
 import { estado, pode, prefs, carregarFila, acaoFila, avisar } from '../estado.js';
 import { esc, hoje, toast } from '../util.js';
-import { TIPOS_FILA, tipoFila, rotuloSenha } from '/shared/fila.js';
+import { TIPOS_FILA, tipoFila, rotuloSenha, CHAMAR_LOTE } from '/shared/fila.js';
 
 const ATUALIZAR_MS = 10000;
 let timer = null;
@@ -34,7 +34,22 @@ const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '
 // A ordem em que o painel chama: na de atendimento, as preferenciais primeiro.
 const PESO = { preferencial: 0, atendimento: 1, passe: 2 };
 const ordem = (a, b) => PESO[a.tipo] - PESO[b.tipo] || a.numero - b.numero;
-const proxima = (L, fila) => L.filter((s) => s.status === 'aguardando' && (fila === 'passe' ? s.tipo === 'passe' : s.tipo !== 'passe')).sort(ordem)[0];
+const naFila = (L, fila) => L.filter((s) => s.status === 'aguardando' && (fila === 'passe' ? s.tipo === 'passe' : s.tipo !== 'passe')).sort(ordem);
+const proxima = (L, fila) => naFila(L, fila)[0];
+
+// Chamar as próximas 10 de uma vez (cada celular recebe o aviso), com confirmação que mostra quais senhas vão.
+function chamarLote(L) {
+  const filas = [['atendimento', 'do atendimento'], ['passe', 'do passe']]
+    .map(([k, t]) => [k, t, naFila(L, k).slice(0, CHAMAR_LOTE)]).filter(([, , v]) => v.length >= 2);
+  if (!filas.length) return '';
+  const aberta = filas.find(([k]) => estado.confirm === 'filalote:' + k);
+  if (aberta) {
+    const [k, t, v] = aberta;
+    return `<div class="fila-lote-conf"><p><b>Chamar ${v.length} senhas ${t}?</b> ${v.map((s) => esc(rot(s))).join(', ')}.</p>
+      <div class="fila-acoes"><button type="button" class="btn small primary" data-act="filalote" data-f="${k}" data-n="${v.length}">Chamar ${v.length}</button><button type="button" class="btn small" data-act="filavoltar">Voltar</button></div></div>`;
+  }
+  return `<div class="fila-lote">${filas.map(([k, t, v]) => `<button type="button" class="btn small" data-act="askdel" data-k="filalote:${k}">Chamar próximas ${v.length} ${t}</button>`).join('')}</div>`;
+}
 
 function botaoChamar(L, fila, titulo) {
   const p = proxima(L, fila);
@@ -148,6 +163,7 @@ function blocoFila(g) {
   return `<div class="fila-card">${tit}
     ${cartao(f, L)}
     <div class="fila-bts">${botaoChamar(L, 'atendimento', 'Chamar atendimento')}${botaoChamar(L, 'passe', 'Chamar passe')}</div>
+    ${chamarLote(L)}
     <p class="fila-cont">Aguardando ${espera}</p>
     ${f.atendimentoLotado ? '<p class="fila-lotado">As senhas de atendimento acabaram. Quem chegar agora pega passe.</p>' : ''}
     ${balcao(f)}
@@ -157,6 +173,7 @@ function blocoFila(g) {
 
 export const cliques = {
   filachamar(el) { acaoFila(hoje(), 'filaChamar', { fila: el.dataset.f }); },
+  filalote(el) { acaoFila(hoje(), 'filaChamar', { fila: el.dataset.f, quantidade: Number(el.dataset.n) }); },
   filamarcar(el) { acaoFila(hoje(), 'filaMarcar', { id: el.dataset.id, status: el.dataset.s }); },
   filaver(el) { aba = el.dataset.v; avisar(); },
   filavoltar() { avisar(); },
