@@ -93,11 +93,12 @@ function blocoFuncoes(ps, g, temDuplas) {
   const vem = ps.filter((p) => !licencaEm(p, g.data) && !['a', 'f'].includes(presencaDe(p, g)));
   const p = r && vem.find((x) => x.id === r.id);
   const nomeDe = (x, papel) => opcoesPapel(x).find(([k]) => k === papel)?.[1] || STATUS[papel] || papel;
-  const muda = p && r.papel !== papelDe(p, g);
+  const muda = p && (r.papel === 'aus' || r.papel !== papelDe(p, g));
   const aviso = muda && temDuplas ? `<small class="muted fn-nota">${g.travada ? 'Escala travada: as duplas não mudam.' : 'A escala já foi sorteada: as duplas são refeitas (Remanejar faltas).'}</small>` : '';
   const combo = `<div class="warnbox pres-rap fn-rap"><select class="pr-pessoa" data-act="fnpessoa" aria-label="Pessoa para trocar a função nesta gira">
       <option value="">&lt;escolha a pessoa&gt;</option>${vem.map((x) => `<option value="${x.id}" ${x.id === p?.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select>
-    ${p ? `<span class="pr-ctl"><select data-act="fnpapel" aria-label="Função de ${esc(p.nome)} nesta gira">${htmlPapel(p, r.papel)}</select>
+    ${p ? `<span class="pr-ctl"><select data-act="fnpapel" aria-label="Função de ${esc(p.nome)} nesta gira">${htmlPapel(p, r.papel)}
+        <optgroup label="Não vem"><option value="aus" ${r.papel === 'aus' ? 'selected' : ''}>Ausente</option></optgroup></select>
       <button class="btn small bt-ok" data-act="fnok" ${muda ? '' : 'disabled'}>OK</button></span>${aviso}` : ''}</div>`;
   // Trocas do dia: quem não está na função do cadastro (Extra/Passe fora da linha entram sozinhos como Cambone).
   const trocas = vem.filter((x) => papelDe(x, g) !== 'cad');
@@ -119,18 +120,24 @@ function blocoFuncoes(ps, g, temDuplas) {
     ${fora}</div>`;
 }
 
-// Grava a função do dia (como o 2º combo da presença) e, com a escala já sorteada e sem trava, refaz as duplas.
+// Grava a função do dia (como o 2º combo da presença) ou a ausência ('aus': presença Ausente, que tira a troca do dia,
+// como na Presença) e, com a escala já sorteada e sem trava, refaz as duplas.
 async function gravarFuncao(id, papel) {
   const g = giraAtual();
   const p = estado.pessoas.find((x) => x.id === id);
   if (!p) return;
   const pa = { ...(g.papeis || {}) };
-  if (papel === 'cad') { if (foraDaLinha(p, g)) pa[id] = 'cad'; else delete pa[id]; } else pa[id] = papel;
   const pr = { ...(g.presenca || {}) };
-  if (pr[id] === 'sup' || pr[id] === 'na') pr[id] = 'p';   // formato antigo
+  if (papel === 'aus') {
+    pr[id] = 'a';
+    if (!g.travada) delete pa[id];   // com a trava, a pessoa segue na escala como foi sorteada
+  } else {
+    if (papel === 'cad') { if (foraDaLinha(p, g)) pa[id] = 'cad'; else delete pa[id]; } else pa[id] = papel;
+    if (pr[id] === 'sup' || pr[id] === 'na') pr[id] = 'p';   // formato antigo
+  }
   const temDuplas = (g.pares || []).length || (g.passes || []).length;
   editarGira({ papeis: pa, presenca: pr });
-  const fn = opcoesPapel(p).find(([k]) => k === papel)?.[1] || papel;
+  const fn = papel === 'aus' ? 'Ausente' : opcoesPapel(p).find(([k]) => k === papel)?.[1] || papel;
   if (temDuplas && !g.travada) { await remanejar(`${p.nome}: ${fn} nesta gira. Escala refeita.`); return; }
   toast(`${p.nome}: ${fn} nesta gira.${temDuplas ? ' A escala está travada e não mudou.' : ''}`);
   avisar();
