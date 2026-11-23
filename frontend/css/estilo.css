@@ -2228,6 +2228,34 @@ div.pf-of-total{cursor:default}
 .di-cab h2::first-letter{text-transform:uppercase}
 .di-termo-b{display:flex;justify-content:space-between;border-radius:10px;padding:10px 12px;color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .di-termo-t{margin:0}
+/* Diário: Seu acompanhamento */
+.di-acomp{display:grid;gap:10px}
+.di-acomp .grp-h h2{margin:0}
+.di-ac-sec{display:grid;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.di-ac-sec h3{margin:0}
+.di-ac-nota,.di-ac-vazio{margin:0;font-size:.85rem}
+.di-ac-dest{margin:0}
+.di-ac-l{display:grid;grid-template-columns:minmax(0,9.5em) 1fr auto;align-items:center;gap:8px;font-size:.9rem}
+.di-ac-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.di-ac-trilho{height:10px;border-radius:6px;background:var(--line);overflow:hidden}
+.di-ac-barra{display:block;height:100%;border-radius:6px;background:var(--accent)}
+.di-ac-barra.pos,.di-ac-barra.leve{background:var(--di-en-5)}
+.di-ac-barra.neg{background:var(--di-en-1)}
+.di-ac-barra.densa{background:var(--di-lilas)}
+.di-ac-barra.en{background:var(--di-en-4)}
+.di-ac-barra.en.sem{background:var(--muted)}
+.di-ac-v{font-variant-numeric:tabular-nums;min-width:2.4em;text-align:right}
+.pos.di-ac-v,.di-ac-dest .pos{color:var(--di-en-5)}
+.neg.di-ac-v,.di-ac-dest .neg{color:var(--di-en-1)}
+.di-ac-gira{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;font-size:.9rem}
+.di-ac-en{display:flex;align-items:center;gap:4px;color:var(--muted)}
+.di-ac-en i{font-style:normal;color:#fff;font-weight:700;border-radius:6px;padding:0 6px;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.di-ac-cuid{display:grid;gap:4px}
+.di-ac-cuid-h{margin:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.di-ac-mix{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--line)}
+.di-ac-mix .leve{background:var(--di-en-5)}.di-ac-mix .densa{background:var(--di-lilas)}
+.di-ac-mix-t{margin:0;display:flex;justify-content:space-between;font-size:.85rem;font-weight:700}
+.di-ac-mix-t .leve{color:var(--di-en-5)}.di-ac-mix-t .densa{color:var(--di-lilas)}
 .di-pilula{border-left:4px solid var(--gold)}
 .di-pilula .eyebrow,.di-termo .eyebrow,.di-ori .eyebrow{margin:0}
 .di-pilula-t{margin:0;line-height:1.5}

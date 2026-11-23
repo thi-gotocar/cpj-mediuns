@@ -17,6 +17,7 @@ import { linhaDaEntidade, LINHA_LABEL } from '/shared/regras.js';
 import {
   EMOCOES, GRUPOS_EMOCOES, HUMOR, MAX_EMOCOES, GRUPOS_SENSACOES, SONO, LINHAS_DIARIO, TEMPERATURAS, AVISO_QUENTE, ERVAS_SUGESTOES, MAX_CONSELHO, MAX_REFLEXAO,
   ORIXAS_BANHO, ERVAS_APOSTILA, MAX_ERVAS_BANHO, litros, temperaturaDaErva, sugestaoOrientador, faseDaLua, deltaAxe, FLUXOS, SINTOMAS_CICLO, resumoCiclo,
+  acompanhamento, MIN_COMPARAR,
 } from '/shared/diario.js';
 import { BANHO_ORIXA } from '/shared/banhos.js';
 import { calendarioMes, mesMais } from '../calendario.js';
@@ -26,7 +27,8 @@ import { abrirImagem, reduzirJpeg, base64 } from '../foto.js';
 // gal: foto escolhida para a galeria (base64), descrição e envio.
 // mesAberto: calendário do mês aberto no lugar da faixa da semana; passo: passo aberto do Registro por dia (0 = nenhum);
 // emoEd: sentimentos em edição ('data|campo'; fora disso, os escolhidos aparecem recolhidos com Trocar).
-const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false }, mesAberto: false, passo: {}, emoEd: new Set(), cuid: null };
+// acomp: card Seu acompanhamento aberto; periodo: dias olhados para trás (PERIODOS).
+const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false }, mesAberto: false, passo: {}, emoEd: new Set(), cuid: null, acomp: false, periodo: 90 };
 let reconhecimento = null;
 export function limpar() { ui.dia = hoje(); ui.mes = ui.dia.slice(0, 7); ui.mesAberto = false; ui.passo = {}; ui.emoEd.clear(); ui.cuid = null; }
 
@@ -338,6 +340,67 @@ function passo(n, num, titulo, resumo, feito, aberto, corpo) {
     ${aberto ? `<div class="di-passo-c">${corpo}</div>` : ''}</div>`;
 }
 
+// ---------- Seu acompanhamento ----------
+// Três painéis dos próprios registros, no período escolhido: o Termômetro das giras (quanto a energia muda da chegada
+// para a saída, por gira e por linha), Cuidados e energia (a energia média nos dias com e sem cada cuidado, só com
+// MIN_COMPARAR dias de cada lado) e as Emoções (as mais marcadas, leve × densa e o aviso de dias seguidos em vibração
+// densa). Tudo calculado no aparelho, com os dias que já vieram (shared/diario.js acompanhamento).
+const PERIODOS = [[30, '30 dias'], [91, '3 meses'], [365, '1 ano']];
+const num = (n) => String(n).replace('.', ',');
+const sinal = (n) => (n > 0 ? '+' : '') + num(n);
+const cor = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');   // 0: neutro
+const menosDias = (data, n) => { const [y, m, d] = data.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d - n)).toISOString().slice(0, 10); };
+const barra = (pct, cls, rotulo = '') => `<span class="di-ac-trilho"${rotulo ? ` aria-label="${esc(rotulo)}"` : ''}><span class="di-ac-barra ${cls}" style="width:${Math.max(3, Math.min(100, pct))}%"></span></span>`;
+
+function painelAxe(R) {
+  if (!R.giras.length) return '<p class="muted di-ac-vazio">Registre a chegada e a saída das giras (a energia) para ver aqui como você sai de cada uma.</p>';
+  const linhas = R.axe.porLinha.map((x) => `<div class="di-ac-l"><span class="di-ac-nome">${esc(LINHA_LABEL[x.linha] || x.linha)} <small class="muted">${x.n} ${x.n === 1 ? 'gira' : 'giras'}</small></span>
+    ${barra(Math.abs(x.media) / 4 * 100, cor(x.media), `média ${sinal(x.media)}`)}<b class="di-ac-v ${cor(x.media)}">${sinal(x.media)}</b></div>`).join('');
+  const ultimas = R.giras.slice(0, 6).map((g) => `<div class="di-ac-gira"><span>${dDM(g.data)}${g.linha && LINHA_LABEL[g.linha] ? ` · ${esc(LINHA_LABEL[g.linha])}` : ''}</span>
+    <span class="di-ac-en"><i style="background:${corEnergia(g.antes)}">${g.antes}</i>→<i style="background:${corEnergia(g.depois)}">${g.depois}</i></span><b class="di-ac-v ${cor(g.delta)}">${sinal(g.delta)}</b></div>`).join('');
+  const m = R.axe.media;
+  return `<p class="di-ac-dest">Em média, você sai das giras <b class="${cor(m)}">${sinal(m)}</b> de energia <small class="muted">(${R.giras.length} ${R.giras.length === 1 ? 'gira' : 'giras'})</small>.</p>
+    ${linhas ? `<p class="di-rot">Por linha</p>${linhas}` : ''}<p class="di-rot">Últimas giras</p>${ultimas}`;
+}
+
+function painelCuidados(R) {
+  return R.cuidados.map((c) => {
+    if (!c.ok) {
+      const falta = c.nCom < MIN_COMPARAR ? `com ${c.nome.toLowerCase()}: ${c.nCom} de ${MIN_COMPARAR}` : `sem: ${c.nSem} de ${MIN_COMPARAR}`;
+      return `<div class="di-ac-cuid"><p class="di-ac-cuid-h"><b>${c.nome}</b> <small class="muted">faltam registros (${falta})</small></p></div>`;
+    }
+    const dif = Math.round((c.com - c.sem) * 10) / 10;
+    return `<div class="di-ac-cuid"><p class="di-ac-cuid-h"><b>${c.nome}</b> <span class="di-ac-v ${cor(dif)}">${sinal(dif)}</span></p>
+      <div class="di-ac-l"><span class="di-ac-nome">Com <small class="muted">${c.nCom} dias</small></span>${barra(c.com / 5 * 100, 'en')}<b class="di-ac-v">${num(c.com)}</b></div>
+      <div class="di-ac-l"><span class="di-ac-nome">Sem <small class="muted">${c.nSem} dias</small></span>${barra(c.sem / 5 * 100, 'en sem')}<b class="di-ac-v">${num(c.sem)}</b></div></div>`;
+  }).join('') + '<p class="muted di-ac-nota">Energia média do dia (manhã e noite, ou chegada e saída), de 1 a 5.</p>';
+}
+
+function painelEmocoes(R) {
+  const E = R.emocoes;
+  if (!E.total) return '<p class="muted di-ac-vazio">Marque o que você sente nos registros para ver aqui as emoções mais frequentes.</p>';
+  const pLeve = Math.round(E.leve / E.total * 100);
+  const maior = E.lista[0].n;
+  const aviso = E.seguidos >= 3 ? `<p class="di-aviso">🌧️ ${E.seguidos} dias seguidos em vibração densa. Um banho de manutenção (veja o Orientador no Banho do dia) e um momento de firmeza podem ajudar; se pesar, converse com alguém da Casa.</p>` : '';
+  return `${aviso}<div class="di-ac-mix" role="img" aria-label="Vibração leve ${pLeve}%, densa ${100 - pLeve}%"><span class="leve" style="flex:${E.leve}"></span><span class="densa" style="flex:${E.densa}"></span></div>
+    <p class="di-ac-mix-t"><span class="leve">☀️ Leve ${pLeve}%</span><span class="densa">🌧️ Densa ${100 - pLeve}%</span></p>
+    ${E.lista.slice(0, 6).map((x) => `<div class="di-ac-l"><span class="di-ac-nome">${esc(x.nome.split(' / ')[0])}</span>${barra(x.n / maior * 100, x.grupo)}<b class="di-ac-v">${x.n}</b></div>`).join('')}
+    <p class="muted di-ac-nota">Quantos dias cada emoção apareceu (manhã ou noite).</p>`;
+}
+
+function cardAcompanhamento(D) {
+  const cab = `<button type="button" class="grp-h dobra" data-act="diacomp" aria-expanded="${ui.acomp}"><h2>📈 Seu acompanhamento</h2><span class="seta" aria-hidden="true">${ui.acomp ? '▾' : '▸'}</span></button>`;
+  if (!ui.acomp) return `<div class="card di-acomp">${cab}<p class="muted di-ac-nota">Como você sai das giras, o efeito dos cuidados e as emoções mais frequentes.</p></div>`;
+  const hj = hoje();
+  const R = acompanhamento(D.dias, { desde: menosDias(hj, ui.periodo - 1), ate: hj, ehGira, linhaDe: linhaDoDia });
+  const per = `<div class="di-chips di-ac-per">${PERIODOS.map(([n, t]) => `<button type="button" class="di-chip" data-act="diperiodo" data-v="${n}" aria-pressed="${ui.periodo === n}">${t}</button>`).join('')}</div>`;
+  return `<div class="card di-acomp">${cab}${per}
+    <div class="di-ac-sec"><h3>🌡️ Termômetro das giras</h3>${painelAxe(R)}</div>
+    <div class="di-ac-sec"><h3>🌿 Cuidados e energia</h3>${painelCuidados(R)}</div>
+    <div class="di-ac-sec"><h3>💭 Emoções</h3>${painelEmocoes(R)}</div>
+    <p class="muted di-ac-nota">Só você vê. São observações dos seus registros, não um diagnóstico.</p></div>`;
+}
+
 function dia() {
   const d = dadosDe(ui.dia);
   const gira = ehGira(ui.dia, d);
@@ -375,7 +438,7 @@ export function render() {
   if (D.erro) return `<section class="panel"><div class="card"><p class="erro">${esc(D.erro)}</p><button class="btn" data-act="direcarregar">Tentar de novo</button></div></section>`;
   if (ui.dia > hoje()) limpar();
   // A Galeria de fotos vem logo depois do Como você está hoje? (segundo card).
-  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardRoot(D)}</section>`;
+  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardAcompanhamento(D)}${cardRoot(D)}</section>`;
 }
 
 // ---------- ações ----------
@@ -493,6 +556,8 @@ export const cliques = {
       if (!d.ciclo.sintomas.length) delete d.ciclo.sintomas;
     });
   },
+  diacomp() { ui.acomp = !ui.acomp; avisar(); },
+  diperiodo(el) { ui.periodo = Number(el.dataset.v); avisar(); },
   dipasso(el) { const n = Number(el.dataset.n); ui.passo[ui.dia] = ui.passo[ui.dia] === n ? 0 : n; avisar(); },
   diolho() { descOcultaMem = !descOculta(); try { localStorage.setItem(PREF_DESC, descOcultaMem ? '1' : '0'); } catch { /* fica na memória */ } avisar(); },
   diemotrocar(el) { ui.emoEd.add(ui.dia + '|' + el.dataset.campo); avisar(); },

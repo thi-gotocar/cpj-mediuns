@@ -205,3 +205,56 @@ export function normalizarDia(d) {
 
 // Delta de Axé: energia depois menos antes (null sem os dois).
 export const deltaAxe = (dia) => (dia?.antes?.energia && dia?.depois?.energia ? dia.depois.energia - dia.antes.energia : null);
+
+// ---------- Seu acompanhamento (os painéis do Diário, calculados no aparelho) ----------
+// Comparação só com MIN_COMPARAR dias de cada lado: com menos, a média engana.
+export const MIN_COMPARAR = 5;
+export const CUIDADOS_COMPARAR = [['atividade', 'Atividade física'], ['banho', 'Banho de ervas'], ['agua', 'Água'], ['preceito', 'Preceito']];
+const media1 = (l) => (l.length ? Math.round((l.reduce((s, n) => s + n, 0) / l.length) * 10) / 10 : null);
+// Energia do dia: a média da manhã/chegada e da noite/saída que foram marcadas.
+export const energiaDoDia = (d) => media1([d?.antes?.energia, d?.depois?.energia].filter(Boolean));
+// Dia em vibração densa: mais emoções densas que leves (contando manhã e noite, sem repetir).
+const emocoesDoDia = (d) => [...new Set([...(d?.antes?.emo || []), ...(d?.depois?.emo || [])])];
+const diaDenso = (d) => { const e = emocoesDoDia(d); const n = e.filter((k) => DENSAS.includes(k)).length; return n > 0 && n > e.length - n; };
+const diaAnterior = (data) => { const [y, m, dd] = data.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd - 1)).toISOString().slice(0, 10); };
+
+// dias: [{ data, dados }]; desde/ate: o período ('AAAA-MM-DD', inclusive); ehGira(data, dados) e linhaDe(data, dados)
+// vêm da tela (a gira depende da agenda). → { giras, axe, cuidados, emocoes }
+//   giras: [{ data, linha, antes, depois, delta }] (mais recente primeiro) · axe: { media, porLinha: [{ linha, n, media }] }
+//   cuidados: [{ k, nome, com, sem, nCom, nSem, ok }] · emocoes: { total, leve, densa, lista: [{ k, nome, grupo, n }], seguidos }
+//   seguidos: dias seguidos em vibração densa até o último registro, se ele for de hoje ou de ontem (0 se não).
+export function acompanhamento(dias, { desde, ate, ehGira, linhaDe }) {
+  const L = (dias || []).filter((x) => x.data >= desde && x.data <= ate).sort((a, b) => a.data.localeCompare(b.data));
+  const giras = L.filter((x) => ehGira(x.data, x.dados) && deltaAxe(x.dados) !== null)
+    .map((x) => ({ data: x.data, linha: linhaDe(x.data, x.dados) || '', antes: x.dados.antes.energia, depois: x.dados.depois.energia, delta: deltaAxe(x.dados) }))
+    .reverse();
+  const porLinha = Object.entries(giras.reduce((o, g) => { if (g.linha) (o[g.linha] ||= []).push(g.delta); return o; }, {}))
+    .map(([linha, l]) => ({ linha, n: l.length, media: media1(l) }))
+    .sort((a, b) => b.media - a.media || b.n - a.n);
+
+  const comEnergia = L.filter((x) => energiaDoDia(x.dados) !== null);
+  const cuidados = CUIDADOS_COMPARAR.map(([k, nome]) => {
+    const com = comEnergia.filter((x) => x.dados.habitos?.[k]).map((x) => energiaDoDia(x.dados));
+    const sem = comEnergia.filter((x) => !x.dados.habitos?.[k]).map((x) => energiaDoDia(x.dados));
+    return { k, nome, com: media1(com), sem: media1(sem), nCom: com.length, nSem: sem.length, ok: com.length >= MIN_COMPARAR && sem.length >= MIN_COMPARAR };
+  });
+
+  const conta = {};
+  L.forEach((x) => emocoesDoDia(x.dados).forEach((k) => { conta[k] = (conta[k] || 0) + 1; }));
+  const lista = GRUPOS_EMOCOES.flatMap((g) => g.itens.map(([k, nome]) => ({ k, nome, grupo: g.k, n: conta[k] || 0 })))
+    .filter((x) => x.n).sort((a, b) => b.n - a.n);
+  const densa = lista.filter((x) => x.grupo === 'densa').reduce((s, x) => s + x.n, 0);
+  const leve = lista.filter((x) => x.grupo === 'leve').reduce((s, x) => s + x.n, 0);
+  // Sequência: do último dia com emoções para trás, enquanto os dias são seguidos e densos.
+  const comEmo = L.filter((x) => emocoesDoDia(x.dados).length);
+  let seguidos = 0;
+  const ultimo = comEmo.at(-1);
+  if (ultimo && (ultimo.data === ate || ultimo.data === diaAnterior(ate))) {
+    let esperado = ultimo.data;
+    for (let i = comEmo.length - 1; i >= 0 && comEmo[i].data === esperado && diaDenso(comEmo[i].dados); i--) {
+      seguidos++;
+      esperado = diaAnterior(esperado);
+    }
+  }
+  return { giras, axe: { media: media1(giras.map((g) => g.delta)), porLinha }, cuidados, emocoes: { total: leve + densa, leve, densa, lista, seguidos } };
+}
