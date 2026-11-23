@@ -9,6 +9,7 @@ const VERSAO = '__VERSAO__';
 const CACHE = 'sortmediuns-' + VERSAO;
 const ARQUIVOS = __ARQUIVOS__;   // { url: marca do conteúdo }
 const MARCA = 'x-sm-marca';      // cabeçalho guardado junto de cada arquivo no cache
+const PAGINAS = { '/fila': '/fila.html' };   // páginas que não são o app (na Vercel, cleanUrls tira o .html)
 
 // O mesmo arquivo (mesma marca) em algum cache do app: o desta versão (download interrompido) ou de uma anterior.
 async function jaTem(caches_, url, marca) {
@@ -72,6 +73,7 @@ self.addEventListener('message', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
-  const chave = e.request.mode === 'navigate' ? '/' : url.pathname;
+  // Navegação abre o app ('/'), menos as páginas próprias: /fila (senha da fila, sem login) é outra página.
+  const chave = e.request.mode !== 'navigate' ? url.pathname : PAGINAS[url.pathname] || '/';
   e.respondWith(caches.open(CACHE).then((c) => c.match(chave)).then((r) => r || fetch(e.request)));
 });

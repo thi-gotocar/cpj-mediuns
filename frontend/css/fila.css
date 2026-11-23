@@ -1,0 +1,140 @@
+/* Página pública /fila: leve e sem o estilo do app (quem chega pelo QR pode estar com pouca internet).
+   As cores e o cartão da senha são os mesmos da sub-aba Fila (estilo.css), para a casa ter um visual só. */
+:root{
+  --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
+  --accent:#8fa9ff; --accent-ink:#0f1626; --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327;
+  --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c;
+  --f-display:"Alegreya",Georgia,"Times New Roman",serif;
+  --f-body:"Alegreya Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 17px/1.45 var(--f-body)}
+h1,h2{font-family:var(--f-display);margin:0;line-height:1.15;text-wrap:balance}
+.fp{max-width:520px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));display:grid;gap:18px}
+.fp-topo{display:flex;align-items:center;gap:12px}
+.fp-topo img{width:44px;height:44px;border-radius:12px;background:#fff;padding:3px;flex:none}
+.fp-casa{display:block;color:var(--gold);font-size:.9rem;font-weight:700}
+.fp-topo h1{font-size:1.7rem}
+#fp-conteudo{display:grid;gap:16px;min-width:0}
+.fp-muted{margin:0;color:var(--muted);font-size:.95rem}
+.fp-erro{margin:0;padding:10px 12px;border-radius:10px;background:var(--off-soft);color:var(--off);font-weight:500}
+.fp-alerta{margin:0;padding:10px 12px;border-radius:10px;background:var(--warn-soft);color:var(--warn);font-weight:700}
+.fp-chamou{margin:0;padding:14px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font:700 1.3rem var(--f-display);text-align:center}
+.fp-vazio{display:grid;gap:6px;padding:22px 18px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.fp-vazio h2{font-size:1.35rem}
+
+/* botões e campos */
+.fp-bt{font:700 1rem var(--f-body);border-radius:10px;padding:12px 16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;min-height:48px}
+.fp-bt:focus-visible,.fp-link:focus-visible,.fp-tipo:has(input:focus-visible),.fp-campo input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fp-principal{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-size:1.1rem;min-height:54px}
+.fp-principal:disabled{opacity:.6;cursor:default}
+.fp-perigo{color:var(--off)}
+.fp-som{width:100%}
+.fp-link{justify-self:center;background:none;border:0;color:var(--muted);font:500 .95rem var(--f-body);text-decoration:underline;padding:8px;cursor:pointer}
+.fp-linha{display:flex;flex-wrap:wrap;gap:8px}
+.fp-conf{display:grid;gap:10px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.fp-form{display:grid;gap:14px}
+.fp-tipos{border:0;margin:0;padding:0;display:grid;gap:8px;min-width:0}
+.fp-tipos legend{font:700 1.15rem var(--f-display);margin-bottom:8px;padding:0}
+.fp-tipo{--cor:var(--accent);display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-left:4px solid var(--cor);border-radius:12px;background:var(--surface);cursor:pointer}
+.fp-tipo.preferencial{--cor:var(--orange)}
+.fp-tipo.passe{--cor:var(--ok)}
+.fp-tipo input{width:20px;height:20px;margin:0;flex:none;accent-color:var(--cor)}
+.fp-tipo span{display:grid;min-width:0}
+.fp-tipo b{font-size:1.05rem}
+.fp-tipo small{color:var(--muted);font-size:.88rem}
+.fp-tipo:has(input:checked){border-color:var(--cor);background:color-mix(in srgb,var(--cor) 12%,var(--surface))}
+.fp-tipo.off{opacity:.45;cursor:default}
+.fp-campo{display:grid;gap:5px;font-weight:700;color:var(--muted);font-size:.95rem}
+.fp-campo small{font-weight:400}
+.fp-campo input{font:400 1.05rem var(--f-body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:48px;width:100%}
+
+/* chamadas recentes */
+.fp-sec{display:grid;gap:8px}
+.fp-sec h2{font-size:1.15rem}
+.fp-chamadas{margin:0;display:flex;flex-wrap:wrap;gap:8px}
+.fp-ch{--cor:var(--accent);font:700 1.15rem var(--f-display);font-variant-numeric:lining-nums tabular-nums;color:var(--cor);padding:4px 12px;border:1px solid color-mix(in srgb,var(--cor) 40%,var(--line));border-radius:9px}
+.fp-ch.preferencial{--cor:var(--orange)}
+.fp-ch.passe{--cor:var(--ok)}
+.fp-ch.ult{background:color-mix(in srgb,var(--cor) 14%,var(--surface))}
+
+/* o cartão da senha: o mesmo da sub-aba Fila, como o cartão de papel (picote e canhoto) */
+.fila-cartao{--cor:var(--accent);border:1px solid color-mix(in srgb,var(--cor) 45%,var(--line));border-radius:16px;background:color-mix(in srgb,var(--cor) 11%,var(--surface))}
+.fila-cartao.preferencial{--cor:var(--orange)}
+.fila-cartao.passe{--cor:var(--ok)}
+.fila-cartao.chamada{box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 60%,transparent)}
+.fila-cartao-c{display:grid;gap:2px;padding:16px 20px 18px;min-width:0}
+.fila-cartao-topo{display:flex;justify-content:space-between;gap:10px;font-size:.92rem;color:var(--muted)}
+.fila-cartao-tipo{color:var(--cor);font-weight:700}
+.fila-cartao-n{font:700 5.6rem/1 var(--f-display);font-variant-numeric:lining-nums tabular-nums;color:var(--cor);margin-top:6px}
+.fila-cartao-q{font-size:1.2rem;overflow-wrap:anywhere}
+.fila-canhoto{position:relative;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:12px 20px 14px;border-top:2px dashed color-mix(in srgb,var(--cor) 40%,transparent)}
+.fila-canhoto::before,.fila-canhoto::after{content:"";position:absolute;top:-11px;width:20px;height:20px;border-radius:50%;background:var(--bg)}
+.fila-canhoto::before{left:-11px}
+.fila-canhoto::after{right:-11px}
+.fila-canhoto span{color:var(--muted);font-size:.92rem}
+.fila-canhoto b{font:700 1.25rem var(--f-display);font-variant-numeric:lining-nums}
+@media (prefers-reduced-motion:no-preference){
+  .fila-cartao.chamada{animation:fp-pulso 1.6s ease-in-out 3}
+  @keyframes fp-pulso{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--ok) 25%,transparent)}}
+}
+
+/* /fila?tv: tela de TV do salão. Lida de longe: o número chamado ocupa a tela; o QR fica ao lado. */
+.modo-tv .fp,.modo-cartaz .fp{max-width:none}
+.modo-tv .fp-topo,.modo-cartaz .fp-topo{display:none}
+.tv{min-height:calc(100vh - 68px);display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);grid-template-rows:auto 1fr;gap:3vh 3vw;align-items:stretch}
+.tv-topo{grid-column:1/-1;display:flex;align-items:center;gap:16px}
+.tv-topo img{width:clamp(48px,6vh,72px);height:auto;border-radius:14px;background:#fff;padding:4px}
+.tv-topo h1{font-size:clamp(1.6rem,4.5vh,3rem)}
+.tv-topo .fp-casa{font-size:clamp(.95rem,2.4vh,1.4rem)}
+.tv-hora{margin-left:auto;font:700 clamp(1.6rem,5vh,3.2rem) var(--f-display);font-variant-numeric:lining-nums tabular-nums;color:var(--muted)}
+.tv-centro{display:grid;align-content:center;gap:3vh;min-width:0}
+.tv-msg{margin:0;font:700 clamp(1.8rem,6vh,3.6rem) var(--f-display);color:var(--muted);text-align:center}
+.tv-cartao .fila-cartao-c{padding:3vh 3vw 4vh}
+.tv-cartao .fila-cartao-topo{font-size:clamp(1.1rem,3.4vh,2.2rem)}
+.tv-cartao .fila-cartao-n{font-size:clamp(7rem,34vh,22rem);line-height:.95;margin-top:1vh}
+.tv-cartao .fila-canhoto{padding:2vh 3vw 2.4vh;gap:2vw;align-items:center}
+.tv-cartao .fila-canhoto>span:first-child{font-size:clamp(1rem,3vh,1.8rem)}
+.tv-antes{display:flex;flex-wrap:wrap;gap:1vw}
+.tv-antes .fp-ch{font-size:clamp(1.3rem,4.4vh,2.8rem);padding:.2em .6em}
+.tv-espera{margin:0;display:flex;flex-wrap:wrap;gap:.4em 1.2em;font-size:clamp(1.1rem,3.2vh,2rem);color:var(--muted)}
+.tv-espera .fila-c b{font-variant-numeric:lining-nums tabular-nums}
+.tv-espera .fila-c.preferencial b{color:var(--orange)}
+.tv-espera .fila-c.atendimento b{color:var(--accent)}
+.tv-espera .fila-c.passe b{color:var(--ok)}
+.tv-qr{display:grid;align-content:center;justify-items:center;gap:2vh;padding:3vh 2vw;border:1px solid var(--line);border-radius:16px;background:var(--surface);text-align:center}
+.tv-qr-img{width:min(100%,46vh);aspect-ratio:1;border-radius:12px;overflow:hidden}
+.tv-qr-img svg{display:block;width:100%;height:100%}
+.tv-qr h2{font-size:clamp(1.4rem,4.4vh,2.8rem)}
+.tv-qr p{margin:0;color:var(--muted);font-size:clamp(1rem,2.8vh,1.7rem)}
+.tv-qr.fechada{color:var(--muted)}
+.tv-som{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:5;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+@media (max-aspect-ratio:1/1){
+  .tv{grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
+  .tv-cartao .fila-cartao-n{font-size:clamp(6rem,22vh,16rem)}
+  .tv-qr-img{width:min(70%,38vh)}
+}
+@media (prefers-reduced-motion:no-preference){
+  .tv-cartao.nova{animation:tv-nova 1.2s ease-out 3}
+  @keyframes tv-nova{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--cor) 70%,transparent)}100%{box-shadow:0 0 0 28px transparent}}
+}
+
+/* /fila?cartaz: cartaz com o QR para imprimir (papel branco, A4 em pé). */
+body.modo-cartaz{background:#fff;color:#111;color-scheme:light}
+.cartaz{max-width:640px;margin:0 auto;display:grid;justify-items:center;gap:14px;text-align:center;padding:24px 8px}
+.cartaz img{width:96px;height:96px}
+.cartaz-casa{font:700 1.3rem var(--f-display);color:#7a5512}
+.cartaz h1{font-size:2.4rem;color:#111}
+.cartaz-qr{width:min(100%,11cm);aspect-ratio:1}
+.cartaz-qr svg{display:block;width:100%;height:100%}
+.cartaz p{margin:0;font-size:1.2rem;max-width:30ch;color:#222}
+.cartaz-url{font-weight:700;font-size:1.3rem;letter-spacing:.01em}
+.cartaz-dica{color:#555;font-size:1.05rem}
+.cartaz-bt{margin-top:8px}
+@media print{
+  @page{size:A4 portrait;margin:14mm}
+  .cartaz-bt{display:none}
+  .cartaz{padding:0}
+}

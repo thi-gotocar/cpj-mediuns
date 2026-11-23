@@ -3221,3 +3221,95 @@ test('v161: abertura com ?parcial=1 traz 12 meses de giras e, na volta, só a pa
   await api('DELETE', '/api/giras/' + antiga, ADMIN);
   await api('DELETE', '/api/giras/' + recente, ADMIN);
 });
+
+test('v164: fila de senhas — sem login, no terreiro, preferencial primeiro, limite só no atendimento', async () => {
+  const { TERREIRO } = await import('../shared/amaci.js');
+  const { hojeBR } = await import('../api/_lib/http.js');
+  const hoje = hojeBR();
+  const rota = '/api/giras/' + hoje;
+  // Pedido de um celular: o token dele vai no cabeçalho X-Fila-Token.
+  const cel = async (token, metodo, corpo, auth) => {
+    const r = await fetch(base + rota + (metodo === 'GET' ? '?lista=fila' : ''), {
+      method: metodo,
+      headers: { 'X-Fila-Token': token, ...(auth ? { Authorization: 'Bearer ' + auth } : {}), ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
+      body: corpo ? JSON.stringify(corpo) : undefined,
+    });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  };
+  const aqui = { lat: TERREIRO.lat, lon: TERREIRO.lon };
+  const entrar = (token, tipo, nome) => cel(token, 'POST', { acao: 'filaEntrar', tipo, nome, ...aqui });
+  const [T1, T2, T3] = ['aparelho-um-0000000000001', 'aparelho-dois-000000000002', 'aparelho-tres-000000000003'];
+
+  await api('DELETE', rota, ADMIN);
+  assert.equal((await cel(T1, 'GET')).json.existe, false, 'sem gira hoje');
+  await api('PUT', rota, ADMIN, { titulo: 'Gira da fila' });
+  assert.equal((await cel(T1, 'GET')).json.aberta, false);
+  assert.equal((await entrar(T1, 'atendimento', 'Ana')).status, 409, 'fila fechada');
+
+  // Controlam a fila: função Senha (cadastro ou troca do dia), quem edita a Gira e o root; cambone não.
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Fila Senha', funcao: 'senha' });
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Fila Cambone', funcao: 'cambone' });
+  const SENHA = await tokenCorrente('Fila Senha');
+  const CAMB = await tokenCorrente('Fila Cambone');
+  assert.equal((await api('POST', rota, CAMB, { acao: 'filaConfig', aberta: true })).status, 403);
+  assert.equal((await api('GET', rota + '?lista=filaPainel')).status, 401);
+  const cfg = await api('POST', rota, SENHA, { acao: 'filaConfig', aberta: true, limite: 1 });
+  assert.equal(cfg.status, 200, JSON.stringify(cfg.json));
+  assert.deepEqual([cfg.json.aberta, cfg.json.limite], [true, 1]);
+  assert.equal((await api('POST', rota, SENHA, { acao: 'filaConfig', limite: 5000 })).status, 400);
+
+  // Fora do terreiro, recusa; no terreiro, pega a senha.
+  assert.equal((await cel(T1, 'POST', { acao: 'filaEntrar', tipo: 'atendimento', nome: 'Ana', lat: 0, lon: 0 })).status, 403);
+  const a1 = await entrar(T1, 'atendimento', 'Ana');
+  assert.equal(a1.status, 200, JSON.stringify(a1.json));
+  assert.deepEqual([a1.json.minha.tipo, a1.json.minha.numero, a1.json.minha.aFrente], ['atendimento', 1, 0]);
+  // O mesmo celular com senha aguardando recebe a mesma (não pega outra).
+  assert.equal((await entrar(T1, 'preferencial', 'Ana')).json.minha.numero, 1);
+  assert.equal((await entrar(T1, 'preferencial', 'Ana')).json.minha.tipo, 'atendimento');
+
+  // Atendimento lotou: sobra o passe. Preferencial fica fora do limite.
+  const lotado = await entrar(T2, 'atendimento', 'Bia');
+  assert.equal(lotado.status, 409);
+  assert.match(lotado.json.erro, /passe/);
+  assert.equal((await cel(T2, 'GET')).json.atendimentoLotado, true);
+  assert.equal((await entrar(T2, 'passe', 'Bia')).json.minha.numero, 1);
+  assert.equal((await entrar(T3, 'preferencial', 'Cida')).json.minha.tipo, 'preferencial');
+  assert.equal((await cel(T1, 'GET')).json.minha.aFrente, 1, 'a preferencial passa na frente do atendimento');
+
+  // Balcão: sem celular e sem localização; o painel tem nome e telefone.
+  const bal = await api('POST', rota, SENHA, { acao: 'filaBalcao', tipo: 'preferencial', nome: 'Dona Maria', telefone: '(11) 9999-0000' });
+  assert.equal(bal.status, 200, JSON.stringify(bal.json));
+  assert.equal(bal.json.senhas.length, 4);
+  assert.equal(bal.json.senhas.find((s) => s.nome === 'Dona Maria').telefone, '1199990000');
+  assert.equal((await api('POST', rota, CAMB, { acao: 'filaBalcao', tipo: 'passe', nome: 'X' })).status, 403);
+
+  // Chamar: as preferenciais primeiro (na ordem), depois o atendimento; o passe é outra fila.
+  const chamar = (fila) => api('POST', rota, ADMIN, { acao: 'filaChamar', fila });
+  const quem = (r) => { const c = r.json.chamadas[0]; return c.tipo + c.numero; };
+  assert.equal(quem(await chamar('atendimento')), 'preferencial1');
+  assert.equal(quem(await chamar('atendimento')), 'preferencial2');
+  assert.equal(quem(await chamar('atendimento')), 'atendimento1');
+  assert.equal((await chamar('atendimento')).status, 409, 'ninguém aguardando');
+  assert.equal(quem(await chamar('passe')), 'passe1');
+  const pub = (await cel(T1, 'GET')).json;
+  assert.equal(pub.minha.status, 'chamada');
+  assert.ok(pub.chamadas.every((c) => !('nome' in c)), 'o público não vê os nomes');
+
+  // Ausente e volta para a fila; desistir libera a vaga do atendimento.
+  const idA1 = bal.json.senhas.find((s) => s.nome === 'Ana').id;
+  await api('POST', rota, SENHA, { acao: 'filaMarcar', id: idA1, status: 'aguardando' });
+  assert.equal((await cel(T1, 'GET')).json.minha.status, 'aguardando');
+  assert.equal((await cel(T1, 'POST', { acao: 'filaDesistir' })).json.minha, null);
+  assert.equal((await entrar(T2, 'atendimento', 'Bia')).json.minha.numero, 2, 'o passe já chamado não impede outra senha');
+
+  // Trocar a data da gira leva a fila junto; encerrada, a fila fecha.
+  const amanha = new Date(Date.parse(hoje + 'T12:00:00Z') + 86400000).toISOString().slice(0, 10);
+  await api('DELETE', '/api/giras/' + amanha, ADMIN);
+  assert.equal((await api('POST', rota, ADMIN, { acao: 'mudarData', para: amanha })).status, 200);
+  assert.equal((await api('GET', '/api/giras/' + amanha + '?lista=filaPainel', ADMIN)).json.senhas.length, 5);
+  await api('DELETE', '/api/giras/' + amanha, ADMIN);
+  for (const n of ['Fila Senha', 'Fila Cambone']) {
+    const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === n);
+    if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+  }
+});

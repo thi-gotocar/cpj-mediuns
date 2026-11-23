@@ -75,6 +75,39 @@ export function carregarConduta() {
   })();
   return carregandoConduta;
 }
+// ---------- Fila de senhas (aba Gira, painel de quem controla) ----------
+// estado.fila = { data, ...painel }. silencioso: a atualização de tempos em tempos só redesenha se algo mudou e se
+// ninguém está digitando no painel (o redesenho tiraria o foco do campo do balcão).
+let carregandoFila = null;
+export function carregarFila(data, { silencioso = false } = {}) {
+  if (carregandoFila) return carregandoFila;
+  const sessao = token();
+  carregandoFila = (async () => {
+    try {
+      const r = await api('GET', `/giras/${data}?lista=filaPainel`);
+      if (token() !== sessao) return;
+      const antes = JSON.stringify(estado.fila);
+      estado.fila = { data, ...r };
+      const digitando = document.activeElement?.closest?.('.fila-card') && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+      if (!silencioso || (antes !== JSON.stringify(estado.fila) && !digitando)) avisar();
+    } catch (e) {
+      if (token() !== sessao) return;
+      if (!silencioso) toast(e.message);
+      if (!estado.fila || estado.fila.data !== data) { estado.fila = { data, erro: e.message }; avisar(); }
+    } finally {
+      carregandoFila = null;
+    }
+  })();
+  return carregandoFila;
+}
+// acao: filaChamar | filaMarcar | filaConfig | filaBalcao → o painel volta atualizado.
+export async function acaoFila(data, acao, dados = {}) {
+  try {
+    estado.fila = { data, ...(await api('POST', `/giras/${data}`, { acao, ...dados })) };
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); avisar(); return false; }
+}
 // ---------- Pagamentos em atraso (conta B do ASAAS, aba Geral) ----------
 // Como o Conduta: um pedido por vez; atualizar = o root manda ler o ASAAS agora.
 let carregandoAtrasos = null;

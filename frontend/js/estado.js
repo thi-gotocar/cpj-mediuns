@@ -63,6 +63,7 @@ export const estado = {
   eventosTipos: null,  // GET /api/giras?lista=eventosTipos (só o root): { tipos, turmas }
   entidadesApelidos: [], // apelidos opcionais das entidades, configurados pelo Admin root
   oracoes: [],         // aba Gira: orações dos últimos 7 dias
+  fila: null,          // aba Gira: painel da fila de senhas { data, aberta, limite, emitidas, aguardando, chamadas, senhas }
   conduta: null,       // aba Geral: Gestão de Conduta e Risco { ativa, relatos } (root: todos; os outros: os próprios)
   atrasos: null,       // aba Geral: pagamentos em atraso da conta B do ASAAS { configurado, root, atualizadoEm, atrasos } (root: todos; os outros: os próprios)
   ausPrevias: null,    // aba Gira (admin): ausências antecipadas, de datas ainda sem gira — [{ data, pessoaId }]

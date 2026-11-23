@@ -16,6 +16,10 @@
 //                            { acao: 'mudarData', para: 'AAAA-MM-DD' }  troca a data programada da gira em aberto (leva tudo junto) → { gira, mensagem }
 //                            { acao: 'escala', entidade, orixa, papeis, pares, passes }  Histórico → Cadastrar escala (só o root): grava as duplas
 //                              numa gira que já existe, sem mexer na presença nem nos atendidos (sem gira na data, recusa) → { gira, mensagem }
+// GET    /api/giras/:data?lista=fila        resumo da fila de senhas e a própria senha (sem login; X-Fila-Token) — api/_lib/fila.js
+// GET    /api/giras/:data?lista=filaPainel  painel de quem controla a fila (todas as senhas)
+// POST   { acao: 'filaEntrar', tipo, nome, telefone, lat, lon } | { acao: 'filaDesistir' }  (sem login)
+//        { acao: 'filaChamar', fila } | { acao: 'filaMarcar', id, status } | { acao: 'filaConfig', aberta?, limite? } | { acao: 'filaBalcao', tipo, nome, telefone }
 // DELETE /api/giras/:data
 import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA, hojeBR } from '../../_lib/http.js';
 import { exigir, exigirComLeitura } from '../../_lib/sessao.js';
@@ -23,6 +27,7 @@ import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
 import { configCasa } from '../../../shared/config.js';
 import { db } from '../../_lib/db.js';
+import { ACOES_FILA_PUBLICAS, ACOES_FILA_PAINEL, filaPublica, acaoFilaPublica, filaPainel, acaoFilaPainel } from '../../_lib/fila.js';
 import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, proximaTurma, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
@@ -159,6 +164,9 @@ const SORTEIO = ['sortear', 'remanejar'];
 
 export default rota({
   GET: async (req) => {
+    // Fila de senhas: o resumo é público (sem login); o painel, de quem controla a fila.
+    if (req.query.lista === 'fila') return filaPublica(req, validarData(req.query.data));
+    if (req.query.lista === 'filaPainel') return filaPainel(req, validarData(req.query.data));
     // Sessão e gira numa ida só ao banco (a data é conferida depois do token, como antes: sem login, 401).
     let data;
     const [eu, gira] = await exigirComLeitura(req, 'giras:ler', () => [{ funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } }]);
@@ -229,6 +237,8 @@ export default rota({
     if (SORTEIO.includes(req.query.acao)) return sortearOuRemanejar(req, req.query.acao);
     const b = corpo(req);
     if (SORTEIO.includes(b.acao)) return sortearOuRemanejar(req, b.acao);
+    if (ACOES_FILA_PUBLICAS.includes(b.acao)) return acaoFilaPublica(req, validarData(req.query.data), b);
+    if (ACOES_FILA_PAINEL.includes(b.acao)) return acaoFilaPainel(req, validarData(req.query.data), b);
     if (b.acao === 'ausencia') return declararAusencia(req);
     if (b.acao === 'minhaEntidade') return escolherEntidade(req, b.linha);
     // Admin root (Histórico → estatísticas): corrige a presença de uma pessoa, mesmo em gira encerrada.

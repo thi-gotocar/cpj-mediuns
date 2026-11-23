@@ -8,6 +8,7 @@ import { PIN_NOVO, PIN_NOVO_MSG } from '/shared/permissoes.js';
 import { cpfValido } from '/shared/perfil.js';
 import { FOTOS_ATIVA } from '/shared/fotos.js';
 import * as gira from './telas/gira.js';
+import * as fila from './telas/giraFila.js';
 import * as eventos from './telas/eventos.js';
 import * as curimba from './telas/curimba.js';
 import * as login from './telas/login.js';
@@ -18,7 +19,7 @@ const conta = document.getElementById('conta');
 const rodape = document.getElementById('rodape');
 const saudNome = document.getElementById('saud-nome');
 const saudExtra = document.getElementById('saud-extra');
-const TELAS = { gira, agenda: gira, eventos, curimba };
+const TELAS = { gira, agenda: gira, fila, eventos, curimba };
 // As outras abas só são baixadas quando alguém abre.
 const SOB_DEMANDA = {
   pessoas: () => import('./telas/pessoas.js'),
@@ -76,7 +77,7 @@ let arrastoAnamnese = null;
 // Abas com sub-abas: o botão do topo é o da primeira; as outras viram sub-abas dentro dela. Por dentro continuam
 // sendo telas separadas (cada uma com o seu estado e a sua permissão).
 const GRUPOS_ABAS = [
-  { topo: 'agenda', subs: [['agenda', 'Gira'], ['ervas', 'Ervas'], ['hist', 'Histórico']] },
+  { topo: 'agenda', subs: [['agenda', 'Gira'], ['fila', 'Fila'], ['ervas', 'Ervas'], ['hist', 'Histórico']] },
   { topo: 'guias', subs: [['guias', 'Compras'], ['pedidos', 'Pedidos'], ['asaas', 'ASAAS']] },
 ];
 const grupoDa = (tab) => GRUPOS_ABAS.find((g) => g.subs.some(([k]) => k === tab));
@@ -138,7 +139,7 @@ function render() {
   const visao = visaoAtiva();
   // Abas que o perfil pode ver.
   let VE = { usuarios: pode('usuarios:gerenciar'), asaas: pode('asaas:ver'), pedidos: vePedidos(), transparencia: veTransparencia(), ervas: veErvas(), oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(),
-    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), gira: true, agenda: true };
+    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), fila: fila.veFila(), gira: true, agenda: true };
   if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: false, fotos: false, diario: veDiario(), gira: true, agenda: false };
   // Consulente: a Geral e as abas que o root marcou no perfil Consulentes (Perfil, Compras, Amaci, Vídeos).
   if (visao === 'alunos' && estado.me.consulente) Object.assign(VE, { oferendas: false, perfil: pode('perfil:ver'), guias: veGuias(), amaci: veAmaci(), videos: pode('videos:ver') || !!estado.me.videosPublicada });
@@ -286,6 +287,8 @@ tabs.addEventListener('click', (e) => {
   // Fotos: busca de novo (os links das fotos expiram) e os álbuns voltam fechados, a não ser no meio de um envio.
   if (b.dataset.tab === 'fotos') { estado.fotos = null; if (!estado.fotUi?.envio) estado.fotUi = null; }
   // Histórico: o bloco Giras salvas volta minimizado.
+  // Fila de senhas: abre com o que já está no aparelho e busca de novo (outros celulares chamam também).
+  if (b.dataset.tab === 'fila') fila.atualizarAoAbrir();
   if (b.dataset.tab === 'hist') { atualizarAoAbrir('stPerfis', '/pessoas?lista=perfis'); estado.salvasAberto = false; }
   if (b.dataset.tab === 'agenda') atualizarAoAbrir('stPerfis', '/pessoas?lista=perfis');   // orixá de cabeça do bloco do ano
   salvarPerfilAgora();
@@ -448,6 +451,8 @@ main.addEventListener('input', (e) => {
   if (e.target.id === 'vid-busca') { const t = e.target; telaDe('videos').then((m) => m.buscar(t)); }
   // Relato e resposta da Gestão de Conduta e Risco: até 10 linhas, guardados para um redesenho não apagar.
   if (gira.digitarConduta(e.target)) return;
+  // Balcão da fila de senhas: guardado para a atualização automática do painel não apagar.
+  if (fila.digitarFila(e.target)) return;
   // Pedido de oração: até 3 linhas (não deixa passar da 3ª) e guardado para um redesenho não apagar.
   if (e.target.id === 'or-texto') {
     const linhas = e.target.value.split('\n');
@@ -625,6 +630,8 @@ main.addEventListener('submit', async (e) => {
     await gira.enviarOracao(e.target);
   } else if (id === 'f-conduta') {
     await gira.enviarConduta(e.target);
+  } else if (id === 'f-fila-balcao') {
+    await fila.enviarBalcaoFila(e.target);
   } else if (id === 'f-ft-album') {
     await (await telaDe('fotos')).enviarAlbum(e.target);
   } else if (id === 'f-video' || id === 'f-video-ed') {

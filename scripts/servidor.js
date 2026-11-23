@@ -105,6 +105,8 @@ export async function criarServidor() {
       if (seguro.includes('..')) return res.status(400).end();
       const base = seguro.startsWith('shared' + path.sep) || seguro.startsWith('shared/') ? RAIZ : path.join(RAIZ, 'frontend');
       if (await servirArquivo(res, path.join(base, seguro))) return;
+      // Como o cleanUrls da Vercel: /fila serve fila.html.
+      if (!path.extname(seguro) && seguro && await servirArquivo(res, path.join(base, seguro + '.html'))) return;
       res.status(404).end('Não encontrado');
     } catch (e) {
       console.error(e);
