@@ -70,10 +70,22 @@ self.addEventListener('message', (e) => {
   else if (e.data === 'versao' && e.ports[0]) e.ports[0].postMessage(VERSAO);
 });
 
+// As páginas próprias (/fila: senha, TV e cartaz) vêm sempre da rede, com os arquivos delas: elas não pedem a troca de
+// versão (quem pede é o app, em js/atualizacao.js), e do cache ficariam presas na versão instalada mesmo recarregando
+// (a TV aberta pelo botão do app, por exemplo). Sem rede elas não funcionam de qualquer jeito (dependem da API).
+const ehPaginaPropria = (u) => Object.prototype.hasOwnProperty.call(PAGINAS, new URL(u).pathname) || Object.values(PAGINAS).includes(new URL(u).pathname);
+
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
-  // Navegação abre o app ('/'), menos as páginas próprias: /fila (senha da fila, sem login) é outra página.
-  const chave = e.request.mode !== 'navigate' ? url.pathname : PAGINAS[url.pathname] || '/';
-  e.respondWith(caches.open(CACHE).then((c) => c.match(chave)).then((r) => r || fetch(e.request)));
+  if (e.request.mode === 'navigate' && ehPaginaPropria(e.request.url)) return;   // a página: direto da rede
+  // Navegação abre o app ('/').
+  const chave = e.request.mode !== 'navigate' ? url.pathname : '/';
+  e.respondWith((async () => {
+    // Arquivo pedido por uma página própria: da rede (o cache fica só como reserva, se a rede falhar).
+    const cliente = e.clientId ? await self.clients.get(e.clientId) : null;
+    if (cliente && ehPaginaPropria(cliente.url)) return fetch(e.request).catch(() => caches.match(chave).then((r) => r || Response.error()));
+    const r = await (await caches.open(CACHE)).match(chave);
+    return r || fetch(e.request);
+  })());
 });

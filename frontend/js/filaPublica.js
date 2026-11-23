@@ -57,7 +57,8 @@ let rascunho = { tipo: '', nome: '', telefone: '' };
 let mexeu = false;         // a pessoa já mexeu no nome ou no telefone (o cadastro não sobrescreve mais)
 let jaAvisou = '';        // id + hora da chamada já avisada (não repete o som a cada consulta)
 let timer = null;
-let tvUltima = null;      // a última chamada que a TV já mostrou (null = ainda não carregou: não toca na abertura)
+let tvVistas = null;      // senhas chamadas que a TV já mostrou (chave → hora da chamada); null = ainda não carregou (não toca na abertura)
+const tvDestaque = new Map();   // chave → { tipo: 'nova' | 'rechamada', ate }: as linhas que acendem ou piscam
 
 // lista 'filaResumo': sem token nem login, para a Vercel poder entregar a mesma resposta a todos.
 async function api(metodo, corpo, lista = 'fila') {
@@ -189,24 +190,40 @@ function blocoQr() {
   return `<aside class="tv-qr"><div class="tv-qr-img">${qrSvg(ENDERECO, { titulo: 'QR para pegar a senha' })}</div>
     <h2>Pegue a sua senha</h2><p>Aponte a câmera do celular para o código.</p></aside>`;
 }
+// TV: as senhas chamadas (as que ainda não tiveram o OK no painel) numa lista, na ordem da senha — preferencial,
+// atendimento e passe, cada tipo pelo número —, com o número e o nome. Senha chamada pela primeira vez acende e toca;
+// "Chamar de novo" no painel (a hora da chamada muda) faz a linha piscar em vermelho e toca de novo.
+const DESTAQUE_MS = 12000;
+const ordemTipo = (k) => TIPOS_FILA.findIndex((t) => t.k === k);
+function marcarDestaques(L) {
+  const agora = Date.now();
+  const atual = new Map(L.map((c) => [c.tipo + c.numero, c.chamadaEm || '']));
+  let tocou = false;
+  if (tvVistas) {
+    for (const [k, quando] of atual) {
+      if (!tvVistas.has(k)) { tvDestaque.set(k, { tipo: 'nova', ate: agora + DESTAQUE_MS }); tocou = true; }
+      else if (tvVistas.get(k) !== quando) { tvDestaque.set(k, { tipo: 'rechamada', ate: agora + DESTAQUE_MS }); tocou = true; }
+    }
+  }
+  tvVistas = atual;
+  for (const [k, d] of tvDestaque) if (d.ate < agora || !atual.has(k)) tvDestaque.delete(k);
+  if (tocou) tocar();
+}
 function desenharTv() {
-  const L = fila?.chamadas || [];
-  const ult = L[0];
-  const chave = ult ? `${ult.tipo}${ult.numero}${ult.chamadaEm || ''}` : '';
-  const nova = tvUltima !== null && !!chave && chave !== tvUltima;
-  if (fila) tvUltima = chave;
-  if (nova) tocar();
+  const L = [...(fila?.chamadas || [])].sort((a, b) => ordemTipo(a.tipo) - ordemTipo(b.tipo) || a.numero - b.numero);
+  if (fila) marcarDestaques(L);
   let centro;
   if (!fila) centro = `<p class="tv-msg">${erroCarga ? esc(erroCarga) : 'Carregando…'}</p>`;
   else if (!fila.existe) centro = '<p class="tv-msg">Hoje não tem gira.</p>';
   else if (fila.encerrada) centro = '<p class="tv-msg">A gira de hoje foi encerrada.</p>';
-  else if (!ult) centro = '<p class="tv-msg">Nenhuma senha chamada ainda.</p>';
+  else if (!L.length) centro = '<p class="tv-msg">Nenhuma senha chamada ainda.</p>';
   else {
-    centro = `<div class="fila-cartao tv-cartao ${ult.tipo}${nova ? ' nova' : ''}"><div class="fila-cartao-c">
-        <div class="fila-cartao-topo"><span class="fila-cartao-tipo">${esc(tipoFila(ult.tipo)?.nome || '')}</span><span>chamada para a fila!</span></div>
-        <b class="fila-cartao-n">${esc(rotuloSenha(ult.tipo, ult.numero))}</b>
-        ${ult.nome ? `<span class="fila-cartao-q tv-nome">${esc(ult.nome)}</span>` : ''}</div>
-      ${L.length > 1 ? `<div class="fila-canhoto"><span>Antes</span><span class="tv-antes">${L.slice(1).map((c) => `<span class="tv-antes-i"><b class="fp-ch ${c.tipo}">${esc(rotuloSenha(c.tipo, c.numero))}</b>${c.nome ? `<small>${esc(c.nome)}</small>` : ''}</span>`).join('')}</span></div>` : ''}</div>`;
+    centro = `<div class="tv-chamadas"><h2 class="tv-chamadas-t">Chamadas para a fila!</h2>
+      <ol class="tv-lista">${L.map((c) => {
+        const d = tvDestaque.get(c.tipo + c.numero);
+        return `<li class="tv-l ${c.tipo}${d ? ' ' + d.tipo : ''}"><b class="tv-l-n">${esc(rotuloSenha(c.tipo, c.numero))}</b>
+          <span class="tv-l-nome">${esc(c.nome || tipoFila(c.tipo)?.nome || '')}</span>${d?.tipo === 'rechamada' ? '<span class="tv-l-de-novo">chamando de novo</span>' : ''}</li>`;
+      }).join('')}</ol></div>`;
   }
   const espera = fila?.existe && !fila.encerrada ? `<p class="tv-espera">Aguardando ${TIPOS_FILA.map((t) => `<span class="fila-c ${t.k}"><b>${fila.aguardando?.[t.k] || 0}</b> ${t.nome.toLowerCase()}</span>`).join('')}</p>` : '';
   const som = somLiberado() ? '' : '<button type="button" class="fp-bt tv-som" data-act="som">🔔 Toque aqui para ligar o som das chamadas</button>';

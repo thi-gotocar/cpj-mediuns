@@ -6,7 +6,7 @@
 import { estado, pode, prefs, carregarFila, acaoFila, avisar } from '../estado.js';
 import { esc, hoje, toast } from '../util.js';
 import { api } from '../api.js';
-import { TIPOS_FILA, tipoFila, rotuloSenha, CHAMAR_LOTE } from '/shared/fila.js';
+import { TIPOS_FILA, rotuloSenha, CHAMAR_LOTE } from '/shared/fila.js';
 
 const ATUALIZAR_MS = 10000;
 let timer = null;
@@ -38,25 +38,24 @@ const ordem = (a, b) => PESO[a.tipo] - PESO[b.tipo] || a.numero - b.numero;
 const naFila = (L, fila) => L.filter((s) => s.status === 'aguardando' && (fila === 'passe' ? s.tipo === 'passe' : s.tipo !== 'passe')).sort(ordem);
 const proxima = (L, fila) => naFila(L, fila)[0];
 
-// Chamar as próximas 10 de uma vez (cada celular recebe o aviso), com confirmação que mostra quais senhas vão.
-// Um lote é de um tipo só, como no servidor: na fila de atendimento, enquanto houver preferencial, o lote é só de
-// preferenciais (até 10 ou até acabar); depois, de atendimento.
+// Chamar de 10 em 10, um botão por tipo (do tamanho dos botões Chamar atendimento / passe): Chamar Preferencial, Chamar
+// Atendimento e Chamar Passe. Cada um chama as próximas 10 daquele tipo, na ordem (com menos, as que houver), depois de
+// confirmar; cada celular recebe o aviso e a TV mostra todas.
 const NOME_LOTE = { preferencial: ['preferencial', 'preferenciais'], atendimento: ['de atendimento', 'de atendimento'], passe: ['de passe', 'de passe'] };
 function chamarLote(L) {
-  const filas = ['atendimento', 'passe'].map((k) => {
-    const fila = naFila(L, k);
-    const tipo = fila[0]?.tipo;
-    return [k, tipo, fila.filter((s) => s.tipo === tipo).slice(0, CHAMAR_LOTE), fila.length];
-  }).filter(([, , v, total]) => v.length && total >= 2);
-  if (!filas.length) return '';
+  const lotes = TIPOS_FILA.map((t) => {
+    const v = L.filter((s) => s.status === 'aguardando' && s.tipo === t.k).sort(ordem).slice(0, CHAMAR_LOTE);
+    return [t.k, t.nome, v];
+  });
   const texto = (tipo, n) => (n === 1 ? `a próxima senha ${NOME_LOTE[tipo][0]}` : `as próximas ${n} senhas ${NOME_LOTE[tipo][1]}`);
-  const aberta = filas.find(([k]) => estado.confirm === 'filalote:' + k);
-  if (aberta) {
-    const [k, tipo, v] = aberta;
-    return `<div class="fila-lote-conf"><p><b>Chamar ${texto(tipo, v.length)}?</b> ${v.map((s) => esc(rot(s))).join(', ')}.</p>
-      <div class="fila-acoes"><button type="button" class="btn small primary" data-act="filalote" data-f="${k}" data-n="${v.length}">Chamar ${v.length}</button><button type="button" class="btn small" data-act="filavoltar">Voltar</button></div></div>`;
+  const aberta = lotes.find(([k]) => estado.confirm === 'filalote:' + k);
+  if (aberta && aberta[2].length) {
+    const [k, , v] = aberta;
+    return `<div class="fila-lote-conf"><p><b>Chamar ${texto(k, v.length)}?</b> ${v.map((s) => esc(rot(s))).join(', ')}.</p>
+      <div class="fila-acoes"><button type="button" class="btn small primary" data-act="filalote" data-f="${k === 'passe' ? 'passe' : 'atendimento'}" data-t="${k}" data-n="${v.length}">Chamar ${v.length}</button><button type="button" class="btn small" data-act="filavoltar">Voltar</button></div></div>`;
   }
-  return `<div class="fila-lote">${filas.map(([k, tipo, v]) => `<button type="button" class="btn small fila-lote-${tipo}" data-act="askdel" data-k="filalote:${k}">Chamar ${texto(tipo, v.length)}</button>`).join('')}</div>`;
+  return `<div class="fila-lote">${lotes.map(([k, nome, v]) => `<button type="button" class="btn fila-chamar fila-lote-${k}" data-act="askdel" data-k="filalote:${k}" ${v.length ? '' : 'disabled'}>
+      <span>Chamar ${esc(nome)}</span><small>${v.length ? `${v.length} · <b>${esc(rot(v[0]))}${v.length > 1 ? '–' + esc(rot(v.at(-1))) : ''}</b>` : 'Ninguém aguardando'}</small></button>`).join('')}</div>`;
 }
 
 function botaoChamar(L, fila, titulo) {
@@ -90,13 +89,14 @@ function linha(s) {
 function lista(L) {
   const grupos = [['aguardando', 'Na fila'], ['chamada', 'Chamadas'], ['atendida', 'Atendidas'], ['ausente', 'Ausentes'], ['cancelada', 'Canceladas']];
   const de = (st) => L.filter((s) => s.status === st);
-  const itens = de(aba).sort(aba === 'chamada' || aba === 'atendida' ? (a, b) => String(b.chamadaEm).localeCompare(String(a.chamadaEm)) : aba === 'aguardando' ? ordem : (a, b) => a.criadaEm.localeCompare(b.criadaEm));
+  // Todas as listas na ordem da senha, crescente (preferencial, atendimento e passe; cada tipo pelo número), como a TV.
+  const itens = de(aba).sort(ordem);
   return `<div class="fila-sec"><div class="seg fila-seg">${grupos.map(([k, t]) => `<button type="button" data-act="filaver" data-v="${k}" aria-pressed="${aba === k}">${t} <span class="fila-n">${de(k).length}</span></button>`).join('')}</div>
     ${itens.length ? `<ul class="fila-lista">${itens.map(linha).join('')}</ul>` : `<p class="muted fila-vazio">${aba === 'aguardando' ? 'Ninguém aguardando.' : 'Nenhuma senha aqui.'}</p>`}</div>`;
 }
 
 function balcao(f) {
-  if (!balcaoAberto) return `<button type="button" class="btn fila-balcao-bt" data-act="filabalcao">＋ Senha no balcão</button>`;
+  if (!balcaoAberto) return `<button type="button" class="btn primary btn-grande fila-balcao-bt" data-act="filabalcao"><span aria-hidden="true">＋</span> Senha no balcão<small>Para quem não tem celular ou não conseguiu</small></button>`;
   const v = estado.filaBalcao || {};
   const tipo = v.tipo || (f.atendimentoLotado ? 'passe' : 'atendimento');
   return `<form id="f-fila-balcao" class="fila-balcao" autocomplete="off">
@@ -110,17 +110,30 @@ function balcao(f) {
     <button class="btn primary" type="submit">Emitir senha</button></form>`;
 }
 
-// O cartão da senha chamada agora, como o de papel que a fila substitui; o canhoto mostra as próximas da fila.
-function cartao(f, L) {
-  const ult = f.chamadas?.[0];
+// No topo do painel, as senhas chamadas agora (as mesmas da TV): senha e nome, na ordem da senha, com OK, Chamar de novo
+// e Ausente. OK e Ausente tiram da lista (e da TV); Chamar de novo marca a linha em vermelho por uns segundos (aqui e
+// nos outros celulares do painel, que veem a hora da chamada mudar). Embaixo, as próximas da fila de atendimento.
+const DESTAQUE_MS = 12000;
+let vistas = null;            // chave → hora da chamada, para notar quem foi chamado de novo
+const destaque = new Map();   // chave → até quando fica vermelho
+function chamadasAgora(L) {
+  const ch = L.filter((s) => s.status === 'chamada').sort(ordem);
+  const agora = Date.now();
+  const atual = new Map(ch.map((s) => [s.id, s.chamadaEm || '']));
+  if (vistas) for (const [id, quando] of atual) if (vistas.has(id) && vistas.get(id) !== quando) destaque.set(id, agora + DESTAQUE_MS);
+  vistas = atual;
+  for (const [id, ate] of destaque) if (ate < agora || !atual.has(id)) destaque.delete(id);
   const prox = L.filter((s) => s.status === 'aguardando' && s.tipo !== 'passe').sort(ordem).slice(0, 4).map(rot);
-  const canhoto = `<div class="fila-canhoto"><span>Próximas</span>${prox.length ? `<b>${prox.map(esc).join(' ')}</b>` : '<span>ninguém aguardando</span>'}</div>`;
-  if (!ult) return `<div class="fila-cartao vazio"><div class="fila-cartao-c"><p class="fila-cartao-vazio">Ninguém chamado ainda.</p></div>${canhoto}</div>`;
-  const s = L.find((x) => x.tipo === ult.tipo && x.numero === ult.numero);
-  return `<div class="fila-cartao ${ult.tipo}" aria-live="polite"><div class="fila-cartao-c">
-      <div class="fila-cartao-topo"><span class="fila-cartao-tipo">${esc(tipoFila(ult.tipo)?.nome || '')}</span><span>chamada às ${hora(ult.chamadaEm)}</span></div>
-      <b class="fila-cartao-n">${esc(rotuloSenha(ult.tipo, ult.numero))}</b>
-      ${s ? `<span class="fila-cartao-q">${esc(s.nome)}</span>` : ''}</div>${canhoto}</div>`;
+  const proximas = `<p class="fila-prox"><span>Próximas</span>${prox.length ? `<b>${prox.map(esc).join(' ')}</b>` : '<span class="muted">ninguém aguardando</span>'}</p>`;
+  if (!ch.length) return `<div class="fila-agora vazio"><p class="fila-agora-vazio">Ninguém chamado agora.</p>${proximas}</div>`;
+  const b = (s, st, txt, extra = '') => `<button type="button" class="btn small ${extra}" data-act="filamarcar" data-id="${esc(s.id)}" data-s="${st}">${txt}</button>`;
+  return `<div class="fila-agora" aria-live="polite"><h3 class="fila-agora-t">Chamadas agora <span class="fila-n">${ch.length}</span></h3>
+    <ul class="fila-agora-l">${ch.map((s) => {
+      const re = destaque.has(s.id);
+      return `<li class="fila-ch ${s.tipo}${re ? ' rechamada' : ''}"><b class="fila-ch-n">${esc(rot(s))}</b>
+        <span class="fila-ch-q"><b>${esc(s.nome)}</b><small>${re ? 'chamada de novo' : 'chamada'} às ${hora(s.chamadaEm)}</small></span>
+        <span class="fila-acoes">${b(s, 'atendida', 'OK', 'primary')}${b(s, 'chamada', 'Chamar de novo')}${b(s, 'ausente', 'Ausente')}</span></li>`;
+    }).join('')}</ul>${proximas}</div>`;
 }
 
 // Encerrar (ou reabrir) a entrada pelo QR sem abrir os Ajustes, que ficam recolhidos depois da primeira senha.
@@ -202,7 +215,7 @@ function blocoFila(g) {
   const em = (k) => f.aguardando?.[k] || 0;
   const espera = TIPOS_FILA.map((t) => `<span class="fila-c ${t.k}"><b>${em(t.k)}</b> ${t.nome.toLowerCase()}</span>`).join('');
   return `<div class="fila-card">${tit}
-    ${cartao(f, L)}
+    ${chamadasAgora(L)}
     <div class="fila-bts">${botaoChamar(L, 'atendimento', 'Chamar atendimento')}${botaoChamar(L, 'passe', 'Chamar passe')}</div>
     ${chamarLote(L)}
     <p class="fila-cont">Aguardando ${espera}</p>
@@ -215,7 +228,7 @@ function blocoFila(g) {
 
 export const cliques = {
   filachamar(el) { acaoFila(hoje(), 'filaChamar', { fila: el.dataset.f }); },
-  filalote(el) { acaoFila(hoje(), 'filaChamar', { fila: el.dataset.f, quantidade: Number(el.dataset.n) }); },
+  filalote(el) { acaoFila(hoje(), 'filaChamar', { fila: el.dataset.f, tipo: el.dataset.t, quantidade: Number(el.dataset.n) }); },
   filamarcar(el) { acaoFila(hoje(), 'filaMarcar', { id: el.dataset.id, status: el.dataset.s }); },
   filaver(el) { aba = el.dataset.v; avisar(); },
   filavoltar() { avisar(); },

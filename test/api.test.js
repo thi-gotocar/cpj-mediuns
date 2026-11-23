@@ -3543,3 +3543,23 @@ test('v175: recado para a corrente — um só para todos os dias, vem na config;
   assert.equal((await config(ADMIN)).recado, 'Venham de branco.\nTragam uma vela.');
   assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'recadoCorrente', recado: '' })).json.recado, '', 'em branco tira');
 });
+
+test('v177: chamar em lote por tipo — Chamar Atendimento chama só atendimento, mesmo com preferencial aguardando', async () => {
+  const { hojeBR } = await import('../api/_lib/http.js');
+  const rota = '/api/giras/' + hojeBR();
+  await api('DELETE', rota, ADMIN);
+  await api('PUT', rota, ADMIN, { titulo: 'Gira do lote por tipo' });
+  const balcao = (tipo, nome) => api('POST', rota, ADMIN, { acao: 'filaBalcao', tipo, nome });
+  for (const n of ['A1', 'A2']) await balcao('atendimento', n);
+  await balcao('preferencial', 'P1');
+  await balcao('passe', 'S1');
+  assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', tipo: 'outro', quantidade: 10 })).status, 400);
+  const r = await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', tipo: 'atendimento', quantidade: 10 });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const chamadas = (x) => x.json.senhas.filter((s) => s.status === 'chamada').map((s) => s.nome).sort();
+  assert.deepEqual(chamadas(r), ['A1', 'A2'], 'só as de atendimento (as 2 que havia), a preferencial espera');
+  const p = await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', tipo: 'preferencial', quantidade: 10 });
+  assert.deepEqual(chamadas(p), ['A1', 'A2', 'P1']);
+  assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', tipo: 'atendimento', quantidade: 10 })).status, 409, 'ninguém mais de atendimento');
+  await api('DELETE', rota, ADMIN);
+});

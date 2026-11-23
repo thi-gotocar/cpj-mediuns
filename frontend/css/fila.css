@@ -150,3 +150,25 @@ body.modo-cartaz{background:#fff;color:#111;color-scheme:light}
 .tv-nome{font-size:clamp(1.4rem,4vw,2.6rem);font-weight:700}
 .tv-antes-i{display:inline-grid;justify-items:center;gap:2px}
 .tv-antes-i small{font-size:clamp(.8rem,1.6vw,1.1rem);opacity:.85;max-width:12ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* TV: a lista das senhas chamadas, na ordem da senha (número grande na cor do tipo e o nome). Chamada nova acende;
+   "Chamar de novo" pisca em vermelho. */
+.tv-chamadas{display:grid;gap:2vh;min-width:0}
+.tv-chamadas-t{margin:0;font:700 clamp(1.4rem,4.2vh,2.6rem) var(--f-display);color:var(--muted)}
+.tv-lista{list-style:none;margin:0;padding:0;display:grid;gap:1.4vh}
+.tv-l{--cor:var(--accent);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:2.4vw;padding:1.4vh 2vw;
+  border:1px solid var(--line);border-left:8px solid var(--cor);border-radius:14px;background:var(--surface);min-width:0}
+.tv-l.preferencial{--cor:var(--orange)}
+.tv-l.passe{--cor:var(--ok)}
+.tv-l-n{font:700 clamp(2.4rem,8vh,5.4rem) var(--f-display);line-height:1;color:var(--cor);font-variant-numeric:lining-nums tabular-nums}
+.tv-l-nome{font-size:clamp(1.4rem,5vh,3.2rem);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tv-l-de-novo{font-weight:700;font-size:clamp(1rem,2.8vh,1.6rem);color:#fff;background:#d32f2f;border-radius:999px;padding:.2em .8em;white-space:nowrap}
+.tv-l.nova{border-color:var(--cor);background:color-mix(in srgb,var(--cor) 16%,var(--surface))}
+.tv-l.rechamada{--cor:#ff4d55;border-color:#ff4d55;background:color-mix(in srgb,#ff4d55 22%,var(--surface))}
+.tv-l.rechamada .tv-l-n,.tv-l.rechamada .tv-l-nome{color:#ffd9db}
+@media (prefers-reduced-motion:no-preference){
+  .tv-l.nova{animation:tv-l-nova 1.2s ease-out 3}
+  .tv-l.rechamada{animation:tv-l-pisca .7s steps(2,jump-none) infinite}
+  @keyframes tv-l-nova{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--cor) 70%,transparent)}100%{box-shadow:0 0 0 24px transparent}}
+  @keyframes tv-l-pisca{0%{background:#b71c1c}100%{background:color-mix(in srgb,#ff4d55 22%,var(--surface))}}
+}

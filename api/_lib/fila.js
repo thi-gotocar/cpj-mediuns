@@ -117,7 +117,9 @@ export async function acaoFilaPainel(req, data, b) {
     if (!FILAS_CHAMADA.includes(b.fila)) throw new HttpError(400, 'Fila inválida.');
     const quantidade = b.quantidade == null ? 1 : Number(b.quantidade);
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > CHAMAR_MAX) throw new HttpError(400, `Chame de 1 a ${CHAMAR_MAX} senhas por vez.`);
-    return db.rpc('fila_chamar', { data, fila: b.fila, quantidade });
+    // tipo: o lote só daquele tipo (botões Chamar Preferencial / Atendimento / Passe); sem ele, preferencial primeiro.
+    if (b.tipo !== undefined && !TIPO_KEYS.includes(b.tipo)) throw new HttpError(400, 'Tipo de senha inválido.');
+    return db.rpc('fila_chamar', { data, fila: b.fila, quantidade, ...(b.tipo ? { tipo: b.tipo } : {}) });
   }
   if (b.acao === 'filaMarcar') {
     if (!STATUS_MARCAR.includes(b.status)) throw new HttpError(400, 'Situação inválida.');

@@ -5780,4 +5780,35 @@ export const MIGRACOES = [
                    from minha m)
      ) end
    $$`,
+
+  // ---------- v177: chamar em lote por tipo ----------
+  // Os botões Chamar Preferencial / Atendimento / Passe do painel chamam até 10 daquele tipo (com menos, as que houver);
+  // p.tipo diz o tipo exato. Sem p.tipo, como antes: na fila de atendimento, as preferenciais primeiro.
+  `create or replace function fila_chamar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_n integer := least(greatest(coalesce((p ->> 'quantidade')::integer, 1), 1), 20);
+     v_i integer := 0;
+     v_tipo text;
+     r record;
+   begin
+     if exists (select 1 from giras where data = v_data and encerrada) then
+       raise exception using errcode = 'SM409', message = 'A gira já foi encerrada.';
+     end if;
+     v_tipo := case when p ->> 'tipo' in ('preferencial', 'atendimento', 'passe') then p ->> 'tipo'
+                    when p ->> 'fila' = 'passe' then 'passe'
+                    when exists (select 1 from fila_senhas where gira_data = v_data and status = 'aguardando' and tipo = 'preferencial') then 'preferencial'
+                    else 'atendimento' end;
+     for r in select id from fila_senhas
+               where gira_data = v_data and status = 'aguardando' and tipo = v_tipo
+               order by numero
+               limit v_n for update skip locked loop
+       v_i := v_i + 1;
+       update fila_senhas set status = 'chamada', chamada_em = now() + v_i * interval '1 millisecond', mudou_em = now() where id = r.id;
+     end loop;
+     if v_i = 0 then raise exception using errcode = 'SM409', message = 'Ninguém aguardando nesta fila.'; end if;
+     return fila_painel(jsonb_build_object('data', v_data));
+   end;
+   $$`,
 ];
