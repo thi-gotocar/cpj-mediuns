@@ -5571,4 +5571,27 @@ export const MIGRACOES = [
    returns jsonb language sql volatile as $$
      select to_jsonb(versao_dados())
    $$`,
+
+  // ---------- v173: dia da semana das giras ----------
+  // O admin da Gira marca no bloco Admin (fim da aba Gira) o dia da semana em que as giras acontecem (0 = domingo …
+  // 6 = sábado; começa na quarta). Fica numa chave própria de sistema, e não dentro de config_casa, porque o Salvar das
+  // Configurações da casa (root) regrava aquele JSON inteiro. Vai para o app junto com a config (config_casa).
+  `insert into sistema (chave, valor) values ('dia_gira', '3') on conflict (chave) do nothing`,
+  `create or replace function config_casa(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce((select valor::jsonb from sistema where chave = 'config_casa'), '{}'::jsonb)
+         || jsonb_build_object('diaGira', coalesce((select valor from sistema where chave = 'dia_gira'), '3'));
+   $$`,
+  // p = { dia: 0 a 6 } → a config da casa, já com o dia novo.
+  `create or replace function dia_gira_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if (p ->> 'dia') is null or (p ->> 'dia') !~ '^[0-6]$' then
+       raise exception 'Dia da semana inválido.';
+     end if;
+     insert into sistema (chave, valor) values ('dia_gira', p ->> 'dia')
+     on conflict (chave) do update set valor = excluded.valor;
+     return config_casa();
+   end;
+   $$`,
 ];

@@ -3466,3 +3466,19 @@ test('v170: versão do app — a abertura grava a de cada pessoa; o root exige u
   const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === 'Versao Antiga');
   if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
 });
+
+test('v173: dia da semana das giras — quem edita a Gira marca; vem na config e o Salvar do root não apaga', async () => {
+  const inicio = async (tok) => (await api('GET', '/api/auth/inicio', tok)).json.config;
+  assert.equal((await inicio(ADMIN)).diaGira, '3', 'começa na quarta');
+  assert.equal((await api('POST', '/api/giras', USER, { acao: 'diaGira', dia: 6 })).status, 403);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'diaGira', dia: 7 })).status, 400);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'diaGira', dia: 'x' })).status, 400);
+  const r = await api('POST', '/api/giras', ADMIN, { acao: 'diaGira', dia: 6 });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.diaGira, '6');
+  assert.equal((await inicio(USER)).diaGira, '6', 'a corrente recebe na abertura');
+  // As Configurações da casa (root) regravam o JSON inteiro: o dia da gira fica à parte e continua.
+  await api('POST', '/api/usuarios', ADMIN, { acao: 'config', config: { responsavel: 'Michelle' } });
+  assert.equal((await inicio(ADMIN)).diaGira, '6');
+  await api('POST', '/api/giras', ADMIN, { acao: 'diaGira', dia: 3 });
+});

@@ -2711,6 +2711,11 @@ div.pf-of-total{cursor:default}
 .gn-amaci-bts{display:flex;flex-wrap:wrap;gap:6px}
 .gn-amaci-vou{border-color:var(--ok);color:var(--ok)}
 .gn-amaci-lista{display:flex;flex-wrap:wrap;gap:6px}
+.gn-nome.pres{background:var(--ok-soft);border-color:transparent;color:var(--ok);margin:0}
+.gn-ok{font-weight:900;margin-right:4px}
+.gn-admin{display:grid;gap:8px}
+.gn-admin h3{margin:0}
+.gn-admin-nota{margin:0;font-size:.85rem}
 
 /* Aba Geral (layout): o bloco da gira é o destaque; os outros ficam quietos. Sem faixa colorida decorativa (a cor
    fica só onde quer dizer algo: pendência em amarelo, admin em dourado, a gira em azul) e as listas dentro dos blocos

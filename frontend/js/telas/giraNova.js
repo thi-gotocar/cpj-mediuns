@@ -79,9 +79,9 @@ function extrasDoDia(data, titulo) {
 
 // ---------- Amaci: quem da corrente vai ----------
 // Só um controle da corrente (não é a presença dos alunos no amaci): cada pessoa marca Vou ao amaci até o dia, e todos
-// da corrente veem a lista em Ver quem vai. Lido do servidor quando o amaci aparece na tela.
+// da corrente veem a lista de quem vai, já aberta, com o ✓ de presente em cada nome. Lido do servidor quando o amaci
+// aparece na tela.
 const amaciLendo = new Set();
-const amaciAbertos = new Set();
 function lerAmaciVou(id) {
   if (amaciLendo.has(id)) return;
   amaciLendo.add(id);
@@ -93,13 +93,13 @@ function amaciVou(e) {
   const v = estado.amaciVou?.[e.id];
   if (!v) { lerAmaciVou(e.id); return '<div class="gn-amaci"><span class="muted">Carregando quem vai…</span></div>'; }
   if (v.erro) return '';
-  const aberto = amaciAbertos.has(e.id);
   const n = v.pessoas.length;
   const marcar = v.podeMarcar && e.data >= hoje()
-    ? `<button type="button" class="btn small ${v.eu ? 'gn-amaci-vou' : 'primary'}" data-act="amacivou" data-id="${esc(e.id)}" data-v="${v.eu ? '0' : '1'}" aria-pressed="${v.eu}">${v.eu ? '✓ Você vai · desmarcar' : '🙋 Vou ao amaci'}</button>` : '';
-  const lista = aberto ? `<div class="gn-amaci-lista">${n ? v.pessoas.map((p) => `<span class="gn-nome">${esc(p.nome)}</span>`).join('') : '<span class="muted">Ninguém marcou ainda.</span>'}</div>` : '';
-  return `<div class="gn-amaci"><div class="gn-amaci-bts">${marcar}
-      <button type="button" class="btn small" data-act="amaciquem" data-id="${esc(e.id)}" aria-expanded="${aberto}">Ver quem vai (${n}) <span aria-hidden="true">${aberto ? '▾' : '▸'}</span></button></div>${lista}</div>`;
+    ? `<div class="gn-amaci-bts"><button type="button" class="btn small ${v.eu ? 'gn-amaci-vou' : 'primary'}" data-act="amacivou" data-id="${esc(e.id)}" data-v="${v.eu ? '0' : '1'}" aria-pressed="${v.eu}">${v.eu ? '✓ Você vai · desmarcar' : '🙋 Vou ao amaci'}</button></div>` : '';
+  const lista = n
+    ? v.pessoas.map((p) => `<span class="gn-nome pres"><span class="gn-ok" aria-hidden="true">✓</span>${esc(p.nome)}</span>`).join('')
+    : '<span class="muted">Ninguém marcou ainda.</span>';
+  return `<div class="gn-amaci">${marcar}<div class="gn-amaci-lista" aria-label="Quem vai ao amaci: ${n}">${lista}</div></div>`;
 }
 
 // ---------- Compartilhar: um botão só, com as opções que a pessoa tem ----------
@@ -270,7 +270,7 @@ export function montarNova(ctx) {
   const faixa = faixaSemana(g, ctx.marcas, ctx.calendario);
   if (semGira) {
     return `<section class="panel gn">${faixa}<div class="gn-cab"><span class="gn-data">${esc(maiuscula(dLong(g.data)))}</span>${extrasDoDia(g.data, null)}</div>
-      <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>${ctx.ausPrevia || ''}${ctx.ano || ''}</section>`;
+      <button class="btn primary btn-grande" data-act="criargira">＋ Adicionar evento</button>${ctx.ausPrevia || ''}${ctx.ano || ''}${ctx.adminGira || ''}</section>`;
   }
   const { existe, editar, encerrada } = ctx;
   let corpo = '';
@@ -278,7 +278,8 @@ export function montarNova(ctx) {
   else if (encerrada) corpo = ctx.encerradaQuadro + daCorrente(ctx);
   else corpo = (editar ? conducao(ctx) : '') + daCorrente(ctx);
   // O bloco do ano (Atendimentos, sua presença, orixá de cabeça) vai no fim: os mesmos dados da Gira antiga.
-  return `<section class="panel gn">${faixa}${cabecalho(ctx)}${corpo}${ctx.ano || ''}</section>`;
+  // Por último, o bloco Admin (dia da semana das giras), só para quem edita a Gira.
+  return `<section class="panel gn">${faixa}${cabecalho(ctx)}${corpo}${ctx.ano || ''}${ctx.adminGira || ''}</section>`;
 }
 
 export const cliquesNova = {
@@ -291,7 +292,6 @@ export const cliquesNova = {
     } catch (e) { toast(e.message); }
     avisar();
   },
-  amaciquem(el) { const id = el.dataset.id; if (amaciAbertos.has(id)) amaciAbertos.delete(id); else amaciAbertos.add(id); avisar(); },
   gnpasso(el) {
     const d = giraAtual().data, n = Number(el.dataset.n);
     passos.set(d, passos.get(d) === n ? 0 : n);

@@ -28,6 +28,7 @@
 // POST /api/giras  { acao: 'fotoAlbum', id?, data, nome }  → { ...fotos, albumId } (com id = editar: só admin)
 //                  { acao: 'fotoEnviar', albumId, foto, miniatura (JPEG em base64), largura, altura }  → { ok }
 //                  { acao: 'fotoExcluir', id } (a própria foto, ou qualquer uma para admin) · { acao: 'fotoExcluirAlbum', id } (admin)  → fotos
+// POST /api/giras  { acao: 'diaGira', dia: 0 a 6 }  dia da semana das giras (quem edita a Gira) → config da casa
 // POST /api/giras  { acao: 'importar', pessoas, giras }  restaurar backup (dados:importar; api/_lib/importar.js) → { pessoasCriadas, pessoasNoArquivo, giras }
 //                  (o app anterior chama POST /api/importar: o vercel.json reescreve para ?acao=importar)
 import { rota, corpo, validarData, validarId, HttpError, hojeBR } from '../_lib/http.js';
@@ -131,6 +132,13 @@ export default rota({
       if (typeof b.vou !== 'boolean') throw new HttpError(400, 'Informe se você vai.');
       const pessoas = await db.rpc('amaci_vou_marcar', { eventoId: validarId(b.eventoId, 'Amaci'), pessoaId: eu.pessoaId, vou: b.vou });
       return { pessoas, eu: pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: true };
+    }
+    // Bloco Admin da aba Gira: o dia da semana das giras (0 a 6) → a config da casa (shared/config.js diaGira).
+    if (b.acao === 'diaGira') {
+      await exigir(req, 'giras:editar');
+      const dia = Number(b.dia);
+      if (!Number.isInteger(dia) || dia < 0 || dia > 6) throw new HttpError(400, 'Dia da semana inválido.');
+      return db.rpc('dia_gira_salvar', { dia: String(dia) });
     }
     if (b.acao === 'filaGeral') {
       await exigir(req, 'usuarios:gerenciar');

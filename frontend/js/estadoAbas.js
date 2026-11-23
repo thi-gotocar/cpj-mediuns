@@ -26,6 +26,15 @@ export async function acaoUsuarios(acao, dados = {}) {
   } catch (e) { toast(e.message); avisar(); return false; }
 }
 
+// Bloco Admin da aba Gira: o dia da semana das giras; a resposta é a config da casa inteira.
+export async function salvarDiaGira(dia) {
+  try {
+    definirConfig(await api('POST', '/giras', { acao: 'diaGira', dia }));
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+
 export async function salvarConfigCasa(dados) {
   try {
     definirConfig(await api('POST', '/usuarios', { acao: 'config', config: dados }));

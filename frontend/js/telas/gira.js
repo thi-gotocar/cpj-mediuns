@@ -1,13 +1,13 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } from '../util.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, salvarDiaGira, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
+import { esc, dLong, dDM, pd, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { calendarioMes, mesMais } from '../calendario.js';
 import { painelResumo, cliquesResumo } from '../compartilharResumo.js';
 import { dadosResumo, textoLimpeza } from '/shared/resumoGira.js';
-import { config } from '/shared/config.js';
+import { config, diaDaGira, DIAS_SEMANA } from '/shared/config.js';
 import { aniversariantesDoDia, rotuloTipo } from '/shared/eventos.js';
 import { htmlStatus, abertos, cabDobra, caixaPendente, ICONE_WHATS } from './giraComum.js';
 import { blocoEu } from './giraEu.js';
@@ -141,6 +141,18 @@ async function gravarFuncao(id, papel) {
   if (temDuplas && !g.travada) { await remanejar(`${p.nome}: ${fn} nesta gira. Escala refeita.`); return; }
   toast(`${p.nome}: ${fn} nesta gira.${temDuplas ? ' A escala está travada e não mudou.' : ''}`);
   avisar();
+}
+
+// Último bloco da aba (quem edita a Gira): o dia da semana em que as giras acontecem. É ele que abre a Ausência
+// antecipada em todo dia desses, com ou sem evento na agenda. Escolher grava.
+function blocoAdminGira() {
+  if (!pode('giras:editar')) return '';
+  const dia = diaDaGira();
+  const nome = DIAS_SEMANA[dia].toLowerCase();
+  return `<div class="card adm gn-admin"><h3>⚙️ Admin</h3>
+    <label class="field">Dia da semana das giras<select data-act="diagira" aria-label="Dia da semana das giras">
+      ${DIAS_SEMANA.map((t, i) => `<option value="${i}" ${i === dia ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <p class="muted gn-admin-nota">A Ausência antecipada fica disponível em ${dia === 0 || dia === 6 ? 'todo' : 'toda'} ${esc(nome)} ${dia === 0 || dia === 6 ? 'futuro' : 'futura'}, com ou sem evento na agenda (e nos outros dias com gira na agenda).</p></div>`;
 }
 
 function blocosFora(ps, g) {
@@ -283,7 +295,12 @@ function renderGira() {
 
   // Data sem gira (admin): só o card para adicionar o evento.
   if (editar && !existe) {
-    return montarNova({ g, ps, ano, semGira: true, calendario: seletorData(g), marcas: marcasDosDias(), ausPrevia: g.data >= hoje() ? blocoAusPrevia(ps, g) : '' });
+    // Ausência antecipada (de hoje em diante, gira ainda não criada aqui): todo dia da semana das giras (bloco Admin, no
+    // fim da aba), com ou sem evento na agenda, e qualquer outro dia com gira na agenda (evento do tipo Gira).
+    const diaDeGira = pd(g.data).getDay() === diaDaGira();
+    const giraNaAgenda = (estado.eventos || []).some((e) => e.data === g.data && e.tipo === 'gira');
+    return montarNova({ g, ps, ano, semGira: true, calendario: seletorData(g), marcas: marcasDosDias(), adminGira: blocoAdminGira(),
+      ausPrevia: g.data >= hoje() && (diaDeGira || giraNaAgenda) ? blocoAusPrevia(ps, g) : '' });
   }
   const { lista, validos, passesV, semPasse } = paresPorMedium(estado.pessoas, escalaDaGira(g));
   const temDuplas = !g.evento && (validos.length || passesV.length);
@@ -491,6 +508,7 @@ function renderGira() {
     realizado: !g.evento && temDuplas && (g.publicada || encerrada) ? blocoImagemEscala(false) : '',
     eventoImagem: g.evento && !encerrada && (editar || whats) ? botaoImagemEvento(g, ps) : '',
     previa: editar ? botaoWhatsLimpeza(g) : '',
+    adminGira: blocoAdminGira(),
   });
 }
 
@@ -830,6 +848,11 @@ export const mudancas = {
     avisar();
   },
   rapst(t) { if (estado.presRapida) estado.presRapida.st = t.value; },
+  async diagira(t) {
+    const dia = Number(t.value);
+    if (await salvarDiaGira(dia)) toast(`Dia das giras: ${DIAS_SEMANA[dia].toLowerCase()}.`);
+    else t.value = String(diaDaGira());
+  },
   // Passo Escala: escolher a pessoa traz a função do dia dela; trocar a função liga o OK.
   fnpessoa(t) {
     const g = giraAtual();
