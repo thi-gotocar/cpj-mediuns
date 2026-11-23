@@ -1,0 +1,97 @@
+// Restaurar backup (Histórico > Backup): POST /api/giras { acao: 'importar', pessoas, giras } — o arquivo .json baixado
+// pelo app, também o da versão anterior (a que salvava no aparelho). Pessoas são casadas pelo nome; as que não existem
+// são criadas. As giras do arquivo substituem as giras de mesma data.
+// Era uma função própria (api/importar.js); virou ação para liberar uma vaga das 12 da Vercel. O app anterior ainda
+// chama /api/importar: o vercel.json reescreve para /api/giras?acao=importar.
+import { validarData, HttpError } from './http.js';
+import { exigir } from './sessao.js';
+import { db } from './db.js';
+import { FUNCAO_KEYS, LINHA_KEYS, ORIXAS } from '../../shared/regras.js';
+
+// Status das versões anteriores: true = presente, false = ausente, 'nc' = suporte.
+function statusAntigo(v) {
+  if (v === true || v === 'p') return 'p';
+  if (v === false || v === 'a') return 'a';
+  if (v === 'nc' || v === 'sup') return 'sup';
+  if (v === 'na' || v === 'f') return v;
+  return null;
+}
+
+export async function importar(req, b) {
+  const perfil = await exigir(req, 'dados:importar');
+  const pessoasArq = b.pessoas && typeof b.pessoas === 'object' ? Object.entries(b.pessoas) : null;
+  const girasArq = b.giras && typeof b.giras === 'object' ? Object.entries(b.giras) : null;
+  if (!pessoasArq || !girasArq) throw new HttpError(400, 'Arquivo de backup inválido.');
+  if (pessoasArq.length > 2000 || girasArq.length > 2000) throw new HttpError(400, 'Backup grande demais.');
+
+  // 1) pessoas
+  const porFuncao = {};
+  for (const [, p] of pessoasArq) {
+    const nome = String(p?.nome || '').trim();
+    if (!nome || nome.length > 80 || !FUNCAO_KEYS.includes(p.funcao)) continue;
+    (porFuncao[p.funcao] ||= []).push(nome);
+  }
+  let criadas = 0;
+  for (const [funcao, nomes] of Object.entries(porFuncao)) {
+    criadas += (await db.rpc('pessoas_criar', { nomes, funcao })).criadas;
+  }
+  const atuais = await db.rpc('pessoas_listar', { todas: true });
+  const porNome = new Map(atuais.map((p) => [p.nome.trim().toLowerCase(), p]));
+  const novoId = {};
+  for (const [velho, p] of pessoasArq) {
+    const atual = porNome.get(String(p?.nome || '').trim().toLowerCase());
+    if (!atual) continue;
+    novoId[velho] = atual.id;
+    if (p.experiente && !atual.experiente) {
+      await db.rpc('pessoas_atualizar', { id: atual.id, experiente: true });
+      atual.experiente = true;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(p.entrada || '')) && !atual.entrada) {
+      await db.rpc('pessoas_atualizar', { id: atual.id, entrada: p.entrada });
+      atual.entrada = p.entrada;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(p.saida || '')) && !atual.saida) {
+      await db.rpc('pessoas_atualizar', { id: atual.id, saida: p.saida });
+      atual.saida = p.saida;
+    }
+    if ([1, 2, 3, 4, 5, 6, 7].includes(p.limpeza) && !atual.limpeza) {
+      await db.rpc('pessoas_atualizar', { id: atual.id, limpeza: p.limpeza });
+      atual.limpeza = p.limpeza;
+    }
+    const linhas = Array.isArray(p.linhas) ? p.linhas.filter((l) => LINHA_KEYS.includes(l)) : [];
+    if (linhas.length && !(atual.linhas || []).length) {
+      await db.rpc('pessoas_atualizar', { id: atual.id, linhas });
+      atual.linhas = linhas;
+    }
+  }
+
+  // 2) giras
+  const mapa = (lista) => (Array.isArray(lista) ? lista : [])
+    .filter((d) => novoId[d?.m] && novoId[d?.c])
+    .map((d) => ({ m: novoId[d.m], c: novoId[d.c], fixo: !!d.fixo, remanejado: !!d.remanejado }));
+  let giras = 0;
+  for (const [chave, g] of girasArq) {
+    let data;
+    try { data = validarData(g?.data || chave); } catch { continue; }
+    const presenca = {};
+    for (const [velho, v] of Object.entries(g.presenca || {})) {
+      const st = statusAntigo(v);
+      if (novoId[velho] && st) presenca[novoId[velho]] = st;
+    }
+    await db.rpc('gira_salvar', {
+      data, usuario: perfil.id, entidade: String(g.entidade || '').slice(0, 120), pendentePadrao: g.pendentePadrao === true,
+      presenca, pares: mapa(g.pares), passes: mapa(g.passes), encerrada: g.encerrada === true,
+      ...(g.atendimentos && typeof g.atendimentos === 'object' ? { atendimentos: g.atendimentos } : {}),
+      ...([1, 2, 3, 4, 5, 6, 7].includes(g.limpeza) ? { limpeza: g.limpeza } : {}),
+      ...(ORIXAS.includes(g.orixa) ? { orixa: g.orixa } : {}),
+      papeis: Object.fromEntries(Object.entries(g.papeis && typeof g.papeis === 'object' ? g.papeis : {})
+        .filter(([velho, v]) => novoId[velho] && (v === 'sup' || v === 'na')).map(([velho, v]) => [novoId[velho], v])),
+    });
+    if (g.entidadeNome) await db.rpc('gira_entidade_nome', { data, nome: String(g.entidadeNome).slice(0, 120) });
+    if (g.titulo) await db.rpc('gira_titulo', { data, titulo: String(g.titulo).slice(0, 120) });
+    // Encerrada: retrato pelo cadastro de agora; aberta: sem retrato (segue o cadastro).
+    await db.rpc('gira_retrato', g.encerrada === true ? { data, doCadastro: true } : { data, retrato: null });
+    giras++;
+  }
+  return { pessoasCriadas: criadas, pessoasNoArquivo: pessoasArq.length, giras };
+}

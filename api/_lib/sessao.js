@@ -62,19 +62,16 @@ async function montarQuem(req, sessao, registro, permissao) {
   if (sessao.grupo) {
     const aluno = registro;
     if (!aluno) throw new HttpError(401, 'Cadastro não encontrado. Entre de novo.');
-    if (sessao.grupo === 'alunos' && aluno.pinVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
+    // O único grupo que chega aqui é o dos alunos: a sessão de curimba já caiu em lerSessao.
+    if (aluno.pinVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
     // Acesso bloqueado na aba Pessoas: a sessão aberta cai.
-    if (sessao.grupo === 'alunos' && aluno.bloqueado) throw new HttpError(401, 'Seu acesso ao app está bloqueado. Fale com a administração.');
-    const consulente = sessao.grupo === 'alunos' && !!aluno.consulente;
-    const grupoOferenda = sessao.grupo === 'alunos' && !!aluno.grupoOferenda;
-    const [papelNome, permissoes] = sessao.grupo === 'alunos' ? papelAluno(aluno) : ['Curimba', PERMISSOES_GRUPO[sessao.grupo] || []];
+    if (aluno.bloqueado) throw new HttpError(401, 'Seu acesso ao app está bloqueado. Fale com a administração.');
+    const [papelNome, permissoes] = papelAluno(aluno);
     const quem = {
       id: null, nome: aluno.nome, email: '', papel: sessao.grupo, papelNome,
-      consulente, grupoOferenda,
-      grupo: sessao.grupo, alunoId: sessao.grupo === 'alunos' ? aluno.id : null,
-      turmaId: sessao.grupo === 'alunos' ? aluno.turmaId || null : null,
-      curimbaAlunoId: sessao.grupo === 'curimba' ? aluno.id : null,
-      pessoaId: sessao.grupo === 'curimba' ? aluno.pessoaId || null : null,
+      consulente: !!aluno.consulente, grupoOferenda: !!aluno.grupoOferenda,
+      grupo: sessao.grupo, alunoId: aluno.id, turmaId: aluno.turmaId || null,
+      pessoaId: null,
       temSenha: !!aluno.temSenha,
       permissoes,
     };
@@ -119,7 +116,7 @@ async function verComo(req, alvo, permissao) {
     if (!aluno) throw new HttpError(404, 'Aluno não encontrado no cadastro.');
     const [papelNome, permissoes] = papelAluno(aluno);
     quem = { id: null, nome: aluno.nome, email: '', papel: 'alunos', papelNome, consulente: !!aluno.consulente, grupoOferenda: !!aluno.grupoOferenda,
-      grupo: 'alunos', alunoId: aluno.id, turmaId: aluno.turmaId || null, curimbaAlunoId: null, pessoaId: null, temSenha: !!aluno.temSenha,
+      grupo: 'alunos', alunoId: aluno.id, turmaId: aluno.turmaId || null, pessoaId: null, temSenha: !!aluno.temSenha,
       permissoes };
   } else {
     throw new HttpError(400, 'Visão inválida.');

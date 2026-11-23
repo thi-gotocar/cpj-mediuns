@@ -9,7 +9,8 @@
     "api/**/*.js": { "maxDuration": 15 }
   },
   "rewrites": [
-    { "source": "/api/giras/:data/:acao(sortear|remanejar)", "destination": "/api/giras/:data?acao=:acao" }
+    { "source": "/api/giras/:data/:acao(sortear|remanejar)", "destination": "/api/giras/:data?acao=:acao" },
+    { "source": "/api/importar", "destination": "/api/giras?acao=importar" }
   ],
   "headers": [
     {

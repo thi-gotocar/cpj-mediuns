@@ -620,14 +620,16 @@ test('importar backup da versão anterior', async () => {
       '2026-09-05': { data: '2026-09-05', entidade: 'Exus', presenca: { a1: true, n1: 'nc', n2: false }, pares: [{ m: 'a1', c: 'n2', fixo: true }], passes: [] },
     },
   };
-  assert.equal((await api('POST', '/api/importar', USER, backup)).status, 403);
-  const r = await api('POST', '/api/importar', ADMIN, backup);
+  assert.equal((await api('POST', '/api/giras', USER, { ...backup, acao: 'importar' })).status, 403);
+  const r = await api('POST', '/api/giras', ADMIN, { ...backup, acao: 'importar' });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.pessoasCriadas, 2);
   const g = (await api('GET', '/api/giras/2026-09-05', ADMIN)).json;
   assert.equal(g.entidade, 'Exus');
   assert.equal(g.pares.length, 1);
   assert.deepEqual(Object.values(g.presenca).sort(), ['a', 'sup']);
+  // O app anterior chama a rota antiga, que o vercel.json reescreve para a ação.
+  assert.equal((await api('POST', '/api/importar', ADMIN, backup)).json.giras, 1);
 });
 
 test('palavra-passe cpj e alunos acabou; a sessão da corrente lê mas não administra', async () => {
@@ -1126,25 +1128,6 @@ test('curimba: cadastro e turma da limpeza', async () => {
   assert.equal((await api('POST', '/api/pessoas', ADMIN, { nome: 'X', funcao: 'tambor' })).status, 400);
 });
 
-test('reiniciar gira em aberto: volta tudo ao início, só a data fica', async () => {
-  const d = '2029-06-06';
-  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
-  await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo', orixa: 'Oxóssi', limpeza: 2, presenca: { [ps[0].id]: 'a' } });
-  await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'sortear' });
-  assert.equal((await api('POST', `/api/giras/${d}`, USER, { acao: 'reiniciar' })).status, 403);
-  const r = (await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'reiniciar' })).json;
-  assert.equal(r.gira.entidade, '');
-  assert.equal(r.gira.orixa, '');
-  // volta com a próxima turma do rodízio (ou vazia, se ninguém tiver turma)
-  const pss = (await api('GET', '/api/pessoas', ADMIN)).json;
-  const temTurma = pss.some((x) => x.limpeza);
-  assert.equal(r.gira.limpeza === null, !temTurma);
-  assert.deepEqual(r.gira.presenca, {});
-  assert.deepEqual(r.gira.pares, []);
-  assert.equal(r.gira.pendentePadrao, true);
-  await api('DELETE', `/api/giras/${d}`, ADMIN);
-});
-
 test('cancelar o sorteio: apaga as duplas (também as fixadas); com a escala publicada, recusa', async () => {
   const d = '2029-06-13';
   await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo', orixa: 'Oxóssi' });
@@ -1205,23 +1188,6 @@ test('entrada na corrente: só o admin root altera', async () => {
   assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { entrada: '2026-03-01' })).json.entrada, '2026-03-01');
   assert.equal((await api('PATCH', '/api/pessoas/' + p.id, USER, { entrada: '2026-03-01' })).status, 403);
   assert.equal((await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { entrada: null })).json.entrada, null);
-});
-
-test('reiniciar: a turma da limpeza volta para a próxima do rodízio', async () => {
-  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
-  const comTurma = ps.filter((p) => p.limpeza);
-  for (const p of comTurma) await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: null });
-  await api('PATCH', '/api/pessoas/' + ps[0].id, ADMIN, { limpeza: 3 });
-  await api('PATCH', '/api/pessoas/' + ps[1].id, ADMIN, { limpeza: 6 });
-  await api('PUT', '/api/giras/2030-01-02', ADMIN, { entidade: 'Exu', limpeza: 3, encerrada: true });
-  await api('PUT', '/api/giras/2030-01-09', ADMIN, { entidade: 'Caboclo', limpeza: 1 });
-  const r = (await api('POST', '/api/giras/2030-01-09', ADMIN, { acao: 'reiniciar' })).json;
-  assert.equal(r.gira.limpeza, 6, 'depois da 3 vem a 6 (4 e 5 vazias)');
-  assert.match(r.mensagem, /Turma 6/);
-  for (const d of ['2030-01-02', '2030-01-09']) await api('DELETE', '/api/giras/' + d, ADMIN);
-  await api('PATCH', '/api/pessoas/' + ps[0].id, ADMIN, { limpeza: null });
-  await api('PATCH', '/api/pessoas/' + ps[1].id, ADMIN, { limpeza: null });
-  for (const p of comTurma) await api('PATCH', '/api/pessoas/' + p.id, ADMIN, { limpeza: p.limpeza });
 });
 
 test('perfis no banco: o root cria um perfil, marca as abas e as permissões valem na hora', async () => {

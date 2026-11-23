@@ -570,7 +570,6 @@ function acaoGira(data, b) {
     case 'cancelarSorteio': return com({ pares: [], passes: [], publicada: false }, 'Sorteio cancelado: as duplas foram apagadas.');
     case 'corrigirPresenca': return com({ presenca: { ...atual.presenca, [b.pessoaId]: b.status } }, 'Presença corrigida.');
     case 'ausencia': return com({ presenca: { ...atual.presenca, [EU_ID]: 'a' } }, 'Ausência registrada. Obrigado por avisar! #boa gira');
-    case 'reiniciar': return com({ presenca: {}, papeis: {}, pares: [], passes: [], publicada: false }, 'Gira reiniciada: todos voltaram para Pendente.');
     case 'mudarData': {
       if (giraDe(b.para)) throw new ErroDemo(409, 'Já existe gira nesta data.');
       db.giras = db.giras.filter((g) => g.data !== data);

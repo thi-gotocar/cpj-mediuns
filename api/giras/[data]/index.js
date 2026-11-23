@@ -3,8 +3,7 @@
 //                            (gira nova: quem tinha ausência antecipada na data já entra Ausente)
 //                            (atendimentos + encerrada: true = cadastrar uma gira antiga já encerrada, sem escala: só o root)
 // POST   /api/giras/:data   { acao: 'publicar', publicada?: false } → a escala fica visível para todos (ou volta a ficar só para os admins)
-//                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } | participantes } | { acao: 'reabrir' } | { acao: 'reiniciar' }  → { gira, mensagem }
-//                            reiniciar: gira em aberto volta ao início (tudo pendente, sem gira, orixá, turma nem duplas); só a data fica
+//                            { acao: 'encerrar', atendimentos: { preferencial, normal, passe } | participantes } | { acao: 'reabrir' }  → { gira, mensagem }
 //                            { acao: 'sortear' }  sorteio completo (mantém as duplas fixadas) → { gira, mensagem }
 //                            { acao: 'remanejar' }  ajusta só quem foi afetado por faltas → { gira, mensagem }
 //                              (o app anterior chama /api/giras/:data/sortear e /remanejar sem corpo: o vercel.json reescreve para ?acao=)
@@ -29,7 +28,7 @@ import { ocultarSorteio } from '../../_lib/escala.js';
 import { configCasa } from '../../../shared/config.js';
 import { db } from '../../_lib/db.js';
 import { ACOES_FILA_PUBLICAS, ACOES_FILA_PAINEL, filaPublica, filaResumo, acaoFilaPublica, filaPainel, acaoFilaPainel } from '../../_lib/fila.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, proximaTurma, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -308,21 +307,9 @@ export default rota({
       const recado = validarRecado(b.recado);
       return { gira: await db.rpc('gira_acao', { acao, data, recado }), mensagem: recado ? 'Recado salvo: todos veem no evento.' : 'Recado retirado.' };
     }
-    if (!['encerrar', 'reabrir', 'reiniciar'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
+    if (!['encerrar', 'reabrir'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
     // Todas: uma gira antiga pode ter quem já saiu da corrente (as regras filtram pela data).
     const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar', { todas: true }), db.rpc('gira_obter', { data })]);
-    if (acao === 'reiniciar') {
-      if (atual?.encerrada) throw new HttpError(409, 'A gira está encerrada. Reabra antes de reiniciar.');
-      // Volta com a próxima turma da limpeza do rodízio (como uma gira nova).
-      const turma = proximaTurma(pessoas, await db.rpc('giras_listar'), data);
-      // Excluir e recriar em uma transação, para uma falha no meio não perder a gira.
-      // gira_salvar deve ser a última chamada porque db.tx() retorna o resultado do último RPC.
-      const gira = await db.tx([
-        { funcao: 'gira_excluir', p: { data } },
-        { funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...(turma ? { limpeza: turma } : {}) } },
-      ]);
-      return { gira, mensagem: `Gira reiniciada: todos voltaram para Pendente.${turma ? ` Turma da limpeza: Turma ${turma}.` : ''}` };
-    }
     if (acao === 'reabrir') {
       if (!atual?.encerrada) return { gira: atual || giraVazia(data), mensagem: 'A gira já estava aberta.' };
       const { patch: { retrato, ...patch }, mensagem } = reabrir(pessoas, atual);

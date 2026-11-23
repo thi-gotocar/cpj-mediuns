@@ -1,23 +1,15 @@
 /* Layout: coluna única estreita, abas fixas no topo; cada aba é uma folha de trabalho da gira */
 :root{
-  --bg:#f5f7fb; --surface:#ffffff; --ink:#18212f; --muted:#5b6678; --line:#dde3ec;
-  --accent:#2c4ea3; --accent-ink:#ffffff; --accent-soft:#e6ecfa;
-  --gold:#a8771c; --ok:#24785a; --ok-soft:#e1f2ea; --off:#a2423a; --off-soft:#f8e6e4; --warn:#9a6a10; --warn-soft:#f8efd9; --orange:#c2570c; --falta:#e0101f;
+  /* Modo escuro fixo para todos (data-theme="dark" no <html>): a paleta clara saiu. */
+  --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
+  --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#1f2a44;
+  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c; --falta:#ff4d55;
   --f-display:"Alegreya",Georgia,"Times New Roman",serif;
   --f-body:"Alegreya Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
   --r:10px;
+  color-scheme:dark;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
-  --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#1f2a44;
-  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c; --falta:#ff4d55;
-  color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#11151c; --surface:#19202a; --ink:#e7ebf2; --muted:#9aa5b6; --line:#2a3340;
-  --accent:#8fa9ff; --accent-ink:#0f1626; --accent-soft:#1f2a44;
-  --gold:#e2b75e; --ok:#63c597; --ok-soft:#163327; --off:#ee8a82; --off-soft:#3a1d1b; --warn:#e8bd62; --warn-soft:#3a2f15; --orange:#fb923c; --falta:#ff4d55;
-  color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
 .wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
@@ -420,9 +412,7 @@ nav.tabs button{flex:1 0 auto}
 .candidatos{display:grid;gap:8px}
 .candidatos .btn{justify-content:flex-start;text-align:left;font-size:1.05rem}
 .logo-terreiro{display:flex;justify-content:center;margin:16px 0 -8px}
-.logo-terreiro img{width:min(200px,55vw);height:auto}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logo-terreiro img{filter:invert(1)}}
-:root[data-theme="dark"] .logo-terreiro img{filter:invert(1)}
+.logo-terreiro img{width:min(200px,55vw);height:auto;filter:invert(1)}
 .papel.admin_oferendas,.papel.admin_ervas{background:var(--ok-soft);color:var(--ok)}
 .of-doad-adm{display:grid;gap:6px}
 .of-doador{display:flex;align-items:center;gap:6px;font-size:.92rem}
@@ -1245,7 +1235,6 @@ section.panel.pf-tela{gap:14px}
 .wa-op-txt small{color:var(--muted);font-size:.84rem}
 .wa-mais{justify-content:space-between;align-items:center}
 :root[data-theme="dark"] .wa-bt{color:#4ade80}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .wa-bt{color:#4ade80}}
 /* Publicar escala: o aviso fica dentro do botão, sem mudar a altura */
 .btn-grande.pub-bt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding-block:5px;height:54px;line-height:1.15}
 .pub-bt .pub-sub{font-size:.72rem;font-weight:500;opacity:.85}

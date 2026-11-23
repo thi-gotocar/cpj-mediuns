@@ -2,7 +2,7 @@
 // GET  /api/giras?lista=amaciVou&evento=id · POST { acao: 'amaciVou', eventoId, vou } — quem da corrente vai ao amaci → { pessoas, eu, podeMarcar }
 // GET  /api/giras?lista=filaGeral · POST { acao: 'filaGeral', ativa } — bloco da fila na aba Geral visível para todos (só o root) → { ativa }
 //      O frontend usa a lista para o histórico, os selos de rodízio e a tabela "quem já cambonou quem".
-// GET  /api/giras?lista=eventos — eventos da casa (a corrente vê todos; alunos, gira, evento e os tipos da sua turma; curimba, sem avisos)
+// GET  /api/giras?lista=eventos — eventos da casa (a corrente vê todos; alunos, gira, evento e os tipos da sua turma)
 // POST /api/giras  { acao: 'evento', id?, data: 'AAAA-MM-DD', nome, tipo: chave do tipo, retroativo? } · { acao: 'excluirEvento', id }  → eventos (só o admin root)
 //                  retroativo (só ao criar, data até hoje): amaci que já passou cadastrado na aba Amaci — o aluno marca a presença sem localização
 // GET  /api/giras?lista=eventosTipos — tipos de evento (só o root)  → { tipos: [{ chave, nome, turmas }], turmas: [{ id, nome }], eventos }
@@ -28,6 +28,8 @@
 // POST /api/giras  { acao: 'fotoAlbum', id?, data, nome }  → { ...fotos, albumId } (com id = editar: só admin)
 //                  { acao: 'fotoEnviar', albumId, foto, miniatura (JPEG em base64), largura, altura }  → { ok }
 //                  { acao: 'fotoExcluir', id } (a própria foto, ou qualquer uma para admin) · { acao: 'fotoExcluirAlbum', id } (admin)  → fotos
+// POST /api/giras  { acao: 'importar', pessoas, giras }  restaurar backup (dados:importar; api/_lib/importar.js) → { pessoasCriadas, pessoasNoArquivo, giras }
+//                  (o app anterior chama POST /api/importar: o vercel.json reescreve para ?acao=importar)
 import { rota, corpo, validarData, validarId, HttpError, hojeBR } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
@@ -39,6 +41,7 @@ import { atrasos } from '../_lib/atrasos.js';
 import { transparencia, acaoTransparencia } from '../_lib/transparencia.js';
 import { eventosDe } from '../_lib/eventos.js';
 import { ACOES_FOTOS, exigirFotosAtiva, fotosEstado, acaoFoto } from '../_lib/fotos.js';
+import { importar } from '../_lib/importar.js';
 import { pode } from '../../shared/permissoes.js';
 import { OPCOES_GIRA, LINHA_LABEL, compactarRetratos } from '../../shared/regras.js';
 
@@ -81,9 +84,7 @@ export default rota({
       return db.rpc('videos_listar');
     }
     if (req.query.lista === 'oracoes') {
-      const eu = await exigir(req);
-      if (eu.grupo === 'curimba') throw new HttpError(403, 'Este acesso não tem permissão para ver as orações.');
-      return oracoes(eu);
+      return oracoes(await exigir(req));
     }
     if (req.query.lista === 'conduta') {
       const eu = await exigir(req);
@@ -118,6 +119,8 @@ export default rota({
   },
   POST: async (req) => {
     const b = corpo(req);
+    // Restaurar backup (api/_lib/importar.js). O app anterior chama /api/importar, reescrito para ?acao=importar.
+    if (b.acao === 'importar' || req.query.acao === 'importar') return importar(req, b);
     if (b.acao === 'entidadesApelidos') {
       await exigir(req, 'usuarios:gerenciar');
       return db.rpc('entidades_apelidos_salvar', { apelidos: validarApelidos(b.apelidos) });
@@ -152,9 +155,7 @@ export default rota({
       return db.rpc('ausencia_previa_salvar', { data, pessoaId: validarId(b.pessoaId, 'Pessoa'), ausente: b.ausente !== false });
     }
     if (ACOES_ORACOES.includes(b.acao)) {
-      const eu = await exigir(req);
-      if (eu.grupo === 'curimba') throw new HttpError(403, 'Este acesso não tem permissão para alterar as orações.');
-      return acaoOracao(eu, b);
+      return acaoOracao(await exigir(req), b);
     }
     if (ACOES_CONDUTA.includes(b.acao)) {
       const eu = await exigir(req);

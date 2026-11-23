@@ -17,7 +17,7 @@ Leia o doc certo antes de mexer na área:
 
 ## Regras que não se quebram
 
-- **Vercel Hobby: máximo de 12 funções** (hoje há 2 vagas, guardadas para quando não houver outro jeito). Não criar arquivo novo em `api/` (exceto `_lib/`) sem combinar; funcionalidade nova vira `acao` / `?lista=` num arquivo existente.
+- **Vercel Hobby: máximo de 12 funções** (hoje há 3 vagas, guardadas para quando não houver outro jeito). Não criar arquivo novo em `api/` (exceto `_lib/`) sem combinar; funcionalidade nova vira `acao` / `?lista=` num arquivo existente.
 - **Zero dependências npm.** Sem framework, sem bundler.
 - **Migrações idempotentes** em `db/esquema.js`: toda a lista roda de novo a cada `VERSAO`; coisa nova vai no fim.
 - **Dados de produção só mudam por migração no código.** Nunca acessar o banco de produção, nunca imprimir segredos nem decifrar variáveis da Vercel.

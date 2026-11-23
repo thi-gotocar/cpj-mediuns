@@ -18,10 +18,6 @@ const veEvento = (eu, ev) => ev.visivel || adminDe(eu, ev);
 
 const temAtribuicao = (ev) => ev.grupos.some((g) => g.itens.some((i) => i.doacoes.length));
 
-function negarCurimba(eu) {
-  if (eu.grupo === 'curimba') throw new HttpError(403, 'Este acesso não tem a aba Iemanjá.');
-}
-
 // Fora do grupo, só o nome, o responsável e o percentual.
 function paraTela(ev, eu) {
   const admin = adminDe(eu, ev);
@@ -56,7 +52,6 @@ function nomeEvento(v) {
 }
 
 export async function respostaIemanja(eu, eventos = null) {
-  negarCurimba(eu);
   const [lista, transportes] = await Promise.all([eventos || lerEventos(), db.rpc('iemanja_transportes_listar')]);
   const visiveis = lista.filter((ev) => veEvento(eu, ev)).map((ev) => ({ ...paraTela(ev, eu), transportes: transportes.filter((t) => t.eventoId === ev.id) }));
   const r = { eventos: visiveis, root: ehRoot(eu), eu: { chave: chaveDe(eu) }, publica: lista.some((ev) => ev.visivel) };
@@ -70,8 +65,8 @@ export async function respostaIemanja(eu, eventos = null) {
 // Para /auth/me: se a pessoa vê a aba, e se ela está aberta ao público (visão CPJ/Alunos do root).
 // Lê só o resumo (visível e responsáveis de cada evento), o mesmo critério de veEvento; resumo já lido vem pronto.
 export async function abaIemanja(eu, resumo) {
-  // A curimba e o grupo Oferenda (só a Geral e as listas de oferendas) não veem a Iemanjá.
-  if (eu.grupo === 'curimba' || eu.grupoOferenda) return { iemanjaAba: false, iemanjaPublica: false };
+  // O grupo Oferenda (só a Geral e as listas de oferendas) não vê a Iemanjá.
+  if (eu.grupoOferenda) return { iemanjaAba: false, iemanjaPublica: false };
   const lista = resumo || (await db.rpc('iemanja_resumo'));
   const meu = (ev) => !!eu.pessoaId && ev.responsaveis.includes(eu.pessoaId);
   return { iemanjaAba: ehRoot(eu) || lista.some((ev) => ev.visivel || meu(ev)), iemanjaPublica: lista.some((ev) => ev.visivel) };
@@ -90,7 +85,6 @@ const quantidade = (v, min, unidade = '') => {
 };
 
 export async function acaoIemanja(eu, b) {
-  negarCurimba(eu);
   const lista = await lerEventos();
   const devolver = async (estado) => respostaIemanja(eu, estado);
 

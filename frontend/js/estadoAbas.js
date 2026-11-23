@@ -286,7 +286,7 @@ export function montarBackup() {
   };
 }
 export async function importarBackup(obj) {
-  const r = await api('POST', '/importar', obj);
+  const r = await api('POST', '/giras', { ...obj, acao: 'importar' });
   await carregarTudo();
   return r;
 }

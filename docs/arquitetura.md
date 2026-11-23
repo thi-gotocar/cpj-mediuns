@@ -17,7 +17,7 @@ Tudo isso para caber no plano gratuito (Vercel Hobby + Neon) e não ter dependê
 
 ### Limites do plano
 
-- **Vercel Hobby: máximo 12 funções.** Cada arquivo em `api/` fora de `_lib/` é uma função. Sortear e Remanejar faltas eram arquivos próprios e viraram `acao` da rota da gira para abrir 2 vagas; as vagas ficam guardadas, então não criar arquivo novo ali sem combinar: funcionalidade nova entra como `acao` / `?lista=` num arquivo existente.
+- **Vercel Hobby: máximo 12 funções.** Cada arquivo em `api/` fora de `_lib/` é uma função. Sortear e Remanejar faltas eram arquivos próprios e viraram `acao` da rota da gira para abrir 2 vagas, e a restauração de backup (`api/importar.js`) virou `acao: 'importar'` de `api/giras` (lógica em `api/_lib/importar.js`), abrindo a terceira; as vagas ficam guardadas, então não criar arquivo novo ali sem combinar: funcionalidade nova entra como `acao` / `?lista=` num arquivo existente.
 - **Rota que vira ação continua respondendo.** Um aparelho pode estar uma versão atrás e chamar a rota antiga; o `rewrites` do `vercel.json` leva a rota antiga para a nova (ex.: `/api/giras/:data/sortear` → `/api/giras/:data?acao=sortear`, sem corpo). O `npm run dev` e os testes aplicam os mesmos rewrites (`scripts/servidor.js`).
 - Logs de runtime da Vercel guardam só ~1 hora.
 

@@ -26,7 +26,6 @@ api/                   Backend: funções da Vercel (Node)
   oferendas/index.js   oferendas: itens e doações
   pessoas/index.js     cadastro, edição, curimba
   usuarios/index.js    criação e gerenciamento de contas
-  importar.js          restauração de backup
   giras/[data]/index.js giras: criar, editar, sortear, presença, escala e eventos
 db/esquema.js          tabelas e funções do banco (aplicadas automaticamente)
 shared/                Usado pelos dois lados
@@ -131,11 +130,11 @@ Todas exigem `Authorization: ......` exceto `GET /api/auth/estado`, `POST /api/a
 | `DELETE /api/giras/:data` | `giras:excluir` | — |
 | `POST /api/giras/:data` | `giras:sortear` | `acao=sortear`, `acao=remanejar`, `acao=refazer`, `acao=cancelarSorteio` |
 | `GET /api/usuarios` · `POST /api/usuarios` · `PATCH /api/usuarios/:id` · `DELETE /api/usuarios/:id` | `usuarios:gerenciar` | — |
-| `POST /api/importar` | `dados:importar` | — |
+| `POST /api/giras` | `dados:importar` | `acao=importar` (restaurar backup; o antigo `POST /api/importar` é reescrito para cá) |
 | `GET /api/ervas` · `PUT /api/ervas` · `POST /api/ervas` | `ervas:escolher` · `ervas:gerenciar` | — |
 | `GET /api/oferendas` · `POST /api/oferendas` | `oferendas:doar` · `oferendas:gerenciar` | `acao=doar`, `acao=editar`, `acao=remover`, `acao=cancelar` |
 
-**Nota**: Plano Hobby (máximo de 12 funções). As rotas antigas `/api/giras/:data/sortear` e `/remanejar` viraram ação da rota da gira e continuam respondendo pelo rewrite do `vercel.json`. Uma rota nova reutiliza um arquivo existente com `acao` ou `?lista=`.
+**Nota**: Plano Hobby (máximo de 12 funções). As rotas antigas `/api/giras/:data/sortear` e `/remanejar` viraram ação da rota da gira e continuam respondendo pelo rewrite do `vercel.json`, assim como o antigo `/api/importar`, que virou `acao=importar` de `/api/giras`. Uma rota nova reutiliza um arquivo existente com `acao` ou `?lista=`.
 
 ## Segurança
 
