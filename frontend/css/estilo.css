@@ -2612,6 +2612,9 @@ div.pf-of-total{cursor:default}
 .fila-selo{font-size:.8rem;font-weight:700;padding:2px 10px;border-radius:20px;color:var(--muted);border:1px solid var(--line);white-space:nowrap}
 .fila-selo.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
 /* Painel da fila: as chamadas agora (senha e nome, na ordem da senha); Chamar de novo deixa a linha vermelha */
+/* Fila: botão da ação em andamento (as outras ficam travadas até a resposta) */
+.fila-card .btn[aria-busy="true"]::before{content:"⏳ "}
+.fila-card .btn:disabled{opacity:.55}
 .fila-agora{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
 .fila-agora-t{margin:0;display:flex;align-items:center;gap:8px;font-size:1rem}
 .fila-agora-l{list-style:none;margin:0;padding:0;display:grid;gap:8px}
@@ -2636,13 +2639,22 @@ div.pf-of-total{cursor:default}
 .fila-l,.fila-tipo{--cor:var(--accent)}
 .fila-l.preferencial,.fila-tipo.preferencial{--cor:var(--orange)}
 .fila-l.passe,.fila-tipo.passe{--cor:var(--ok)}
-.fila-bts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .fila-chamar{display:grid;gap:2px;justify-items:center;align-content:center;white-space:normal;padding:10px 8px;min-height:96px;font-size:1rem}
 .fila-chamar small{font-weight:400;font-size:.85rem}
 .fila-chamar small b{font-family:var(--f-display);font-size:1rem}
 .fila-chamar:disabled{opacity:.5;cursor:default}
 .fila-cont{margin:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.92rem;color:var(--muted)}
 .fila-c b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.atend-fila{margin:6px 0 0;font-size:.85rem}
+.fila-tot{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
+.fila-tot-t{margin:0;display:flex;justify-content:space-between;align-items:baseline;font-size:.92rem;color:var(--muted)}
+.fila-tot-t b{font:700 1.3rem var(--f-display);color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
+.fila-tot-l{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.fila-tot-i{--cor:var(--accent);display:grid;justify-items:center;gap:0;padding:6px 4px;border-radius:10px;background:color-mix(in srgb,var(--cor) 12%,var(--surface))}
+.fila-tot-i.preferencial{--cor:var(--orange)}
+.fila-tot-i.passe{--cor:var(--ok)}
+.fila-tot-i b{font:700 1.6rem/1.1 var(--f-display);color:var(--cor);font-variant-numeric:lining-nums tabular-nums}
+.fila-tot-i small{font-size:.8rem;color:var(--muted)}
 .fila-c.preferencial b{color:var(--orange)}
 .fila-c.atendimento b{color:var(--accent)}
 .fila-c.passe b{color:var(--ok)}

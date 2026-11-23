@@ -1,7 +1,7 @@
 // Sub-aba Fila (aba Gira), sempre a gira de hoje: o painel de quem controla a fila de senhas — a pessoa com a função Senha (no cadastro ou no
 // dia), quem edita a Gira e o root. O servidor confere tudo; aqui só se esconde o bloco.
-// Abre e fecha a entrada pelo QR, ajusta o limite do atendimento, chama a próxima (preferenciais primeiro; o passe é
-// outra fila), emite senha no balcão e marca cada senha. Atualiza sozinho de tempos em tempos (outros celulares no painel).
+// Abre e fecha a entrada pelo QR, ajusta o limite do atendimento, chama de 10 em 10 por tipo (Preferencial, Atendimento,
+// Passe), emite senha no balcão e marca cada senha (Chamar, OK, Chamar de novo, Ausente). Atualiza sozinho de tempos em tempos (outros celulares no painel).
 
 import { estado, pode, prefs, carregarFila, acaoFila, avisar } from '../estado.js';
 import { esc, hoje, toast } from '../util.js';
@@ -9,6 +9,17 @@ import { api } from '../api.js';
 import { TIPOS_FILA, rotuloSenha, CHAMAR_LOTE } from '/shared/fila.js';
 
 const ATUALIZAR_MS = 10000;
+// Uma ação por vez: enquanto uma vai ao servidor (pode demorar uns segundos), os botões que gravam ficam travados e o
+// tocado mostra que está carregando — ninguém toca duas vezes na mesma senha nem em outra no meio.
+let ocupado = null;   // chave da ação em andamento ('id|status', 'lote', 'entrada', 'balcao')
+async function fazer(chave, acao, dados) {
+  if (ocupado) return false;
+  ocupado = chave;
+  avisar();
+  try { return await acaoFila(hoje(), acao, dados); } finally { ocupado = null; avisar(); }
+}
+// Atributos de um botão que grava: travado enquanto há ação; o da ação em andamento com aria-busy (e o ⏳ do CSS).
+const trava = (chave) => (ocupado ? `disabled${ocupado === chave ? ' aria-busy="true"' : ''}` : '');
 let timer = null;
 let aba = 'aguardando';   // lista aberta: aguardando | chamada | atendida | ausente | cancelada
 let balcaoAberto = false;
@@ -35,8 +46,6 @@ const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '
 // A ordem em que o painel chama: na de atendimento, as preferenciais primeiro.
 const PESO = { preferencial: 0, atendimento: 1, passe: 2 };
 const ordem = (a, b) => PESO[a.tipo] - PESO[b.tipo] || a.numero - b.numero;
-const naFila = (L, fila) => L.filter((s) => s.status === 'aguardando' && (fila === 'passe' ? s.tipo === 'passe' : s.tipo !== 'passe')).sort(ordem);
-const proxima = (L, fila) => naFila(L, fila)[0];
 
 // Chamar de 10 em 10, um botão por tipo (do tamanho dos botões Chamar atendimento / passe): Chamar Preferencial, Chamar
 // Atendimento e Chamar Passe. Cada um chama as próximas 10 daquele tipo, na ordem (com menos, as que houver), depois de
@@ -52,20 +61,14 @@ function chamarLote(L) {
   if (aberta && aberta[2].length) {
     const [k, , v] = aberta;
     return `<div class="fila-lote-conf"><p><b>Chamar ${texto(k, v.length)}?</b> ${v.map((s) => esc(rot(s))).join(', ')}.</p>
-      <div class="fila-acoes"><button type="button" class="btn small primary" data-act="filalote" data-f="${k === 'passe' ? 'passe' : 'atendimento'}" data-t="${k}" data-n="${v.length}">Chamar ${v.length}</button><button type="button" class="btn small" data-act="filavoltar">Voltar</button></div></div>`;
+      <div class="fila-acoes"><button type="button" class="btn small primary" data-act="filalote" data-f="${k === 'passe' ? 'passe' : 'atendimento'}" data-t="${k}" data-n="${v.length}" ${trava('lote')}>Chamar ${v.length}</button><button type="button" class="btn small" data-act="filavoltar">Voltar</button></div></div>`;
   }
-  return `<div class="fila-lote">${lotes.map(([k, nome, v]) => `<button type="button" class="btn fila-chamar fila-lote-${k}" data-act="askdel" data-k="filalote:${k}" ${v.length ? '' : 'disabled'}>
+  return `<div class="fila-lote">${lotes.map(([k, nome, v]) => `<button type="button" class="btn fila-chamar fila-lote-${k}" data-act="askdel" data-k="filalote:${k}" ${v.length && !ocupado ? '' : 'disabled'}>
       <span>Chamar ${esc(nome)}</span><small>${v.length ? `${v.length} · <b>${esc(rot(v[0]))}${v.length > 1 ? '–' + esc(rot(v.at(-1))) : ''}</b>` : 'Ninguém aguardando'}</small></button>`).join('')}</div>`;
 }
 
-function botaoChamar(L, fila, titulo) {
-  const p = proxima(L, fila);
-  return `<button type="button" class="btn ${fila === 'passe' ? '' : 'primary'} fila-chamar" data-act="filachamar" data-f="${fila}" ${p ? '' : 'disabled'}>
-    <span>${titulo}</span><small>${p ? `Próxima: <b>${esc(rot(p))}</b>` : 'Ninguém aguardando'}</small></button>`;
-}
-
 function acoes(s) {
-  const b = (st, txt, extra = '') => `<button type="button" class="btn small ${extra}" data-act="filamarcar" data-id="${esc(s.id)}" data-s="${st}">${txt}</button>`;
+  const b = (st, txt, extra = '') => `<button type="button" class="btn small ${extra}" data-act="filamarcar" data-id="${esc(s.id)}" data-s="${st}" ${trava(s.id + '|' + st)}>${txt}</button>`;
   if (estado.confirm === 'filacanc:' + s.id) {
     return `<span class="fila-acoes"><span class="fila-conf">Cancelar ${esc(rot(s))}?</span>${b('cancelada', 'Cancelar senha', 'danger')}<button type="button" class="btn small" data-act="filavoltar">Manter</button></span>`;
   }
@@ -107,7 +110,7 @@ function balcao(f) {
     }).join('')}</div>
     <input type="text" id="fb-nome" name="nome" maxlength="80" placeholder="Nome" aria-label="Nome" value="${esc(v.nome || '')}" required>
     <input type="tel" id="fb-tel" name="telefone" inputmode="tel" maxlength="20" placeholder="Telefone (opcional)" aria-label="Telefone" value="${esc(v.telefone || '')}">
-    <button class="btn primary" type="submit">Emitir senha</button></form>`;
+    <button class="btn primary" type="submit" ${trava('balcao')}>Emitir senha</button></form>`;
 }
 
 // No topo do painel, as senhas chamadas agora (as mesmas da TV): senha e nome, na ordem da senha, com OK, Chamar de novo
@@ -126,7 +129,7 @@ function chamadasAgora(L) {
   const prox = L.filter((s) => s.status === 'aguardando' && s.tipo !== 'passe').sort(ordem).slice(0, 4).map(rot);
   const proximas = `<p class="fila-prox"><span>Próximas</span>${prox.length ? `<b>${prox.map(esc).join(' ')}</b>` : '<span class="muted">ninguém aguardando</span>'}</p>`;
   if (!ch.length) return `<div class="fila-agora vazio"><p class="fila-agora-vazio">Ninguém chamado agora.</p>${proximas}</div>`;
-  const b = (s, st, txt, extra = '') => `<button type="button" class="btn small ${extra}" data-act="filamarcar" data-id="${esc(s.id)}" data-s="${st}">${txt}</button>`;
+  const b = (s, st, txt, extra = '') => `<button type="button" class="btn small ${extra}" data-act="filamarcar" data-id="${esc(s.id)}" data-s="${st}" ${trava(s.id + '|' + st)}>${txt}</button>`;
   return `<div class="fila-agora" aria-live="polite"><h3 class="fila-agora-t">Chamadas agora <span class="fila-n">${ch.length}</span></h3>
     <ul class="fila-agora-l">${ch.map((s) => {
       const re = destaque.has(s.id);
@@ -214,11 +217,16 @@ function blocoFila(g) {
   const L = f.senhas || [];
   const em = (k) => f.aguardando?.[k] || 0;
   const espera = TIPOS_FILA.map((t) => `<span class="fila-c ${t.k}"><b>${em(t.k)}</b> ${t.nome.toLowerCase()}</span>`).join('');
+  // Totalizador: quantas senhas já tiveram o OK (foram para o atendimento) hoje, por tipo, e o total.
+  const atendidas = (k) => L.filter((s) => s.status === 'atendida' && s.tipo === k).length;
+  const nAtend = L.filter((s) => s.status === 'atendida').length;
+  const total = `<div class="fila-tot" role="group" aria-label="Atendidos hoje: ${nAtend}"><p class="fila-tot-t">Atendidos hoje <b>${nAtend}</b></p>
+    <div class="fila-tot-l">${TIPOS_FILA.map((t) => `<span class="fila-tot-i ${t.k}"><b>${atendidas(t.k)}</b><small>${esc(t.nome)}</small></span>`).join('')}</div></div>`;
   return `<div class="fila-card">${tit}
     ${chamadasAgora(L)}
-    <div class="fila-bts">${botaoChamar(L, 'atendimento', 'Chamar atendimento')}${botaoChamar(L, 'passe', 'Chamar passe')}</div>
     ${chamarLote(L)}
     <p class="fila-cont">Aguardando ${espera}</p>
+    ${total}
     ${f.atendimentoLotado ? '<p class="fila-lotado">As senhas de atendimento acabaram. Quem chegar agora pega passe.</p>' : ''}
     ${entradaQr(f)}
     ${balcao(f)}
@@ -227,13 +235,12 @@ function blocoFila(g) {
 }
 
 export const cliques = {
-  filachamar(el) { acaoFila(hoje(), 'filaChamar', { fila: el.dataset.f }); },
-  filalote(el) { acaoFila(hoje(), 'filaChamar', { fila: el.dataset.f, tipo: el.dataset.t, quantidade: Number(el.dataset.n) }); },
-  filamarcar(el) { acaoFila(hoje(), 'filaMarcar', { id: el.dataset.id, status: el.dataset.s }); },
+  filalote(el) { fazer('lote', 'filaChamar', { fila: el.dataset.f, tipo: el.dataset.t, quantidade: Number(el.dataset.n) }); },
+  filamarcar(el) { fazer(el.dataset.id + '|' + el.dataset.s, 'filaMarcar', { id: el.dataset.id, status: el.dataset.s }); },
   filaver(el) { aba = el.dataset.v; avisar(); },
   filavoltar() { avisar(); },
   filabalcao() { balcaoAberto = !balcaoAberto; avisar(); if (balcaoAberto) document.getElementById('fb-nome')?.focus(); },
-  filaentrada(el) { acaoFila(hoje(), 'filaConfig', { aberta: el.dataset.v === '1' }); },
+  filaentrada(el) { fazer('entrada', 'filaConfig', { aberta: el.dataset.v === '1' }); },
   filaajustes(el) { ajustesAberto = el.getAttribute('aria-expanded') !== 'true'; avisar(); },
 };
 
@@ -266,7 +273,7 @@ export async function enviarBalcaoFila(form) {
   digitarFila(form.nome);
   const v = estado.filaBalcao || {};
   const tipo = v.tipo || 'atendimento';
-  const ok = await acaoFila(hoje(), 'filaBalcao', { tipo, nome: v.nome, telefone: v.telefone });
+  const ok = await fazer('balcao', 'filaBalcao', { tipo, nome: v.nome, telefone: v.telefone });
   if (!ok) return;
   const s = (estado.fila?.senhas || []).filter((x) => x.balcao && x.tipo === tipo).sort((a, b) => b.numero - a.numero)[0];
   estado.filaBalcao = { tipo };

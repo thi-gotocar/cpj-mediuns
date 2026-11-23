@@ -1,7 +1,7 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, salvarDiaGira, salvarRecadoCorrente, publicarEscala, travarEscala, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, carregarFila, salvarDiaGira, salvarRecadoCorrente, publicarEscala, travarEscala, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, pd, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { calendarioMes, mesMais } from '../calendario.js';
@@ -27,7 +27,24 @@ import { imagemOracoesPronta, prepararOracoes, imagemNiverPronta, prepararNiver,
 const classeStatus = (s) => (s === 'a' || s === 'f' || s === 'lic' ? 'aus' : s === 'na' ? 'na' : s === 'sup' ? 'nc' : s === 'pend' ? 'pend' : '');
 // Atendimentos da gira: o admin preenche na gira aberta (salva sozinho); na encerrada, todos veem.
 const ATEND = [['normal', 'Atendimento'], ['passe', 'Passe'], ['preferencial', 'Preferencial']];
-const camposAtend = (g) => `<div class="atend-nums atend-editar">${ATEND.map(([k, t]) => `<label class="at-${k}"><input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" data-act="atend" data-k="${k}" aria-label="${t}" value="${Number(g.atendimentos?.[k]) || 0}"><span>${t}</span></label>`).join('')}</div>`;
+// Atendidos pela fila de senhas: as senhas com OK de hoje (atendimento → Atendimento, preferencial e passe). Só na gira de
+// hoje, em aberto; sem a fila carregada, busca o painel (aparece sozinho quando chega). null = nada a sugerir.
+function atendDaFila(g) {
+  if (!pode('giras:editar') || g.encerrada || g.evento || g.data !== hoje()) return null;
+  if (estado.fila?.data !== g.data) { carregarFila(g.data, { silencioso: true }); return null; }
+  const L = estado.fila.senhas || [];
+  const n = (tipo) => L.filter((s) => s.status === 'atendida' && s.tipo === tipo).length;
+  const r = { normal: n('atendimento'), passe: n('passe'), preferencial: n('preferencial') };
+  return r.normal + r.passe + r.preferencial ? r : null;
+}
+// Campos de atendidos do passo Encerrar. Sem nada digitado ainda, vêm preenchidos com a fila de senhas (para conferir).
+function camposAtend(g) {
+  const digitados = ATEND.some(([k]) => Number(g.atendimentos?.[k]));
+  const fila = digitados ? null : atendDaFila(g);
+  const valor = (k) => (fila ? fila[k] : Number(g.atendimentos?.[k]) || 0);
+  return `<div class="atend-nums atend-editar">${ATEND.map(([k, t]) => `<label class="at-${k}"><input type="number" inputmode="numeric" min="0" step="1" id="at-${k}" data-act="atend" data-k="${k}" aria-label="${t}" value="${valor(k)}"><span>${t}</span></label>`).join('')}</div>
+    ${fila ? '<p class="muted atend-fila">Preenchido com a fila de senhas (as senhas com OK). Confira antes de encerrar.</p>' : ''}`;
+}
 const numerosAtend = (a) => `<div class="atend-nums">${ATEND.map(([k, t]) => `<div class="at-${k}"><b>${Number(a?.[k]) || 0}</b><span>${t}</span></div>`).join('')}</div>`;
 const campoParticipantes = (g) => `<div class="ev-participantes-bloco">
   <span class="ev-participantes-titulo">Total de participantes</span>
@@ -891,7 +908,9 @@ export const mudancas = {
     const g = giraAtual();
     const v = t.value.trim() || '0';
     if (!/^\d+$/.test(v)) { toast('Número inválido.'); t.value = Number(g.atendimentos?.[t.dataset.k]) || 0; return; }
-    editarGira({ atendimentos: { ...Object.fromEntries(ATEND.map(([k]) => [k, 0])), ...(g.atendimentos || {}), [t.dataset.k]: Number(v) } });
+    // Grava os três como estão na tela (os que vieram da fila também), não só o que mudou.
+    const naTela = Object.fromEntries(ATEND.map(([k]) => [k, Number(document.getElementById('at-' + k)?.value) || 0]));
+    editarGira({ atendimentos: { ...naTela, [t.dataset.k]: Number(v) } });
   },
   // Eventos registram participantes, sem contagem de atendimentos.
   participantes(t) {
