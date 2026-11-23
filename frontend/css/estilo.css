@@ -2631,8 +2631,8 @@ div.pf-of-total{cursor:default}
 .fila-ch.rechamada{--cor:#ff4d55;background:color-mix(in srgb,#ff4d55 20%,var(--surface))}
 .fila-ch.rechamada .fila-ch-q small{color:#ffb3b7;font-weight:700}
 @media (prefers-reduced-motion:no-preference){
-  .fila-ch.rechamada{animation:fila-ch-pisca .7s steps(2,jump-none) 6}
-  @keyframes fila-ch-pisca{0%{background:#8e1c1c}100%{background:color-mix(in srgb,#ff4d55 20%,var(--surface))}}
+  .fila-ch.rechamada.pisca{animation:fila-ch-pisca 1.4s ease-out 1}
+  @keyframes fila-ch-pisca{0%,45%{background:#c62828;box-shadow:0 0 0 4px #ff4d55}100%{background:color-mix(in srgb,#ff4d55 20%,var(--surface));box-shadow:0 0 0 0 transparent}}
 }
 .fila-prox{margin:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:.9rem;color:var(--muted)}
 .fila-prox b{color:var(--ink);letter-spacing:.04em}

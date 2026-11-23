@@ -58,7 +58,7 @@ let mexeu = false;         // a pessoa já mexeu no nome ou no telefone (o cadas
 let jaAvisou = '';        // id + hora da chamada já avisada (não repete o som a cada consulta)
 let timer = null;
 let tvVistas = null;      // senhas chamadas que a TV já mostrou (chave → hora da chamada); null = ainda não carregou (não toca na abertura)
-const tvDestaque = new Map();   // chave → { tipo: 'nova' | 'rechamada', ate }: as linhas que acendem ou piscam
+const tvDestaque = new Map();   // chave → { tipo: 'nova' | 'rechamada', ate, piscou }: as linhas que acendem ou piscam (uma vez)
 
 // lista 'filaResumo': sem token nem login, para a Vercel poder entregar a mesma resposta a todos.
 async function api(metodo, corpo, lista = 'fila') {
@@ -201,8 +201,8 @@ function marcarDestaques(L) {
   let tocou = false;
   if (tvVistas) {
     for (const [k, quando] of atual) {
-      if (!tvVistas.has(k)) { tvDestaque.set(k, { tipo: 'nova', ate: agora + DESTAQUE_MS }); tocou = true; }
-      else if (tvVistas.get(k) !== quando) { tvDestaque.set(k, { tipo: 'rechamada', ate: agora + DESTAQUE_MS }); tocou = true; }
+      if (!tvVistas.has(k)) { tvDestaque.set(k, { tipo: 'nova', ate: agora + DESTAQUE_MS, piscou: false }); tocou = true; }
+      else if (tvVistas.get(k) !== quando) { tvDestaque.set(k, { tipo: 'rechamada', ate: agora + DESTAQUE_MS, piscou: false }); tocou = true; }
     }
   }
   tvVistas = atual;
@@ -221,7 +221,10 @@ function desenharTv() {
     centro = `<div class="tv-chamadas"><h2 class="tv-chamadas-t">Chamadas para a fila!</h2>
       <ol class="tv-lista">${L.map((c) => {
         const d = tvDestaque.get(c.tipo + c.numero);
-        return `<li class="tv-l ${c.tipo}${d ? ' ' + d.tipo : ''}"><b class="tv-l-n">${esc(rotuloSenha(c.tipo, c.numero))}</b>
+        // Pisca uma vez só: a classe vai no primeiro desenho; nos seguintes (a TV redesenha a cada 5 s), fica parada.
+        const pisca = d && !d.piscou ? ' pisca' : '';
+        if (d) d.piscou = true;
+        return `<li class="tv-l ${c.tipo}${d ? ' ' + d.tipo : ''}${pisca}"><b class="tv-l-n">${esc(rotuloSenha(c.tipo, c.numero))}</b>
           <span class="tv-l-nome">${esc(c.nome || tipoFila(c.tipo)?.nome || '')}</span>${d?.tipo === 'rechamada' ? '<span class="tv-l-de-novo">chamando de novo</span>' : ''}</li>`;
       }).join('')}</ol></div>`;
   }

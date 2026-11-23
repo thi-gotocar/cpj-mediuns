@@ -167,8 +167,8 @@ body.modo-cartaz{background:#fff;color:#111;color-scheme:light}
 .tv-l.rechamada{--cor:#ff4d55;border-color:#ff4d55;background:color-mix(in srgb,#ff4d55 22%,var(--surface))}
 .tv-l.rechamada .tv-l-n,.tv-l.rechamada .tv-l-nome{color:#ffd9db}
 @media (prefers-reduced-motion:no-preference){
-  .tv-l.nova{animation:tv-l-nova 1.2s ease-out 3}
-  .tv-l.rechamada{animation:tv-l-pisca .7s steps(2,jump-none) infinite}
+  .tv-l.nova.pisca{animation:tv-l-nova 1.2s ease-out 1}
+  .tv-l.rechamada.pisca{animation:tv-l-pisca 1.4s ease-out 1}
   @keyframes tv-l-nova{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--cor) 70%,transparent)}100%{box-shadow:0 0 0 24px transparent}}
-  @keyframes tv-l-pisca{0%{background:#b71c1c}100%{background:color-mix(in srgb,#ff4d55 22%,var(--surface))}}
+  @keyframes tv-l-pisca{0%,45%{background:#d32f2f;box-shadow:0 0 0 6px #ff4d55}100%{background:color-mix(in srgb,#ff4d55 22%,var(--surface));box-shadow:0 0 0 0 transparent}}
 }

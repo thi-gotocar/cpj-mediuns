@@ -118,22 +118,26 @@ function balcao(f) {
 // nos outros celulares do painel, que veem a hora da chamada mudar). Embaixo, as próximas da fila de atendimento.
 const DESTAQUE_MS = 12000;
 let vistas = null;            // chave → hora da chamada, para notar quem foi chamado de novo
-const destaque = new Map();   // chave → até quando fica vermelho
+const destaque = new Map();   // id → { ate, piscou }: a linha fica vermelha até 'ate' e pisca uma vez só
 function chamadasAgora(L) {
   const ch = L.filter((s) => s.status === 'chamada').sort(ordem);
   const agora = Date.now();
   const atual = new Map(ch.map((s) => [s.id, s.chamadaEm || '']));
-  if (vistas) for (const [id, quando] of atual) if (vistas.has(id) && vistas.get(id) !== quando) destaque.set(id, agora + DESTAQUE_MS);
+  if (vistas) for (const [id, quando] of atual) if (vistas.has(id) && vistas.get(id) !== quando) destaque.set(id, { ate: agora + DESTAQUE_MS, piscou: false });
   vistas = atual;
-  for (const [id, ate] of destaque) if (ate < agora || !atual.has(id)) destaque.delete(id);
+  for (const [id, d] of destaque) if (d.ate < agora || !atual.has(id)) destaque.delete(id);
   const prox = L.filter((s) => s.status === 'aguardando' && s.tipo !== 'passe').sort(ordem).slice(0, 4).map(rot);
   const proximas = `<p class="fila-prox"><span>Próximas</span>${prox.length ? `<b>${prox.map(esc).join(' ')}</b>` : '<span class="muted">ninguém aguardando</span>'}</p>`;
   if (!ch.length) return `<div class="fila-agora vazio"><p class="fila-agora-vazio">Ninguém chamado agora.</p>${proximas}</div>`;
   const b = (s, st, txt, extra = '') => `<button type="button" class="btn small ${extra}" data-act="filamarcar" data-id="${esc(s.id)}" data-s="${st}" ${trava(s.id + '|' + st)}>${txt}</button>`;
   return `<div class="fila-agora" aria-live="polite"><h3 class="fila-agora-t">Chamadas agora <span class="fila-n">${ch.length}</span></h3>
     <ul class="fila-agora-l">${ch.map((s) => {
-      const re = destaque.has(s.id);
-      return `<li class="fila-ch ${s.tipo}${re ? ' rechamada' : ''}"><b class="fila-ch-n">${esc(rot(s))}</b>
+      const d = destaque.get(s.id);
+      const re = !!d;
+      // Pisca uma vez por Chamar de novo: a classe vai só no primeiro desenho (o painel redesenha a cada 10 s e a cada ação).
+      const pisca = d && !d.piscou ? ' pisca' : '';
+      if (d) d.piscou = true;
+      return `<li class="fila-ch ${s.tipo}${re ? ' rechamada' : ''}${pisca}"><b class="fila-ch-n">${esc(rot(s))}</b>
         <span class="fila-ch-q"><b>${esc(s.nome)}</b><small>${re ? 'chamada de novo' : 'chamada'} às ${hora(s.chamadaEm)}</small></span>
         <span class="fila-acoes">${b(s, 'atendida', 'OK', 'primary')}${b(s, 'chamada', 'Chamar de novo')}${b(s, 'ausente', 'Ausente')}</span></li>`;
     }).join('')}</ul>${proximas}</div>`;
