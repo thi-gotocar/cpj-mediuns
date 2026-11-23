@@ -19,7 +19,7 @@ Leia o doc certo antes de mexer na área:
 
 - **Vercel Hobby: máximo de 12 funções** (hoje há 3 vagas, guardadas para quando não houver outro jeito). Não criar arquivo novo em `api/` (exceto `_lib/`) sem combinar; funcionalidade nova vira `acao` / `?lista=` num arquivo existente.
 - **Zero dependências npm.** Sem framework, sem bundler.
-- **Migrações idempotentes** em `db/esquema.js`: toda a lista roda de novo a cada `VERSAO`; coisa nova vai no fim.
+- **Migrações idempotentes** em `db/esquema.js`: toda a lista roda de novo a cada `VERSAO` (em `db/versao.js`); coisa nova vai no fim.
 - **Dados de produção só mudam por migração no código.** Nunca acessar o banco de produção, nunca imprimir segredos nem decifrar variáveis da Vercel.
 - **Permissão é checada no backend** (`exigir` / `pode`); no frontend só esconde botões.
 - **Quem faz o `git push` é o usuário.** A Vercel publica sozinha a cada push em `main`.

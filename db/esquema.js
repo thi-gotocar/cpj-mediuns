@@ -4,11 +4,11 @@
 // não é preciso rodar SQL à mão. Cada item da lista é UM comando SQL, e todos
 // são idempotentes (podem rodar de novo sem estragar nada).
 //
-// Para mudar o esquema: acrescente comandos no fim e aumente VERSAO. Ao redefinir uma função,
+// Para mudar o esquema: acrescente comandos no fim e aumente VERSAO (em db/versao.js). Ao redefinir uma função,
 // apague a definição antiga se nenhum comando entre as duas a chama, nem por outra função (só a última vale).
 // Convenções: docs/como-trabalhamos.md.
 
-export const VERSAO = 171;  // v171: resumo público da fila (fila_resumo), guardado pela Vercel
+export { VERSAO } from './versao.js';
 
 import { PERFIS_PADRAO } from '../shared/permissoes.js';
 
@@ -5562,5 +5562,13 @@ export const MIGRACOES = [
                                    where gira_data = (p ->> 'data')::date and tipo = 'atendimento' and status = 'aguardando'), '[]'::jsonb),
          'passe', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
                              where gira_data = (p ->> 'data')::date and tipo = 'passe' and status = 'aguardando'), '[]'::jsonb)))
+   $$`,
+
+  // ---------- v172: o aluno volta ao app com a versão dos dados ----------
+  // O que o aluno recebe (eventos, tipos de evento, orações, curimba, config) sobe versao_dados(): com a mesma versão,
+  // a volta ao app responde só "sem mudança". Em jsonb para ir no lote da sessão (db.lote chama f($1::jsonb)).
+  `create or replace function aluno_versao(p jsonb default '{}'::jsonb)
+   returns jsonb language sql volatile as $$
+     select to_jsonb(versao_dados())
    $$`,
 ];

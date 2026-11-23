@@ -3,7 +3,7 @@
 //   gerarImagemResumo({ rotulo, titulo, subtitulo, cartoes: [{ titulo, direita, cor, estrela?, quadros?, nota?, grupos? }] })
 //     quadros: [[rótulo, número, cor]] · grupos: [{ titulo, cor, pilulas?: [{ texto, cor? }], linhas?: [texto] }] (grupo vazio não aparece)
 
-import { quebrar, retangulo, carregarLogo } from './canvas.js';
+import { quebrar, retangulo, carregarLogo, gerarPng } from './canvas.js';
 
 export const COR_RESUMO = { ouro: '#a8771c', presente: '#24785a', ausente: '#a2423a', falta: '#e0101f', licenca: '#2c4ea3', limpeza: '#c2570c' };
 const C = { bg: '#f4f1ea', card: '#ffffff', ink: '#1e2533', muted: '#6b7385', line: '#e3ddd0', caixa: '#f8f6f1', navy: '#1c2b4a', navy2: '#2d4a86', gold: '#c9a24a', sol: '#e7c97f', soft: '#c9d5f5' };
@@ -282,25 +282,11 @@ function desenhar(ctx, d, logo, pintar) {
 }
 
 export async function gerarImagemResumo(d) {
-  try {
-    await Promise.all(['700 34px Alegreya', '700 22px Alegreya', '500 19px "Alegreya Sans"', '700 17px "Alegreya Sans"', '500 17px "Alegreya Sans"',
-      '400 17px "Alegreya Sans"', '500 16px "Alegreya Sans"', '700 14px "Alegreya Sans"', '700 13px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
-  } catch { /* usa as fontes do sistema */ }
   const logo = await carregarLogo();
-  const S = LARGURA_PNG / W;
-  const c = document.createElement('canvas');
-  let ctx = c.getContext('2d');
-  ctx.textBaseline = 'top';
-  const H = Math.ceil(desenhar(ctx, d, logo, false));
-  c.width = W * S;
-  c.height = Math.ceil(H * S);
-  ctx = c.getContext('2d');
-  ctx.scale(S, S);
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, H + 2);   // +2: cobre a última linha de pixels (arredondamento da escala)
-  desenhar(ctx, d, logo, true);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-  if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  return blob;
+  return gerarPng({
+    largura: W, escala: LARGURA_PNG / W, fundo: C.bg,
+    fontes: ['700 34px Alegreya', '700 22px Alegreya', '500 19px "Alegreya Sans"', '700 17px "Alegreya Sans"', '500 17px "Alegreya Sans"',
+      '400 17px "Alegreya Sans"', '500 16px "Alegreya Sans"', '700 14px "Alegreya Sans"', '700 13px "Alegreya Sans"'],
+    desenho: (ctx, pintar) => desenhar(ctx, d, logo, pintar),
+  });
 }

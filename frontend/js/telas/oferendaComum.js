@@ -3,7 +3,7 @@
 
 import { situacao, dataEntrega, podeMarcarEntregue, textoOferenda, textoEntrega, dataBR, porCategoria, UNIDADES, qtdTxt, previaItem, corItem, CORES_ITEM, responsaveisItem, aceitaFracao, fmtQtd, DETALHES_LINHAS, DETALHES_MAX, limparDetalhes, detalhesOk } from '/shared/oferendas.js';
 import { estado, avisar } from '../estado.js';
-import { esc, hoje, dLong, toast } from '../util.js';
+import { esc, hoje, dLong, toast, podeCompartilharImagem } from '../util.js';
 
 export const U = () => estado.ofUi;
 export const Dia = (s) => { const t = dLong(s); return t.charAt(0).toUpperCase() + t.slice(1); };
@@ -154,9 +154,7 @@ export function listaItens(itens, c) {
 export const botoesCompartilhar = (of) => `<button class="btn ${U().compartilhar === of.id ? 'primary' : ''}" data-act="compartilhar" data-id="${of.id}" aria-pressed="${U().compartilhar === of.id}">Compartilhar lista</button>
     <button class="btn" data-act="imgofdireto" data-id="${of.id}">Compartilhar imagem</button>`;
 
-function podeCompartilhar(img) {
-  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([img.blob], img.nome, { type: 'image/png' })] })); } catch { return false; }
-}
+const podeCompartilhar = (img) => podeCompartilharImagem(img.blob, img.nome);
 
 // Texto do "Compartilhar lista": com os Detalhes no começo — o do evento (grupo da Iemanjá) ou o da sub-aba da oferenda.
 export const textoCompartilhar = (of) => textoOferenda(of, of.detalhes ?? (estado.oferendas?.abas || []).find((a) => a.id === of.abaId && !a.iemanja)?.detalhes ?? '');

@@ -7,7 +7,7 @@
 
 import { paresPorMedium, escalaDaGira, guiaNaGira, pessoasDe, temRetrato } from '/shared/regras.js';
 import { gruposExtras, cabecalhoGira, foraDaGira, idsAniversariantes } from './exportar.js';
-import { quebrar, retangulo, carregarLogo } from './canvas.js';
+import { quebrar, retangulo, carregarLogo, gerarPng } from './canvas.js';
 
 const C = {
   bg: '#f4f1ea', card: '#ffffff', ink: '#1e2533', muted: '#6b7385', line: '#e8e3d8', zebra: '#faf7f0',
@@ -289,25 +289,11 @@ function desenhar(ctx, cadastro, g, desenhar, giras = [], logo = null) {
 }
 
 export async function gerarImagem(pessoas, g, giras = []) {
-  try {
-    await Promise.all(['700 34px Alegreya', 'italic 700 20px Alegreya', '700 24px Alegreya', '400 20px "Alegreya Sans"', 'italic 400 20px "Alegreya Sans"',
-      '700 20px "Alegreya Sans"', '600 17px "Alegreya Sans"', 'italic 500 17px "Alegreya Sans"', '500 13px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
-  } catch { /* usa as fontes do sistema */ }
   const logo = await carregarLogo();
-  const S = LARGURA_PNG / W;
-  const c = document.createElement('canvas');
-  let ctx = c.getContext('2d');
-  ctx.textBaseline = 'top';
-  const H = Math.ceil(desenhar(ctx, pessoas, g, false, giras, logo));
-  c.width = W * S;
-  c.height = Math.ceil(H * S);
-  ctx = c.getContext('2d');
-  ctx.scale(S, S);
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, H);
-  desenhar(ctx, pessoas, g, true, giras, logo);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-  if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  return blob;
+  return gerarPng({
+    largura: W, escala: LARGURA_PNG / W, fundo: C.bg,
+    fontes: ['700 34px Alegreya', 'italic 700 20px Alegreya', '700 24px Alegreya', '400 20px "Alegreya Sans"', 'italic 400 20px "Alegreya Sans"',
+      '700 20px "Alegreya Sans"', '600 17px "Alegreya Sans"', 'italic 500 17px "Alegreya Sans"', '500 13px "Alegreya Sans"'],
+    desenho: (ctx, pintar) => desenhar(ctx, pessoas, g, pintar, giras, logo),
+  });
 }

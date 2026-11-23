@@ -1,7 +1,7 @@
 // Imagem PNG da lista de uma oferenda (para mandar no grupo do WhatsApp).
 
 import { situacao, dataBR, ROTULO_MEDIUM, medConferido, contagemMediuns, porCategoria, qtdTxt, corItem, CORES_ITEM, responsaveisItem } from '/shared/oferendas.js';
-import { quebrar } from './canvas.js';
+import { quebrar, gerarPng } from './canvas.js';
 
 const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5', verde: '#2f9e5b', amarelo: '#e3b021', vermelho: '#d9534f', cinza: '#8a94a3', ok: '#24785a' };
 const FD = '"Alegreya",Georgia,serif';
@@ -282,29 +282,12 @@ function desenharResumo(ctx, r, pintar) {
   return y + P - 12;
 }
 
-async function gerarPng(desenho, dados) {
-  try {
-    await Promise.all(['700 34px Alegreya', '400 17px "Alegreya Sans"', '700 21px "Alegreya Sans"', '500 16px "Alegreya Sans"']
-      .map((f) => document.fonts.load(f)));
-  } catch { /* usa as fontes do sistema */ }
-  const S = 1.5;
-  const c = document.createElement('canvas');
-  let ctx = c.getContext('2d');
-  ctx.textBaseline = 'top';
-  const H = Math.ceil(desenho(ctx, dados, false));
-  c.width = W * S;
-  c.height = Math.ceil(H * S);
-  ctx = c.getContext('2d');
-  ctx.scale(S, S);
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, H);
-  desenho(ctx, dados, true);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-  if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  return blob;
-}
+const png = (desenho, dados) => gerarPng({
+  largura: W, escala: 1.5, fundo: C.bg,
+  fontes: ['700 34px Alegreya', '400 17px "Alegreya Sans"', '700 21px "Alegreya Sans"', '500 16px "Alegreya Sans"'],
+  desenho: (ctx, pintar) => desenho(ctx, dados, pintar),
+});
 
-export const gerarImagemOferenda = (of) => gerarPng(desenhar, of);
-export const gerarImagemPessoas = (g) => gerarPng(desenharPessoas, g);
-export const gerarImagemResumo = (r) => gerarPng(desenharResumo, r);
+export const gerarImagemOferenda = (of) => png(desenhar, of);
+export const gerarImagemPessoas = (g) => png(desenharPessoas, g);
+export const gerarImagemResumo = (r) => png(desenharResumo, r);

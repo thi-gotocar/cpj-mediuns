@@ -1,7 +1,7 @@
 // Sub-aba "Iemanjá" de Oferendas: as oferendas (grupos) do evento, o sorteio das pessoas e o histórico dos eventos.
 
 import { estado, avisar, acaoIemanja } from '../estado.js';
-import { esc, toast, baixar } from '../util.js';
+import { esc, toast, baixar, podeCompartilharImagem, compartilharImagem } from '../util.js';
 import { ORIXAS } from '/shared/regras.js';
 import { NOMES_ENTIDADES, LISTA_CURIMBA, porListaIemanja } from '/shared/iemanja.js';
 import { gerarImagemPessoas, gerarImagemOferenda, gerarImagemResumo } from '../imagemOferenda.js';
@@ -202,9 +202,8 @@ const grupoDe = (id) => {
 const arquivo = (g) => nomeGrupo(g).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
 // Abre o compartilhar do aparelho com o PNG; onde não der, baixa a imagem.
 function compartilharPng(blob, nome, titulo) {
-  const f = new File([blob], nome, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [f] })) {
-    navigator.share({ files: [f], title: titulo }).catch(() => {});
+  if (podeCompartilharImagem(blob, nome)) {
+    compartilharImagem(blob, nome, titulo);
   } else {
     baixar(blob, nome);
     toast('Imagem salva no aparelho.');

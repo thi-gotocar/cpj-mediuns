@@ -2632,6 +2632,7 @@ div.pf-of-total{cursor:default}
 .fila-lote .btn{white-space:normal}
 .fila-lote-conf{display:grid;gap:8px;padding:12px;border:1px solid var(--accent);border-radius:10px;background:var(--accent-soft)}
 .fila-lote-conf p{margin:0;font-size:.92rem;overflow-wrap:anywhere}
+.fila-entrada{width:100%}
 /* Aba Geral (quem não é da corrente): a fila de senhas do dia, com a própria senha quando já pegou, e a doação das Compras */
 .fila-geral{--cor:var(--accent);gap:0;padding:0;overflow:hidden;border-left:4px solid var(--cor);background:color-mix(in srgb,var(--cor) 8%,var(--surface))}
 .fila-geral.preferencial{--cor:var(--orange)}

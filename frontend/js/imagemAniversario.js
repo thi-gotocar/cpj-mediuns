@@ -1,6 +1,6 @@
 // Imagem PNG dos aniversariantes do dia (aba Geral, bloco Eventos, só o root) para mandar no WhatsApp.
 // Sem cabeçalho: fundo claro com confetes e um cartão por pessoa — balão, o nome e uma mensagem curta, diferente para cada um.
-import { quebrar, retangulo } from './canvas.js';
+import { quebrar, retangulo, gerarPng } from './canvas.js';
 
 const C = {
   topo: '#fff0f3', fim: '#fff8e9', nome: '#8a2d55', ink: '#3a2c38', card: '#ffffff', borda: '#f5dbe4', fio: '#c9a9b6',
@@ -74,27 +74,17 @@ function desenhar(ctx, lista, pintar) {
 }
 
 export async function gerarImagemAniversario(lista) {
-  try {
-    await Promise.all(['700 28px Alegreya', 'italic 400 19px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
-  } catch { /* usa as fontes do sistema */ }
-  const S = LARGURA_PNG / W;
-  const c = document.createElement('canvas');
-  let ctx = c.getContext('2d');
-  ctx.textBaseline = 'top';
-  const H = Math.ceil(desenhar(ctx, lista, false));
-  c.width = W * S;
-  c.height = Math.ceil(H * S);
-  ctx = c.getContext('2d');
-  ctx.scale(S, S);
-  ctx.textBaseline = 'top';
-  const fundo = ctx.createLinearGradient(0, 0, 0, H);
-  fundo.addColorStop(0, C.topo);
-  fundo.addColorStop(1, C.fim);
-  ctx.fillStyle = fundo;
-  ctx.fillRect(0, 0, W, H + 2);   // +2: cobre a última linha de pixels (arredondamento da escala)
-  confetes(ctx, H);
-  desenhar(ctx, lista, true);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-  if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  return blob;
+  return gerarPng({
+    largura: W, escala: LARGURA_PNG / W,
+    fontes: ['700 28px Alegreya', 'italic 400 19px "Alegreya Sans"'],
+    fundo: (ctx, H) => {
+      const fundo = ctx.createLinearGradient(0, 0, 0, H);
+      fundo.addColorStop(0, C.topo);
+      fundo.addColorStop(1, C.fim);
+      ctx.fillStyle = fundo;
+      ctx.fillRect(0, 0, W, H + 2);   // +2: cobre a última linha de pixels (arredondamento da escala)
+      confetes(ctx, H);
+    },
+    desenho: (ctx, pintar) => desenhar(ctx, lista, pintar),
+  });
 }

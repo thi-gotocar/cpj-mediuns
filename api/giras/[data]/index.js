@@ -149,9 +149,9 @@ async function escolherEntidade(req, linha) {
 
 // Sortear e Remanejar faltas: as regras usam a lista inteira de giras (histórico das duplas).
 async function sortearOuRemanejar(req, acao) {
-  const perfil = await exigir(req, 'giras:sortear');
+  // Sessão, pessoas e giras numa ida só ao banco.
+  const [perfil, pessoas, giras] = await exigirComLeitura(req, 'giras:sortear', () => [{ funcao: 'pessoas_listar' }, { funcao: 'giras_listar' }]);
   const data = validarData(req.query.data);
-  const [pessoas, giras] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('giras_listar')]);
   const g = giras.find((x) => x.data === data) || giraVazia(data);
   if (g.encerrada) throw new HttpError(409, MSG_ENCERRADA);
   if (g.evento) throw new HttpError(409, `Evento não tem escala para ${acao}.`);
@@ -160,6 +160,44 @@ async function sortearOuRemanejar(req, acao) {
   const gira = patch && Object.keys(patch).length ? await db.rpc('gira_salvar', { data, usuario: perfil.id, ...patch }) : g;
   return { gira, mensagem };
 }
+// Encerrar e reabrir. Sessão, pessoas e gira numa ida só ao banco (antes, uma para a sessão e outra para os dados).
+// Todas as pessoas: uma gira antiga pode ter quem já saiu da corrente (as regras filtram pela data).
+async function encerrarOuReabrir(req, b) {
+  let data;
+  const [perfil, pessoas, atual] = await exigirComLeitura(req, 'giras:editar', () => [
+    { funcao: 'pessoas_listar', p: { todas: true } },
+    { funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } },
+  ]);
+  if (b.acao === 'reabrir') {
+    if (!atual?.encerrada) return { gira: atual || giraVazia(data), mensagem: 'A gira já estava aberta.' };
+    const { patch: { retrato, ...patch }, mensagem } = reabrir(pessoas, atual);
+    // gira_retrato por último: db.tx() devolve o resultado do último RPC.
+    return { gira: await db.tx([
+      { funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...patch } },
+      { funcao: 'gira_retrato', p: { data, retrato } },
+    ]), mensagem };
+  }
+  if (atual?.encerrada) return { gira: atual, mensagem: 'A gira já estava encerrada.' };
+  // Só encerra depois de confirmar a presença de todos (ninguém pendente).
+  const pend = pendentesDaGira(pessoas, atual || giraVazia(data));
+  if (pend.length) throw new HttpError(409, `Confirme a presença antes de encerrar: ${pend.length} pendente${pend.length > 1 ? 's' : ''} (${pend.slice(0, 5).map((p) => p.nome).join(', ')}${pend.length > 5 ? '…' : ''}).`);
+  // O retrato (quem estava na gira e como estava no cadastro) é gravado junto, por último.
+  const { patch: { retrato, ...patch }, mensagem } = encerrar(pessoas, atual || giraVazia(data));
+  const chamadas = [{ funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...patch } }];
+  if (atual?.evento) {
+    chamadas.push({ funcao: 'gira_participantes', p: { data, usuario: perfil.id, participantes: validarParticipantes(b.participantes) } });
+  } else {
+    // Quantas pessoas foram atendidas na gira.
+    if (!b.atendimentos || typeof b.atendimentos !== 'object') throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');
+    chamadas[0].p.atendimentos = validarAtendimentos(b.atendimentos);
+  }
+  chamadas.push({ funcao: 'gira_retrato', p: { data, retrato } });
+  const gira = await db.tx(chamadas);
+  // À parte, depois de gravado: uma falha aqui não desfaz o encerramento.
+  await db.rpc('apagar_excluidos');   // quem já foi excluído e só faltava nesta gira sai de vez
+  return { gira, mensagem };
+}
+
 const SORTEIO = ['sortear', 'remanejar'];
 
 export default rota({
@@ -176,7 +214,11 @@ export default rota({
   PUT: async (req) => {
     // Sessão e gira atual numa ida só ao banco.
     let data;
-    const [perfil, atual] = await exigirComLeitura(req, 'giras:editar', () => [{ funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } }]);
+    // As ausências antecipadas vão junto (são poucas): servem só se a gira for nova, e assim não custam outra ida.
+    const [perfil, atual, ausPrevias] = await exigirComLeitura(req, 'giras:editar', () => [
+      { funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } },
+      { funcao: 'ausencias_previas_listar' },
+    ]);
     const b = corpo(req);
     // Cadastrar gira antiga (já encerrada): só o admin root.
     if (b.encerrada === true && !pode(perfil, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root cadastra gira antiga.');
@@ -219,7 +261,7 @@ export default rota({
     }
     // Gira nova: quem tinha ausência antecipada nesta data já entra como Ausente (o que veio no pedido vale mais).
     const nova = b.encerrada !== true && !atual;
-    const previas = nova ? (await db.rpc('ausencias_previas_listar')).filter((x) => x.data === data).map((x) => x.pessoaId) : [];
+    const previas = nova ? (ausPrevias || []).filter((x) => x.data === data).map((x) => x.pessoaId) : [];
     if (previas.length) p.presenca = { ...Object.fromEntries(previas.map((id) => [id, 'a'])), ...(p.presenca || {}) };
     // Todas as gravações numa ida só (e numa transação), em vez de uma ida por parte; a gira volta no fim (gira_obter).
     const chamadas = [{ funcao: 'gira_salvar', p }];
@@ -244,9 +286,10 @@ export default rota({
     if (b.acao === 'minhaEntidade') return escolherEntidade(req, b.linha);
     // Admin root (Histórico → estatísticas): corrige a presença de uma pessoa, mesmo em gira encerrada.
     if (b.acao === 'corrigirPresenca') {
-      await exigir(req, 'usuarios:gerenciar');
-      const data = validarData(req.query.data);
-      if (!(await db.rpc('gira_obter', { data }))) throw new HttpError(404, 'Gira não encontrada.');
+      // Sessão e gira numa ida só ao banco.
+      let data;
+      const [, atual] = await exigirComLeitura(req, 'usuarios:gerenciar', () => [{ funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } }]);
+      if (!atual) throw new HttpError(404, 'Gira não encontrada.');
       const pessoaId = validarId(b.pessoaId, 'Pessoa');
       if (!['p', 'f', 'a'].includes(b.status)) throw new HttpError(400, 'Status inválido.');
       return { gira: await db.rpc('presenca_marcar', { data, pessoaId, status: b.status }), mensagem: 'Presença corrigida.' };
@@ -258,9 +301,10 @@ export default rota({
       const gira = await db.rpc('gira_acao', { acao: 'cancelarSorteio', data, usuario: quem.id });
       return { gira, mensagem: 'Sorteio cancelado: as duplas foram apagadas.' };
     }
+    if (b.acao === 'encerrar' || b.acao === 'reabrir') return encerrarOuReabrir(req, b);
     const perfil = await exigir(req, 'giras:editar');
     const data = validarData(req.query.data);
-    const { acao, atendimentos, participantes } = b;
+    const { acao } = b;
     if (acao === 'mudarData') {
       const para = validarData(String(b.para || ''));
       const gira = await db.rpc('gira_acao', { acao, data, para });
@@ -307,43 +351,7 @@ export default rota({
       const recado = validarRecado(b.recado);
       return { gira: await db.rpc('gira_acao', { acao, data, recado }), mensagem: recado ? 'Recado salvo: todos veem no evento.' : 'Recado retirado.' };
     }
-    if (!['encerrar', 'reabrir'].includes(acao)) throw new HttpError(400, 'Ação inválida.');
-    // Todas: uma gira antiga pode ter quem já saiu da corrente (as regras filtram pela data).
-    const [pessoas, atual] = await Promise.all([db.rpc('pessoas_listar', { todas: true }), db.rpc('gira_obter', { data })]);
-    if (acao === 'reabrir') {
-      if (!atual?.encerrada) return { gira: atual || giraVazia(data), mensagem: 'A gira já estava aberta.' };
-      const { patch: { retrato, ...patch }, mensagem } = reabrir(pessoas, atual);
-      // gira_retrato por último: db.tx() devolve o resultado do último RPC.
-      return { gira: await db.tx([
-        { funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...patch } },
-        { funcao: 'gira_retrato', p: { data, retrato } },
-      ]), mensagem };
-    }
-    if (atual?.encerrada) return { gira: atual, mensagem: 'A gira já estava encerrada.' };
-    // Só encerra depois de confirmar a presença de todos (ninguém pendente).
-    const pend = pendentesDaGira(pessoas, atual || giraVazia(data));
-    if (pend.length) throw new HttpError(409, `Confirme a presença antes de encerrar: ${pend.length} pendente${pend.length > 1 ? 's' : ''} (${pend.slice(0, 5).map((p) => p.nome).join(', ')}${pend.length > 5 ? '…' : ''}).`);
-    // O retrato (quem estava na gira e como estava no cadastro) é gravado junto, por último.
-    const { patch: { retrato, ...patch }, mensagem } = encerrar(pessoas, atual || giraVazia(data));
-    if (atual?.evento) {
-      const total = validarParticipantes(participantes);
-      const gira = await db.tx([
-        { funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...patch } },
-        { funcao: 'gira_participantes', p: { data, usuario: perfil.id, participantes: total } },
-        { funcao: 'gira_retrato', p: { data, retrato } },
-      ]);
-      await db.rpc('apagar_excluidos');   // quem já foi excluído e só faltava nesta gira sai de vez
-      return { gira, mensagem };
-    }
-    // Quantas pessoas foram atendidas na gira.
-    if (!atendimentos || typeof atendimentos !== 'object') throw new HttpError(400, 'Informe quantas pessoas foram atendidas (preferencial, normal e passe).');
-    patch.atendimentos = validarAtendimentos(atendimentos);
-    const gira = await db.tx([
-      { funcao: 'gira_salvar', p: { data, usuario: perfil.id, ...patch } },
-      { funcao: 'gira_retrato', p: { data, retrato } },
-    ]);
-    await db.rpc('apagar_excluidos');   // quem já foi excluído e só faltava nesta gira sai de vez
-    return { gira, mensagem };
+    throw new HttpError(400, 'Ação inválida.');
   },
   DELETE: async (req) => {
     await exigir(req, 'giras:excluir');

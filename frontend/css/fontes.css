@@ -1,0 +1,11 @@
+/* Fontes dentro do app (antes vinham do Google Fonts): abrem sem internet, pelo service worker, e não dependem de outro
+   servidor na abertura. Só o subconjunto latin (o português inteiro); o que ficar fora usa a fonte do sistema.
+   Os itálicos são os que as imagens do WhatsApp usam. Licença: SIL Open Font License (Alegreya, Alegreya Sans, JetBrains Mono). */
+@font-face{font-family:'Alegreya';font-style:normal;font-weight:600 700;font-display:swap;src:url(/fonts/alegreya.woff2) format('woff2')}
+@font-face{font-family:'Alegreya';font-style:italic;font-weight:700;font-display:swap;src:url(/fonts/alegreya-italico.woff2) format('woff2')}
+@font-face{font-family:'Alegreya Sans';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/alegreya-sans-400.woff2) format('woff2')}
+@font-face{font-family:'Alegreya Sans';font-style:normal;font-weight:500;font-display:swap;src:url(/fonts/alegreya-sans-500.woff2) format('woff2')}
+@font-face{font-family:'Alegreya Sans';font-style:normal;font-weight:700;font-display:swap;src:url(/fonts/alegreya-sans-700.woff2) format('woff2')}
+@font-face{font-family:'Alegreya Sans';font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/alegreya-sans-400-italico.woff2) format('woff2')}
+@font-face{font-family:'Alegreya Sans';font-style:italic;font-weight:500;font-display:swap;src:url(/fonts/alegreya-sans-500-italico.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/jetbrains-mono-400.woff2) format('woff2')}

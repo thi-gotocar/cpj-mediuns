@@ -5,6 +5,7 @@ import { lerDataCurta, dataCurta } from '/shared/eventos.js';
 import { FOTO_LADO, MINI_LADO, FOTO_QUALIDADE, FOTO_MAX_BYTES, MINI_MAX_BYTES } from '/shared/fotos.js';
 import { estado, pode, carregarFotos, acaoFotos, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
+import { abrirImagem, reduzirJpeg } from '../foto.js';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const U = () => (estado.fotUi ||= { album: null, novoData: '', novoNome: '', abertos: new Set(), ver: null, apagar: false, editar: null, excluirAlbum: null, envio: null });
@@ -35,30 +36,7 @@ function cardEnviar(F) {
   return h + `<label class="btn primary ft-escolher">Escolher fotos<input type="file" accept="image/*" multiple data-act="ftarquivos" hidden></label></div>`;
 }
 
-// O maior lado vira "lado" e a foto vira JPEG; se passar do limite, baixa a qualidade.
-async function reduzir(img, lado, max) {
-  const k = Math.min(1, lado / Math.max(img.width, img.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(img.width * k);
-  c.height = Math.round(img.height * k);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  for (let q = FOTO_QUALIDADE; q > 0.3; q -= 0.15) {
-    const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', q));
-    if (blob && blob.size <= max) return { blob, largura: c.width, altura: c.height };
-  }
-  throw new Error('foto grande demais');
-}
-
-async function abrirImagem(arquivo) {
-  try { return await createImageBitmap(arquivo, { imageOrientation: 'from-image' }); } catch { /* tenta pelo <img> */ }
-  const url = URL.createObjectURL(arquivo);
-  try {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
-    return img;
-  } finally { URL.revokeObjectURL(url); }
-}
+const reduzir = (img, lado, max) => reduzirJpeg(img, { lado, max, qualidade: FOTO_QUALIDADE });
 
 const base64 = (blob) => new Promise((ok, erro) => {
   const r = new FileReader();

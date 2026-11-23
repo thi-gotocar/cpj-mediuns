@@ -6,7 +6,7 @@
 // "db" é um objeto para que os testes possam trocar a implementação.
 
 import { HttpError } from './http.js';
-import { VERSAO, MIGRACOES } from '../../db/esquema.js';
+import { VERSAO } from '../../db/versao.js';
 
 function urlDoBanco() {
   const url = process.env.DATABASE_URL || process.env.POSTGRES_URL;
@@ -68,6 +68,8 @@ async function garantirEsquema() {
     } catch (e) {
       if (e.code !== '42P01') throw e; // 42P01 = tabela ainda não existe
     }
+    // As migrações só são carregadas aqui (banco atrás): o resto das vezes a função nem lê o arquivo.
+    const { MIGRACOES } = await import('../../db/esquema.js');
     // Uma transação só, com trava para dois acessos simultâneos não migrarem juntos.
     // Quem estava na fila confere a versão depois da trava e desiste, em vez de repetir tudo:
     // o erro desfaz a transação (que não fez nada) e solta a trava para o próximo.

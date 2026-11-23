@@ -16,7 +16,7 @@
 //                           ?atualizar=1 (voltar ao app): só as listas, sem "me"; com &versao= igual à atual, só { versao, semMudanca: true }.
 //                           ?parcial=1 (app atual): giras dos últimos 12 meses (+ girasDesde) e, na volta, só a parte que mudou
 //                           (giras, ou pessoas/config/eventos/orações); sem ele, tudo, como antes.
-//                           Alunos recebem { eventos, oracoes, minhaCurimba, config }.
+//                           Alunos recebem { versao, eventos, oracoes, minhaCurimba, config } (na volta, com a mesma versão, só semMudanca).
 //   GET  /api/auth/perfil   → { eu: { pessoaId, nome, perfil } | null, todos?: [{ pessoaId, nome, funcao, perfil }] (admin) }
 //   POST /api/auth/perfil   { perfil }  salva o meu perfil inteiro (curimba: só as informações pessoais)
 //                           Aluno (depois de criar a senha): só os próprios dados, informações, orixás e guias.
@@ -249,8 +249,8 @@ const acoes = {
     const atualizar = !!req.query.atualizar;
     // Corrente e usuários: a sessão, as listas (inicio_dados) e, na abertura, "a Transparência / o Diário estão
     // visíveis?" vão numa ida só ao banco. Ao voltar ao app, ?versao= é a que ele já tem: sem mudança, só { versao, semMudanca }.
-    // Aluno: só a sessão nessa ida; as listas dele vêm depois (listasDoGrupo).
-    const [u, d, transparencia, diarioPub] = await exigirComLeitura(req, null, ({ pessoaId, usuarioId, alunoId }) => (alunoId ? [] : [
+    // Aluno: a sessão e a versão dos dados dele (aluno_versao) nessa ida; as listas vêm depois (listasDoGrupo), só se mudou.
+    const [u, d, transparencia, diarioPub] = await exigirComLeitura(req, null, ({ pessoaId, usuarioId, alunoId }) => (alunoId ? [{ funcao: 'aluno_versao' }] : [
       { funcao: 'inicio_dados', p: { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar, parcial: !!req.query.parcial,
         pessoaId: pessoaId || '', usuarioId: usuarioId || '' } },
       ...(atualizar ? [] : [{ funcao: 'transparencia_publicada' }, { funcao: 'diario_publicada' }]),
@@ -259,10 +259,15 @@ const acoes = {
     // (cada pedido avulso acordava o banco). Falha não atrapalha a abertura; vai junto com o resto.
     const visitas = Promise.all([registrarVisitas(u, req.query.visitas), registrarVersao(u, req)]);
     // Aluno: as listas e o "me" vão ao banco ao mesmo tempo.
+    // Na volta ao app, com a mesma versão, só { versao, semMudanca }, como na corrente.
     if (u.grupo) {
-      if (atualizar) return (await Promise.all([listasDoGrupo(u), visitas]))[0];
+      const versao = typeof d === 'string' ? d : undefined;
+      if (atualizar) {
+        if (versao && String(req.query.versao || '') === versao) { await visitas; return { versao, semMudanca: true }; }
+        return { versao, ...(await Promise.all([listasDoGrupo(u), visitas]))[0] };
+      }
       const [listas, me, [, atrasosAluno]] = await Promise.all([listasDoGrupo(u), dadosDoMe(u), blocosGeral(u), visitas]);
-      return { me, ...listas, atrasos: atrasosAluno };
+      return { me, versao, ...listas, atrasos: atrasosAluno };
     }
     const { listas, extras } = await listasIniciais(u, d);
     if (atualizar) {

@@ -121,6 +121,19 @@ function cartao(f, L) {
       ${s ? `<span class="fila-cartao-q">${esc(s.nome)}</span>` : ''}</div>${canhoto}</div>`;
 }
 
+// Encerrar (ou reabrir) a entrada pelo QR sem abrir os Ajustes, que ficam recolhidos depois da primeira senha.
+// Encerrar pede confirmação; quem já tem senha continua na fila e o balcão continua emitindo.
+function entradaQr(f) {
+  if (!f.aberta) {
+    return (f.senhas || []).length ? '<button type="button" class="btn small fila-entrada" data-act="filaentrada" data-v="1">Reabrir a entrada pelo QR</button>' : '';
+  }
+  if (estado.confirm === 'filafechar') {
+    return `<div class="fila-lote-conf"><p><b>Encerrar a entrada pelo QR?</b> Ninguém mais pega senha pelo celular. Quem já tem senha continua na fila, e o balcão continua emitindo.</p>
+      <div class="fila-acoes"><button type="button" class="btn small danger" data-act="filaentrada" data-v="0">Encerrar entrada</button><button type="button" class="btn small" data-act="filavoltar">Voltar</button></div></div>`;
+  }
+  return '<button type="button" class="btn small fila-entrada" data-act="askdel" data-k="filafechar">⛔ Encerrar a entrada pelo QR</button>';
+}
+
 function ajustes(f) {
   const aberto = ajustesAberto ?? (!f.aberta && !(f.senhas || []).length);
   const usadas = f.emitidas?.atendimento || 0;
@@ -189,6 +202,7 @@ function blocoFila(g) {
     ${chamarLote(L)}
     <p class="fila-cont">Aguardando ${espera}</p>
     ${f.atendimentoLotado ? '<p class="fila-lotado">As senhas de atendimento acabaram. Quem chegar agora pega passe.</p>' : ''}
+    ${entradaQr(f)}
     ${balcao(f)}
     ${lista(L)}
     ${ajustes(f)}</div>`;
@@ -201,6 +215,7 @@ export const cliques = {
   filaver(el) { aba = el.dataset.v; avisar(); },
   filavoltar() { avisar(); },
   filabalcao() { balcaoAberto = !balcaoAberto; avisar(); if (balcaoAberto) document.getElementById('fb-nome')?.focus(); },
+  filaentrada(el) { acaoFila(hoje(), 'filaConfig', { aberta: el.dataset.v === '1' }); },
   filaajustes(el) { ajustesAberto = el.getAttribute('aria-expanded') !== 'true'; avisar(); },
 };
 

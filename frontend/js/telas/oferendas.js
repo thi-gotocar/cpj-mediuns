@@ -2,7 +2,7 @@
 
 import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes, arred, passoLevar, responsaveisItem } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, abrirOferendasAnteriores, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva } from '../estado.js';
-import { esc, toast, baixar, hoje } from '../util.js';
+import { esc, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } from '../util.js';
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes, atualizarPrevia, dobrarCategoria } from './oferendaComum.js';
 export { atualizarPrevia };
@@ -521,9 +521,8 @@ export const cliques = {
       const blob = await gerarImagemOferenda(of);
       if (U().img) URL.revokeObjectURL(U().img.url);
       U().img = { id: of.id, chave: textoCompartilhar(of), blob, url: URL.createObjectURL(blob), nome: 'oferenda-' + of.data + '.png' };
-      const f =new File([blob], U().img.nome, { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [f] })) {
-        navigator.share({ files: [f], title: of.titulo }).catch(() => {});
+      if (podeCompartilharImagem(blob, U().img.nome)) {
+        compartilharImagem(blob, U().img.nome, of.titulo);
       } else {
         U().compartilhar = of.id;
         toast('Imagem pronta: toque em Salvar imagem.');
@@ -532,11 +531,9 @@ export const cliques = {
     } catch (e) { toast(e.message); }
   },
   saveimgof() { const i = U().img; if (i) baixar(i.url, i.nome); },
-  shareimgof() {
+  async shareimgof() {
     const i = U().img;
-    if (!i) return;
-    navigator.share({ files: [new File([i.blob], i.nome, { type: 'image/png' })], title: 'Oferenda' })
-      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagem.'); });
+    if (i && !(await compartilharImagem(i.blob, i.nome, 'Oferenda'))) toast('Não deu para compartilhar daqui. Use Salvar imagem.');
   },
 };
 

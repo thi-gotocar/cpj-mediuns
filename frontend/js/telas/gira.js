@@ -2,7 +2,7 @@
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, publicarEscala, travarEscala, salvarRecado, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, baixar, hoje } from '../util.js';
+import { esc, dLong, dDM, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { calendarioMes, mesMais } from '../calendario.js';
 import { painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -38,11 +38,7 @@ const seletorOrixa = (g, travado = false) => `<select data-act="orixagira" aria-
 export function chaveImg() {
   return textoWhats(estado.pessoas, giraAtual(), 'lista', girasLista());
 }
-export function podeCompartilhar() {
-  try {
-    return !!(estado.img && navigator.canShare && navigator.canShare({ files: [new File([estado.img.blob], estado.img.nome, { type: 'image/png' })] }));
-  } catch { return false; }
-}
+export const podeCompartilhar = () => !!estado.img && podeCompartilharImagem(estado.img.blob, estado.img.nome);
 
 // Lista das linhas; mantém um valor antigo (texto livre) se a gira já tinha um.
 function seletorEntidade(atual, nomeAtual = '', travado = false) {
@@ -600,7 +596,7 @@ export const cliques = {
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
   // Bloco Eventos: só os de hoje ↔ todos.
   evsmais() { estado.evsTodos = !estado.evsTodos; avisar(); },
-  eventoimagem() {
+  async eventoimagem() {
     fecharCompartilhar();
     const g = giraAtual();
     if (!g.evento || g.encerrada) return;
@@ -611,16 +607,12 @@ export const cliques = {
       return;
     }
     const { blob, nome: arquivo } = estado.eventoImg;
-    const file = new File([blob], arquivo, { type: 'image/png' });
-    let podeCompartilhar = false;
-    try { podeCompartilhar = !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch { podeCompartilhar = false; }
-    if (!podeCompartilhar) {
+    if (!podeCompartilharImagem(blob, arquivo)) {
       baixar(blob, arquivo);
       toast('Imagem salva. Abra o WhatsApp e anexe a imagem no grupo.');
       return;
     }
-    navigator.share({ files: [file], title: 'Evento da gira' })
-      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. A imagem permanece disponível para baixar.'); });
+    if (!(await compartilharImagem(blob, arquivo, 'Evento da gira'))) toast('Não deu para compartilhar daqui. A imagem permanece disponível para baixar.');
   },
   escimg() { estado.escImgVer = true; atualizarJanela(); },
   // Orações (admin): janela com a prévia da imagem; "Compartilhar" abre a lista do aparelho (WhatsApp); sem ela, salva.
@@ -631,12 +623,10 @@ export const cliques = {
     baixar(estado.oraImg.url, estado.oraImg.nome);
     toast('Imagem salva. Abra o WhatsApp e anexe a imagem no grupo.');
   },
-  oracompartilhar() {
+  async oracompartilhar() {
     if (!imagemOracoesPronta()) return;
-    const { blob, nome: arq } = estado.oraImg;
-    navigator.share({ files: [new File([blob], arq, { type: 'image/png' })], title: 'Pedidos de oração' })
-      .then(() => cliques.orafechar())
-      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagem.'); });
+    if (await compartilharImagem(estado.oraImg.blob, estado.oraImg.nome, 'Pedidos de oração')) cliques.orafechar();
+    else toast('Não deu para compartilhar daqui. Use Salvar imagem.');
   },
   // Aniversariantes do dia (root): janela com a prévia da imagem; "Compartilhar" abre a lista do aparelho; sem ela, salva.
   niverabrir() { estado.niverJanela = true; atualizarJanela(); prepararNiver(); },
@@ -646,12 +636,10 @@ export const cliques = {
     baixar(estado.niverImg.url, estado.niverImg.nome);
     toast('Imagem salva. Abra o WhatsApp e anexe a imagem no grupo.');
   },
-  nivercompartilhar() {
+  async nivercompartilhar() {
     if (!imagemNiverPronta()) return;
-    const { blob, nome: arq } = estado.niverImg;
-    navigator.share({ files: [new File([blob], arq, { type: 'image/png' })], title: 'Aniversariantes de hoje' })
-      .then(() => cliques.niverfechar())
-      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Use Salvar imagem.'); });
+    if (await compartilharImagem(estado.niverImg.blob, estado.niverImg.nome, 'Aniversariantes de hoje')) cliques.niverfechar();
+    else toast('Não deu para compartilhar daqui. Use Salvar imagem.');
   },
   escimgfechar() { estado.escImgVer = null; atualizarJanela(); },
   // Janela do WhatsApp (texto ou imagem).
@@ -672,9 +660,8 @@ export const cliques = {
       cliques.wafechar();
       return;
     }
-    navigator.share({ files: [new File([blob], arq, { type: 'image/png' })], title: 'Escala da gira' })
-      .then(() => cliques.wafechar())
-      .catch((e) => { if (e?.name !== 'AbortError') toast('Não deu para compartilhar daqui. Tente pelo texto.'); });
+    compartilharImagem(blob, arq, 'Escala da gira')
+      .then((ok) => (ok ? cliques.wafechar() : toast('Não deu para compartilhar daqui. Tente pelo texto.')));
   },
   wafmt(el) { prefs.fmt = el.dataset.v; salvarPrefs(); atualizarJanela(); },
   status(el) { gravarPresenca(el.dataset.id, el.value); },

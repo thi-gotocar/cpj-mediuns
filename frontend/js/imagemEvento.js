@@ -1,4 +1,5 @@
 // Imagem do bloco de evento da aba Gira, para compartilhar no WhatsApp.
+import { quebrar, retangulo, gerarPng } from './canvas.js';
 
 const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', gold: '#a8771c' };
 const FD = '"Alegreya",Georgia,serif';
@@ -6,42 +7,6 @@ const FB = '"Alegreya Sans",system-ui,sans-serif';
 const W = 560;
 const P = 24;
 const CW = W - 2 * P;
-
-function quebrar(ctx, texto, max) {
-  const linhas = [];
-  String(texto).split('\n').forEach((paragrafo) => {
-    let linha = '';
-    paragrafo.split(/\s+/).forEach((palavra) => {
-      if (ctx.measureText(palavra).width > max) {
-        if (linha) linhas.push(linha);
-        let parte = '';
-        for (const letra of palavra) {
-          if (ctx.measureText(parte + letra).width > max && parte) {
-            linhas.push(parte);
-            parte = letra;
-          } else parte += letra;
-        }
-        linha = parte;
-      } else {
-        const teste = linha ? `${linha} ${palavra}` : palavra;
-        if (ctx.measureText(teste).width > max && linha) { linhas.push(linha); linha = palavra; }
-        else linha = teste;
-      }
-    });
-    linhas.push(linha);
-  });
-  return linhas;
-}
-
-function arredondado(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
 
 function desenhar(ctx, evento, pintar) {
   const fonte = (peso, tamanho, familia = FB) => { ctx.font = `${peso} ${tamanho}px ${familia}`; };
@@ -55,7 +20,7 @@ function desenhar(ctx, evento, pintar) {
   const cabecalho = 22 + data.length * 18 + titulo.length * 38 + orixa.length * 24 + 22;
   if (pintar) {
     ctx.fillStyle = C.card;
-    arredondado(ctx, P, y, CW, cabecalho, 14);
+    retangulo(ctx, P, y, CW, cabecalho, 14);
     ctx.fill();
     ctx.strokeStyle = C.line;
     ctx.lineWidth = 1;
@@ -84,13 +49,13 @@ function desenhar(ctx, evento, pintar) {
     const altura = 18 + tituloSecao.length * 22 + itens.length * 23 + 14;
     if (pintar) {
       ctx.fillStyle = '#ffffff';
-      arredondado(ctx, P, y, CW, altura, 10);
+      retangulo(ctx, P, y, CW, altura, 10);
       ctx.fill();
       ctx.strokeStyle = C.line;
       ctx.lineWidth = 1;
       ctx.stroke();
       ctx.fillStyle = secao.cor;
-      arredondado(ctx, P, y, 4, altura, 2);
+      retangulo(ctx, P, y, 4, altura, 2);
       ctx.fill();
       fonte(700, 17);
       ctx.fillStyle = C.ink;
@@ -105,27 +70,9 @@ function desenhar(ctx, evento, pintar) {
 }
 
 export async function gerarImagemEvento(evento) {
-  try {
-    await Promise.all(['700 30px Alegreya', '700 17px "Alegreya Sans"', '400 16px "Alegreya Sans"', '700 13px "Alegreya Sans"']
-      .map((fonte) => document.fonts.load(fonte)));
-  } catch { /* usa as fontes do sistema */ }
-
-  const escala = 2.5;
-  const canvas = document.createElement('canvas');
-  let ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  ctx.textBaseline = 'top';
-  const altura = Math.ceil(desenhar(ctx, evento, false));
-  canvas.width = W * escala;
-  canvas.height = altura * escala;
-  ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  ctx.scale(escala, escala);
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, altura);
-  desenhar(ctx, evento, true);
-  const blob = await new Promise((ok) => canvas.toBlob(ok, 'image/png'));
-  if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  return blob;
+  return gerarPng({
+    largura: W, escala: 2.5, fundo: C.bg,
+    fontes: ['700 30px Alegreya', '700 17px "Alegreya Sans"', '400 16px "Alegreya Sans"', '700 13px "Alegreya Sans"'],
+    desenho: (ctx, pintar) => desenhar(ctx, evento, pintar),
+  });
 }

@@ -3,7 +3,7 @@
 
 import { STATUS, nomeEntidadeGira, contaNaPresenca, orixaDaGira, temLimpeza, limpezaDaGira, status, daGira, licencaEm } from '/shared/regras.js';
 import { estado, prefs, pessoasComSaidas, nome, girasLista, giraAtual, mudarDataGira, avisar } from '../estado.js';
-import { esc, dLong, dDM, toast, hoje } from '../util.js';
+import { esc, dLong, dDM, toast, hoje, podeCompartilharImagem } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { aniversariantesDoDia, mensagensAniversario } from '/shared/eventos.js';
 import { banhosDaGira } from '/shared/banhos.js';
@@ -27,11 +27,7 @@ export async function prepararOracoes() {
   estado.oraGerando = false;
   atualizarJanela();
 }
-function podeCompartilharOracoes() {
-  try {
-    return !!(imagemOracoesPronta() && navigator.canShare && navigator.canShare({ files: [new File([estado.oraImg.blob], estado.oraImg.nome, { type: 'image/png' })] }));
-  } catch { return false; }
-}
+const podeCompartilharOracoes = () => imagemOracoesPronta() && podeCompartilharImagem(estado.oraImg.blob, estado.oraImg.nome);
 // ---------- janela do WhatsApp dos aniversariantes do dia (root): prévia da imagem, Compartilhar e Salvar ----------
 // Cada pessoa com uma mensagem diferente; a escolha vem da data, então a prévia é a imagem que vai.
 function listaNiver() {
@@ -55,11 +51,7 @@ export async function prepararNiver() {
   estado.niverGerando = false;
   atualizarJanela();
 }
-function podeCompartilharNiver() {
-  try {
-    return !!(imagemNiverPronta() && navigator.canShare && navigator.canShare({ files: [new File([estado.niverImg.blob], estado.niverImg.nome, { type: 'image/png' })] }));
-  } catch { return false; }
-}
+const podeCompartilharNiver = () => imagemNiverPronta() && podeCompartilharImagem(estado.niverImg.blob, estado.niverImg.nome);
 function janelaNiver() {
   if (!estado.niverJanela) return '';
   const pronta = imagemNiverPronta();

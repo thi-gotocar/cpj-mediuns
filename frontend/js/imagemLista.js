@@ -1,6 +1,6 @@
 // Imagem PNG de uma lista simples (pedido de ervas, cobrança...), no mesmo estilo das outras imagens.
 //   gerarImagemLista({ rotulo, titulo, subtitulo, linhas: [{ texto, valor?, sub? }], rodape? })
-import { quebrar } from './canvas.js';
+import { quebrar, gerarPng } from './canvas.js';
 
 const C = { bg: '#f5f7fb', card: '#ffffff', ink: '#18212f', muted: '#5b6678', line: '#dde3ec', accent: '#2c4ea3', soft: '#c9d5f5' };
 const FD = '"Alegreya",Georgia,serif';
@@ -65,36 +65,12 @@ function desenhar(ctx, d, pintar) {
 }
 
 export async function gerarImagemLista(d) {
-  try {
-    await Promise.all(['700 34px Alegreya', '400 16px "Alegreya Sans"', '700 20px "Alegreya Sans"', '500 20px "Alegreya Sans"']
-      .map((f) => document.fonts.load(f)));
-  } catch { /* usa as fontes do sistema */ }
-  const S = 1.5;
-  const c = document.createElement('canvas');
-  let ctx = c.getContext('2d');
-  ctx.textBaseline = 'top';
-  const H = Math.ceil(desenhar(ctx, d, false));
-  c.width = W * S;
-  c.height = Math.ceil(H * S);
-  ctx = c.getContext('2d');
-  ctx.scale(S, S);
-  ctx.textBaseline = 'top';
-  ctx.fillStyle = C.bg;
-  ctx.fillRect(0, 0, W, H);
-  desenhar(ctx, d, true);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-  if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  return blob;
+  return gerarPng({
+    largura: W, escala: 1.5, fundo: C.bg,
+    fontes: ['700 34px Alegreya', '400 16px "Alegreya Sans"', '700 20px "Alegreya Sans"', '500 20px "Alegreya Sans"'],
+    desenho: (ctx, pintar) => desenhar(ctx, d, pintar),
+  });
 }
 
-// Compartilha pelo menu do aparelho (WhatsApp etc.); devolve false se não der.
-export async function compartilharImagem(blob, nome, titulo) {
-  try {
-    const f = new File([blob], nome, { type: 'image/png' });
-    if (!navigator.canShare || !navigator.canShare({ files: [f] })) return false;
-    await navigator.share({ files: [f], title: titulo });
-    return true;
-  } catch (e) {
-    return e?.name === 'AbortError';
-  }
-}
+// Ficou em util.js (usado também pela aba Gira); continua exportado daqui para quem já importa.
+export { compartilharImagem } from './util.js';

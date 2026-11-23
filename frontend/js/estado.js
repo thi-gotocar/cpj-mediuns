@@ -156,6 +156,7 @@ export async function carregarTudo() {
     estado.curimba = null;
     estado.oracoes = r.oracoes || [];
     estado.alunos = null;
+    estado.versaoDados = r.versao || '';
     prefs.tab = 'gira';
     prefs.data = hoje();
     estado.pronto = true;
@@ -260,20 +261,24 @@ export async function atualizarDoServidor() {
   if (Date.now() - ultimaAtualizacao < INTERVALO_ATUALIZAR) return;
   ultimaAtualizacao = Date.now();
   try {
-    if (estado.me?.grupo === 'alunos') {
-      estado.alunos = await api('GET', '/pessoas?lista=alunos');
-      avisar();
-      return;
-    }
     // A versão que o app já tem: sem mudança no servidor, a resposta é só { semMudanca } e as listas ficam como estão.
     // Uma gravação feita daqui também muda a versão: na volta seguinte, baixa tudo uma vez.
-    const versao = estado.me?.grupo ? '' : estado.versaoDados || '';
+    const versao = estado.versaoDados || '';
     const vis = visitasPendentes();
     const r = await api('GET', '/auth/inicio?atualizar=1&parcial=1' + (versao ? '&versao=' + encodeURIComponent(versao) : '')
       + (vis.length ? '&visitas=' + vis.join(',') : ''));
     visitasEnviadas(vis);
     if (r.semMudanca) { await atualizarAbaAberta(); return; }
     if (r.versao) estado.versaoDados = r.versao;
+    // Aluno: eventos, orações, aulas da curimba e config (antes a volta só trazia a lista de alunos, que ele não usa).
+    if (estado.me?.grupo === 'alunos') {
+      if (r.config) definirConfig(r.config);
+      estado.eventos = r.eventos || estado.eventos;
+      estado.oracoes = r.oracoes || estado.oracoes;
+      if (r.minhaCurimba !== undefined) estado.minhaCurimba = r.minhaCurimba?.aulas ? r.minhaCurimba : null;
+      await atualizarAbaAberta();
+      return;
+    }
     if (r.config) definirConfig(r.config);
     // Só vem o que mudou (giras, o resto ou os dois); lista que falhou no servidor também não vem: fica a que já está.
     const minhaCurimba = r.minhaCurimba === undefined ? estado.minhaCurimba : r.minhaCurimba;

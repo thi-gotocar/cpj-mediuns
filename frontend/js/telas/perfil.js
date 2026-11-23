@@ -10,6 +10,7 @@ import { estado, pode, visaoAtiva, vePessoas, avisar, carregarPerfil, mudarPerfi
 import { esc, toast, iniciais, baixar, hoje } from '../util.js';
 import { emDemo } from '../auth.js';
 import { ICONE_WHATS } from './giraComum.js';
+import { abrirImagem, base64 } from '../foto.js';
 
 const GUIA_LABEL = Object.fromEntries(GUIAS);
 const ROT_ORIXA = { frente: 'frente', ancestral: 'ancestral', adjunto: 'adjunto' };
@@ -133,17 +134,12 @@ function blocoFoto(pessoaId, nome, editando) {
 
 // A foto vira um quadrado de 320 px (corta o centro), em JPEG: fica pequena para o banco.
 async function reduzirFoto(arquivo) {
-  let img;
-  try { img = await createImageBitmap(arquivo, { imageOrientation: 'from-image' }); } catch {
-    const url = URL.createObjectURL(arquivo);
-    try { img = new Image(); img.src = url; await img.decode(); } finally { URL.revokeObjectURL(url); }
-  }
+  const img = await abrirImagem(arquivo);
   const lado = Math.min(img.width, img.height);
   const c = document.createElement('canvas');
   c.width = c.height = 320;
   c.getContext('2d').drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, 320, 320);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.82));
-  return new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = erro; r.readAsDataURL(blob); });
+  return base64(await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.82)));
 }
 
 function normalizarBusca(texto) {

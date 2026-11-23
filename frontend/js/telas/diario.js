@@ -20,6 +20,7 @@ import {
 } from '/shared/diario.js';
 import { BANHO_ORIXA } from '/shared/banhos.js';
 import { calendarioMes, mesMais } from '../calendario.js';
+import { abrirImagem, reduzirJpeg, base64 } from '../foto.js';
 
 // dia: data aberta; mes: mês do calendário; rasc: textos ainda não salvos por data; ouvindo: campo com o microfone ligado;
 // gal: foto escolhida para a galeria (base64), descrição e envio.
@@ -410,32 +411,16 @@ function mudarHabitos(muda) {
   return salvar((d) => { d.habitos = { ...(d.habitos || {}) }; muda(d.habitos); });
 }
 
-async function abrirImagem(arquivo) {
-  try { return await createImageBitmap(arquivo, { imageOrientation: 'from-image' }); } catch { /* tenta pelo <img> */ }
-  const url = URL.createObjectURL(arquivo);
-  try { const img = new Image(); img.src = url; await img.decode(); return img; } finally { URL.revokeObjectURL(url); }
-}
-function canvasDe(img, lado) {
-  const k = Math.min(1, lado / Math.max(img.width, img.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(img.width * k);
-  c.height = Math.round(img.height * k);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return c;
-}
 // ---------- galeria: a foto é reduzida no aparelho (maior lado 1280 px, JPEG até ~600 KB) ----------
 async function escolherFotoGaleria(arquivo) {
   try {
-    const c = canvasDe(await abrirImagem(arquivo), 1280);
-    for (let q = 0.82; q > 0.3; q -= 0.12) {
-      const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', q));
-      if (blob && blob.size <= 600 * 1024) {
-        ui.gal.foto = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = erro; r.readAsDataURL(blob); });
-        avisar();
-        return;
-      }
+    let blob;
+    try { ({ blob } = await reduzirJpeg(await abrirImagem(arquivo), { lado: 1280, max: 600 * 1024, passo: 0.12 })); } catch (e) {
+      toast(e.message === 'foto grande demais' ? 'Foto grande demais.' : 'Não foi possível abrir essa foto.');
+      return;
     }
-    toast('Foto grande demais.');
+    ui.gal.foto = await base64(blob);
+    avisar();
   } catch { toast('Não foi possível abrir essa foto.'); }
 }
 export async function addErva(form) {

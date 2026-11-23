@@ -694,7 +694,18 @@ test('acessos alunos e curimba: dados restritos, eventos sem avisos e o aluno da
   const A = (await api('GET', '/api/pessoas?lista=alunos', ADMIN)).json;
   assert.equal(A.alunos.find((x) => x.nome === 'Aluna de Curimba').turmaId, A.turmas.find((t) => t.nome === 'Curimba').id, 'virou aluna da turma Curimba');
   const tCurimba = await tokenAluno('Aluna de Curimba');
-  assert.deepEqual((await api('GET', '/api/auth/inicio', tCurimba)).json.minhaCurimba.aulas, [{ data: '2034-05-10', nome: 'Toques', status: 'p' }], 'a abertura traz as aulas');
+  const abertura = (await api('GET', '/api/auth/inicio', tCurimba)).json;
+  assert.deepEqual(abertura.minhaCurimba.aulas, [{ data: '2034-05-10', nome: 'Toques', status: 'p' }], 'a abertura traz as aulas');
+  // v172: na volta ao app, o aluno manda a versão; sem mudança, só semMudanca; um evento novo traz as listas de novo.
+  assert.ok(abertura.versao);
+  const voltaAluno = (v) => api('GET', '/api/auth/inicio?atualizar=1&parcial=1&versao=' + encodeURIComponent(v), tCurimba).then((x) => x.json);
+  assert.deepEqual(await voltaAluno(abertura.versao), { versao: abertura.versao, semMudanca: true });
+  const evVolta = (await api('POST', '/api/giras', ADMIN, { acao: 'evento', data: '2034-05-12', nome: 'Festa da volta', tipo: 'evento' })).json
+    .find((x) => x.nome === 'Festa da volta');
+  const mudouAluno = await voltaAluno(abertura.versao);
+  assert.notEqual(mudouAluno.versao, abertura.versao);
+  assert.ok(mudouAluno.eventos.some((x) => x.nome === 'Festa da volta'));
+  await api('POST', '/api/giras', ADMIN, { acao: 'excluirEvento', id: evVolta.id });
   const minhasAulas = await api('GET', '/api/pessoas?lista=minhaCurimba', tCurimba);
   assert.deepEqual(minhasAulas.json.aulas, [{ data: '2034-05-10', nome: 'Toques', status: 'p' }]);
   const eventos = await api('GET', '/api/giras?lista=eventos', tCurimba);

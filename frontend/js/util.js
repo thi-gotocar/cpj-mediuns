@@ -37,6 +37,22 @@ export function baixar(blobOuUrl, nome) {
   if (typeof blobOuUrl !== 'string') setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
+// Compartilhar uma imagem PNG pelo menu do aparelho (WhatsApp etc.). podeCompartilharImagem: o aparelho aceita arquivo?
+// compartilharImagem → true se foi (ou a pessoa desistiu no menu), false se não deu.
+const arquivoPng = (blob, nome) => new File([blob], nome, { type: 'image/png' });
+export function podeCompartilharImagem(blob, nome) {
+  try { return !!(blob && navigator.canShare && navigator.canShare({ files: [arquivoPng(blob, nome)] })); } catch { return false; }
+}
+export async function compartilharImagem(blob, nome, titulo) {
+  try {
+    if (!podeCompartilharImagem(blob, nome)) return false;
+    await navigator.share({ files: [arquivoPng(blob, nome)], title: titulo });
+    return true;
+  } catch (e) {
+    return e?.name === 'AbortError';
+  }
+}
+
 // Listas que mostram só os primeiros N itens e rolam o resto ([data-rolar="N"]):
 // a altura máxima é medida depois de desenhar, porque cada item tem uma altura.
 // data-rolar="n": mostra n itens e rola o resto. Com n quebrado (ex.: 2.3), aparece um pedaço do seguinte, para indicar que rola.

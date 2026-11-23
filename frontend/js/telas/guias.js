@@ -7,6 +7,7 @@ import { esc, toast, baixar, hoje } from '../util.js';
 import { centavos, reais } from '/shared/ervas.js';
 import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
 import { VALORES_DOACAO } from '/shared/fila.js';
+import { abrirImagem, reduzirJpeg, base64 } from '../foto.js';
 
 const R = (v) => reais(centavos(v));
 const dataUrl = (b64) => 'data:image/jpeg;base64,' + b64;
@@ -561,23 +562,8 @@ export function render() {
 // ---------- foto ----------
 // O maior lado vira 900 px (para ver em tela cheia), em JPEG: pequena para guardar no banco.
 async function reduzirFoto(arquivo) {
-  let img;
-  try { img = await createImageBitmap(arquivo, { imageOrientation: 'from-image' }); } catch {
-    const url = URL.createObjectURL(arquivo);
-    try { img = new Image(); img.src = url; await img.decode(); } finally { URL.revokeObjectURL(url); }
-  }
-  const k = Math.min(1, 900 / Math.max(img.width, img.height));
-  const c = document.createElement('canvas');
-  c.width = Math.round(img.width * k);
-  c.height = Math.round(img.height * k);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  for (let q = 0.82; q > 0.3; q -= 0.15) {
-    const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', q));
-    if (blob && blob.size <= 140000) {
-      return new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = erro; r.readAsDataURL(blob); });
-    }
-  }
-  throw new Error('foto grande demais');
+  const { blob } = await reduzirJpeg(await abrirImagem(arquivo), { lado: 900, max: 140000 });
+  return base64(blob);
 }
 
 // ---------- eventos ----------

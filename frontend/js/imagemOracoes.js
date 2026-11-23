@@ -1,6 +1,6 @@
 // Imagem PNG dos pedidos de oração (aba Gira, bloco Orações) para mandar no grupo do WhatsApp:
 // fundo suave (lilás para o creme), o logo da casa, cada pedido num cartão com uma vela acesa e uma frase de fé no fim.
-import { quebrar, retangulo, carregarLogo } from './canvas.js';
+import { quebrar, retangulo, carregarLogo, gerarPng } from './canvas.js';
 
 const C = {
   topo: '#efe7fb', fim: '#fdf6ec', roxo: '#5b3a9a', roxoSuave: '#8a6fc4', ink: '#2b2438', muted: '#7a6f8c',
@@ -109,28 +109,18 @@ function desenhar(ctx, oracoes, hoje, logo, pintar) {
 }
 
 export async function gerarImagemOracoes(oracoes, hoje) {
-  try {
-    await Promise.all(['700 34px Alegreya', 'italic 700 20px Alegreya', '500 19px "Alegreya Sans"', 'italic 400 18px "Alegreya Sans"',
-      'italic 500 14px "Alegreya Sans"', '700 13px "Alegreya Sans"', '500 13px "Alegreya Sans"'].map((f) => document.fonts.load(f)));
-  } catch { /* usa as fontes do sistema */ }
   const logo = await carregarLogo();
-  const S = LARGURA_PNG / W;
-  const c = document.createElement('canvas');
-  let ctx = c.getContext('2d');
-  ctx.textBaseline = 'top';
-  const H = Math.ceil(desenhar(ctx, oracoes, hoje, logo, false));
-  c.width = W * S;
-  c.height = Math.ceil(H * S);
-  ctx = c.getContext('2d');
-  ctx.scale(S, S);
-  ctx.textBaseline = 'top';
-  const fundo = ctx.createLinearGradient(0, 0, 0, H);
-  fundo.addColorStop(0, C.topo);
-  fundo.addColorStop(1, C.fim);
-  ctx.fillStyle = fundo;
-  ctx.fillRect(0, 0, W, H + 2);   // +2: cobre a última linha de pixels (arredondamento da escala)
-  desenhar(ctx, oracoes, hoje, logo, true);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-  if (!blob) throw new Error('Não consegui gerar a imagem neste aparelho.');
-  return blob;
+  return gerarPng({
+    largura: W, escala: LARGURA_PNG / W,
+    fontes: ['700 34px Alegreya', 'italic 700 20px Alegreya', '500 19px "Alegreya Sans"', 'italic 400 18px "Alegreya Sans"',
+      'italic 500 14px "Alegreya Sans"', '700 13px "Alegreya Sans"', '500 13px "Alegreya Sans"'],
+    fundo: (ctx, H) => {
+      const fundo = ctx.createLinearGradient(0, 0, 0, H);
+      fundo.addColorStop(0, C.topo);
+      fundo.addColorStop(1, C.fim);
+      ctx.fillStyle = fundo;
+      ctx.fillRect(0, 0, W, H + 2);   // +2: cobre a última linha de pixels (arredondamento da escala)
+    },
+    desenho: (ctx, pintar) => desenhar(ctx, oracoes, hoje, logo, pintar),
+  });
 }
