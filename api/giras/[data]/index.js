@@ -125,7 +125,8 @@ async function giraEPessoa(req) {
 
 async function declararAusencia(req) {
   const { eu, data, atual, p } = await giraEPessoa(req);
-  if (eu.papel !== 'corrente' || !eu.pessoaId) throw new HttpError(403, 'Só quem entra pelo acesso da corrente declara ausência por aqui.');
+  // A corrente e quem tem um perfil ligado à própria pessoa (Acessos e perfis), sempre para si mesmo.
+  if (eu.grupo || !eu.pessoaId) throw new HttpError(403, 'Só quem é da corrente declara ausência por aqui.');
   if (!atual) throw new HttpError(404, 'Esta gira ainda não foi criada.');
   if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
   const faleCom = async () => `Fale com a ${configCasa(await db.rpc('config_casa')).responsavel}.`;

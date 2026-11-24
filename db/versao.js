@@ -2,4 +2,4 @@
 // as migrações (centenas de KB de SQL): db/esquema.js só é carregado quando o banco está atrás (api/_lib/db.js).
 // Ao acrescentar comandos no fim de MIGRACOES (db/esquema.js), aumente aqui.
 
-export const VERSAO = 179;  // v179: galeria do Diário — cada foto fica 6 dias desde o envio
+export const VERSAO = 180;  // v180: perfil para quem já é da corrente (entra pelo login da corrente)

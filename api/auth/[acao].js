@@ -144,6 +144,11 @@ async function sessaoDe(c, versao) {
     // Junta no cadastro da pessoa o que ficou gravado só com o nome dela (pedidos de antes de ligar o acesso à pessoa).
     await db.rpc('corrente_vincular', { chave: 'p:' + c.id, nome: c.nome, antigas: ['n:' + normalizarNome(c.nome)] });
     const s = await db.rpc('corrente_sessao', { pessoaId: c.id });
+    // A pessoa tem um perfil (Admin root → Acessos e perfis): entra já com ele.
+    if (s.usuarioId) {
+      const usuario = await db.rpc('usuario_obter', { id: s.usuarioId });
+      return { token: await emitirToken(usuario), usuario: publico(usuario) };
+    }
     const usuario = { id: null, nome: c.nome, email: '', papel: 'corrente', papelNome: s.papelNome, pessoaId: c.id, abas: s.abas };
     return { token: await emitirTokenCorrente(c.nome, c.id, s.pinVersao), usuario: publico(usuario) };
   }
@@ -483,7 +488,7 @@ const acoes = {
     if (req.method !== 'POST') throw new HttpError(405, 'Método não permitido.');
     const eu = await exigir(req);
     if (eu.grupo) throw new HttpError(403, 'Este acesso não tem senha para trocar.');
-    if (eu.papel === 'corrente') throw new HttpError(400, 'O acesso da corrente não tem senha.');
+    if (eu.papel === 'corrente' || !eu.email) throw new HttpError(400, 'Quem entra pelo acesso da corrente não troca a senha aqui.');
     const b = corpo(req);
     const info = await db.rpc('usuario_para_login', { email: eu.email });
     if (!(await conferirSenha(String(b.atual || ''), info.senhaHash))) throw new HttpError(400, 'A senha atual está incorreta.');

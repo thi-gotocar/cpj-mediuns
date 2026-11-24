@@ -34,6 +34,9 @@ export default rota({
       }
     }
     const pessoaFinal = 'pessoaId' in p ? p.pessoaId : atual.pessoaId;
+    // Sem e-mail, a pessoa entra pelo login da corrente: não pode ficar sem a pessoa nem ganhar senha aqui.
+    if (!atual.email && !pessoaFinal) throw new HttpError(400, 'Este acesso entra pelo login da corrente: escolha a pessoa.');
+    if (!atual.email && b.senha) throw new HttpError(400, 'Este acesso entra pelo login da corrente: a senha é a da pessoa (Ajustes perfil).');
     if (!SEM_CADASTRO.includes(papel) && !pessoaFinal) throw new HttpError(400, 'Antes, ligue o usuário a uma pessoa da corrente (o nome vem do cadastro).');
     if ('nome' in b) {
       // O nome vem do cadastro de pessoas; só o root sem cadastro tem nome próprio.

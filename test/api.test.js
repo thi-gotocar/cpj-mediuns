@@ -522,28 +522,39 @@ test('curimba: alunos da corrente e de fora, aulas e presença; o aluno vê as p
   assert.equal(C.alunos.length, 0);
 });
 
-test('admin só entra como admin com o e-mail dele; a sessão da corrente dele continua corrente', async () => {
-  // Liga um admin a uma pessoa da corrente; a sessão da corrente (sem o e-mail) não ganha os poderes de admin.
+test('perfil para quem já é da corrente: entra pelo login da corrente e já abre com o perfil', async () => {
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Admin Pessoa', funcao: 'senha' });
   const pe = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Admin Pessoa');
-  assert.equal((await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, email: 'adm2@corrente.org', senha: 'senha-forte-9', papel: 'admin' })).status, 200);
-  const tc = await tokenCorrente('Admin Pessoa');
-  assert.equal((await api('GET', '/api/auth/me', tc)).json.papel, 'corrente');
-  assert.equal((await api('POST', '/api/giras/2027-05-01', tc, { acao: 'sortear' })).status, 403);
-  assert.equal((await api('GET', '/api/usuarios', tc)).status, 403);
-  assert.equal((await api('POST', '/api/ervas', tc, { acao: 'config', frete: '1' })).status, 403);
-  assert.equal((await api('POST', '/api/oferendas', tc, { acao: 'salvar', responsavelId: RESP(), titulo: 'X', data: '2027-05-01' })).status, 403);
-  // Com o e-mail e a senha dele, é admin.
-  const pelaConta = (await api('POST', '/api/auth/entrar', null, { email: 'adm2@corrente.org', senha: 'senha-forte-9' })).json;
-  assert.equal(pelaConta.usuario.papel, 'admin');
-  assert.equal((await api('POST', '/api/giras/2027-05-01', pelaConta.token, { acao: 'sortear' })).status, 200, 'admin sorteia');
+  await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: pe.id, info: { email: 'adm2@corrente.org' } });
+  await api('POST', '/api/usuarios', ADMIN, { acao: 'pin', pessoaId: pe.id, senha: '13572468' });
+  // A sessão da corrente aberta antes de ganhar o perfil cai (entra de novo para abrir com o perfil).
+  const antes = await tokenCorrente('Admin Pessoa');
+  assert.equal((await api('GET', '/api/auth/me', antes)).json.papel, 'corrente');
+  // Só quem está na corrente: sem a pessoa, não dá acesso.
+  assert.equal((await api('POST', '/api/usuarios', ADMIN, { papel: 'admin' })).status, 400);
+  const dado = await api('POST', '/api/usuarios', ADMIN, { pessoaId: pe.id, papel: 'admin' });
+  assert.equal(dado.status, 200, JSON.stringify(dado.json));
+  const u = dado.json.find((x) => x.pessoaId === pe.id);
+  assert.equal(u.email, null, 'sem e-mail próprio');
+  assert.equal((await api('GET', '/api/auth/me', antes)).status, 401);
+  // Entra como sempre (e-mail do Perfil e a senha de números) e já é admin.
+  const ent = (await api('POST', '/api/auth/entrar', null, { email: 'adm2@corrente.org', senha: '13572468' })).json;
+  assert.equal(ent.usuario.papel, 'admin');
+  assert.equal(ent.usuario.pessoaId, pe.id);
+  assert.equal((await api('POST', '/api/giras/2027-05-01', ent.token, { acao: 'sortear' })).status, 200, 'admin sorteia');
   await api('DELETE', '/api/giras/2027-05-01', ADMIN);
-  // A aba Usuários é só do admin root.
-  assert.equal((await api('GET', '/api/usuarios', pelaConta.token)).status, 403);
-  // O nome no lugar do e-mail não serve para entrar como admin.
-  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'Admin Pessoa', senha: 'senha-forte-9' })).status, 400);
-  const u = (await api('GET', '/api/usuarios', ADMIN)).json.find((x) => x.email === 'adm2@corrente.org');
+  // A aba Usuários é só do admin root; e não tem senha própria para trocar.
+  assert.equal((await api('GET', '/api/usuarios', ent.token)).status, 403);
+  assert.equal((await api('POST', '/api/auth/senha', ent.token, { atual: '13572468', nova: 'outra-senha-9' })).status, 400);
+  assert.equal((await api('PATCH', '/api/usuarios/' + u.id, ADMIN, { senha: 'senha-forte-9' })).status, 400);
+  assert.equal((await api('PATCH', '/api/usuarios/' + u.id, ADMIN, { pessoaId: '' })).status, 400);
+  // O root limpar a senha da pessoa derruba a sessão do perfil, como a da corrente.
+  await api('POST', '/api/usuarios', ADMIN, { acao: 'pin', pessoaId: pe.id, limpar: true });
+  assert.equal((await api('GET', '/api/auth/me', ent.token)).status, 401);
+  // Sem o perfil, volta a entrar como corrente.
   await api('DELETE', '/api/usuarios/' + u.id, ADMIN);
+  await api('POST', '/api/usuarios', ADMIN, { acao: 'pin', pessoaId: pe.id, senha: '13572468' });
+  assert.equal((await api('POST', '/api/auth/entrar', null, { email: 'adm2@corrente.org', senha: '13572468' })).json.usuario.papel, 'corrente');
 });
 
 test('gestão de usuários: só admin root, com travas', async () => {
@@ -1409,7 +1420,8 @@ test('acesso da corrente declara a própria ausência (Pendente → Ausente) at�
   const ana = (await tokenCorrente('Ana'));
   assert.equal((await ausencia(ana)).status, 404, 'gira ainda não criada');
   await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Caboclo' });
-  assert.equal((await ausencia(USER)).status, 403, 'só pelo acesso da corrente');
+  // Quem tem perfil e é da corrente (Zé) também declara a própria; o root sem pessoa ligada, não.
+  assert.equal((await ausencia(ADMIN)).status, 403, 'só quem é da corrente');
   const r = await ausencia(ana);
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.gira.presenca[RESP()], 'a');

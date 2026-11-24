@@ -30,6 +30,8 @@ export function blocoEu(g) {
     ${identidade()}<p class="eu-nota muted">${cad.entrada && cad.entrada > g.data ? `Sua entrada na corrente é em ${dDM(cad.entrada)}/${cad.entrada.slice(0, 4)}. Esta gira ainda não conta para você.` : 'Esta gira não conta para você.'}</p></div>`;
   const curimba = ehCurimba(p);
   const rootVinculado = estado.me?.papel === 'root' && p.id === estado.me.pessoaId;
+  // Quem tem um perfil (Acessos e perfis) e entrou pela corrente também declara a própria ausência.
+  const proprio = estado.me?.corrente || (!estado.me?.grupo && !rootVinculado && p.id === estado.me?.pessoaId);
   const st = curimba ? 'p' : status(p, g);
   const funcao = st === 'na' ? 'cambone' : funcaoNaGira(p, g);
   const pares = g.evento ? [] : g.pares || [], passes = g.evento ? [] : g.passes || [];
@@ -105,7 +107,7 @@ export function blocoEu(g) {
   let selo = '';
   const selar = () => { if (SELO[pr]) selo = ` <span class="badge ${SELO[pr][0]}">${SELO[pr][1]}</span>`; };
   // Depois do sorteio (publicado), não mostra mais o status para alterar nem o texto.
-  if (sorteado) { /* nada */ } else if (!curimba && (estado.me?.corrente || rootVinculado)) {
+  if (sorteado) { /* nada */ } else if (!curimba && (proprio || rootVinculado)) {
     // O próprio usuário declara a ausência; para root, grava pela ação administrativa.
     // Pendente → Ausente só até a véspera e enquanto o admin não marcou; depois fica só o selo.
     const gs = estado.giras[g.data];

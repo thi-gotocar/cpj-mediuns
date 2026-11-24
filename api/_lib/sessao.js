@@ -82,7 +82,8 @@ async function montarQuem(req, sessao, registro, permissao) {
   if (sessao.corrente) {
     const s = registro;
     // Pessoa excluída, ou a senha foi criada/trocada depois desta sessão.
-    if (!s || s.pinVersao !== sessao.versao) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
+    // Ganhou um perfil depois de entrar: entra de novo para abrir a sessão do perfil.
+    if (!s || s.pinVersao !== sessao.versao || s.usuarioId) throw new HttpError(401, 'Sessão expirada. Entre de novo.');
     const quem = { id: null, nome: s.nome, email: '', papel: 'corrente', papelNome: s.papelNome, pessoaId: sessao.pessoaId,
       temSenha: s.temSenha, permissoes: permissoesDe('corrente', s.abas) };
     if (permissao && !quem.permissoes.includes(permissao)) throw new HttpError(403, 'Este acesso não tem permissão para isso.');

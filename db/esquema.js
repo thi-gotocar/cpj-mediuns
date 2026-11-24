@@ -5846,4 +5846,32 @@ export const MIGRACOES = [
    returns void language sql as $$
      delete from diario_fotos where criado_em < now() - interval '6 days'
    $$`,
+
+  // ---------- v180: perfil para quem já é da corrente, sem e-mail e senha próprios ----------
+  // Admin root → Acessos e perfis só põe num perfil quem já está em Pessoas. A pessoa entra como sempre (e-mail,
+  // celular ou CPF e a senha de números) e o login já abre a sessão do perfil (api/auth sessaoDe). Usuário sem e-mail
+  // e sem senha é esse caso; os de e-mail e senha de antes continuam valendo.
+  `alter table usuarios alter column email drop not null`,
+  `alter table usuarios alter column senha_hash drop not null`,
+  // Para quem entra pela senha da corrente, a versão da sessão soma a da senha: o root limpar a senha derruba a sessão
+  // do perfil, como derruba a da corrente.
+  `create or replace function usuario_json(u usuarios)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', u.id, 'nome', coalesce((select nome from pessoas where id = u.pessoa_id), u.nome),
+                               'pessoaId', u.pessoa_id, 'email', u.email, 'papel', u.papel,
+                               'papelNome', (select nome from perfis where chave = u.papel),
+                               'abas', (select abas from perfis where chave = u.papel),
+                               'sessaoVersao', u.sessao_versao + case when u.email is null
+                                 then coalesce((select pin_versao from pessoas where id = u.pessoa_id), 0) else 0 end,
+                               'criadoEm', u.criado_em);
+   $$`,
+  // usuarioId: a pessoa tem um perfil (Acessos e perfis); o login da corrente abre a sessão desse perfil.
+  `create or replace function corrente_sessao(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('nome', pe.nome, 'pinVersao', pe.pin_versao, 'temSenha', pe.pin_hash is not null,
+                               'abas', (select abas from perfis where chave = 'corrente'),
+                               'papelNome', (select nome from perfis where chave = 'corrente'),
+                               'usuarioId', (select id from usuarios where pessoa_id = pe.id))
+     from pessoas pe where pe.id = (p ->> 'pessoaId')::uuid
+   $$`,
 ];

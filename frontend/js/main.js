@@ -116,7 +116,7 @@ function renderConta() {
     </select></label>` : ''}${seletorPessoa}</span>`;
   rodape.hidden = false;
   rodape.innerHTML = `<span class="quem">${esc(estado.me.nome)}</span><span class="papel ${esc(estado.me.papel)}">${esc(estado.me.papelNome || estado.me.papel)}</span>
-    ${estado.me.corrente || estado.me.grupo ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
+    ${estado.me.corrente || estado.me.grupo || !estado.me.email ? '' : '<button class="btn small" data-conta="senha">Trocar senha</button>'}`;
 }
 
 function render() {

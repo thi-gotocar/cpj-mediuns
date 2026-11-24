@@ -2,7 +2,7 @@
 // Cadastrar gira antiga e Cadastrar escala, as Regras da casa e os eventos da casa (cadastrar e eventos cadastrados).
 
 import { SEM_CADASTRO, ABAS, ABAS_CONSULENTE, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, carregarVisitas, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, adicionarPessoas, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, salvarRegrasCasa, avisar } from '../estado.js';
+import { estado, pessoasOrd, carregarUsuarios, carregarVisitas, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, salvarRegrasCasa, avisar } from '../estado.js';
 import { esc, toast, ajustarRolagem, hoje } from '../util.js';
 import { ICONE_WHATS } from './giraComum.js';
 import { ABAS_VISITA, VISITAS_DIAS, agruparVisitas, textoVisitas } from '/shared/visitas.js';
@@ -12,10 +12,9 @@ import { renderAjustesPerfil, formSenha } from './perfil.js';
 import { blocosEventos, blocoTipos, cliques as cliquesEventos } from './eventos.js';
 import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, corpoBackup, cliquesBackup } from './historico.js';
 import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
-import { contaNaPresenca, LINHA_LABEL, FUNCOES, CURIMBA } from '/shared/regras.js';
+import { contaNaPresenca, LINHA_LABEL } from '/shared/regras.js';
 import { CAMPOS_CONFIG, config, SEGUNDO_CAMBONE, LIMITES_REGRAS } from '/shared/config.js';
 
-const PESSOA_NOVA = '__nova';
 const secao = (titulo) => `<h3 class="root-secao">${titulo}</h3>`;
 const paraBusca = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR');
 
@@ -160,43 +159,42 @@ function linhaUsuario(u) {
   const conf = estado.confirm === 'u:' + u.id;
   const nome = nomeDe(u);
   const faltaCadastro = !u.pessoaId && !semCadastro(u.papel);
+  // Sem e-mail: entra pelo login da corrente, então precisa sempre de uma pessoa e não tem senha própria.
+  const pelaCorrente = !u.email;
+  const semNome = semCadastro(u.papel) && !pelaCorrente;
   let nomeHtml;
   if (estado.renomearUsuario === u.id) {
     nomeHtml = estado.renomearModo === 'nome'
       ? `<form id="f-uren" class="ren" data-id="${u.id}" data-modo="nome"><input type="text" id="uren-in" value="${esc(u.nome)}" maxlength="80" autocomplete="off" aria-label="Nome de ${esc(nome)}">
           <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelauren">Cancelar</button></form>`
-      : `<form id="f-uren" class="ren" data-id="${u.id}" data-modo="pessoa"><select id="uren-in" aria-label="Pessoa da corrente de ${esc(nome)}">${semCadastro(u.papel) ? '' : '<option value="">— escolha a pessoa —</option>'}
-          ${semCadastro(u.papel) ? `<option value="" ${u.pessoaId ? '' : 'selected'}>(sem cadastro: usar só o nome)</option>` : ''}
+      : `<form id="f-uren" class="ren" data-id="${u.id}" data-modo="pessoa"><select id="uren-in" aria-label="Pessoa da corrente de ${esc(nome)}">${semNome ? '' : '<option value="">— escolha a pessoa —</option>'}
+          ${semNome ? `<option value="" ${u.pessoaId ? '' : 'selected'}>(sem cadastro: usar só o nome)</option>` : ''}
           ${pessoasLivres(u.pessoaId).map((p) => `<option value="${p.id}" ${p.id === u.pessoaId ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>
           <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelauren">Cancelar</button></form>`;
   } else {
     const botoes = [
-      ...(!u.pessoaId && semCadastro(u.papel) ? [['nome', '✎ editar nome']] : []),
-      ['pessoa', u.pessoaId ? '✎ trocar pessoa' : semCadastro(u.papel) ? '✎ ligar à pessoa (opcional)' : '✎ ligar à pessoa'],
+      ...(!u.pessoaId && semNome ? [['nome', '✎ editar nome']] : []),
+      ['pessoa', u.pessoaId ? '✎ trocar pessoa' : semNome ? '✎ ligar à pessoa (opcional)' : '✎ ligar à pessoa'],
     ].map(([m, t]) => `<button class="btn link small" data-act="uren" data-id="${u.id}" data-modo="${m}">${t}</button>`).join(' ');
     nomeHtml = `<div class="nm">${esc(nome)}${eu ? ' <span class="muted" style="font-weight:400">(você)</span>' : ''} ${botoes}</div>
       ${faltaCadastro ? '<span class="badge lic">sem cadastro na corrente: ligue a uma pessoa</span>' : ''}`;
   }
-  return `<div class="us"><div style="min-width:0">${nomeHtml}<div class="em">${esc(u.email)}</div></div>
+  return `<div class="us"><div style="min-width:0">${nomeHtml}<div class="em">${pelaCorrente ? 'entra pelo login da corrente' : esc(u.email)}</div></div>
     <select data-act="papel" data-id="${u.id}" aria-label="Perfil de ${esc(nome)}" title="Mudar de perfil" ${eu ? 'disabled title="Você não pode mudar o seu próprio perfil"' : ''}>${opcoesPapel(u.papel)}</select>
-    <div class="acts" style="display:contents"><button class="btn small" data-act="snabrir" data-tipo="email" data-id="${u.id}">Nova senha</button>
+    <div class="acts" style="display:contents">${pelaCorrente ? '<span></span>' : `<button class="btn small" data-act="snabrir" data-tipo="email" data-id="${u.id}">Nova senha</button>`}
     ${eu ? '<span></span>' : conf ? `<button class="btn small danger" data-act="deluser" data-id="${u.id}">Confirmar</button>` : `<button class="btn small" data-act="askdel" data-k="u:${u.id}">Excluir</button>`}</div>
     ${estado.senhaEdit?.tipo === 'email' && estado.senhaEdit.id === u.id ? formSenha('email', u.id, nome) : ''}</div>`;
 }
 
-// ＋ Adicionar pessoa num perfil: o perfil já vem escolhido. No Admin root a pessoa é opcional (vale o nome digitado).
+// ＋ Adicionar pessoa num perfil: o perfil já vem escolhido; só quem já está em Perfil → Pessoas. A pessoa entra como
+// sempre (e-mail, celular ou CPF e a senha de números) e já abre com o perfil.
 function formNovoUsuario(chave) {
-  const root = semCadastro(chave);
+  const livres = pessoasLivres();
   return `<form id="f-user" class="pf-novo" autocomplete="off">
     <input type="hidden" id="u-papel" value="${esc(chave)}">
-    <label class="field">${root ? 'Pessoa da corrente (opcional)' : 'Pessoa da corrente'}<select id="u-pessoa" data-act="pessoanova"><option value="">— escolha a pessoa —</option><option value="${PESSOA_NOVA}">＋ Cadastrar pessoa nova</option>${pessoasLivres().map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
-    <label class="field" id="u-nova-nome" hidden>Nome da pessoa<input type="text" id="u-nova-n" maxlength="80"></label>
-    <label class="field" id="u-nova-funcao" hidden>Função<select id="u-nova-f">${FUNCOES.map((f) => `<option value="${f.k}">${f.label}</option>`).join('')}<option value="${CURIMBA}">Curimba</option></select></label>
-    ${root ? '<label class="field" id="u-nome-campo">Nome (sem pessoa da corrente)<input type="text" id="u-nome" maxlength="80"></label>' : ''}
-    <label class="field">E-mail<input type="email" id="u-email" required autocomplete="off"></label>
-    <label class="field">Senha inicial<input type="password" id="u-senha" required minlength="8" autocomplete="new-password"></label>
-    <p class="muted" style="margin:0;font-size:.82rem">O nome vem do cadastro em Perfil → Pessoas (quem não está lá pode ser cadastrado aqui mesmo). Passe o e-mail e a senha inicial para a pessoa; ela pode trocar a senha depois.</p>
-    <div class="row" style="gap:6px"><button class="btn primary small" type="submit">Dar acesso</button><button class="btn small" type="button" data-act="pfnovocancelar">Cancelar</button></div>
+    <label class="field">Pessoa da corrente<select id="u-pessoa" required><option value="">— escolha a pessoa —</option>${livres.map((p) => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select></label>
+    <p class="muted" style="margin:0;font-size:.82rem">Só quem já está em Perfil → Pessoas (quem não está, cadastre lá antes). A pessoa continua entrando como sempre, com e-mail, celular ou CPF e a senha dela, e já abre com este perfil.</p>
+    <div class="row" style="gap:6px"><button class="btn primary small" type="submit" ${livres.length ? '' : 'disabled'}>Dar acesso</button><button class="btn small" type="button" data-act="pfnovocancelar">Cancelar</button></div>
   </form>`;
 }
 
@@ -234,7 +232,7 @@ function cardAcessos() {
   let h = `<div class="card adm root acessos">${cabRoot('acessos', '<span aria-hidden="true">👥</span> Acessos e perfis', `${estado.usuarios.length}${semLigacao ? ` <span class="badge lic">${semLigacao} sem cadastro</span>` : ''}`)}`;
   if (!abertosRoot.has('acessos')) return h + '</div>';
   const termo = paraBusca(estado.usBusca).trim();
-  const achou = (u) => !termo || paraBusca(nomeDe(u) + ' ' + u.email).includes(termo);
+  const achou = (u) => !termo || paraBusca(nomeDe(u) + ' ' + (u.email || '')).includes(termo);
   h += `<p class="muted" style="margin:0;font-size:.85rem">Toque no perfil para ver quem tem acesso e dar acesso a mais alguém. Em <b>⚙️</b>, o que o perfil pode ver e editar.</p>
     <div class="acessos-topo"><input type="text" id="us-busca" value="${esc(estado.usBusca || '')}" placeholder="Buscar pessoa por nome ou e-mail" aria-label="Buscar pessoa com acesso" autocomplete="off">
       <button class="btn small" data-act="novoperfil">＋ Novo perfil</button></div>`;
@@ -495,12 +493,6 @@ export const mudancas = {
   ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
   ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
   entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
-  pessoanova(t) {
-    const nova = t.value === PESSOA_NOVA;
-    document.getElementById('u-nova-nome').hidden = !nova;
-    document.getElementById('u-nova-funcao').hidden = !nova;
-    if (nova) document.getElementById('u-nova-n').focus();
-  },
 };
 
 export async function salvarApelidoEntidade(form) {
@@ -523,28 +515,13 @@ export async function salvarApelidoEntidade(form) {
 export async function enviarFormulario() {
   const val = (id) => document.getElementById(id).value;
   const papel = val('u-papel');
-  const root = semCadastro(papel);
-  let pessoaId = val('u-pessoa');
-  const nova = pessoaId === PESSOA_NOVA;
-  if (!root && !pessoaId) { toast('Escolha a pessoa da corrente.'); return; }
-  const nomeNovo = nova ? val('u-nova-n').replace(/\s+/g, ' ').trim() : '';
-  if (nova && (!nomeNovo || /[,;]/.test(nomeNovo))) { toast('Digite o nome da pessoa nova (um nome só, sem vírgula).'); return; }
-  const funcaoNova = val('u-nova-f');
-  const email = val('u-email').trim();
-  const senha = val('u-senha');
-  const nome = nova ? nomeNovo : pessoaId ? estado.pessoas.find((p) => p.id === pessoaId)?.nome : val('u-nome').trim();
-  if (!nome) { toast('Digite o nome ou escolha a pessoa da corrente.'); return; }
-  if (nova) {
-    // Cadastrar redesenha a tela: e-mail e senha já foram lidos acima.
-    try {
-      if (!(await adicionarPessoas(nomeNovo, funcaoNova))) { toast('Essa pessoa já está cadastrada: escolha o nome na lista.'); return; }
-    } catch (e) { toast(e.message); avisar(); return; }
-    pessoaId = pessoasOrd().find((p) => p.nome.toLowerCase() === nomeNovo.toLowerCase())?.id;
-  }
+  const pessoaId = val('u-pessoa');
+  if (!pessoaId) { toast('Escolha a pessoa da corrente.'); return; }
+  const nome = estado.pessoas.find((p) => p.id === pessoaId)?.nome || '';
   try {
-    await criarUsuario({ email, senha, papel, ...(pessoaId ? { pessoaId } : { nome }) });
+    await criarUsuario({ papel, pessoaId });
     estado.novoUsuarioPerfil = null;
-    toast(`${nome} agora tem acesso.`);
+    toast(`${nome} agora tem este perfil. A pessoa entra como sempre, pelo login da corrente.`);
     avisar();
-  } catch (e) { toast(nova ? `${nome} foi cadastrada em Perfil → Pessoas, mas o usuário não foi criado: ${e.message}` : e.message); avisar(); }
+  } catch (e) { toast(e.message); avisar(); }
 }

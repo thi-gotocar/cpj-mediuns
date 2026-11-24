@@ -5,7 +5,7 @@
 // GET  /api/usuarios?lista=versoes  versão do app de quem abriu nos últimos 30 dias e a exigida: { exigida, pessoas: [{ chave, nome, versao, vistoEm }] }
 //      POST { acao: 'versaoExigir', versao } exige essa versão ('' para de exigir): app em outra versão atualiza na hora
 // GET  /api/usuarios?lista=visitas  quem entrou em cada aba nos últimos 3 dias: [{ chave, aba, dia, nome, grupo, vezes, ultima }]
-// POST /api/usuarios   { email, senha, papel, pessoaId }  (root: { nome } no lugar de pessoaId)
+// POST /api/usuarios   { papel, pessoaId }  põe uma pessoa da corrente num perfil (ela entra pelo login da corrente)
 //                      { acao: 'perfil', chave?, nome, abas }  cria ou edita um perfil → perfis
 //                      { acao: 'excluirPerfil', chave }        → perfis
 //                      { acao: 'pin', pessoaId, senha | limpar: true }  troca ou limpa a senha (PIN) de uma pessoa → senhas
@@ -17,7 +17,7 @@ import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { gerarHash, SENHA_MINIMA } from '../_lib/senhas.js';
 import { papelValido } from '../_lib/perfis.js';
-import { SEM_CADASTRO, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '../../shared/permissoes.js';
+import { PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '../../shared/permissoes.js';
 import { CAMPOS_CONFIG, configCasa, LIMITES_REGRAS, SEGUNDO_CAMBONE } from '../../shared/config.js';
 import { versaoValida, guardarExigida } from '../_lib/versao.js';
 
@@ -118,25 +118,23 @@ export default rota({
       await db.rpc('pin_definir', { pessoaId: validarId(b.pessoaId, 'Pessoa'), pinHash: await hashPinNovo(b) });
       return db.rpc('senhas_listar');
     }
-    const email = String(b.email || '').trim().toLowerCase();
-    const senha = String(b.senha || '');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'E-mail inválido.');
-    if (senha.length < SENHA_MINIMA || senha.length > 200) throw new HttpError(400, `A senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.`);
+    // Dar acesso: só a quem já está na corrente. Sem e-mail e senha próprios: a pessoa entra pelo login da corrente
+    // (e-mail, celular ou CPF e a senha de números) e já abre com o perfil. O nome é sempre o do cadastro.
     if (!(await papelValido(b.papel))) throw new HttpError(400, 'Perfil inválido.');
-    let nome, pessoaId = null;
-    if (SEM_CADASTRO.includes(b.papel) && !b.pessoaId) {
-      nome = String(b.nome || '').replace(/\s+/g, ' ').trim();
-      if (!nome || nome.length > 80) throw new HttpError(400, 'Informe o nome.');
-    } else {
-      // O usuário é uma pessoa da corrente: o nome é sempre o do cadastro.
-      if (!b.pessoaId) throw new HttpError(400, 'Escolha a pessoa da corrente.');
-      const id = validarId(b.pessoaId, 'Pessoa');
-      const pessoa = (await db.rpc('pessoas_listar', { id })).find((p) => p.id === id);
-      if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
-      nome = pessoa.nome;
-      pessoaId = pessoa.id;
+    if (!b.pessoaId) throw new HttpError(400, 'Escolha a pessoa da corrente.');
+    const id = validarId(b.pessoaId, 'Pessoa');
+    const pessoa = (await db.rpc('pessoas_listar', { id })).find((p) => p.id === id);
+    if (!pessoa) throw new HttpError(400, 'Pessoa não encontrada na corrente.');
+    // E-mail e senha próprios (o jeito de antes) ainda são aceitos pela API, mas a tela não pede mais.
+    let email = null, senhaHash = null;
+    if (b.email || b.senha) {
+      email = String(b.email || '').trim().toLowerCase();
+      const senha = String(b.senha || '');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'E-mail inválido.');
+      if (senha.length < SENHA_MINIMA || senha.length > 200) throw new HttpError(400, `A senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.`);
+      senhaHash = await gerarHash(senha);
     }
-    await db.rpc('usuario_criar', { email, nome, papel: b.papel, pessoaId, senhaHash: await gerarHash(senha) });
+    await db.rpc('usuario_criar', { email, nome: pessoa.nome, papel: b.papel, pessoaId: pessoa.id, senhaHash });
     return semVersao(await db.rpc('usuarios_listar'));
   },
 });
