@@ -5838,4 +5838,12 @@ export const MIGRACOES = [
      return config_casa();
    end;
    $$`,
+
+  // ---------- v179: galeria do Diário — cada foto fica 6 dias ----------
+  // Antes, toda terça-feira (0h de Brasília) apagava as fotos da semana, e quem subia na segunda via a foto sumir no
+  // dia seguinte. Agora cada foto fica 6 dias (144 h) desde o envio. A limpeza continua rodando a cada leitura e envio.
+  `create or replace function diario_fotos_limpar()
+   returns void language sql as $$
+     delete from diario_fotos where criado_em < now() - interval '6 days'
+   $$`,
 ];

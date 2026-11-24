@@ -237,7 +237,7 @@ function galeria(D) {
   const L = D.galeria, g = ui.gal;
   const subir = !L.some((f) => f.minha) && !g.foto ? `<label class="btn small di-gal-subir">📷 Subir foto<input type="file" accept="image/*" data-act="digalfoto" hidden></label>` : '';
   let h = `<div class="card di-gal"><div class="grp-h"><h2>📸 Galeria da semana${L.length ? ` <span class="count">${L.length}</span>` : ''}</h2>${subir}</div>
-    <p class="muted di-gal-sub">Uma foto por pessoa · recomeça toda terça-feira.</p>`;
+    <p class="muted di-gal-sub">Uma foto por pessoa. Cada foto fica 6 dias desde o envio.</p>`;
   h += L.length ? `<div class="di-gal-l" role="list">${L.map((f) => {
     const apagar = f.minha || D.root;
     const conf = estado.confirm === 'dg:' + f.id;

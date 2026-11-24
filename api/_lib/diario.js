@@ -9,7 +9,7 @@
 // orientador: o Orientador (sugestão de banho no card Banho) aparece para todos; desligado, só o root vê.
 //
 // Galeria de fotos (bloco da corrente): só a corrente, os alunos (sem os consulentes) e o root. Uma foto por pessoa;
-// a própria pessoa apaga a sua e o root apaga qualquer uma. As fotos da semana somem toda terça (db: diario_fotos_limpar).
+// a própria pessoa apaga a sua e o root apaga qualquer uma. Cada foto some 6 dias depois de enviada (db: diario_fotos_limpar).
 //   GET  ?lista=diario traz também galeria: [{ id, nome, descricao, criadoEm, v, curtidas, curti, minha }] (quem vê)
 //   GET  /api/pessoas?lista=diarioFoto&id=<foto>&v=<versão>  → a foto (JPEG, sem sessão: o id é sorteado)
 //   POST { acao: 'diario', op: 'fotoEnviar', foto (base64 JPEG), descricao } · { op: 'fotoExcluir', id } · { op: 'fotoCurtir', id }

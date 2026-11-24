@@ -3108,8 +3108,10 @@ test('diário: cuidados do dia e Galeria de fotos (uma por pessoa, curtidas, exc
   assert.equal(g.curti, true);
   assert.equal(g.minha, false);
   assert.equal((await op(ADMIN, { op: 'fotoCurtir', id: f.id })).json.galeria[0].curtidas, 0, 'tocar de novo descurte');
-  // A semana da galeria acaba na terça: foto antiga some na próxima leitura.
-  sql(`update diario_fotos set criado_em = now() - interval '8 days' where id = '${f.id}'`);
+  // Cada foto fica 6 dias desde o envio: com 5 dias continua; passou de 6, some na próxima leitura.
+  sql(`update diario_fotos set criado_em = now() - interval '5 days 23 hours' where id = '${f.id}'`);
+  assert.equal((await ler(ana)).json.galeria.length, 1);
+  sql(`update diario_fotos set criado_em = now() - interval '6 days 1 minute' where id = '${f.id}'`);
   assert.deepEqual((await ler(ana)).json.galeria, []);
   const nova = (await op(ana, { op: 'fotoEnviar', foto: jpeg })).json.galeria[0];
   assert.equal((await op(ADMIN, { op: 'fotoExcluir', id: nova.id })).status, 200, 'o root apaga qualquer uma');
