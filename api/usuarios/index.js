@@ -11,13 +11,14 @@
 //                      { acao: 'pin', pessoaId, senha | limpar: true }  troca ou limpa a senha (PIN) de uma pessoa → senhas
 //                      { acao: 'pinAluno', alunoId, senha }    troca a senha de um aluno
 //                      { acao: 'config', config }              Configurações da casa (shared/config.js) → config completa
+//                      { acao: 'regras', regras }              Regras da casa (shared/config.js REGRAS_PADRAO) → config completa
 import { rota, corpo, validarId, HttpError } from '../_lib/http.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
 import { gerarHash, SENHA_MINIMA } from '../_lib/senhas.js';
 import { papelValido } from '../_lib/perfis.js';
 import { SEM_CADASTRO, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '../../shared/permissoes.js';
-import { CAMPOS_CONFIG, configCasa } from '../../shared/config.js';
+import { CAMPOS_CONFIG, configCasa, LIMITES_REGRAS, SEGUNDO_CAMBONE } from '../../shared/config.js';
 import { versaoValida, guardarExigida } from '../_lib/versao.js';
 
 // Senha que o root define (6 a 8 números) ou '' para limpar.
@@ -40,6 +41,23 @@ function validarConfig(c) {
     if (v) r[k] = v;
   }
   return r;
+}
+
+// Regras da casa: cada campo dentro do limite. Não deixa ter menos turmas da limpeza do que as que já têm gente.
+async function validarRegras(r) {
+  if (!r || typeof r !== 'object' || Array.isArray(r)) throw new HttpError(400, 'Regras inválidas.');
+  const inteiro = (k, rotulo) => {
+    const n = Number(r[k]);
+    const [min, max] = LIMITES_REGRAS[k];
+    if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${rotulo}: de ${min} a ${max}.`);
+    return n;
+  };
+  const suporteMinimo = inteiro('suporteMinimo', 'Mínimo no Suporte');
+  const turmasLimpeza = inteiro('turmasLimpeza', 'Turmas da limpeza');
+  if (!SEGUNDO_CAMBONE.some(([k]) => k === r.segundoCambone)) throw new HttpError(400, 'Escolha quem recebe o 2º cambone.');
+  const maior = Math.max(0, ...(await db.rpc('pessoas_listar')).map((p) => Number(p.limpeza) || 0));
+  if (turmasLimpeza < maior) throw new HttpError(400, `Há gente na turma ${maior} da limpeza. Mude a turma dessas pessoas antes de diminuir.`);
+  return { suporteMinimo, segundoCambone: r.segundoCambone, turmasLimpeza };
 }
 
 async function acaoPerfil(b) {
@@ -88,6 +106,7 @@ export default rota({
       return r;
     }
     if (b.acao === 'config') return configCasa(await db.rpc('config_casa_salvar', { config: validarConfig(b.config) }));
+    if (b.acao === 'regras') return configCasa(await db.rpc('regras_casa_salvar', { regras: await validarRegras(b.regras) }));
     // limpar: apaga a senha (as sessões abertas caem); a pessoa cria outra ao entrar (e-mail, celular ou CPF,
     // confirmando o celular ou o e-mail do cadastro).
     if (b.acao === 'pinAluno') {

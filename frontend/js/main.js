@@ -650,6 +650,8 @@ main.addEventListener('submit', async (e) => {
     await (await telaDe('usuarios')).enviarFormulario();
   } else if (id === 'f-config') {
     await (await telaDe('usuarios')).salvarConfig(e.target);
+  } else if (id === 'f-regras') {
+    await (await telaDe('usuarios')).salvarRegras(e.target);
   } else if (id === 'f-entidade-alias') {
     await (await telaDe('usuarios')).salvarApelidoEntidade(e.target);
   } else if (id === 'f-amaci-ori') {

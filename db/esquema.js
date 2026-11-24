@@ -5811,4 +5811,31 @@ export const MIGRACOES = [
      return fila_painel(jsonb_build_object('data', v_data));
    end;
    $$`,
+
+  // ---------- v178: Regras da casa ----------
+  // O jeito de cada terreiro conduzir a escala e a limpeza (Admin root → Regras da casa): o mínimo de pessoas no
+  // Suporte, quem pode receber o 2º cambone e quantas turmas da limpeza. Chave própria de sistema (como dia_gira), para
+  // o Salvar dos Nomes e textos não apagar; vai para o app junto com a config (config_casa.regras). Vazio = o padrão,
+  // que é o jeito de antes (shared/config.js REGRAS_PADRAO). As turmas podem ir até 12.
+  `insert into sistema (chave, valor) values ('regras_casa', '{}') on conflict (chave) do nothing`,
+  `alter table pessoas drop constraint if exists pessoas_limpeza_check`,
+  `alter table pessoas add constraint pessoas_limpeza_check check (limpeza between 1 and 12)`,
+  `alter table giras drop constraint if exists giras_limpeza_check`,
+  `alter table giras add constraint giras_limpeza_check check (limpeza between 1 and 12)`,
+  `create or replace function config_casa(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce((select valor::jsonb from sistema where chave = 'config_casa'), '{}'::jsonb)
+         || jsonb_build_object('diaGira', coalesce((select valor from sistema where chave = 'dia_gira'), '3'),
+                               'recado', coalesce((select valor from sistema where chave = 'recado_corrente'), ''),
+                               'regras', coalesce((select valor::jsonb from sistema where chave = 'regras_casa'), '{}'::jsonb));
+   $$`,
+  // p = { regras } (já validadas no servidor) → a config da casa, já com as regras novas.
+  `create or replace function regras_casa_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('regras_casa', coalesce(p -> 'regras', '{}'::jsonb)::text)
+     on conflict (chave) do update set valor = excluded.valor;
+     return config_casa();
+   end;
+   $$`,
 ];

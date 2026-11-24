@@ -844,6 +844,51 @@ test('regra da escala: 1 cambone por médium, Suporte obrigatório, 2º cambone 
   assert.equal(Object.values(r4.papeis).filter((v) => v === 'sup').length, 0);
 });
 
+test('Regras da casa: mínimo no Suporte, quem recebe o 2º cambone e turmas da limpeza', async () => {
+  const { definirConfig } = await import('../shared/config.js');
+  const { remanejar, turmasLimpeza, proximaTurma } = await import('../shared/regras.js');
+  const med = (n, xp) => ({ id: 'm' + n, nome: 'Médium ' + n, funcao: 'medium', experiente: !!xp });
+  const cam = (n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' });
+  const g = { data: '2026-11-25', entidade: 'Gira interna', presenca: {}, pares: [], passes: [] };
+  // 3 médiuns (1 com passe junto), 1 passe e 7 cambones.
+  const pessoas = [med(1, true), med(2), med(3), { id: 'p1', nome: 'Passe', funcao: 'passe' }, ...[1, 2, 3, 4, 5, 6, 7].map(cam)];
+  const conta = (patch, m) => patch.pares.filter((p) => p.m === m).length;
+  const noSup = (patch) => Object.values(patch.papeis).filter((v) => v === 'sup').length;
+  try {
+    // 2º cambone para qualquer médium: os 3 ficam com 2 e sobra 1 (o mínimo no Suporte).
+    definirConfig({ regras: { segundoCambone: 'todos' } });
+    let { patch } = sortear(pessoas, [], g);
+    assert.deepEqual([conta(patch, 'm1'), conta(patch, 'm2'), conta(patch, 'm3')], [2, 2, 2]);
+    assert.equal(noSup(patch), 1);
+    // Ninguém recebe o 2º: 3 duplas e 4 no Suporte.
+    definirConfig({ regras: { segundoCambone: 'nenhum' } });
+    ({ patch } = sortear(pessoas, [], g));
+    assert.equal(patch.pares.length, 3);
+    assert.equal(noSup(patch), 4);
+    // Mínimo 0 e 2º para todos: ninguém vai obrigado ao Suporte (3 × 2 = 6; sobra 1, que vai por sobrar).
+    definirConfig({ regras: { segundoCambone: 'todos', suporteMinimo: 0 } });
+    ({ patch } = sortear([med(1), med(2), med(3), ...[1, 2, 3, 4, 5, 6].map(cam)], [], g));
+    assert.equal(patch.pares.length, 6);
+    assert.equal(noSup(patch), 0);
+    // Mínimo 3: o Suporte fica com 3 antes do 2º cambone de quem tem passe (7 − 3 duplas − 3 = 1 → o 2º de m1).
+    definirConfig({ regras: { suporteMinimo: 3 } });
+    ({ patch } = sortear(pessoas, [], g));
+    assert.equal(noSup(patch), 3);
+    assert.equal(conta(patch, 'm1'), 2);
+    // Remanejar segue o mesmo mínimo: um do Suporte falta e o 2º cambone de m1 vai para lá, completando os 3.
+    const faltou = Object.keys(patch.papeis).find((id) => patch.papeis[id] === 'sup');
+    const r = remanejar(pessoas, [], { ...g, ...patch, presenca: { [faltou]: 'f' }, papeis: { ...patch.papeis, [faltou]: undefined } }).patch;
+    assert.equal(Object.values(r.papeis).filter((v) => v === 'sup').length, 3);
+    assert.equal(r.pares.filter((p) => p.m === 'm1').length, 1);
+    // Turmas da limpeza: o rodízio vai até a última turma da casa.
+    definirConfig({ regras: { turmasLimpeza: 3 } });
+    assert.deepEqual(turmasLimpeza(), [1, 2, 3]);
+    const comTurma = [1, 2, 3, 4].map((t) => ({ id: 't' + t, nome: 'T' + t, funcao: 'cambone', limpeza: t }));
+    assert.equal(proximaTurma(comTurma, [{ data: '2026-11-18', encerrada: true, limpeza: 3 }], '2026-11-25'), 1, 'depois da 3 volta à 1');
+  } finally { definirConfig(null); }
+  assert.equal(turmasLimpeza().length, 7, 'sem regra guardada, o padrão');
+});
+
 test('Suporte roda entre os cambones: quem esteve lá na última gira volta a cambonar', () => {
   const pessoas = [{ id: 'm1', nome: 'Ana', funcao: 'medium' }, { id: 'm2', nome: 'Bia', funcao: 'medium' },
     ...[1, 2, 3].map((n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' }))];

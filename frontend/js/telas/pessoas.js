@@ -1,6 +1,6 @@
 // Tela "Pessoas": cadastro da corrente e dos alunos da CPJ (por turma).
 
-import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, TURMAS_LIMPEZA, CURIMBA, ehCurimba } from '/shared/regras.js';
+import { FUNCOES, LINHAS_CADASTRO, LINHA_LABEL, LINHA_KEYS, turmasLimpeza, CURIMBA, ehCurimba } from '/shared/regras.js';
 import { config } from '/shared/config.js';
 import { estado, prefs, salvarPrefs, pode, pessoasOrd, adicionarPessoas, atualizarPessoa, excluirPessoa, salvarLicenca, editarLicenca, removerLicenca, carregarAlunos, acaoAlunos, revelarCpfAluno, acaoUsuarios, avisar } from '../estado.js';
 import { esc, toast, hoje, dDM } from '../util.js';
@@ -75,7 +75,7 @@ function blocoTurmas(todas, editar) {
   const com = todas.filter((p) => p.limpeza);
   if (!com.length && !editar) return '';
   const grupos = [
-    ...TURMAS_LIMPEZA.map((t) => ({ chave: String(t), nome: `Turma ${t}`, lista: todas.filter((p) => Number(p.limpeza) === t) })),
+    ...turmasLimpeza().map((t) => ({ chave: String(t), nome: `Turma ${t}`, lista: todas.filter((p) => Number(p.limpeza) === t) })),
     { chave: 'sem', nome: 'Sem turma', lista: todas.filter((p) => !p.limpeza) },
   ];
   const aberta = grupos.some((g) => g.chave === estado.limpezaTurmaAberta) ? estado.limpezaTurmaAberta : null;
@@ -147,7 +147,7 @@ function linhaPessoa(p, { funcao = true, acoes = true, simples = false } = {}) {
     if (estado.limpezaPessoaEditando === p.id) {
       return `<div class="pp pp-editando"><form id="f-limpeza-pessoa-ed" data-rascunho class="pp-form limpeza-pessoa-ed" data-id="${p.id}" autocomplete="off">
         <div class="pp-l1"><span class="nm">${esc(p.nome)}</span></div>
-        <label class="field">Turma da limpeza<select id="limpeza-turma-ed" required><option value="">— escolha a turma —</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>
+        <label class="field">Turma da limpeza<select id="limpeza-turma-ed" required><option value="">— escolha a turma —</option>${turmasLimpeza().map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>
         <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelLimpezaPessoa">Cancelar</button></span></form></div>`;
     }
     return `<div class="pp"><div class="pp-l1"><span class="nm">${esc(p.nome)}</span>
@@ -168,7 +168,7 @@ function linhaPessoa(p, { funcao = true, acoes = true, simples = false } = {}) {
       <div class="pp-l1"><input type="text" id="ren-in" value="${esc(p.nome)}" maxlength="80" autocomplete="off" aria-label="Nome de ${esc(p.nome)}">
         <span class="pp-bts"><button class="btn small primary pp-bt" type="submit">Salvar</button><button class="btn small pp-bt" type="button" data-act="cancelren">Cancelar</button></span></div>
       <div class="pp-l2">${funcao && !simples ? `<select id="ren-func" aria-label="Função de ${esc(p.nome)}">${FUNCOES.map((o) => `<option value="${o.k}" ${o.k === p.funcao ? 'selected' : ''}>${o.label}</option>`).join('')}</select>` : ''}
-        <label class="pp-limp ed">🧹 <select class="limp-sel" id="ren-limp" aria-label="Turma da limpeza de ${esc(p.nome)}"><option value="">—</option>${TURMAS_LIMPEZA.map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="pp-limp ed">🧹 <select class="limp-sel" id="ren-limp" aria-label="Turma da limpeza de ${esc(p.nome)}"><option value="">—</option>${turmasLimpeza().map((t) => `<option value="${t}" ${Number(p.limpeza) === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         ${!simples && p.funcao === 'medium' ? `<label class="check small pp-exp"><input type="checkbox" id="ren-exp" ${p.experiente ? 'checked' : ''}> + médium de passe</label>` : ''}</div>
       ${simples ? '' : camposDe(p).map((c) => editorLinhas(p, c)).join('')}
     </form></div>`;
@@ -558,7 +558,7 @@ export async function renomear(form) {
 
 export async function salvarTurmaLimpeza(form) {
   const turma = Number(document.getElementById('limpeza-turma-ed')?.value);
-  if (!TURMAS_LIMPEZA.includes(turma)) { toast('Escolha uma turma da limpeza.'); return; }
+  if (!turmasLimpeza().includes(turma)) { toast('Escolha uma turma da limpeza.'); return; }
   if (await atualizarPessoa(form.dataset.id, { limpeza: turma })) {
     estado.limpezaPessoaEditando = null;
     estado.limpezaTurmaAberta = String(turma);

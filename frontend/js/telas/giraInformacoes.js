@@ -2,7 +2,7 @@
 
 import { estado, pode, veErvas, girasLista, carregarAusPrevias, carregarErvas, carregarOferendas } from '../estado.js';
 import { esc, dDM } from '../util.js';
-import { status, nomeEntidadeGira, TURMAS_LIMPEZA, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, linhaDaEntidade, usaLinhas, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
+import { status, nomeEntidadeGira, turmasLimpeza, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, linhaDaEntidade, usaLinhas, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM, chaveDaLinha } from '/shared/oferendas.js';
 
@@ -11,7 +11,7 @@ export function escolhaTurma(g) {
   const atual = Number(g.limpeza) || 0;
   const bt = (t, rotulo, sub) => `<button class="btn small limp-t${(t || 0) === atual ? ' on' : ''}" data-act="limpturma" data-v="${t || ''}" aria-pressed="${(t || 0) === atual}">${rotulo}${sub ? `<small>${sub}</small>` : ''}</button>`;
   const qtd = (t) => { const n = estado.pessoas.filter((p) => Number(p.limpeza) === t).length; return `${n} ${n === 1 ? 'pessoa' : 'pessoas'}`; };
-  return `<div class="limp-turmas" role="group" aria-label="Escolher a turma da vez">${TURMAS_LIMPEZA.map((t) => bt(t, `Turma ${t}`, qtd(t))).join('')}${bt(0, 'Nenhuma')}</div>`;
+  return `<div class="limp-turmas" role="group" aria-label="Escolher a turma da vez">${turmasLimpeza().map((t) => bt(t, `Turma ${t}`, qtd(t))).join('')}${bt(0, 'Nenhuma')}</div>`;
 }
 
 // Limpeza (só leitura; o admin escolhe a turma no passo Preparar): a turma, quem está de licença e quem ajuda.

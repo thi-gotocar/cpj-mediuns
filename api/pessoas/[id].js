@@ -1,16 +1,18 @@
-// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente?, linhas?, afinidadeExtra?, afinidadePasse?, limpeza? (1 a 7 ou null), entrada? ('AAAA-MM-DD' ou null; só o admin root) }
+// PATCH  /api/pessoas/:id   { nome?, funcao?, experiente?, linhas?, afinidadeExtra?, afinidadePasse?, limpeza? (1 até a última turma das Regras da casa, ou null), entrada? ('AAAA-MM-DD' ou null; só o admin root) }
 // DELETE /api/pessoas/:id
 import { rota, corpo, validarId, validarData, HttpError } from '../_lib/http.js';
 import { pode } from '../../shared/permissoes.js';
 import { exigir } from '../_lib/sessao.js';
 import { db } from '../_lib/db.js';
-import { FUNCAO_KEYS, LINHA_KEYS, TURMAS_LIMPEZA } from '../../shared/regras.js';
+import { FUNCAO_KEYS, LINHA_KEYS, turmasLimpeza } from '../../shared/regras.js';
+import { definirConfig } from '../../shared/config.js';
 
-// Turma da limpeza: 1 a 7, ou null (sem turma).
-function validarTurma(v) {
+// Turma da limpeza: de 1 até a última turma das Regras da casa, ou null (sem turma).
+async function validarTurma(v) {
   if (v === null || v === '' || v === undefined) return null;
   const n = Number(v);
-  if (!TURMAS_LIMPEZA.includes(n)) throw new HttpError(400, 'Turma da limpeza inválida (1 a 7).');
+  definirConfig(await db.rpc('config_casa'));
+  if (!turmasLimpeza().includes(n)) throw new HttpError(400, `Turma da limpeza inválida (1 a ${turmasLimpeza().length}).`);
   return n;
 }
 
@@ -40,7 +42,7 @@ export default rota({
       if (!Array.isArray(b[k]) || b[k].some((l) => !LINHA_KEYS.includes(l))) throw new HttpError(400, 'Entidade inválida.');
       p[k] = [...new Set(b[k])];
     }
-    if ('limpeza' in b) p.limpeza = validarTurma(b.limpeza);
+    if ('limpeza' in b) p.limpeza = await validarTurma(b.limpeza);
     if ('entrada' in b) {
       if (!pode(eu, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root altera a entrada na corrente.');
       p.entrada = b.entrada ? validarData(String(b.entrada)) : null;

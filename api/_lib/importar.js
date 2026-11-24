@@ -7,6 +7,10 @@ import { validarData, HttpError } from './http.js';
 import { exigir } from './sessao.js';
 import { db } from './db.js';
 import { FUNCAO_KEYS, LINHA_KEYS, ORIXAS } from '../../shared/regras.js';
+import { LIMITES_REGRAS } from '../../shared/config.js';
+
+// Turma da limpeza que o banco aceita (o backup pode vir de quando a casa tinha mais turmas).
+const turmaGravavel = (t) => Number.isInteger(t) && t >= 1 && t <= LIMITES_REGRAS.turmasLimpeza[1];
 
 // Status das versões anteriores: true = presente, false = ausente, 'nc' = suporte.
 function statusAntigo(v) {
@@ -54,7 +58,7 @@ export async function importar(req, b) {
       await db.rpc('pessoas_atualizar', { id: atual.id, saida: p.saida });
       atual.saida = p.saida;
     }
-    if ([1, 2, 3, 4, 5, 6, 7].includes(p.limpeza) && !atual.limpeza) {
+    if (turmaGravavel(p.limpeza) && !atual.limpeza) {
       await db.rpc('pessoas_atualizar', { id: atual.id, limpeza: p.limpeza });
       atual.limpeza = p.limpeza;
     }
@@ -82,7 +86,7 @@ export async function importar(req, b) {
       data, usuario: perfil.id, entidade: String(g.entidade || '').slice(0, 120), pendentePadrao: g.pendentePadrao === true,
       presenca, pares: mapa(g.pares), passes: mapa(g.passes), encerrada: g.encerrada === true,
       ...(g.atendimentos && typeof g.atendimentos === 'object' ? { atendimentos: g.atendimentos } : {}),
-      ...([1, 2, 3, 4, 5, 6, 7].includes(g.limpeza) ? { limpeza: g.limpeza } : {}),
+      ...(turmaGravavel(g.limpeza) ? { limpeza: g.limpeza } : {}),
       ...(ORIXAS.includes(g.orixa) ? { orixa: g.orixa } : {}),
       papeis: Object.fromEntries(Object.entries(g.papeis && typeof g.papeis === 'object' ? g.papeis : {})
         .filter(([velho, v]) => novoId[velho] && (v === 'sup' || v === 'na')).map(([velho, v]) => [novoId[velho], v])),

@@ -349,15 +349,19 @@ export const presente = (p, g) => { const s = status(p, g); return s === 'p' || 
 // Quem era da turma da gira anterior e não foi (Falta ou Ausente) ajuda a turma da gira atual.
 // "Gira anterior" = a última gira antes desta com turma da limpeza definida
 // (gira interna e reunião não têm limpeza e não contam).
-export const TURMAS_LIMPEZA = [1, 2, 3, 4, 5, 6, 7];
+// Turmas da limpeza: de 1 até o número que a casa usa (Regras da casa; padrão 7).
+export const turmasLimpeza = () => Array.from({ length: config().regras.turmasLimpeza }, (_, i) => i + 1);
+// Gira com turma definida. Vale qualquer turma já gravada, mesmo acima do número de hoje (a casa pode ter diminuído).
+const temTurma = (g) => Number.isInteger(Number(g?.limpeza)) && Number(g.limpeza) >= 1;
 export const temLimpeza = (g) => !giraEspecial(g?.entidade);
 
 // Turma sugerida para uma gira nova: a seguinte à da última gira encerrada (antes desta data) com turma,
-// em rodízio de 1 a 7, pulando turmas sem ninguém cadastrado. Sem histórico, a primeira turma com gente.
+// em rodízio de 1 até a última turma, pulando turmas sem ninguém cadastrado. Sem histórico, a primeira turma com gente.
 export function proximaTurma(pessoas, giras, data) {
-  const comGente = TURMAS_LIMPEZA.filter((t) => pessoas.some((p) => Number(p.limpeza) === t));
+  const turmas = turmasLimpeza();
+  const comGente = turmas.filter((t) => pessoas.some((p) => Number(p.limpeza) === t));
   if (!comGente.length) return null;
-  const ultima = (giras || []).filter((g) => g.encerrada && g.data < data && TURMAS_LIMPEZA.includes(Number(g.limpeza)))
+  const ultima = (giras || []).filter((g) => g.encerrada && g.data < data && temTurma(g))
     .sort((a, b) => b.data.localeCompare(a.data))[0];
   if (!ultima) return comGente[0];
   const t = Number(ultima.limpeza);
@@ -366,14 +370,14 @@ export function proximaTurma(pessoas, giras, data) {
 
 // Última gira antes desta com turma da limpeza definida (ignora gira interna e reunião).
 export function giraAnteriorComLimpeza(giras, data) {
-  return (giras || []).filter((x) => x.data < data && temLimpeza(x) && TURMAS_LIMPEZA.includes(Number(x.limpeza)))
+  return (giras || []).filter((x) => x.data < data && temLimpeza(x) && temTurma(x))
     .sort((a, b) => b.data.localeCompare(a.data))[0] || null;
 }
 
 // { turma, membros, deLicenca, ajudantes, anterior } ou null se a gira não tem turma definida.
 export function limpezaDaGira(todas, g, giras) {
   const pessoas = daGira(todas, g);
-  if (!temLimpeza(g) || !TURMAS_LIMPEZA.includes(Number(g.limpeza))) return null;
+  if (!temLimpeza(g) || !temTurma(g)) return null;
   const turma = Number(g.limpeza);
   const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
   const daTurma = pessoas.filter((p) => Number(p.limpeza) === turma).sort(porNome);
@@ -514,15 +518,23 @@ export function custosSuporte(giras, ate) {
 }
 export const custoSuporte = (map, id) => { const e = map[id]; return e ? e.peso * 4 + e.n + (e.recente ? 6 : 0) : 0; };
 
-// Regra da escala (nesta ordem de prioridade):
+// Regra da escala (nesta ordem de prioridade; os números e quem recebe o 2º cambone vêm das Regras da casa):
 //  1) todo médium (e At. Extra) recebe 1 cambone — faltando cambone, um cambone acompanha mais de um médium;
-//  2) pelo menos 1 pessoa no Suporte: sem ninguém lá, um cambone que sobra vai para o Suporte;
-//  3) o médium com médium de passe junto recebe o 2º cambone, se ainda sobrar;
+//  2) o mínimo de pessoas no Suporte (padrão 1): faltando gente lá, cambones que sobram vão para o Suporte;
+//  3) o 2º cambone, se ainda sobrar: padrão, só o médium com médium de passe junto (ou qualquer médium, ou ninguém);
 //  4) quem sobrar depois disso vai para o Suporte.
 // A Senha não entra no sorteio: é quem tem a função Senha no cadastro ou foi escolhido antes na troca do dia.
 // O Suporte roda entre os cambones (custosSuporte), junto com o custo de repetir as duplas; das 600 tentativas, fica a de
 // menor custo total.
-function distribuirCambones(meds, cams, comPasse, map, fixos, faltaSuporte, mapSup) {
+// Médiuns que podem receber o 2º cambone, pela regra da casa.
+function comSegundo(meds, comPasse) {
+  const r = config().regras.segundoCambone;
+  return r === 'todos' ? meds : r === 'nenhum' ? [] : meds.filter((m) => comPasse.has(m));
+}
+// Quantos ainda faltam no Suporte para chegar ao mínimo da casa.
+const faltamNoSuporte = (jaLa) => Math.max(0, config().regras.suporteMinimo - jaLa);
+
+function distribuirCambones(meds, cams, comPasse, map, fixos, faltam, mapSup) {
   const sobra = cams.length - meds.length;
   if (sobra <= 0) {
     // Cambones não bastam (ou bastam certinho): todos cambonam; médiuns repartem cambone se faltar.
@@ -533,9 +545,8 @@ function distribuirCambones(meds, cams, comPasse, map, fixos, faltaSuporte, mapS
     return { pares: r.map((x) => (mm ? { m: x.b, c: x.s, fixo: x.fixo } : { m: x.s, c: x.b, fixo: x.fixo })), suporte: [] };
   }
   const presos = new Set(fixos.map((f) => f.c));   // dupla fixada não vai para o Suporte
-  const querSuporte = faltaSuporte ? 1 : 0;
-  const hosts = meds.filter((m) => comPasse.has(m));
-  const nSegundo = Math.min(hosts.length, Math.max(0, sobra - querSuporte));
+  const hosts = comSegundo(meds, comPasse);
+  const nSegundo = Math.min(hosts.length, Math.max(0, sobra - faltam));
   const nFora = sobra - nSegundo;   // vão para o Suporte (inclui o obrigatório)
   let melhor = null;
   for (let t = 0; t < 600; t++) {
@@ -606,14 +617,14 @@ export function sortear(pessoas, giras, g0) {
   if (meds.length && cams.length) {
     const map = custos(giras, g.data, 'pares');
     const fx = (g.pares || []).filter((p) => p.fixo && meds.includes(p.m) && cams.includes(p.c));
-    const faltaSuporte = !ps.some((p) => status(p, g) === 'sup');
-    const r = distribuirCambones(meds, cams, comPasse, map, fx, faltaSuporte, custosSuporte(giras, g.data));
+    const faltam = faltamNoSuporte(ps.filter((p) => status(p, g) === 'sup').length);
+    const r = distribuirCambones(meds, cams, comPasse, map, fx, faltam, custosSuporte(giras, g.data));
     patch.pares = r.pares;
     const nome = (id) => ps.find((p) => p.id === id)?.nome || '';
     r.suporte.forEach((id) => { auto[id] = papelDe(ps.find((p) => p.id === id), g); papeis[id] = 'sup'; });
     msgs.push(patch.pares.filter((p) => !map[p.m + '|' + p.c]).length + ' de ' + patch.pares.length + ' duplas novas');
     if (r.suporte.length) msgs.push(`no Suporte: ${r.suporte.map(nome).join(', ')}`);
-    else if (faltaSuporte) msgs.push('ninguém no Suporte (não sobrou cambone)');
+    else if (faltam) msgs.push('ninguém no Suporte (não sobrou cambone)');
   } else {
     msgs.push(!meds.length ? 'nenhum médium presente' : 'nenhum cambone presente');
   }
@@ -712,8 +723,8 @@ export function remanejar(pessoas, giras, g) {
       passes.push({ m, c: id, fixo: false, remanejado: true });
     });
 
-  // A regra da escala (ver distribuirCambones): Suporte com pelo menos 1, 2º cambone só para quem tem passe junto e o
-  // resto no Suporte. Quem vai para o Suporte guarda a função de antes em suporteAuto (o Sortear e o Cancelar desfazem).
+  // A regra da escala (ver distribuirCambones): o mínimo no Suporte, o 2º cambone pela regra da casa e o resto no
+  // Suporte. Quem vai para o Suporte guarda a função de antes em suporteAuto (o Sortear e o Cancelar desfazem).
   const auto = {};
   const mapSup = custosSuporte(giras, g.data);
   const paraSuporte = (c) => {
@@ -722,29 +733,28 @@ export function remanejar(pessoas, giras, g) {
     pa[c] = 'sup';
     notas.push(nome(c) + ' foi para o suporte');
   };
-  const temSuporte = () => all.some((p) => status(p, gx) === 'sup');
+  const faltam = () => faltamNoSuporte(all.filter((p) => status(p, gx) === 'sup').length);
   // Os livres em ordem: quem esteve no Suporte há mais tempo primeiro (vai para lá); quem esteve há pouco, por último (cambona).
   livres.sort((a, b) => custoSuporte(mapSup, a) - custoSuporte(mapSup, b));
-  // 3) ninguém no Suporte: o primeiro livre vai.
-  if (!temSuporte() && livres.length) paraSuporte(livres.shift());
-  // 4) o 2º cambone de quem tem médium de passe junto (máximo dois), com quem esteve no Suporte há menos tempo.
-  const comPasse = new Set(passes.map((p) => p.m));
+  // 3) abaixo do mínimo no Suporte: os primeiros livres vão.
+  while (faltam() && livres.length) paraSuporte(livres.shift());
+  // 4) o 2º cambone (máximo dois) de quem a regra da casa deixa ter, com quem esteve no Suporte há menos tempo.
+  const podeSegundo = new Set(comSegundo(R, new Set(passes.map((p) => p.m))));
   while (livres.length) {
-    const alvo = R.filter((m) => comPasse.has(m) && camsDe(m).length < 2);
+    const alvo = R.filter((m) => podeSegundo.has(m) && camsDe(m).length < 2);
     if (!alvo.length) break;
     const c = livres.pop();
     add(best(alvo, (m) => custo(map, m, c)), c);
   }
   // 5) o resto vai para o Suporte.
   livres.forEach(paraSuporte);
-  // Ainda ninguém no Suporte (não sobrou livre): sai o 2º cambone de um médium que tem dois (não fixado).
-  if (!temSuporte()) {
+  // Ainda abaixo do mínimo no Suporte (não sobrou livre): sai o 2º cambone de um médium que tem dois (não fixado).
+  while (faltam()) {
     const dois = pares.filter((p) => !p.fixo && camsDe(p.m).length >= 2);
-    if (dois.length) {
-      const pp = best(dois, (p) => custoSuporte(mapSup, p.c));
-      tira(pp);
-      paraSuporte(pp.c);
-    }
+    if (!dois.length) break;
+    const pp = best(dois, (p) => custoSuporte(mapSup, p.c));
+    tira(pp);
+    paraSuporte(pp.c);
   }
 
   const n = pares.filter((p) => p.remanejado).length + passes.filter((p) => p.remanejado).length;

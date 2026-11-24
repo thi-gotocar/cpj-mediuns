@@ -209,10 +209,12 @@ test('curimba: entra na limpeza, mas não na presença', async () => {
 });
 
 test('configurações da casa: padrão, campo vazio e textos da prévia', async () => {
-  const { CONFIG_PADRAO, configCasa, definirConfig } = await import('../shared/config.js');
+  const { CONFIG_PADRAO, REGRAS_PADRAO, configCasa, definirConfig } = await import('../shared/config.js');
   const { textoLimpeza } = await import('../shared/resumoGira.js');
   const { ehDirigente } = await import('../shared/regras.js');
-  assert.deepEqual(configCasa(null), CONFIG_PADRAO);
+  assert.deepEqual(configCasa(null), { ...CONFIG_PADRAO, regras: REGRAS_PADRAO });
+  assert.deepEqual(configCasa({ regras: { suporteMinimo: 9, segundoCambone: 'x', turmasLimpeza: '5' } }).regras,
+    { ...REGRAS_PADRAO, turmasLimpeza: 5 }, 'regra fora do limite usa o padrão');
   assert.equal(configCasa({ responsavel: '  ' }).responsavel, CONFIG_PADRAO.responsavel, 'vazio usa o padrão');
   assert.equal(configCasa({ desconhecido: 'x' }).desconhecido, undefined);
   assert.equal(ehDirigente({ nome: 'Mae Ve' }), true, 'acento e maiúscula não importam');

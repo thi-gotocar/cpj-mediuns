@@ -1,8 +1,8 @@
 // Aba "Admin root" (só o admin root): Acessos e perfis (um bloco só, por perfil), Quem entrou nas abas, Versão do app e, do Histórico,
-// Cadastrar gira antiga e Cadastrar escala, e os eventos da casa (cadastrar e eventos cadastrados).
+// Cadastrar gira antiga e Cadastrar escala, as Regras da casa e os eventos da casa (cadastrar e eventos cadastrados).
 
 import { SEM_CADASTRO, ABAS, ABAS_CONSULENTE, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, carregarVisitas, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, adicionarPessoas, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, avisar } from '../estado.js';
+import { estado, pessoasOrd, carregarUsuarios, carregarVisitas, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, adicionarPessoas, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, salvarRegrasCasa, avisar } from '../estado.js';
 import { esc, toast, ajustarRolagem, hoje } from '../util.js';
 import { ICONE_WHATS } from './giraComum.js';
 import { ABAS_VISITA, VISITAS_DIAS, agruparVisitas, textoVisitas } from '/shared/visitas.js';
@@ -13,7 +13,7 @@ import { blocosEventos, blocoTipos, cliques as cliquesEventos } from './eventos.
 import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, corpoBackup, cliquesBackup } from './historico.js';
 import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
 import { contaNaPresenca, LINHA_LABEL, FUNCOES, CURIMBA } from '/shared/regras.js';
-import { CAMPOS_CONFIG, config } from '/shared/config.js';
+import { CAMPOS_CONFIG, config, SEGUNDO_CAMBONE, LIMITES_REGRAS } from '/shared/config.js';
 
 const PESSOA_NOVA = '__nova';
 const secao = (titulo) => `<h3 class="root-secao">${titulo}</h3>`;
@@ -74,7 +74,7 @@ export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   if (abertosRoot.has('ajperfil') && estado.perfil === null) { estado.perfil = undefined; carregarPerfil(); }
   let h = `<section class="panel">${cardAcessos()}${cardVisitas()}${cardVersoes()}
-    ${secao('Configurações da casa')}${cardConfig()}${cardEntidades()}${cardEventos()}
+    ${secao('Configurações da casa')}${cardConfig()}${cardRegras()}${cardEntidades()}${cardEventos()}
     ${secao('Pessoas e histórico')}${cardAjustesPerfil()}${cardRegistros()}${cardBackup()}</section>`;
   return h;
 }
@@ -265,6 +265,37 @@ function cardConfig() {
 export async function salvarConfig(form) {
   const dados = Object.fromEntries(CAMPOS_CONFIG.map(([k]) => [k, form.elements[k].value]));
   if (await salvarConfigCasa(dados)) toast('Configurações salvas.');
+}
+
+// Regras da casa: o jeito deste terreiro conduzir a escala e a limpeza (o sorteio e o Remanejar faltas seguem estas regras).
+function cardRegras() {
+  const r = config().regras;
+  const [sMin, sMax] = LIMITES_REGRAS.suporteMinimo;
+  const [tMin, tMax] = LIMITES_REGRAS.turmasLimpeza;
+  const numeros = (min, max, atual) => Array.from({ length: max - min + 1 }, (_, i) => min + i)
+    .map((n) => `<option value="${n}" ${n === atual ? 'selected' : ''}>${n}</option>`).join('');
+  return `<div class="card adm root">${cabRoot('regras', '⚖️ Regras da casa')}${!abertosRoot.has('regras') ? '' : `
+    <p class="muted" style="margin:0;font-size:.85rem">Valem no próximo sorteio ou Remanejar faltas. A escala já sorteada não muda.</p>
+    <form id="f-regras" class="cfg-form" autocomplete="off">
+      <label class="field">Mínimo de pessoas no Suporte<select name="suporteMinimo">${numeros(sMin, sMax, r.suporteMinimo)}</select>
+        <small class="muted">Faltando gente no Suporte, cambones que sobram vão para lá antes do 2º cambone. Com 0, ninguém vai obrigado.</small></label>
+      <label class="field">Quem recebe o 2º cambone<select name="segundoCambone">${SEGUNDO_CAMBONE.map(([k, t]) => `<option value="${k}" ${k === r.segundoCambone ? 'selected' : ''}>${t}</option>`).join('')}</select>
+        <small class="muted">Só quando sobra cambone depois de todo médium ter o seu. Nunca mais de dois por médium.</small></label>
+      <label class="field">Turmas da limpeza<select name="turmasLimpeza">${numeros(tMin, tMax, r.turmasLimpeza)}</select>
+        <small class="muted">O rodízio vai da turma 1 até esta. Para diminuir, tire antes as pessoas das turmas que vão sair.</small></label>
+      <div class="row" style="justify-content:flex-end"><button class="btn primary" type="submit">Salvar regras</button></div>
+    </form>`}</div>`;
+}
+
+export async function salvarRegras(form) {
+  const regras = {
+    suporteMinimo: Number(form.elements.suporteMinimo.value),
+    segundoCambone: form.elements.segundoCambone.value,
+    turmasLimpeza: Number(form.elements.turmasLimpeza.value),
+  };
+  const maior = Math.max(0, ...estado.pessoas.map((p) => Number(p.limpeza) || 0));
+  if (regras.turmasLimpeza < maior) { toast(`Há gente na turma ${maior} da limpeza. Mude a turma dessas pessoas antes de diminuir.`); return; }
+  if (await salvarRegrasCasa(regras)) toast('Regras salvas.');
 }
 
 function cardBackup() {

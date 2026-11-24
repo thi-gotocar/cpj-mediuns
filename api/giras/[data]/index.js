@@ -25,10 +25,10 @@ import { rota, corpo, validarData, validarId, HttpError, MSG_ENCERRADA, hojeBR }
 import { exigir, exigirComLeitura } from '../../_lib/sessao.js';
 import { pode } from '../../../shared/permissoes.js';
 import { ocultarSorteio } from '../../_lib/escala.js';
-import { configCasa } from '../../../shared/config.js';
+import { configCasa, definirConfig } from '../../../shared/config.js';
 import { db } from '../../_lib/db.js';
 import { ACOES_FILA_PUBLICAS, ACOES_FILA_PAINEL, filaPublica, filaResumo, acaoFilaPublica, filaPainel, acaoFilaPainel } from '../../_lib/fila.js';
-import { giraVazia, STATUS_KEYS, TURMAS_LIMPEZA, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, desfazerAuto, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, turmasLimpeza, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, desfazerAuto, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -149,8 +149,9 @@ async function escolherEntidade(req, linha) {
 
 // Sortear e Remanejar faltas: as regras usam a lista inteira de giras (histórico das duplas).
 async function sortearOuRemanejar(req, acao) {
-  // Sessão, pessoas e giras numa ida só ao banco.
-  const [perfil, pessoas, giras] = await exigirComLeitura(req, 'giras:sortear', () => [{ funcao: 'pessoas_listar' }, { funcao: 'giras_listar' }]);
+  // Sessão, pessoas, giras e as Regras da casa (Suporte mínimo, 2º cambone) numa ida só ao banco.
+  const [perfil, pessoas, giras, cfg] = await exigirComLeitura(req, 'giras:sortear', () => [{ funcao: 'pessoas_listar' }, { funcao: 'giras_listar' }, { funcao: 'config_casa' }]);
+  definirConfig(cfg);
   const data = validarData(req.query.data);
   const g = giras.find((x) => x.data === data) || giraVazia(data);
   if (g.encerrada) throw new HttpError(409, MSG_ENCERRADA);
@@ -245,8 +246,11 @@ export default rota({
     if ('atendimentos' in b) p.atendimentos = validarAtendimentos(b.atendimentos);
     if ('limpeza' in b) {
       if (b.limpeza === null || b.limpeza === '') p.limpeza = null;
-      else if (TURMAS_LIMPEZA.includes(Number(b.limpeza))) p.limpeza = Number(b.limpeza);
-      else throw new HttpError(400, 'Turma da limpeza inválida (1 a 7).');
+      else {
+        definirConfig(await db.rpc('config_casa'));
+        if (!turmasLimpeza().includes(Number(b.limpeza))) throw new HttpError(400, `Turma da limpeza inválida (1 a ${turmasLimpeza().length}).`);
+        p.limpeza = Number(b.limpeza);
+      }
     }
     if ('orixa' in b) p.orixa = validarOrixa(b.orixa);
     if (escalaPublicada(atual) && (('entidade' in p && p.entidade !== (atual.entidade || ''))

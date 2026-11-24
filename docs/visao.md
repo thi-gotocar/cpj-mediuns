@@ -32,6 +32,7 @@ PWA da **Casa do Pai João (CPJ)** para organizar a corrente e as giras:
 
 ### Em aberto
 
+- **Configuração por terreiro (começou na v178 com as Regras da casa).** Ainda fixo no código e diferente de casa para casa: a sigla "CPJ" nos textos e no acesso `cpj`, os nomes das funções, as linhas/entidades e a lista de orixás. A troca de constraint das turmas (1 a 12) na v178 supõe os nomes padrão do Postgres (`pessoas_limpeza_check`, `giras_limpeza_check`); conferir no CI que a turma 8 grava.
 - **Compatibilidade com o app anterior, para remover a partir de 30/11/2026.** Antes, conferir em Admin root → 📲 Versão do app que ninguém está numa versão de antes de 22/11 (o "forçar atualização" só alcança quem já tem a v170). Sai: `POST /api/auth/visita`; os `rewrites` de `sortear`/`remanejar` e de `/api/importar` (com o `req.query.acao` dos POST); a resposta de `/auth/inicio` sem `parcial`; o "app antigo sem o campo celular" do `criarSenha`; o `skipWaiting` de transição do `sw-modelo.js`. Os testes que conferem esses caminhos saem junto.
 
 - **Gestão de Conduta e Risco não foi conferida na tela.** O banco e as regras têm teste no CI; falta olhar o bloco no app publicado (corrente e root).

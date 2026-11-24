@@ -26,10 +26,32 @@ export const CAMPOS_CONFIG = [
   ['encerramento', 'Prévia Gira: encerramento', 120, ''],
 ];
 
-export const configCasa = (c) => Object.fromEntries(Object.entries(CONFIG_PADRAO)
-  .map(([k, padrao]) => [k, typeof c?.[k] === 'string' && c[k].trim() ? c[k].trim() : padrao]));
+// Regras da casa (Admin root → Regras da casa): o jeito de cada terreiro conduzir a escala e a limpeza. Ficam numa chave
+// própria (sistema.regras_casa) e chegam em config().regras. Sem valor guardado, vale o padrão (o jeito da CPJ).
+export const SEGUNDO_CAMBONE = [
+  ['passe', 'Só o médium com médium de passe junto'],
+  ['todos', 'Qualquer médium'],
+  ['nenhum', 'Ninguém (quem sobra vai para o Suporte)'],
+];
+export const REGRAS_PADRAO = { suporteMinimo: 1, segundoCambone: 'passe', turmasLimpeza: 7 };
+export const LIMITES_REGRAS = { suporteMinimo: [0, 5], turmasLimpeza: [1, 12] };
+const inteiroEntre = (v, [min, max]) => { const n = Number(v); return Number.isInteger(n) && n >= min && n <= max ? n : null; };
+export function regrasCasa(r) {
+  const o = r && typeof r === 'object' ? r : {};
+  return {
+    suporteMinimo: inteiroEntre(o.suporteMinimo, LIMITES_REGRAS.suporteMinimo) ?? REGRAS_PADRAO.suporteMinimo,
+    segundoCambone: SEGUNDO_CAMBONE.some(([k]) => k === o.segundoCambone) ? o.segundoCambone : REGRAS_PADRAO.segundoCambone,
+    turmasLimpeza: inteiroEntre(o.turmasLimpeza, LIMITES_REGRAS.turmasLimpeza) ?? REGRAS_PADRAO.turmasLimpeza,
+  };
+}
 
-let atual = CONFIG_PADRAO;
+export const configCasa = (c) => ({
+  ...Object.fromEntries(Object.entries(CONFIG_PADRAO)
+    .map(([k, padrao]) => [k, typeof c?.[k] === 'string' && c[k].trim() ? c[k].trim() : padrao])),
+  regras: regrasCasa(c?.regras),
+});
+
+let atual = configCasa({});
 export const definirConfig = (c) => { atual = configCasa(c); };
 export const config = () => atual;
 // O recado que vale para uma gira: o da casa (o mesmo em todos os dias) enquanto ela está aberta; a encerrada guarda o

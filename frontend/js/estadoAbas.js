@@ -52,6 +52,15 @@ export async function salvarConfigCasa(dados) {
   } catch (e) { toast(e.message); return false; }
 }
 
+// Regras da casa (Admin root): Suporte mínimo, 2º cambone e turmas da limpeza.
+export async function salvarRegrasCasa(regras) {
+  try {
+    definirConfig(await api('POST', '/usuarios', { acao: 'regras', regras }));
+    avisar();
+    return true;
+  } catch (e) { toast(e.message); return false; }
+}
+
 // ---------- eventos da casa ----------
 // ---------- ausência antecipada (aba Gira, admin: data de hoje em diante ainda sem gira) ----------
 export async function carregarAusPrevias() {
