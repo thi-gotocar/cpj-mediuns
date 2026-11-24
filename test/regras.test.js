@@ -820,30 +820,37 @@ test('o sorteio usa a função do dia (passo Escala → Função nesta gira)', (
   assert.deepEqual(new Set(pares.map((p) => p.m)), new Set(['m1', 'p1']));
 });
 
-test('regra da escala: 1 cambone por médium, Suporte obrigatório, 2º cambone só com passe e o resto no Suporte', () => {
+test('regra da escala: 1 cambone por médium, Suporte obrigatório, 2º cambone com passe e o Suporte até 2', () => {
   const med = (n, xp) => ({ id: 'm' + n, nome: 'Médium ' + n, funcao: 'medium', experiente: !!xp });
   const cam = (n) => ({ id: 'c' + n, nome: 'Cambone ' + n, funcao: 'cambone' });
   const g = { data: '2026-11-25', entidade: 'Gira interna', presenca: {}, pares: [], passes: [] };
-  // 3 médiuns (1 com passe junto), 1 passe e 7 cambones: 3 + 1 no Suporte + o 2º de quem tem passe; sobram 2 → Suporte.
+  // 3 médiuns (1 com passe junto), 1 passe e 7 cambones: 3 + 1 no Suporte + o 2º de quem tem passe; sobram 2: um vai
+  // para o Suporte (chega ao máximo, 2) e o outro vira 2º cambone de m2 ou m3.
   const pessoas = [med(1, true), med(2), med(3), { id: 'p1', nome: 'Passe', funcao: 'passe' }, ...[1, 2, 3, 4, 5, 6, 7].map(cam)];
   const { patch, mensagem } = sortear(pessoas, [], g);
   const conta = (m) => patch.pares.filter((p) => p.m === m).length;
-  assert.deepEqual([conta('m1'), conta('m2'), conta('m3')], [2, 1, 1]);
+  assert.equal(conta('m1'), 2);
+  assert.deepEqual([conta('m2'), conta('m3')].sort(), [1, 2]);
   const sup = Object.keys(patch.papeis).filter((id) => patch.papeis[id] === 'sup');
-  assert.equal(sup.length, 3);
+  assert.equal(sup.length, 2);
   assert.deepEqual(Object.keys(patch.suporteAuto).sort(), sup.sort(), 'guarda quem o sorteio pôs no Suporte');
   assert.match(mensagem, /ninguém na Senha/, 'a Senha não é sorteada: só avisa');
   // Sortear de novo desfaz o Suporte do sorteio anterior antes de distribuir (ninguém fica preso lá).
   const g2 = { ...g, ...patch };
-  assert.equal(Object.values(sortear(pessoas, [], g2).patch.papeis).filter((v) => v === 'sup').length, 3);
+  assert.equal(Object.values(sortear(pessoas, [], g2).patch.papeis).filter((v) => v === 'sup').length, 2);
   // Com alguém da Senha presente, não avisa; quem já está no Suporte conta como o obrigatório.
   const comSenha = [...pessoas, { id: 's1', nome: 'Senha', funcao: 'senha' }];
   const g3 = { ...g, papeis: { c7: 'sup' } };
   const r3 = sortear(comSenha, [], g3);
   assert.doesNotMatch(r3.mensagem, /ninguém na Senha/);
   assert.equal(r3.patch.papeis.c7, 'sup');
-  // 6 cambones para cambonar (c7 já no Suporte): 3 + o 2º de m1 + sobram 2 → Suporte (o obrigatório já está cumprido).
-  assert.equal(r3.patch.pares.length, 4);
+  // 6 cambones para cambonar (c7 já no Suporte): 3 + o 2º de m1; sobram 2: um completa o Suporte (2) e o outro cambona.
+  assert.equal(r3.patch.pares.length, 5);
+  assert.equal(Object.values(r3.patch.papeis).filter((v) => v === 'sup').length, 2);
+  // Todo médium já com dois: só aí o Suporte passa do máximo (3 médiuns, 10 cambones → 6 duplas e 4 no Suporte).
+  const muitos = sortear([med(1), med(2), med(3), ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(cam)], [], g).patch;
+  assert.equal(muitos.pares.length, 6);
+  assert.equal(Object.values(muitos.papeis).filter((v) => v === 'sup').length, 4);
   // Cambones a menos que médiuns: todo mundo cambona e um cambone acompanha dois médiuns; ninguém vai para o Suporte.
   const poucos = [med(1), med(2), med(3), cam(1), cam(2)];
   const r4 = sortear(poucos, [], g).patch;
@@ -867,17 +874,23 @@ test('Regras da casa: mínimo no Suporte, quem recebe o 2º cambone e turmas da 
     let { patch } = sortear(pessoas, [], g);
     assert.deepEqual([conta(patch, 'm1'), conta(patch, 'm2'), conta(patch, 'm3')], [2, 2, 2]);
     assert.equal(noSup(patch), 1);
-    // Ninguém recebe o 2º: 3 duplas e 4 no Suporte.
-    definirConfig({ regras: { segundoCambone: 'nenhum' } });
+    // Ninguém recebe o 2º antes do máximo: com o Suporte sem limite, 3 duplas e 4 no Suporte; com o máximo 2, os 2 a
+    // mais viram 2º cambone.
+    definirConfig({ regras: { segundoCambone: 'nenhum', suporteMaximo: 0 } });
     ({ patch } = sortear(pessoas, [], g));
     assert.equal(patch.pares.length, 3);
     assert.equal(noSup(patch), 4);
+    definirConfig({ regras: { segundoCambone: 'nenhum' } });
+    ({ patch } = sortear(pessoas, [], g));
+    assert.equal(patch.pares.length, 5);
+    assert.equal(noSup(patch), 2);
     // Mínimo 0 e 2º para todos: ninguém vai obrigado ao Suporte (3 × 2 = 6; sobra 1, que vai por sobrar).
     definirConfig({ regras: { segundoCambone: 'todos', suporteMinimo: 0 } });
     ({ patch } = sortear([med(1), med(2), med(3), ...[1, 2, 3, 4, 5, 6].map(cam)], [], g));
     assert.equal(patch.pares.length, 6);
     assert.equal(noSup(patch), 0);
-    // Mínimo 3: o Suporte fica com 3 antes do 2º cambone de quem tem passe (7 − 3 duplas − 3 = 1 → o 2º de m1).
+    // Mínimo 3 (acima do máximo 2, o máximo sobe junto): o Suporte fica com 3 antes do 2º cambone de quem tem passe
+    // (7 − 3 duplas − 3 = 1 → o 2º de m1).
     definirConfig({ regras: { suporteMinimo: 3 } });
     ({ patch } = sortear(pessoas, [], g));
     assert.equal(noSup(patch), 3);
@@ -887,6 +900,15 @@ test('Regras da casa: mínimo no Suporte, quem recebe o 2º cambone e turmas da 
     const r = remanejar(pessoas, [], { ...g, ...patch, presenca: { [faltou]: 'f' }, papeis: { ...patch.papeis, [faltou]: undefined } }).patch;
     assert.equal(Object.values(r.papeis).filter((v) => v === 'sup').length, 3);
     assert.equal(r.pares.filter((p) => p.m === 'm1').length, 1);
+    // Remanejar respeita o máximo no Suporte: falta o médium sem passe que tinha 2 cambones; com o Suporte já em 2, um
+    // vira 2º cambone do outro médium e só o que sobra (todos já com dois) passa do máximo.
+    definirConfig({ regras: {} });
+    ({ patch } = sortear(pessoas, [], g));
+    const dono = ['m2', 'm3'].find((m) => conta(patch, m) === 2);
+    const outro = dono === 'm2' ? 'm3' : 'm2';
+    const r2 = remanejar(pessoas, [], { ...g, ...patch, presenca: { [dono]: 'f' } }).patch;
+    assert.equal(r2.pares.filter((p) => p.m === outro).length, 2);
+    assert.equal(Object.values(r2.papeis).filter((v) => v === 'sup').length, 3);
     // Turmas da limpeza: o rodízio vai até a última turma da casa.
     definirConfig({ regras: { turmasLimpeza: 3 } });
     assert.deepEqual(turmasLimpeza(), [1, 2, 3]);

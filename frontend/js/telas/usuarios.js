@@ -279,7 +279,9 @@ function cardRegras() {
     <form id="f-regras" class="cfg-form" autocomplete="off">
       <label class="field">Mínimo de pessoas no Suporte<select name="suporteMinimo">${numeros(sMin, sMax, r.suporteMinimo)}</select>
         <small class="muted">Faltando gente no Suporte, cambones que sobram vão para lá antes do 2º cambone. Com 0, ninguém vai obrigado.</small></label>
-      <label class="field">Quem recebe o 2º cambone<select name="segundoCambone">${SEGUNDO_CAMBONE.map(([k, t]) => `<option value="${k}" ${k === r.segundoCambone ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <label class="field">Máximo de pessoas no Suporte<select name="suporteMaximo"><option value="0" ${!r.suporteMaximo ? 'selected' : ''}>Sem limite</option>${numeros(1, LIMITES_REGRAS.suporteMaximo[1], r.suporteMaximo)}</select>
+        <small class="muted">Passando disso, quem sobra vira 2º cambone de qualquer médium. O Suporte só passa do máximo com todo médium já com dois.</small></label>
+      <label class="field">Quem recebe o 2º cambone primeiro<select name="segundoCambone">${SEGUNDO_CAMBONE.map(([k, t]) => `<option value="${k}" ${k === r.segundoCambone ? 'selected' : ''}>${t}</option>`).join('')}</select>
         <small class="muted">Só quando sobra cambone depois de todo médium ter o seu. Nunca mais de dois por médium.</small></label>
       <label class="field">Turmas da limpeza<select name="turmasLimpeza">${numeros(tMin, tMax, r.turmasLimpeza)}</select>
         <small class="muted">O rodízio vai da turma 1 até esta. Para diminuir, tire antes as pessoas das turmas que vão sair.</small></label>
@@ -290,9 +292,11 @@ function cardRegras() {
 export async function salvarRegras(form) {
   const regras = {
     suporteMinimo: Number(form.elements.suporteMinimo.value),
+    suporteMaximo: Number(form.elements.suporteMaximo.value),
     segundoCambone: form.elements.segundoCambone.value,
     turmasLimpeza: Number(form.elements.turmasLimpeza.value),
   };
+  if (regras.suporteMaximo && regras.suporteMaximo < regras.suporteMinimo) { toast('O máximo no Suporte não pode ser menor que o mínimo.'); return; }
   const maior = Math.max(0, ...estado.pessoas.map((p) => Number(p.limpeza) || 0));
   if (regras.turmasLimpeza < maior) { toast(`Há gente na turma ${maior} da limpeza. Mude a turma dessas pessoas antes de diminuir.`); return; }
   if (await salvarRegrasCasa(regras)) toast('Regras salvas.');

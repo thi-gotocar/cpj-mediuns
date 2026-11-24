@@ -526,7 +526,8 @@ export const custoSuporte = (map, id) => { const e = map[id]; return e ? e.peso 
 //  1) todo médium (e At. Extra) recebe 1 cambone — faltando cambone, um cambone acompanha mais de um médium;
 //  2) o mínimo de pessoas no Suporte (padrão 1): faltando gente lá, cambones que sobram vão para o Suporte;
 //  3) o 2º cambone, se ainda sobrar: padrão, só o médium com médium de passe junto (ou qualquer médium, ou ninguém);
-//  4) quem sobrar depois disso vai para o Suporte.
+//  4) quem sobrar depois disso vai para o Suporte, até o máximo da casa (padrão 2);
+//  5) passando do máximo, o 2º cambone vai para qualquer médium; só com todo médium já com dois o Suporte passa do máximo.
 // A Senha não entra no sorteio: é quem tem a função Senha no cadastro ou foi escolhido antes na troca do dia.
 // O Suporte roda entre os cambones (custosSuporte), junto com o custo de repetir as duplas; das 600 tentativas, fica a de
 // menor custo total.
@@ -537,8 +538,13 @@ function comSegundo(meds, comPasse) {
 }
 // Quantos ainda faltam no Suporte para chegar ao mínimo da casa.
 const faltamNoSuporte = (jaLa) => Math.max(0, config().regras.suporteMinimo - jaLa);
+// Quantos ainda cabem no Suporte até o máximo da casa (0 = sem limite; o máximo nunca fica abaixo do mínimo).
+function cabemNoSuporte(jaLa) {
+  const { suporteMinimo, suporteMaximo } = config().regras;
+  return suporteMaximo ? Math.max(0, Math.max(suporteMaximo, suporteMinimo) - jaLa) : Infinity;
+}
 
-function distribuirCambones(meds, cams, comPasse, map, fixos, faltam, mapSup) {
+function distribuirCambones(meds, cams, comPasse, map, fixos, faltam, mapSup, cabem = Infinity) {
   const sobra = cams.length - meds.length;
   if (sobra <= 0) {
     // Cambones não bastam (ou bastam certinho): todos cambonam; médiuns repartem cambone se faltar.
@@ -551,7 +557,10 @@ function distribuirCambones(meds, cams, comPasse, map, fixos, faltam, mapSup) {
   const presos = new Set(fixos.map((f) => f.c));   // dupla fixada não vai para o Suporte
   const hosts = comSegundo(meds, comPasse);
   const nSegundo = Math.min(hosts.length, Math.max(0, sobra - faltam));
-  const nFora = sobra - nSegundo;   // vão para o Suporte (inclui o obrigatório)
+  // Passando do máximo no Suporte, o 2º cambone vai também para os outros médiuns.
+  const outros = meds.filter((m) => !hosts.includes(m));
+  const nExtra = Math.min(outros.length, Math.max(0, sobra - nSegundo - cabem));
+  const nFora = sobra - nSegundo - nExtra;   // vão para o Suporte (inclui o obrigatório)
   let melhor = null;
   for (let t = 0; t < 600; t++) {
     // Primeiro quem fica no Suporte: os que estiveram lá há mais tempo (com um pouco de sorteio para desempatar).
@@ -561,6 +570,7 @@ function distribuirCambones(meds, cams, comPasse, map, fixos, faltam, mapSup) {
     // Depois as duplas com quem sobrou: o 1º cambone de cada médium e, em seguida, o 2º de quem tem passe junto.
     const vagas = Object.fromEntries(meds.map((m) => [m, 1]));
     shuffle(hosts).slice(0, nSegundo).forEach((m) => { vagas[m] = 2; });
+    shuffle(outros).slice(0, nExtra).forEach((m) => { vagas[m] = 2; });
     const usados = new Set(suporte);
     const pares = [];
     fixos.forEach((f) => {
@@ -621,8 +631,9 @@ export function sortear(pessoas, giras, g0) {
   if (meds.length && cams.length) {
     const map = custos(giras, g.data, 'pares');
     const fx = (g.pares || []).filter((p) => p.fixo && meds.includes(p.m) && cams.includes(p.c));
-    const faltam = faltamNoSuporte(ps.filter((p) => status(p, g) === 'sup').length);
-    const r = distribuirCambones(meds, cams, comPasse, map, fx, faltam, custosSuporte(giras, g.data));
+    const jaLa = ps.filter((p) => status(p, g) === 'sup').length;
+    const faltam = faltamNoSuporte(jaLa);
+    const r = distribuirCambones(meds, cams, comPasse, map, fx, faltam, custosSuporte(giras, g.data), cabemNoSuporte(jaLa));
     patch.pares = r.pares;
     const nome = (id) => ps.find((p) => p.id === id)?.nome || '';
     r.suporte.forEach((id) => { auto[id] = papelDe(ps.find((p) => p.id === id), g); papeis[id] = 'sup'; });
@@ -727,8 +738,9 @@ export function remanejar(pessoas, giras, g) {
       passes.push({ m, c: id, fixo: false, remanejado: true });
     });
 
-  // A regra da escala (ver distribuirCambones): o mínimo no Suporte, o 2º cambone pela regra da casa e o resto no
-  // Suporte. Quem vai para o Suporte guarda a função de antes em suporteAuto (o Sortear e o Cancelar desfazem).
+  // A regra da escala (ver distribuirCambones): o mínimo no Suporte, o 2º cambone pela regra da casa, o resto no Suporte
+  // até o máximo e, passando dele, o 2º cambone de qualquer médium. Quem vai para o Suporte guarda a função de antes em
+  // suporteAuto (o Sortear e o Cancelar desfazem).
   const auto = {};
   const mapSup = custosSuporte(giras, g.data);
   const paraSuporte = (c) => {
@@ -737,20 +749,26 @@ export function remanejar(pessoas, giras, g) {
     pa[c] = 'sup';
     notas.push(nome(c) + ' foi para o suporte');
   };
-  const faltam = () => faltamNoSuporte(all.filter((p) => status(p, gx) === 'sup').length);
+  const noSuporte = () => all.filter((p) => status(p, gx) === 'sup').length;
+  const faltam = () => faltamNoSuporte(noSuporte());
   // Os livres em ordem: quem esteve no Suporte há mais tempo primeiro (vai para lá); quem esteve há pouco, por último (cambona).
   livres.sort((a, b) => custoSuporte(mapSup, a) - custoSuporte(mapSup, b));
   // 3) abaixo do mínimo no Suporte: os primeiros livres vão.
   while (faltam() && livres.length) paraSuporte(livres.shift());
   // 4) o 2º cambone (máximo dois) de quem a regra da casa deixa ter, com quem esteve no Suporte há menos tempo.
   const podeSegundo = new Set(comSegundo(R, new Set(passes.map((p) => p.m))));
-  while (livres.length) {
-    const alvo = R.filter((m) => podeSegundo.has(m) && camsDe(m).length < 2);
-    if (!alvo.length) break;
-    const c = livres.pop();
-    add(best(alvo, (m) => custo(map, m, c)), c);
-  }
-  // 5) o resto vai para o Suporte.
+  const segundo = (pode) => {
+    while (livres.length) {
+      const alvo = R.filter((m) => pode(m) && camsDe(m).length < 2);
+      if (!alvo.length) break;
+      const c = livres.pop();
+      add(best(alvo, (m) => custo(map, m, c)), c);
+    }
+  };
+  segundo((m) => podeSegundo.has(m));
+  // 5) o resto vai para o Suporte até o máximo; passando dele, o 2º cambone de qualquer médium; e o que ainda sobrar, Suporte.
+  while (livres.length && cabemNoSuporte(noSuporte()) > 0) paraSuporte(livres.shift());
+  segundo(() => true);
   livres.forEach(paraSuporte);
   // Ainda abaixo do mínimo no Suporte (não sobrou livre): sai o 2º cambone de um médium que tem dois (não fixado).
   while (faltam()) {

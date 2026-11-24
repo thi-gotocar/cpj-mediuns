@@ -53,11 +53,13 @@ async function validarRegras(r) {
     return n;
   };
   const suporteMinimo = inteiro('suporteMinimo', 'Mínimo no Suporte');
+  const suporteMaximo = inteiro('suporteMaximo', 'Máximo no Suporte');
+  if (suporteMaximo && suporteMaximo < suporteMinimo) throw new HttpError(400, 'O máximo no Suporte não pode ser menor que o mínimo.');
   const turmasLimpeza = inteiro('turmasLimpeza', 'Turmas da limpeza');
   if (!SEGUNDO_CAMBONE.some(([k]) => k === r.segundoCambone)) throw new HttpError(400, 'Escolha quem recebe o 2º cambone.');
   const maior = Math.max(0, ...(await db.rpc('pessoas_listar')).map((p) => Number(p.limpeza) || 0));
   if (turmasLimpeza < maior) throw new HttpError(400, `Há gente na turma ${maior} da limpeza. Mude a turma dessas pessoas antes de diminuir.`);
-  return { suporteMinimo, segundoCambone: r.segundoCambone, turmasLimpeza };
+  return { suporteMinimo, suporteMaximo, segundoCambone: r.segundoCambone, turmasLimpeza };
 }
 
 async function acaoPerfil(b) {
