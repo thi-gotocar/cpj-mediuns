@@ -31,6 +31,7 @@ export const estado = {
   transparencia: null, // aba Transparência (GET /api/giras?lista=transparencia)
   asaas: null,         // aba ASAAS: root e quem tem a aba no perfil (GET /api/oferendas?lista=asaas)
   pedidos: null,       // sub-aba Pedidos (Compras, só quem administra): { pedidos, pendencias } (GET /api/oferendas?lista=pedidos)
+  oraculo: null,       // aba Oráculo: agenda, horários ocupados e as consultas de quem está logado (GET /api/oferendas?lista=oraculo)
   diario: null,        // aba Diário: { publicada, root, dias: [{ data, dados }] } de quem está logado (GET /api/pessoas?lista=diario)
   ervasPara: null,     // admin montando o pedido de outra pessoa: { chave?, nome, itens: { ervaId: qtd } }    // 'fornecedor' | 'cobranca' (exportação aberta na aba Ervas)
   pronto: false,

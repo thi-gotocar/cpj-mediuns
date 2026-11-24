@@ -10,7 +10,7 @@ Processo, ambiente e convenções. O que o projeto **é** está em [visao.md](vi
 - Pasta de trabalho: **`C:\Users\Thi\Documents\sort-mediuns`** — é a única cópia que vale.
 - **Quem faz o `git push` é o usuário.** O assistente só faz commit, e só quando o usuário pede.
 - **Nunca testar em produção.** Nada de commits de debug ou tentativa e erro para ver no ar: cada push vira deploy e gasta a cota da Vercel. Testa local e entrega a correção pronta. Vale para qualquer assistente (Claude, Copilot — ver `.github/copilot-instructions.md`).
-- Vercel: projeto `prj_w0Uv5orUUgrBYO3Lod32NusQGkDi`, time `team_zDUClDMlwzMyd5Xsw0oJ962a`. Variáveis: `DATABASE_URL` (Neon), `CODIGO_INSTALACAO`, as `R2_*` das fotos, as `ASAAS_*` do Pix (conta A), as `ASAAS2_*` dos pagamentos em atraso (conta B) e a `CPF_CHAVE` do CPF do Perfil (ver `.env.example`).
+- Vercel: projeto `prj_w0Uv5orUUgrBYO3Lod32NusQGkDi`, time `team_zDUClDMlwzMyd5Xsw0oJ962a`. Variáveis: `DATABASE_URL` (Neon), `CODIGO_INSTALACAO`, as `R2_*` das fotos, as `ASAAS_*` do Pix (conta A), as `ASAAS2_*` dos pagamentos em atraso (conta B) a `CPF_CHAVE` do CPF do Perfil e as `VAPID_*` da notificação do Oráculo (ver `.env.example`).
 - Logs de runtime da Vercel guardam só ~1 hora (Hobby).
 
 ### Fluxo de entrega

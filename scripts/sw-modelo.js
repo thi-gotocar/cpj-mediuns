@@ -89,3 +89,20 @@ self.addEventListener('fetch', (e) => {
     return r || fetch(e.request);
   })());
 });
+
+// Notificação do Oráculo (consulta paga): o aviso vem sem conteúdo (api/_lib/push.js), o texto é este.
+self.addEventListener('push', (e) => {
+  e.waitUntil(self.registration.showNotification('Oráculo de Maria Mulambo', {
+    body: 'Uma consulta foi paga. Toque para ver a agenda.', icon: '/icon-192.png', badge: '/favicon.png', tag: 'oraculo', renotify: true,
+  }));
+});
+// Tocar na notificação: com o app aberto, vai para a aba Oráculo; senão, abre o app nela.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const abertos = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const app = abertos.find((c) => new URL(c.url).origin === location.origin && !ehPaginaPropria(c.url));
+    if (app) { await app.focus(); app.postMessage('abrir-oraculo'); return; }
+    await self.clients.openWindow('/#oraculo');
+  })());
+});

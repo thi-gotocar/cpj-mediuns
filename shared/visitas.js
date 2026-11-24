@@ -9,6 +9,7 @@ export const ABAS_VISITA = [
   ['gira', 'Geral'], ['agenda', 'Gira'], ['hist', 'Histórico'], ['diario', 'Diário'], ['perfil', 'Perfil'],
   ['oferendas', 'Oferendas'], ['ervas', 'Ervas'], ['guias', 'Compras'], ['pedidos', 'Pedidos'], ['asaas', 'ASAAS'],
   ['amaci', 'Amaci'], ['fotos', 'Fotos'], ['curimba', 'Curimba'], ['videos', 'Vídeos'], ['transparencia', 'Transparência'],
+  ['oraculo', 'Oráculo'],
 ];
 export const rotuloAba = (k) => ABAS_VISITA.find(([x]) => x === k)?.[1] || k;
 export const abaValida = (k) => ABAS_VISITA.some(([x]) => x === k);

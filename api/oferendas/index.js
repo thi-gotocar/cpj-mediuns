@@ -14,6 +14,7 @@
 //              GET ?lista=doacoes e POST { acao: 'guias', op: 'doar' } — a doação do bloco da fila na Geral, para qualquer logado.
 //              GET ?lista=guiaFoto&id=<item>&v=<versão> — a foto do item (JPEG, sem sessão, com cache longo).
 //              GET ?lista=pedidos — sub-aba Pedidos (só quem administra as Compras); o andamento muda em POST { acao: 'guias', op: 'andamento' }.
+// Oráculo (veja api/_lib/oraculo.js): GET ?lista=oraculo e POST { acao: 'oraculo', op, ... }; qualquer pessoa logada.
 // ASAAS (veja api/_lib/asaas.js): webhook sem sessão, com token, em POST ?webhook=asaas; aba ASAAS (root e quem tem a aba no perfil) em GET ?lista=asaas e POST { acao: 'asaas', op, ... }.
 // Quem não administra as oferendas vê as publicadas (e doa nelas) e as bloqueadas (sem os itens).
 // O grupo Oferenda (oferendas:ver) vê o mesmo, mas não doa: o admin é quem atribui.
@@ -27,6 +28,7 @@ import { PAGAMENTO_KEYS, ENTREGA_KEYS, grupoOferendaValido, abasOcultas, temAbaP
 import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 import { respostaGuias, acaoGuias, fotoGuia, respostaPedidos, respostaDoacoes } from '../_lib/guias.js';
 import { webhookAsaas, respostaAsaas, acaoAsaas, buscaAsaas } from '../_lib/asaas.js';
+import { respostaOraculo, acaoOraculo, avisarPagos } from '../_lib/oraculo.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 // abas: as sub-abas, quando já vieram junto (a leitura da aba busca as duas em paralelo).
@@ -82,6 +84,7 @@ export default rota({
     if (req.query.lista === 'doacoes') return respostaDoacoes(await exigir(req));
     if (req.query.lista === 'guiaFoto') return fotoGuia(req, res);
     if (req.query.lista === 'asaas') return respostaAsaas(await exigir(req));
+    if (req.query.lista === 'oraculo') return respostaOraculo(await exigir(req), req.query);
     if (req.query.lista === 'asaasbusca') return buscaAsaas(await exigir(req), req.query);
     if (req.query.lista === 'pedidos') return respostaPedidos(await exigir(req));
     // Sessão, oferendas, sub-abas e quantas anteriores ficaram fora numa ida só (só leitura: os novos cadastrados
@@ -94,12 +97,14 @@ export default rota({
     return { ...(await resposta(oferendas, eu, abas)), ...(pode(eu, 'oferendas:gerenciar') ? { anterioresTotal: total, anteriores } : {}) };
   },
   POST: async (req) => {
-    if (req.query.webhook === 'asaas') return webhookAsaas(req);
+    // Conta A: a cobrança do Oráculo paga avisa quem administra (notificação no aparelho).
+    if (req.query.webhook === 'asaas') { const r = await webhookAsaas(req); await avisarPagos(); return r; }
     if (req.query.webhook === 'asaas2') return webhookAsaas(req, 'B');   // conta B: Pix dos itens de doação
     const b = corpo(req);
     if (b.acao === 'iemanja') return acaoIemanja(await exigir(req), b);
     if (b.acao === 'guias') return acaoGuias(await exigir(req), b);
     if (b.acao === 'asaas') return acaoAsaas(await exigir(req), b);
+    if (b.acao === 'oraculo') return acaoOraculo(await exigir(req), b);
     if (b.acao === 'doar') {
       // Sessão, sub-abas e a sub-aba do item numa ida só (antes: sessão, sub-abas e todas as oferendas, uma depois da outra).
       let itemId;

@@ -19,6 +19,7 @@ export const ABAS = [
   { k: 'videos', nome: 'Vídeos', ver: 'A aba Vídeos: assistir aos vídeos das giras.', editar: 'Publicar, classificar e excluir vídeos.' },
   { k: 'perfil', nome: 'Perfil', ver: 'O próprio perfil (orixás, guias e a própria Anamnese).', editar: 'Admin do perfil: ver o perfil de todos e as pendências, e a Anamnese (cadastrar perguntas, ver as respostas de todos e compartilhar).' },
   { k: 'transparencia', nome: 'Transparência', ver: 'O Painel da Transparência mesmo quando ele não está visível para a corrente.', editar: 'Lançar débitos e o aporte de cada mês e ligar Visível para a corrente.' },
+  { k: 'oraculo', nome: 'Oráculo', ver: 'Ver as consultas de todos na agenda do Oráculo (agendar a própria, todos podem).', editar: 'Agenda do Oráculo: horários, bloqueios, limite por dia, cancelar consultas, taxa do presencial e o aviso de consulta paga.' },
   { k: 'asaas', nome: 'ASAAS', ver: 'A aba ASAAS: os links de pagamento das Compras e o retorno do ASAAS.', editar: 'Ligar o Pix nas Compras e cancelar links de pagamento.' },
   // Os eventos da casa são só do Admin root; o que sobrou desta permissão é a moderação das orações (aba Geral).
   { k: 'eventos', nome: 'Orações (moderar)', ver: 'Nada a mais (todos já pedem oração e acendem vela).', editar: 'Excluir o pedido de oração de qualquer pessoa.' },
@@ -26,7 +27,7 @@ export const ABAS = [
 export const ABA_KEYS = ABAS.map((a) => a.k);
 // Ordem fixa das permissões na lista de cada perfil (a das abas antes da tabela seguir o menu): mudar a ordem
 // das linhas na tela não muda a lista que vai para o app nem quebra quem compara a lista.
-const ORDEM_PERMISSOES = ['gira', 'pessoas', 'alunos', 'hist', 'ervas', 'oferendas', 'guias', 'eventos', 'perfil', 'curimba', 'videos', 'amaci', 'fotos', 'asaas', 'transparencia'];
+const ORDEM_PERMISSOES = ['gira', 'pessoas', 'alunos', 'hist', 'ervas', 'oferendas', 'guias', 'eventos', 'perfil', 'curimba', 'videos', 'amaci', 'fotos', 'asaas', 'transparencia', 'oraculo'];
 
 const MAPA = {
   gira: { ver: ['giras:ler'], editar: ['giras:editar', 'giras:sortear'] },
@@ -44,6 +45,7 @@ const MAPA = {
   amaci: { ver: ['amaci:ver'], editar: ['amaci:editar'] },
   asaas: { ver: ['asaas:ver'], editar: ['asaas:editar'] },
   transparencia: { ver: ['transparencia:ver'], editar: ['transparencia:editar'] },
+  oraculo: { ver: ['oraculo:ver'], editar: ['oraculo:gerenciar'] },
 };
 // Todo mundo logado vê os nomes da corrente (para mostrar as duplas, os pedidos etc.).
 const BASE = ['pessoas:ler'];

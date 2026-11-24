@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, cadastrar, criarSenhaContato, verificarCpf, entrarCpf, criarSenhaCpf, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar, definirVerComo } from './api.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veAmaci, veTransparencia, vePedidos, veDiario, vePessoas, temPendencia } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veAmaci, veTransparencia, vePedidos, veDiario, veOraculo, vePessoas, temPendencia } from './estado.js';
 import { esc, toast, hoje, mascaraTel, guardarRascunhos, devolverRascunhos, guardarTela, devolverTela } from './util.js';
 import { PIN_NOVO, PIN_NOVO_MSG } from '/shared/permissoes.js';
 import { cpfValido } from '/shared/perfil.js';
@@ -31,6 +31,7 @@ const SOB_DEMANDA = {
   asaas: () => import('./telas/asaas.js'),
   pedidos: () => import('./telas/pedidos.js'),
   diario: () => import('./telas/diario.js'),
+  oraculo: () => import('./telas/oraculo.js'),
   transparencia: () => import('./telas/transparencia.js'),
   perfil: () => import('./telas/perfil.js'),
   videos: () => import('./telas/videos.js'),
@@ -141,15 +142,15 @@ function render() {
   const visao = visaoAtiva();
   // Abas que o perfil pode ver.
   let VE = { usuarios: pode('usuarios:gerenciar'), asaas: pode('asaas:ver'), pedidos: vePedidos(), transparencia: veTransparencia(), ervas: veErvas(), oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(),
-    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), fila: fila.veFila(), gira: true, agenda: true };
-  if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: false, fotos: false, diario: veDiario(), gira: true, agenda: false };
+    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), fila: fila.veFila(), oraculo: veOraculo(), gira: true, agenda: true };
+  if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: false, fotos: false, diario: veDiario(), oraculo: veOraculo(), gira: true, agenda: false };
   // Consulente: a Geral e as abas que o root marcou no perfil Consulentes (Perfil, Compras, Amaci, Vídeos).
   if (visao === 'alunos' && estado.me.consulente) Object.assign(VE, { oferendas: false, perfil: pode('perfil:ver'), guias: veGuias(), amaci: veAmaci(), videos: pode('videos:ver') || !!estado.me.videosPublicada });
   // Grupo Oferenda: só a Geral e a aba Oferendas.
-  if (visao === 'alunos' && estado.me.grupoOferenda) VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: false, amaci: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, diario: false, gira: true, agenda: false };
+  if (visao === 'alunos' && estado.me.grupoOferenda) VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: false, amaci: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, diario: false, oraculo: veOraculo(), gira: true, agenda: false };
   // Aluno sem turma (cadastro novo pelo login): só a Geral, até a administração colocá-lo numa turma.
-  if (visao === 'alunos' && estado.me.aguardando) VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: false, guias: false, amaci: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, diario: false, gira: true, agenda: false };
-  if (visao === 'curimba') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: false, guias: veGuias(), amaci: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, diario: false, gira: true, agenda: false };
+  if (visao === 'alunos' && estado.me.aguardando) VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: false, guias: false, amaci: false, hist: false, perfil: false, curimba: false, videos: false, fotos: false, diario: false, oraculo: veOraculo(), gira: true, agenda: false };
+  if (visao === 'curimba') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: false, guias: veGuias(), amaci: false, hist: false, perfil: false, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, diario: false, oraculo: false, gira: true, agenda: false };
   // Botão do topo de um grupo que a pessoa não vê (ex.: só o ASAAS, sem Compras): abre a primeira sub-aba que ela vê.
   const grupoAberto = grupoDa(prefs.tab);
   if (grupoAberto && prefs.tab === grupoAberto.topo && !VE[prefs.tab]) prefs.tab = grupoAberto.subs.find(([k]) => VE[k])?.[0] || prefs.tab;
@@ -224,6 +225,8 @@ async function iniciar() {
   main.innerHTML = '<div class="loading">Carregando a corrente…</div>';
   // Ao abrir o app (ou entrar), começa em Geral; a visão root começa no perfil Root.
   prefs.tab = 'gira';
+  // Aberto pela notificação do Oráculo (consulta paga): começa na aba Oráculo.
+  if (location.hash === '#oraculo') { prefs.tab = 'oraculo'; history.replaceState(null, '', location.pathname + location.search); }
   estado.visaoRoot = 'root';
   try {
     await carregarTudo();
@@ -232,6 +235,12 @@ async function iniciar() {
     main.innerHTML = `<div class="card"><p class="erro">${esc(e.message)}</p><button class="btn" data-conta="recarregar">Tentar de novo</button></div>`;
   }
 }
+
+// Toque na notificação com o app já aberto: o service worker pede para ir à aba Oráculo.
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data !== 'abrir-oraculo' || !logado() || !estado.pronto) return;
+  tabs.querySelector('[data-tab="oraculo"]')?.click();
+});
 
 quandoSessaoExpirar(() => {
   definirVerComo('');
@@ -245,6 +254,7 @@ quandoSessaoExpirar(() => {
   estado.asaas = null;
   estado.transparencia = null;
   estado.diario = null;
+  estado.oraculo = null;
   estado.perfil = null;
   estado.curimba = null;
   estado.videos = null;
@@ -276,6 +286,8 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'pedidos') { atualizarAoAbrir('pedidos', '/oferendas?lista=pedidos'); TELAS.pedidos?.limpar(); }
   // Diário: volta ao dia de hoje.
   if (b.dataset.tab === 'diario') { atualizarAoAbrir('diario', '/pessoas?lista=diario'); TELAS.diario?.limpar(); }
+  // Oráculo: horários mudam a cada reserva; a tela volta ao calendário.
+  if (b.dataset.tab === 'oraculo') { atualizarAoAbrir('oraculo', '/oferendas?lista=oraculo'); TELAS.oraculo?.limpar(); }
   // Transparência: volta ao mês atual (o guardado só serve se já for o do mês atual).
   if (b.dataset.tab === 'transparencia') {
     if (estado.transparencia?.mes === hoje().slice(0, 7)) atualizarAoAbrir('transparencia', '/giras?lista=transparencia');
@@ -308,7 +320,7 @@ async function cliqueConta(e) {
     sair();
     definirVerComo('');
     Object.assign(estado, { verComo: '', meRoot: null, vcLista: { pessoas: [], alunos: [] } });
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, infoPessoa: null, pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' }, recadoTxt: null, tituloTxt: null, usuarios: null, ervas: null, guias: null, amaci: null, asaas: null, transparencia: null, diario: null, iemanja: null, ervasPara: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, infoPessoa: null, pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' }, recadoTxt: null, tituloTxt: null, usuarios: null, ervas: null, guias: null, amaci: null, asaas: null, transparencia: null, diario: null, oraculo: null, iemanja: null, ervasPara: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {

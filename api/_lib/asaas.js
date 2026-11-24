@@ -280,6 +280,56 @@ export async function conferirReservas(chave, estrito = false) {
   return achados;
 }
 
+// ---------- cobrança avulsa (aba Oráculo, conta A) ----------
+// A reserva { id, valor } já está presa no banco (o valor sai de lá). Cria o cliente se a pessoa ainda não tem, a
+// cobrança Pix e grava o link. Mesmo cuidado do gerarNaConta: sem resposta do ASAAS, a reserva fica para ser conferida.
+export async function cobrarAvulso(eu, chave, reserva, descricao, b) {
+  let pg;
+  try {
+    let cliente = (await db.rpc('asaas_minhas', { chave })).cliente;
+    if (!cliente) {
+      const cpf = await cpfParaCliente(eu, chave, b, null);
+      if (!cpf) throw new HttpError(400, 'Informe um CPF válido para gerar o link de pagamento.');
+      cliente = (await chamarAsaas('ASAAS', 'POST', '/customers', { name: eu.nome, cpfCnpj: cpf, externalReference: chave, notificationDisabled: true })).id;
+      await db.rpc('asaas_cliente_salvar', { chave, conta: 'A', clienteId: cliente });
+    }
+    pg = await chamarAsaas('ASAAS', 'POST', '/payments', {
+      customer: cliente, billingType: 'PIX', value: Number(reserva.valor), dueDate: amanhaBR(), description: descricao, externalReference: reserva.id,
+    });
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 502) {
+      const achada = await buscarPelaReserva(reserva.id).catch(() => null);
+      if (achada) { await gravarCobranca(reserva.id, achada); return; }
+      throw new HttpError(502, 'O ASAAS está demorando para responder. Aguarde uns segundos e toque de novo (não vai sair um link repetido).');
+    }
+    await db.rpc('asaas_cobranca_desfazer', { id: reserva.id }).catch(() => {});
+    throw e;
+  }
+  await gravarCobranca(reserva.id, pg);
+}
+
+// Pergunta ao ASAAS se a cobrança já foi paga (a tela do Oráculo, enquanto espera). Paga: processa como o webhook
+// (o evento tem id próprio; o aviso do webhook que chegar depois vira "já estava paga"). Devolve se está paga.
+export async function conferirPagamento(asaasId) {
+  if (!process.env.ASAAS_API_KEY) return false;
+  const real = await chamarAsaas('ASAAS', 'GET', `/payments/${encodeURIComponent(asaasId)}`, null, 5000);
+  if (!PAGO.includes(real.status)) return false;
+  await db.rpc('asaas_evento_processar', {
+    id: 'conferido:' + asaasId, evento: 'PAYMENT_RECEIVED', paymentId: asaasId, referencia: real.externalReference || null,
+    dados: { payment: { id: asaasId, status: real.status, value: real.value, description: real.description } },
+    conferido: { status: real.status, valor: Number(real.value) },
+  });
+  return true;
+}
+
+// Cancela no ASAAS uma cobrança pendente e marca como cancelada. Falha no ASAAS só fica no log (o link vence sozinho).
+export async function cancelarNoAsaas({ id, asaasId }) {
+  try { if (asaasId) await chamarAsaas('ASAAS', 'DELETE', `/payments/${encodeURIComponent(asaasId)}`, null, 5000); } catch (e) {
+    console.error('[asaas] cancelar', asaasId, e?.message || e);
+  }
+  await db.rpc('asaas_cobranca_cancelar', { id });
+}
+
 // ---------- webhook ----------
 // conta 'A' (POST ?webhook=asaas, ASAAS_WEBHOOK_TOKEN) ou 'B' (POST ?webhook=asaas2, ASAAS2_WEBHOOK_TOKEN: Pix das doações).
 export async function webhookAsaas(req, conta = 'A') {

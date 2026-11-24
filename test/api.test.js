@@ -3577,3 +3577,154 @@ test('v177: chamar em lote por tipo — Chamar Atendimento chama só atendimento
   assert.equal((await api('POST', rota, ADMIN, { acao: 'filaChamar', fila: 'atendimento', tipo: 'atendimento', quantidade: 10 })).status, 409, 'ninguém mais de atendimento');
   await api('DELETE', rota, ADMIN);
 });
+
+test('v181: Oráculo — agenda, reserva travada, pagamento conferido no ASAAS, reagendar, presencial e cancelar', async () => {
+  const { somarDias, agoraBR } = await import('../shared/oraculo.js');
+  const fetchReal = globalThis.fetch;
+  const falso = { status: 'PENDING', n: 0, valores: {}, value: 0, deletados: [] };
+  globalThis.fetch = async (url, op = {}) => {
+    const u = String(url);
+    if (!u.startsWith('http://asaas.teste/v3')) return fetchReal(url, op);
+    const caminho = u.slice('http://asaas.teste/v3'.length);
+    const json = (st, j) => new Response(JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
+    if (op.method === 'POST' && caminho === '/customers') return json(200, { id: 'cus_oraculo' });
+    if (op.method === 'POST' && caminho === '/payments') {
+      const b = JSON.parse(op.body);
+      const id = 'pay_or' + (++falso.n);
+      falso.valores[id] = b.value;
+      falso.value = b.value;
+      falso.descricao = b.description;
+      return json(200, { id, value: b.value, dueDate: b.dueDate, invoiceUrl: 'https://sandbox.asaas.com/i/' + id, externalReference: b.externalReference, billingType: 'PIX' });
+    }
+    if (op.method === 'GET' && caminho.endsWith('/pixQrCode')) return json(200, { payload: '00020126ORACULO', encodedImage: 'iVBORw0KGgo=' });
+    if (op.method === 'GET' && caminho.startsWith('/payments/')) { const id = caminho.split('/')[2]; return json(200, { id, status: falso.status, value: falso.valores[id] }); }
+    if (op.method === 'DELETE') { falso.deletados.push(caminho); return json(200, { deleted: true }); }
+    return json(404, { errors: [{ description: 'não encontrado' }] });
+  };
+  const nomes = ['ASAAS_API_KEY', 'ASAAS_WEBHOOK_TOKEN', 'ASAAS_API_URL'];
+  const env = Object.fromEntries(nomes.map((k) => [k, process.env[k]]));
+  Object.assign(process.env, { ASAAS_API_KEY: 'chave-teste', ASAAS_WEBHOOK_TOKEN: 'token-teste', ASAAS_API_URL: 'http://asaas.teste/v3' });
+  const or = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'oraculo', ...b });
+  const tela = (tok, extra = '') => api('GET', '/api/oferendas?lista=oraculo' + extra, tok);
+  const hook = (corpo) => fetchReal(base + '/api/oferendas?webhook=asaas', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'asaas-access-token': 'token-teste' }, body: JSON.stringify(corpo),
+  }).then((r) => r.status);
+  try {
+    // Nasce desligado: só quem administra vê; quem administra liga o Visível para todos.
+    assert.equal((await tela(USER)).status, 403);
+    assert.equal((await or(USER, { op: 'reservar', data: '2030-01-01', hora: '14:00' })).status, 403);
+    assert.equal((await api('GET', '/api/auth/me', USER)).json.oraculoPublicado, false);
+    assert.equal((await or(USER, { op: 'publicar', publicado: true })).status, 403);
+    let p = await or(ADMIN, { op: 'publicar', publicado: true });
+    assert.equal(p.json.publicado, true, JSON.stringify(p.json));
+    assert.equal((await api('GET', '/api/auth/me', USER)).json.oraculoPublicado, true);
+    // Só quem administra mexe na agenda; a configuração é validada no servidor.
+    const config = { horarios: ['14:00', '15:30'], dias: [0, 1, 2, 3, 4, 5, 6], limiteDia: 1, diasFuturos: 30, valor: '290', contato: '11985546979' };
+    assert.equal((await or(USER, { op: 'config', config })).status, 403);
+    assert.match((await or(ADMIN, { op: 'config', config: { ...config, horarios: ['14:00', '14:30'] } })).json.erro, /1 hora/);
+    let r = await or(ADMIN, { op: 'config', config });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual(r.json.config.horarios, ['14:00', '15:30']);
+    assert.ok(Array.isArray(r.json.todas), 'o root vê as consultas de todos');
+    r = await tela(USER);
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.equal(r.json.todas, null, 'quem não administra não vê as consultas dos outros');
+    assert.equal(r.json.admin, false);
+
+    const d1 = somarDias(agoraBR().data, 2);
+    const d2 = somarDias(agoraBR().data, 3);
+    assert.equal((await or(USER, { op: 'reservar', data: somarDias(agoraBR().data, -1), hora: '14:00' })).status, 400, 'dia que passou');
+    assert.equal((await or(USER, { op: 'reservar', data: d1, hora: '09:00' })).status, 400, 'horário fora da agenda');
+    r = await or(USER, { op: 'reservar', data: d1, hora: '14:00' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    let c = r.json.minhas[0];
+    assert.deepEqual([c.data, c.hora, c.status], [d1, '14:00', 'reservada']);
+    // O horário fica preso para os outros; o limite do dia (1) também fecha o 15:30.
+    assert.equal((await or(ADMIN, { op: 'reservar', data: d1, hora: '14:00' })).status, 409);
+    assert.equal((await or(ADMIN, { op: 'reservar', data: d1, hora: '15:30' })).status, 409, 'dia cheio');
+    assert.ok((await tela(ADMIN)).json.ocupados.some((o) => o.data === d1 && o.hora === '14:00'));
+
+    // Dados e link de pagamento: o valor vem da agenda, nunca do navegador.
+    assert.match((await or(USER, { op: 'pagar', id: c.id, nome: 'Cliente Teste', nascimento: '31/02/90', mae: 'Mãe Teste', whatsapp: '11999990000' })).json.erro, /nascimento/);
+    r = await or(USER, { op: 'pagar', id: c.id, nome: 'Cliente Teste', nascimento: '05/03/88', mae: 'Maria Teste', whatsapp: '(11) 99999-0000', cpf: '529.982.247-25', presencial: false, valor: 1 });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([falso.value, falso.descricao], [290, 'Oráculo - Maria Mulambo']);
+    c = r.json.minhas[0];
+    assert.deepEqual([c.nascimento, c.whatsapp, c.cobrancas[0].status, c.cobrancas[0].pixPayload], ['05/03/1988', '11999990000', 'pendente', '00020126ORACULO']);
+    assert.equal(sql(`select count(*) from asaas_cobrancas where oraculo_id = '${c.id}'`), '1');
+    assert.equal((await or(USER, { op: 'pagar', id: c.id, nome: 'Cliente Teste', nascimento: '05/03/88', mae: 'Maria Teste', whatsapp: '11999990000' })).status, 200);
+    assert.equal(sql(`select count(*) from asaas_cobrancas where oraculo_id = '${c.id}'`), '1', 'tocar de novo não gera outro link');
+    // As Compras não mostram a cobrança do Oráculo.
+    assert.ok(!((await api('GET', '/api/oferendas?lista=guias', USER)).json.cobrancas || []).some((x) => x.valor === 290));
+
+    // A tela pergunta ao ASAAS: pendente não confirma; pago confirma e marca o aviso como dado.
+    assert.equal((await tela(USER, '&conferir=1')).json.minhas[0].status, 'reservada');
+    falso.status = 'RECEIVED';
+    r = await tela(USER, '&conferir=1');
+    c = r.json.minhas[0];
+    assert.equal(c.status, 'confirmada', JSON.stringify(c));
+    assert.ok(c.pagoEm);
+    assert.equal(sql(`select avisar from oraculo_consultas where id = '${c.id}'`), 'f', 'o aviso foi consumido');
+    assert.equal(sql(`select resultado from asaas_eventos where id = 'conferido:pay_or1'`), 'paga (Oráculo)');
+    // O webhook que chega depois não repete nada.
+    assert.equal(await hook({ id: 'evt_or1', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_or1', value: 290 } }), 200);
+    assert.equal(sql(`select resultado from asaas_eventos where id = 'evt_or1'`), 'já estava paga');
+
+    // Com consulta marcada, não reserva outra: reagenda sem pagar de novo.
+    assert.match((await or(USER, { op: 'reservar', data: d2, hora: '14:00' })).json.erro, /Reagendar/);
+    r = await or(USER, { op: 'reservar', data: d2, hora: '15:30', consultaId: c.id });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([r.json.minhas[0].data, r.json.minhas[0].hora, r.json.minhas[0].status], [d2, '15:30', 'confirmada']);
+    assert.equal(sql(`select count(*) from asaas_cobrancas where oraculo_id = '${c.id}'`), '1');
+    assert.ok(!(await tela(ADMIN)).json.ocupados.some((o) => o.data === d1), 'o horário antigo ficou livre');
+
+    // Presencial: o cliente pede, a admin aceita com a taxa, o cliente paga; o webhook confirma.
+    assert.equal((await or(USER, { op: 'presencial', id: c.id })).status, 200);
+    assert.equal((await or(USER, { op: 'responderPresencial', id: c.id, aceitar: true, valor: '80' })).status, 403);
+    assert.equal((await or(ADMIN, { op: 'responderPresencial', id: c.id, aceitar: true, valor: '' })).status, 400);
+    r = await or(ADMIN, { op: 'responderPresencial', id: c.id, aceitar: true, valor: '80,00' });
+    const naAgenda = r.json.todas.find((x) => x.id === c.id);
+    assert.deepEqual([naAgenda.presencial, naAgenda.presencialValor], ['aceito', 80]);
+    falso.status = 'PENDING';
+    r = await or(USER, { op: 'pagarPresencial', id: c.id });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.equal(falso.value, 80);
+    falso.status = 'RECEIVED';
+    assert.equal(await hook({ id: 'evt_or2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_or2', value: 80 } }), 200);
+    assert.equal((await tela(USER)).json.minhas[0].presencial, 'pago');
+
+    // A admin cancela: sai a mensagem para o WhatsApp do cliente e o horário fica livre.
+    r = await or(ADMIN, { op: 'cancelar', id: c.id, motivo: 'imprevisto da casa' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.match(r.json.cancelada.mensagem, /Precisamos cancelar.*\n\nMotivo: imprevisto da casa/s);
+    assert.match(r.json.cancelada.mensagem, /não perde o que pagou/);
+    assert.equal(r.json.cancelada.whatsapp, '11999990000');
+    assert.equal((await tela(USER)).json.minhas[0].status, 'cancelada');
+
+    // Reserva ainda não paga: desistir cancela o link no ASAAS; bloqueio da admin fecha o horário.
+    falso.status = 'PENDING';
+    r = await or(USER, { op: 'reservar', data: d1, hora: '14:00' });
+    c = r.json.minhas.find((x) => x.status === 'reservada');
+    await or(USER, { op: 'pagar', id: c.id, nome: 'Cliente Teste', nascimento: '05/03/88', mae: 'Maria Teste', whatsapp: '11999990000' });
+    assert.match((await or(USER, { op: 'reservar', data: d2, hora: '14:00' })).json.erro, /link de pagamento/);
+    assert.equal((await or(USER, { op: 'desistir', id: c.id })).status, 200);
+    assert.ok(falso.deletados.includes('/payments/pay_or3'));
+    assert.equal((await or(USER, { op: 'bloquear', data: d2, hora: '14:00', bloquear: true })).status, 403);
+    assert.equal((await or(ADMIN, { op: 'bloquear', data: d2, hora: '14:00', bloquear: true })).status, 200);
+    assert.equal((await or(USER, { op: 'reservar', data: d2, hora: '14:00' })).status, 409, 'horário bloqueado');
+    assert.equal((await or(ADMIN, { op: 'bloquear', data: d2, hora: '', bloquear: true })).status, 200);
+    assert.equal((await or(USER, { op: 'reservar', data: d2, hora: '15:30' })).status, 400, 'dia todo bloqueado');
+
+    // Aviso no aparelho: só quem administra inscreve; endereço precisa ser https.
+    assert.equal((await or(USER, { op: 'push', endpoint: 'https://push.teste/1' })).status, 403);
+    assert.equal((await or(ADMIN, { op: 'push', endpoint: 'http://push.teste/1' })).status, 400);
+    assert.equal((await or(ADMIN, { op: 'push', endpoint: 'https://push.teste/1' })).status, 200);
+    assert.equal((await or(ADMIN, { op: 'push', endpoint: 'https://push.teste/1', remover: true })).status, 200);
+  } finally {
+    globalThis.fetch = fetchReal;
+    for (const k of nomes) { if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
+    sql(`update sistema set valor = '{}' where chave = 'oraculo_config'`);
+    sql('delete from oraculo_bloqueios');
+    sql(`update sistema set valor = 'false' where chave = 'oraculo_publicado'`);
+  }
+});

@@ -1,0 +1,137 @@
+/* Aba Oráculo de Maria Mulambo. Carregado só quando a aba abre (frontend/js/telas/oraculo.js), fora do estilo.css.
+   Vermelho e preto com detalhes dourados; Alegreya (a serifa do app) no título. */
+.oc,.oc-adm{
+  --oc-preto:#000; --oc-vinho:#2b070b; --oc-vermelho:#a3161f; --oc-rubi:#d42a35;
+  --oc-ouro:#c9a24a; --oc-ouro-claro:#ecd28c; --oc-tinta:#f4ead8; --oc-apagado:#8f8173; --oc-fio:rgba(201,162,74,.35);
+}
+.oc{
+  position:relative; overflow:hidden; color:var(--oc-tinta); border-radius:18px; padding:22px 16px 18px;
+  background:radial-gradient(120% 60% at 50% 0%,#4a0d14 0%,var(--oc-vinho) 38%,var(--oc-preto) 78%);
+  border:1px solid var(--oc-fio); font-family:var(--f-body);
+}
+.oc a{color:var(--oc-ouro-claro)}
+.oc :focus-visible{outline:2px solid var(--oc-ouro-claro); outline-offset:2px}
+
+/* topo: o nome é o que se vê primeiro; a chama atrás dele é o único efeito da tela */
+.oc-topo{text-align:center; position:relative; padding-bottom:6px}
+.oc-topo::before{content:""; position:absolute; left:50%; top:62px; width:220px; height:120px; transform:translateX(-50%);
+  background:radial-gradient(closest-side,rgba(236,150,60,.28),rgba(212,42,53,.12) 55%,transparent); pointer-events:none;
+  animation:oc-chama 5s ease-in-out infinite alternate}
+@keyframes oc-chama{from{opacity:.75; transform:translateX(-50%) scale(.96)} to{opacity:1; transform:translateX(-50%) scale(1.04)}}
+.oc-selo{display:block; margin:0 auto 10px; border-radius:50%; border:1px solid var(--oc-ouro); background:#120405; object-fit:contain}
+.oc-pre{margin:0; color:var(--oc-ouro); font-family:var(--f-display); font-size:1.05rem; letter-spacing:.32em; font-variant:small-caps}
+.oc-tit{position:relative; margin:0; font-family:var(--f-display); font-weight:500; font-size:clamp(2.3rem,11vw,3rem); line-height:1.02;
+  color:var(--oc-tinta); text-shadow:0 0 18px rgba(236,150,60,.35)}
+.oc-rosa{display:block; width:120px; height:24px; margin:8px auto 4px; color:var(--oc-ouro)}
+.oc-sub{margin:0; color:var(--oc-ouro-claro); font-size:.95rem; letter-spacing:.06em}
+
+.oc-bloco{margin-top:18px; display:flex; flex-direction:column; gap:12px}
+.oc-h2{margin:0; text-align:center; font-family:var(--f-display); font-weight:500; font-size:1.35rem; color:var(--oc-tinta)}
+.oc-h3{margin:4px 0 0; text-align:center; font-weight:500; font-size:1rem; color:var(--oc-ouro-claro)}
+.oc-dica{margin:0; text-align:center; color:var(--oc-apagado); font-size:.9rem; line-height:1.45}
+.oc-resumo{margin:0; text-align:center; font-size:1.02rem}
+.oc-aviso{margin:0; padding:10px 12px; border-radius:10px; border:1px solid var(--oc-fio); background:rgba(201,162,74,.07); font-size:.93rem; line-height:1.45}
+.oc-aviso p{margin:0 0 8px}
+.oc-aviso.forte{border-color:var(--oc-rubi); background:rgba(212,42,53,.12)}
+
+/* calendário */
+.oc-cal{border-top:1px solid var(--oc-fio); border-bottom:1px solid var(--oc-fio); padding:10px 0}
+.oc-cal-cab{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px}
+.oc-cal-cab b{font-family:var(--f-display); font-size:1.15rem; color:var(--oc-ouro-claro); font-weight:500}
+.oc-seta{width:40px; height:40px; border:0; background:none; color:var(--oc-ouro); font-size:1.7rem; cursor:pointer; border-radius:50%}
+.oc-seta:disabled{opacity:.2; cursor:default}
+.oc-grade{display:grid; grid-template-columns:repeat(7,1fr); gap:6px 2px; justify-items:center}
+.oc-sem{font-size:.78rem; color:var(--oc-apagado); padding-bottom:2px}
+.oc-dia{width:40px; height:40px; border-radius:50%; display:grid; place-items:center; font-size:.98rem; font-family:inherit; color:var(--oc-apagado); border:1px solid transparent; background:none}
+.oc-dia.fora{opacity:.45}
+.oc-dia.livre{color:var(--oc-tinta); border-color:var(--oc-ouro); background:radial-gradient(circle at 50% 35%,#3a2a12,#160d05); cursor:pointer}
+.oc-dia.hoje:not(.sel){box-shadow:inset 0 0 0 2px rgba(236,210,140,.25)}
+.oc-dia.sel{color:#fff; border-color:var(--oc-ouro-claro); background:radial-gradient(circle at 50% 35%,var(--oc-rubi),#5d0910);
+  box-shadow:0 0 0 3px rgba(212,42,53,.35),0 0 16px rgba(212,42,53,.7)}
+
+/* horários */
+.oc-horas{display:grid; grid-template-columns:repeat(auto-fill,minmax(82px,1fr)); gap:8px}
+.oc-hora{height:46px; border-radius:10px; font:600 1.05rem var(--f-body); display:grid; place-items:center;
+  color:#2a1a05; border:1px solid var(--oc-ouro-claro); background:linear-gradient(180deg,#f0d690,#c49a3f); cursor:pointer}
+.oc-hora.sel{color:#fff; border-color:var(--oc-ouro-claro); background:linear-gradient(180deg,var(--oc-rubi),#7c0d15); box-shadow:0 0 14px rgba(212,42,53,.6)}
+.oc-hora.tomado{color:#7a7570; background:#2a2827; border-color:#3a3735; cursor:default}
+
+/* botões */
+.oc-cta{width:100%; min-height:52px; border-radius:12px; border:1px solid var(--oc-ouro); cursor:pointer;
+  font:500 1.25rem var(--f-display); color:#fff; background:linear-gradient(180deg,#c21f2a,#7d0c14); box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+.oc-cta:disabled{opacity:.45; cursor:default}
+.oc-sec{display:block; width:100%; box-sizing:border-box; min-height:44px; padding:10px 12px; border-radius:10px; text-align:center; text-decoration:none;
+  font:600 .98rem var(--f-body); color:var(--oc-ouro-claro); background:transparent; border:1px solid var(--oc-ouro); cursor:pointer}
+.oc-link{align-self:center; border:0; background:none; color:var(--oc-ouro-claro); font:inherit; font-size:.92rem; text-decoration:underline; cursor:pointer; padding:8px}
+.oc-acoes{display:flex; justify-content:center; gap:8px; flex-wrap:wrap}
+
+/* formulário */
+.oc-campo{display:flex; flex-direction:column; gap:4px; font-size:.88rem; color:var(--oc-ouro-claro)}
+.oc-campo input,.oc-in{min-height:44px; box-sizing:border-box; width:100%; border-radius:10px; padding:8px 12px; font:1rem var(--f-body);
+  color:var(--oc-tinta); background:rgba(0,0,0,.55); border:1px solid var(--oc-fio)}
+.oc-campo input:focus,.oc-in:focus{border-color:var(--oc-ouro-claro); outline:none}
+.oc-check{display:flex; gap:10px; align-items:flex-start; font-size:.92rem; line-height:1.4}
+.oc-check input{width:20px; height:20px; margin-top:1px; accent-color:var(--oc-rubi); flex:none}
+
+/* pagamento */
+.oc-pix{display:flex; flex-direction:column; gap:10px; align-items:stretch}
+.oc-ok{margin:0; text-align:center; color:var(--oc-ouro-claro); font-weight:600}
+.oc-qr{align-self:center; background:#fff; padding:8px; border-radius:10px}
+.oc-espera{display:flex; align-items:center; justify-content:center; gap:10px; margin:0; padding:12px; border-radius:10px;
+  border:1px dashed var(--oc-ouro); font-size:.95rem; text-align:left}
+.oc-vela{width:8px; height:14px; border-radius:50% 50% 45% 45%; flex:none; background:radial-gradient(circle at 50% 70%,#fff3c4,#f0a23a 60%,#d42a35);
+  box-shadow:0 0 10px #f0a23a; animation:oc-vela 1.4s ease-in-out infinite alternate}
+@keyframes oc-vela{from{transform:scaleY(.85); opacity:.8} to{transform:scaleY(1.1); opacity:1}}
+
+/* consulta marcada */
+.oc-marcada{text-align:center}
+.oc-selo-st{margin:0 auto; padding:3px 12px; border-radius:20px; border:1px solid var(--oc-ouro); color:var(--oc-ouro-claro); font-size:.85rem}
+.oc-quando{margin:0; display:flex; flex-direction:column; font-family:var(--f-display); font-size:1.15rem; color:var(--oc-tinta)}
+.oc-quando b{font-size:2.6rem; font-weight:500; color:var(--oc-ouro-claro); line-height:1.1}
+.oc-modo{margin:0; color:var(--oc-apagado)}
+.oc-modo.pres{color:#fff; font-weight:600}
+.oc-dados{display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:0; text-align:left; font-size:.92rem;
+  padding:10px 12px; border-radius:10px; background:rgba(0,0,0,.35)}
+.oc-dados dt{color:var(--oc-apagado)} .oc-dados dd{margin:0; overflow-wrap:anywhere}
+
+.oc-rodape{margin-top:22px; padding-top:12px; border-top:1px solid var(--oc-fio); display:flex; flex-direction:column; align-items:center; gap:2px; font-size:.86rem; color:var(--oc-apagado)}
+.oc-rodape b{color:var(--oc-tinta); letter-spacing:.04em}
+.oc-whats{margin-top:6px}
+
+/* admin */
+.card.adm.oc-adm::before{content:"ADMIN ORÁCULO"}
+.oc-adm h2{margin-top:0}
+.oc-pub{margin-bottom:2px}
+.oc-adm-abas{display:flex; gap:6px; margin-bottom:10px}
+.oc-adm-aba{flex:1; min-height:40px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:600 .92rem var(--f-body); cursor:pointer}
+.oc-adm-aba.sel{border-color:var(--gold); color:var(--gold)}
+.oc-adm .oc-dica{text-align:left; color:var(--muted)}
+.oc-adm .oc-sec{color:var(--gold); border-color:var(--gold); margin-top:8px}
+.oc-adm .oc-campo{color:var(--muted)}
+.oc-adm .oc-campo input,.oc-adm .oc-in{color:var(--ink); background:var(--bg); border-color:var(--line)}
+.oc-adm .oc-aviso{border-color:var(--gold); margin-bottom:10px}
+.oc-adm-dia{margin:12px 0 4px; font-size:.95rem; color:var(--gold); font-weight:600}
+.oc-adm-lista,.oc-adm-horas{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+.oc-adm-c{padding:8px 10px; border-radius:8px; background:var(--bg); border-left:3px solid var(--gold)}
+.oc-adm-c.st-reservada{border-left-color:var(--warn)}
+.oc-adm-c.st-conflito{border-left-color:var(--off)}
+.oc-adm-l1{display:flex; flex-wrap:wrap; gap:6px; align-items:baseline}
+.oc-adm-l2{font-size:.85rem; color:var(--muted); margin-top:2px; overflow-wrap:anywhere}
+.oc-tag{font-size:.75rem; padding:1px 7px; border-radius:10px; border:1px solid var(--line); color:var(--muted)}
+.oc-tag.pres{border-color:var(--gold); color:var(--gold)}
+.oc-adm-pres,.oc-adm-canc{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:6px; font-size:.88rem}
+.oc-adm-pres .oc-in{width:110px; min-height:36px}
+.oc-adm-canc .oc-in{flex:1 1 100%; min-height:36px}
+.oc-mini{min-height:34px; padding:4px 10px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--ink); font:600 .85rem var(--f-body); cursor:pointer; margin-top:6px}
+.oc-mini.perigo{border-color:var(--off); color:var(--off)}
+.oc-adm-horas li{display:flex; align-items:center; gap:10px; padding:6px 10px; border-radius:8px; background:var(--bg)}
+.oc-adm-horas li .oc-mini{margin:0 0 0 auto}
+.oc-adm-horas .muted{color:var(--muted)}
+.oc-cfg{display:flex; flex-direction:column; gap:10px}
+.oc-cfg-lin{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.oc-dias{border:0; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:6px}
+.oc-dias legend{font-size:.88rem; color:var(--muted); margin-bottom:4px; padding:0}
+.oc-msg{white-space:pre-wrap; font-family:var(--f-body); font-size:.88rem; background:var(--bg); padding:8px; border-radius:8px; margin:0 0 8px}
+.oc-adm-push{margin-top:12px; border-top:1px solid var(--line); padding-top:4px}
+
+@media (prefers-reduced-motion:reduce){.oc-topo::before,.oc-vela{animation:none}}

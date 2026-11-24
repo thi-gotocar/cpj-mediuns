@@ -567,3 +567,23 @@ export async function acaoAsaas(op, dados = {}) {
     return false;
   }
 }
+
+// ---------- aba Oráculo (agenda de consultas com o Oráculo de Maria Mulambo) ----------
+// Quem tem o Oráculo no perfil (Ver ou Editar) sempre vê; os outros, quando está Visível para todos. Fora da curimba.
+export const veOraculo = () => estado.me?.grupo !== 'curimba' && visaoAtiva() !== 'curimba'
+  && (pode('oraculo:ver') || pode('oraculo:gerenciar') || !!estado.me?.oraculoPublicado);
+// conferir: a tela esperando o pagamento pergunta ao ASAAS se o link já foi pago.
+export async function carregarOraculo(conferir = false) {
+  try { estado.oraculo = await api('GET', '/oferendas?lista=oraculo' + (conferir ? '&conferir=1' : '')); } catch (e) {
+    if (!conferir) estado.oraculo = estado.oraculo?.config ? estado.oraculo : { erro: e.message };
+  }
+  avisar();
+}
+// Devolve a resposta (ou null, com o erro no toast).
+export async function acaoOraculo(op, dados = {}) {
+  try {
+    const r = await api('POST', '/oferendas', { acao: 'oraculo', op, ...dados });
+    if (r?.config) { estado.oraculo = r; estado.me = { ...estado.me, oraculoPublicado: !!r.publicado }; }
+    return r;
+  } catch (e) { toast(e.message); return null; } finally { avisar(); }
+}
