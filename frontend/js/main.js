@@ -143,7 +143,7 @@ function render() {
   // Abas que o perfil pode ver.
   let VE = { usuarios: pode('usuarios:gerenciar'), asaas: pode('asaas:ver'), pedidos: vePedidos(), transparencia: veTransparencia(), ervas: veErvas(), oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(),
     hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), fila: fila.veFila(), oraculo: veOraculo(), gira: true, agenda: true };
-  if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: false, fotos: false, diario: veDiario(), oraculo: veOraculo(), gira: true, agenda: false };
+  if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, diario: veDiario(), oraculo: veOraculo(), gira: true, agenda: false };
   // Consulente: a Geral e as abas que o root marcou no perfil Consulentes (Perfil, Compras, Amaci, Vídeos).
   if (visao === 'alunos' && estado.me.consulente) Object.assign(VE, { oferendas: false, perfil: pode('perfil:ver'), guias: veGuias(), amaci: veAmaci(), videos: pode('videos:ver') || !!estado.me.videosPublicada });
   // Grupo Oferenda: só a Geral e a aba Oferendas.
