@@ -6127,7 +6127,7 @@ export const MIGRACOES = [
             order by (c.status = 'pendente') desc, c.criado_em desc limit 10) x), '[]'::jsonb))
    $$`,
   // Consultas pagas ainda não avisadas: marca como avisadas e devolve quantas e os aparelhos inscritos.
-  `create or replace function oraculo_avisos()
+  `create or replace function oraculo_avisos(p jsonb default '{}'::jsonb)
    returns jsonb language plpgsql as $$
    declare v_n int;
    begin
@@ -6217,4 +6217,9 @@ export const MIGRACOES = [
      return jsonb_build_object('ok', true);
    end;
    $$`,
+
+  // ---------- v182: oraculo_avisos recebe o jsonb do db.rpc ----------
+  // A v181 criou a função sem parâmetro; o db.rpc sempre manda um jsonb, então o aviso de consulta paga falhava (a
+  // consulta era confirmada, só a notificação não saía). A de cima já recebe p; esta tira a antiga.
+  `drop function if exists oraculo_avisos()`,
 ];
