@@ -193,9 +193,13 @@ export const naGira = (p, g) => (temRetrato(g) ? !!p && Object.prototype.hasOwnP
 // estando Pendente, até o dia anterior ao evento (hoje = 'AAAA-MM-DD'), e enquanto ninguém marcou
 // a presença dela (o último status vale; depois que está na lista de presença, só o admin muda).
 export const statusMarcado = (p, g) => !!p && !!g && Object.prototype.hasOwnProperty.call(g.presenca || {}, p.id);
-// Quem atende nesta gira (Médium ou At. Extra, na função do dia) escolhe a entidade enquanto a gira estiver aberta.
+// Quem está cadastrado como Médium, At. Extra ou Passe escolhe a entidade enquanto a gira estiver aberta, mesmo que a
+// escala o ponha para cambonar (fora da linha, Não atende, Suporte): a escolha vale se ele atuar na função. Não escolhe
+// quem não vem (ausência, falta ou licença).
+const FUNCOES_COM_ENTIDADE = ['medium', 'extra', 'passe'];
 export const podeEscolherEntidade = (p, g) => !!p && !!g && !g.encerrada && linhasParaEscolher(g).length > 0
-  && naCorrenteEm(p, g.data) && presente(p, g) && ['medium', 'extra'].includes(funcaoNaGira(p, g));
+  && naCorrenteEm(p, g.data) && ['p', 'pend'].includes(presencaDe(p, g))
+  && FUNCOES_COM_ENTIDADE.includes(p.funcaoCadastro || pessoaNaGira(p, g).funcao);
 export const podeDeclararAusencia = (p, g, hoje) => !!p && !!g && !g.encerrada && !ehCurimba(p)
   && naCorrenteEm(p, g.data) && hoje < g.data && presencaDe(p, g) === 'pend' && !statusMarcado(p, g);
 

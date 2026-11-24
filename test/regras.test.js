@@ -440,7 +440,14 @@ test('entidade escolhida pela pessoa em gira com mais de uma linha', async () =>
   assert.equal(podeEscolherEntidade({ ...p, funcao: 'cambone' }, g), false);
   assert.equal(podeEscolherEntidade(p, { ...g, encerrada: true }), false);
   assert.equal(podeEscolherEntidade(p, { ...g, presenca: { 1: 'a' } }), false);
-  assert.equal(podeEscolherEntidade(p, { ...g, papeis: { 1: 'na' } }), false, 'nesta gira vai cambonar');
+  assert.equal(podeEscolherEntidade(p, { ...g, presenca: { 1: 'f' } }), false, 'falta: não vem');
+  assert.equal(podeEscolherEntidade(p, { ...g, papeis: { 1: 'na' } }), true, 'a escala decide se atua; a escolha fica');
+  // Extra e Passe escolhem pelo cadastro, mesmo fora da linha (no Encontro das Linhas sem tê-lo marcado, cambonam).
+  const extra = { ...p, funcao: 'extra', linhas: ['caboclo'] };
+  const mista = { ...g, entidade: 'Encontro das Linhas' };
+  assert.equal(podeEscolherEntidade(extra, mista), true);
+  assert.equal(podeEscolherEntidade({ ...p, funcao: 'passe', linhas: [] }, g), true);
+  assert.equal(podeEscolherEntidade({ ...p, funcao: 'senha' }, g), false);
 });
 
 test('guia de atendimento na gira: pela linha da entidade (e gira junta)', async () => {
