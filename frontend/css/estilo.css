@@ -2352,6 +2352,7 @@ div.pf-of-total{cursor:default}
 .di-gal-l{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;padding-bottom:6px;margin:0 -4px;padding-inline:4px}
 .di-gal-i{flex:0 0 82%;scroll-snap-align:center;margin:0;display:grid;gap:6px;align-content:start;padding:8px;border-radius:16px;background:var(--surface);border:1px solid var(--line)}
 .di-gal-i img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:12px;background:var(--bg);display:block}
+.di-gal-zoom{cursor:zoom-in}
 .di-gal-i figcaption{display:grid;gap:2px;font-size:.9rem;overflow-wrap:anywhere}
 .di-gal-i figcaption span{color:var(--muted);font-size:.85rem}
 .di-gal-a{display:flex;justify-content:space-between;align-items:center;gap:8px}

@@ -27,10 +27,10 @@ import { abrirImagem, reduzirJpeg, base64 } from '../foto.js';
 // gal: foto escolhida para a galeria (base64), descrição e envio.
 // mesAberto: calendário do mês aberto no lugar da faixa da semana; passo: passo aberto do Registro por dia (0 = nenhum);
 // emoEd: sentimentos em edição ('data|campo'; fora disso, os escolhidos aparecem recolhidos com Trocar).
-// acomp: card Seu acompanhamento aberto; periodo: dias olhados para trás (PERIODOS).
-const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false }, mesAberto: false, passo: {}, emoEd: new Set(), cuid: null, acomp: false, periodo: 90 };
+// acomp: card Seu acompanhamento aberto; periodo: dias olhados para trás (PERIODOS); zoom: foto da galeria aberta em tela cheia.
+const ui = { dia: hoje(), mes: hoje().slice(0, 7), rasc: {}, ouvindo: null, gal: { foto: null, desc: '', enviando: false }, mesAberto: false, passo: {}, emoEd: new Set(), cuid: null, acomp: false, periodo: 90, zoom: null };
 let reconhecimento = null;
-export function limpar() { ui.dia = hoje(); ui.mes = ui.dia.slice(0, 7); ui.mesAberto = false; ui.passo = {}; ui.emoEd.clear(); ui.cuid = null; }
+export function limpar() { ui.dia = hoje(); ui.mes = ui.dia.slice(0, 7); ui.mesAberto = false; ui.passo = {}; ui.emoEd.clear(); ui.cuid = null; ui.zoom = null; }
 
 const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
 const LINHAS_OK = new Set(LINHAS_DIARIO.map(([k]) => k));
@@ -241,7 +241,7 @@ function galeria(D) {
   h += L.length ? `<div class="di-gal-l" role="list">${L.map((f) => {
     const apagar = f.minha || D.root;
     const conf = estado.confirm === 'dg:' + f.id;
-    return `<figure class="di-gal-i" role="listitem"><img src="${fotoUrl(f)}" alt="${esc(f.descricao || 'Foto de ' + f.nome)}" loading="lazy">
+    return `<figure class="di-gal-i" role="listitem"><img class="di-gal-zoom" src="${fotoUrl(f)}" alt="${esc(f.descricao || 'Foto de ' + f.nome)}" loading="lazy" data-act="digalzoom" data-id="${f.id}" role="button" tabindex="0" aria-label="Ampliar a foto de ${esc(f.nome)}">
       <figcaption><b>${esc(f.nome)}</b>${f.descricao ? `<span>${esc(f.descricao)}</span>` : ''}</figcaption>
       <div class="di-gal-a"><button type="button" class="di-cur" data-act="dicurtir" data-id="${f.id}" aria-pressed="${f.curti}" aria-label="${f.curti ? 'Descurtir' : 'Curtir'}">${f.curti ? '❤️' : '🤍'} ${f.curtidas}</button>
         ${apagar ? (conf ? `<button type="button" class="btn small danger" data-act="digalexcluir" data-id="${f.id}">Excluir?</button>`
@@ -255,6 +255,16 @@ function galeria(D) {
           <button type="button" class="btn" data-act="digalcancelar" ${g.enviando ? 'disabled' : ''}>Cancelar</button></div></div>`;
   }
   return h + '</div>';
+}
+
+// Foto da galeria em tela cheia (mesmo visual da aba Compras); tocar em qualquer lugar ou no ✕ fecha.
+function telaFotoGaleria(D) {
+  const f = ui.zoom && (D.galeria || []).find((x) => String(x.id) === ui.zoom);
+  if (!f) return '';
+  return `<div class="ft-luz" role="dialog" aria-modal="true" aria-label="Foto de ${esc(f.nome)}" data-act="digalzoomfechar">
+    <div class="ft-luz-topo"><span class="ft-luz-tit">${esc(f.nome)}</span><button type="button" class="btn small" data-act="digalzoomfechar" aria-label="Fechar">✕</button></div>
+    <div class="ft-luz-img"><img src="${fotoUrl(f)}" alt="${esc(f.descricao || 'Foto de ' + f.nome)}"></div>
+    <div class="ft-luz-rodape"><span>${esc(f.descricao || '')}</span></div></div>`;
 }
 
 function cardRoot(D) {
@@ -440,7 +450,7 @@ export function render() {
   if (D.erro) return `<section class="panel"><div class="card"><p class="erro">${esc(D.erro)}</p><button class="btn" data-act="direcarregar">Tentar de novo</button></div></section>`;
   if (ui.dia > hoje()) limpar();
   // A Galeria de fotos vem logo depois do Como você está hoje? (segundo card).
-  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardAcompanhamento(D)}${cardRoot(D)}</section>`;
+  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardAcompanhamento(D)}${cardRoot(D)}${telaFotoGaleria(D)}</section>`;
 }
 
 // ---------- ações ----------
@@ -608,6 +618,8 @@ export const cliques = {
     const i = Number(el.dataset.i);
     mudarHabitos((h) => { h.ervas = (h.ervas || []).filter((_, j) => j !== i); });
   },
+  digalzoom(el) { ui.zoom = el.dataset.id; avisar(); },
+  digalzoomfechar() { ui.zoom = null; avisar(); },
   dicurtir(el) { acaoGaleriaDiario('fotoCurtir', { id: el.dataset.id }); },
   async digalexcluir(el) { if (await acaoGaleriaDiario('fotoExcluir', { id: el.dataset.id })) toast('Foto excluída.'); },
   digalcancelar() { ui.gal = { foto: null, desc: '', enviando: false }; avisar(); },
