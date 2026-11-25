@@ -58,3 +58,48 @@ test('emoções: contagem por dia (sem repetir manhã e noite), leve × densa e 
   const comFolga = dias.filter((x) => x.data !== '2026-11-19');
   assert.equal(acompanhamento(comFolga, opcoes()).emocoes.seguidos, 1, 'um dia sem registro quebra a sequência');
 });
+
+// ---------- ciclo: escape, situação, histórico, avisos e previsões ----------
+import { analiseCiclo, normalizarDia } from '../shared/diario.js';
+
+const diaMais = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+const menstruada = (ini, n) => Array.from({ length: n }, (_, i) => ({ data: diaMais(ini, i), dados: { ciclo: { menstruada: true } } }));
+
+test('ciclo: escape e situação passam pela limpeza; menstruada vale mais que escape', () => {
+  assert.deepEqual(normalizarDia({ ciclo: { escape: true, sintomas: ['colica', 'inventado'] }, cicloFator: 'gravidez' }),
+    { ciclo: { escape: true, sintomas: ['colica'] }, cicloFator: 'gravidez' });
+  assert.deepEqual(normalizarDia({ ciclo: { escape: true, menstruada: true, fluxo: 'leve' }, cicloFator: 'outro' }), { ciclo: { menstruada: true, fluxo: 'leve' } });
+  assert.deepEqual(normalizarDia({ ciclo: { escape: false } }), {});
+});
+
+test('ciclo: histórico, média, variação e as 3 próximas (o escape não conta como início)', () => {
+  const dias = [...menstruada('2026-08-01', 5), ...menstruada('2026-08-29', 5), ...menstruada('2026-09-26', 4), ...menstruada('2026-10-24', 5),
+    ...menstruada('2026-11-21', 4), { data: '2026-11-05', dados: { ciclo: { escape: true } } }];
+  const A = analiseCiclo(dias, '2026-11-24');
+  assert.deepEqual(A.ciclos.map((c) => [c.inicio, c.duracao, c.menstruacao]),
+    [['2026-11-21', null, 4], ['2026-10-24', 28, 5], ['2026-09-26', 28, 4], ['2026-08-29', 28, 5], ['2026-08-01', 28, 5]]);
+  assert.deepEqual([A.media, A.mediaMenstruacao, A.variacao, A.fator, A.atraso], [28, 5, 0, 'nenhum', 0]);
+  assert.deepEqual(A.previsoes, [{ inicio: '2026-12-19', fim: '2026-12-23' }, { inicio: '2027-01-16', fim: '2027-01-20' }, { inicio: '2027-02-13', fim: '2027-02-17' }]);
+  assert.deepEqual(A.avisos, [], 'um escape só não avisa');
+  // Sem registrar a de 21/11: 3 dias de atraso, e as previsões seguem de hoje em diante.
+  const B = analiseCiclo(dias.filter((x) => x.data < '2026-11-21'), '2026-11-24');
+  assert.equal(B.atraso, 3);
+  assert.ok(B.previsoes.every((p) => p.inicio >= '2026-11-24'));
+});
+
+test('ciclo: avisos de padrão nos últimos 6 meses, desligados com uma situação marcada', () => {
+  const dias = [...menstruada('2026-05-01', 5), ...menstruada('2026-05-21', 11), ...menstruada('2026-06-30', 5), ...menstruada('2026-07-20', 4),
+    ...menstruada('2026-08-25', 12), ...menstruada('2026-09-12', 5),
+    { data: '2026-06-15', dados: { ciclo: { escape: true } } }, { data: '2026-07-10', dados: { ciclo: { escape: true } } }];
+  const A = analiseCiclo(dias, '2026-10-30');
+  assert.deepEqual(A.avisos.map((a) => a.k).sort(), ['escape', 'irregular', 'prolongada']);
+  assert.match(A.avisos.find((a) => a.k === 'irregular').texto, /variaram 22 dias/);
+  // Com anticoncepcional: sem avisos, com previsão; com gravidez: sem avisos e sem previsão.
+  const comFator = (f) => analiseCiclo([...dias, { data: '2026-10-01', dados: { cicloFator: f } }], '2026-10-30');
+  assert.deepEqual([comFator('anticoncepcional').avisos.length, comFator('anticoncepcional').previsoes.length], [0, 3]);
+  assert.deepEqual([comFator('gravidez').fator, comFator('gravidez').avisos.length, comFator('gravidez').previsoes.length], ['gravidez', 0, 0]);
+  // Poucas menstruações: só para quem registra há 6 meses ou mais.
+  const poucas = [{ data: '2026-01-10', dados: { antes: { humor: 3 } } }, ...menstruada('2026-08-01', 5)];
+  assert.deepEqual(analiseCiclo(poucas, '2026-10-30').avisos.map((a) => a.k), ['infrequente']);
+  assert.deepEqual(analiseCiclo(poucas.slice(1), '2026-10-30').avisos, []);
+});

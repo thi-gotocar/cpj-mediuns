@@ -40,6 +40,12 @@ export const GRUPOS_SENSACOES = [
 export const SENSACOES = GRUPOS_SENSACOES.flatMap((g) => g.itens);
 // Ciclo menstrual (opcional: só aparece para quem liga "Registrar meu ciclo" no Diário).
 export const FLUXOS = [['leve', 'Leve'], ['medio', 'Médio'], ['forte', 'Forte']];
+// Escape: sangramento fora da menstruação (não conta como início de ciclo).
+export const ESCAPE = ['escape', 'Escape'];
+// Situação do ciclo: gravada no dia em que muda (cicloFator) e vale dali em diante. Com uma delas, os avisos de padrão
+// ficam desligados (como no app Saúde do iPhone); em gravidez, amamentação e menopausa, a previsão também.
+export const FATORES_CICLO = [['nenhum', 'Nenhuma'], ['anticoncepcional', 'Anticoncepcional'], ['gravidez', 'Gravidez'], ['amamentacao', 'Amamentação'], ['menopausa', 'Menopausa']];
+const SEM_PREVISAO = ['gravidez', 'amamentacao', 'menopausa'];
 export const SINTOMAS_CICLO = [['colica', 'Cólica'], ['cabeca', 'Dor de cabeça'], ['inchaco', 'Inchaço'], ['sensibilidade', 'Sensibilidade'], ['cansaco', 'Cansaço']];
 
 // Ciclo: inícios (dia menstruada depois de um dia sem), a média entre eles (só intervalos de 15 a 45 dias, para não
@@ -62,6 +68,82 @@ export function resumoCiclo(dias, hoje) {
   for (const x of dias || []) { const e = energiaDe(x.dados); if (e !== null) (menstr.has(x.data) ? comCiclo : sem).push(e); }
   const med = (l) => (l.length ? Math.round((l.reduce((s, n) => s + n, 0) / l.length) * 10) / 10 : null);
   return { inicios, media, proximo, diaAtual, energiaCiclo: comCiclo.length >= 3 ? med(comCiclo) : null, energiaOutros: comCiclo.length >= 3 ? med(sem) : null };
+}
+// ---------- ciclo: histórico, avisos e previsões (pacote 1) ----------
+const somar = (d, n) => { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd + n)).toISOString().slice(0, 10); };
+const diasEntre = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5);
+export const JANELA_AVISOS = 182;   // 6 meses, como o app Saúde do iPhone
+
+// Situação do ciclo num dia: a última registrada até ele (sem nenhuma, 'nenhum').
+export function fatorEm(dias, data) {
+  let f = 'nenhum', em = '';
+  for (const x of dias || []) if (x.dados?.cicloFator && x.data <= data && x.data >= em) { f = x.dados.cicloFator; em = x.data; }
+  return f;
+}
+
+// dias: [{ data, dados }]. Devolve:
+//   ciclos: [{ inicio, duracao (até o próximo início; null no que está em andamento), menstruacao (dias seguidos),
+//             conta (15 a 45 dias: entra na média) }] do mais recente ao mais antigo
+//   media, mediaMenstruacao, variacao (maior − menor ciclo nos últimos 6 meses), fator (situação de hoje)
+//   previsoes: [{ inicio, fim }] as próximas 3 de hoje em diante (sem previsão em gravidez, amamentação e menopausa);
+//   atraso: dias desde a primeira prevista, quando ela já passou sem menstruação registrada
+//   avisos: [{ k, texto }] padrões dos últimos 6 meses, só com situação "nenhuma" (não é diagnóstico)
+export function analiseCiclo(dias, hoje) {
+  const L = (dias || []).filter((x) => x.data <= hoje);
+  const menstr = new Set(L.filter((x) => x.dados?.ciclo?.menstruada).map((x) => x.data));
+  const escapes = L.filter((x) => x.dados?.ciclo?.escape).map((x) => x.data).sort();
+  const inicios = [...menstr].filter((d) => !menstr.has(somar(d, -1))).sort();
+  const ciclos = inicios.map((ini, i) => {
+    let n = 0;
+    while (menstr.has(somar(ini, n))) n++;
+    const prox = inicios[i + 1];
+    const duracao = prox ? diasEntre(ini, prox) : null;
+    return { inicio: ini, duracao, menstruacao: n, conta: duracao !== null && duracao >= 15 && duracao <= 45 };
+  });
+  const validos = ciclos.filter((c) => c.conta);
+  const med = (l) => (l.length ? Math.round(l.reduce((a, b) => a + b, 0) / l.length) : null);
+  const media = med(validos.map((c) => c.duracao));
+  const mediaMenstruacao = med(ciclos.filter((c) => c.menstruacao <= 15).map((c) => c.menstruacao));
+  const fator = fatorEm(L, hoje);
+  const desde = somar(hoje, -JANELA_AVISOS);
+  const recentes = validos.filter((c) => c.inicio >= desde);
+  const variacao = recentes.length >= 2 ? Math.max(...recentes.map((c) => c.duracao)) - Math.min(...recentes.map((c) => c.duracao)) : null;
+
+  // Próximas 3 (de hoje em diante): do último início, de média em média. Se a primeira prevista já passou sem
+  // menstruação registrada, atraso diz há quantos dias.
+  const previsoes = [];
+  let atraso = 0;
+  const ultimo = inicios.at(-1);
+  if (media && ultimo && !SEM_PREVISAO.includes(fator)) {
+    const dur = Math.max(1, mediaMenstruacao || 5);
+    const primeira = somar(ultimo, media);
+    if (primeira < hoje && !menstr.has(hoje)) atraso = diasEntre(primeira, hoje);
+    for (let i = 1; previsoes.length < 3 && i <= 40; i++) {
+      const ini = somar(ultimo, media * i);
+      if (ini >= hoje) previsoes.push({ inicio: ini, fim: somar(ini, dur - 1) });
+    }
+  }
+
+  // Avisos de padrão (critérios do app Saúde do iPhone), nos últimos 6 meses.
+  const avisos = [];
+  if (fator === 'nenhum' && inicios.length) {
+    if (recentes.length >= 3 && variacao >= 17) {
+      avisos.push({ k: 'irregular', texto: `Seus ciclos variaram ${variacao} dias entre o mais curto e o mais longo nos últimos 6 meses.` });
+    }
+    const longas = ciclos.filter((c) => c.inicio >= desde && c.menstruacao >= 10).length;
+    if (longas >= 2) avisos.push({ k: 'prolongada', texto: `Você teve ${longas} menstruações de 10 dias ou mais nos últimos 6 meses.` });
+    // Escape em pelo menos 2 ciclos diferentes (o ciclo do escape é o do último início antes dele).
+    const cicloDo = (d) => inicios.filter((i) => i <= d).at(-1) || 'antes';
+    const comEscape = new Set(escapes.filter((d) => d >= desde).map(cicloDo));
+    if (comEscape.size >= 2) avisos.push({ k: 'escape', texto: `Você registrou escape em ${comEscape.size} ciclos nos últimos 6 meses.` });
+    // Poucas menstruações: só para quem registra há 6 meses ou mais.
+    const primeiro = (dias || []).map((x) => x.data).sort()[0];
+    const naJanela = inicios.filter((d) => d >= desde).length;
+    if (primeiro && primeiro <= desde && naJanela <= 2) {
+      avisos.push({ k: 'infrequente', texto: `Você registrou ${naJanela === 1 ? 'só 1 menstruação' : `só ${naJanela} menstruações`} nos últimos 6 meses.` });
+    }
+  }
+  return { ciclos: [...ciclos].reverse(), media, mediaMenstruacao, variacao, fator, previsoes, atraso, avisos };
 }
 export const SONO = [['bem', 'Dormi bem'], ['pouco', 'Dormi pouco'], ['agitado', 'Sono agitado'], ['sonhos', 'Sonhos marcantes']];
 // Linhas que dá para escolher no conselho do guia (sem o Encontro das Linhas, que não é um guia).
@@ -165,8 +247,10 @@ function habitos(h) {
   });
 }
 function ciclo(c) {
-  if (!c || typeof c !== 'object' || c.menstruada !== true) return undefined;
+  if (!c || typeof c !== 'object' || (c.menstruada !== true && c.escape !== true)) return undefined;
   const sint = Array.isArray(c.sintomas) ? [...new Set(c.sintomas.filter((s) => umDe(s, SINTOMAS_CICLO)))] : [];
+  // Menstruada e escape não andam juntos: menstruada vale mais.
+  if (c.menstruada !== true) return limpo({ escape: true, sintomas: sint.length ? sint : undefined });
   return limpo({ menstruada: true, fluxo: umDe(c.fluxo, FLUXOS), sintomas: sint.length ? sint : undefined });
 }
 const nota = (v) => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : undefined);
@@ -185,7 +269,8 @@ export const MAX_ERVAS = 15;
 //   linha, conselho (dia de gira) · reflexao (dia comum)
 //   habitos: { preceito, atividade, agua, litros, banho, orixa | ervas: [até 7] } (só os marcados)
 //   banho: { ervas: [..], feito, origem: 'guia' | 'orientador' | 'proprio' (anotado pela pessoa num dia comum) }
-//   ciclo: { menstruada: true, fluxo: 'leve' | 'medio' | 'forte', sintomas: [..] } (só quando marcada)
+//   ciclo: { menstruada: true, fluxo: 'leve' | 'medio' | 'forte', sintomas: [..] } | { escape: true, sintomas } (só quando marcada)
+//   cicloFator: a situação do ciclo a partir deste dia (FATORES_CICLO)
 export function normalizarDia(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return {};
   const ervas = Array.isArray(d.banho?.ervas)
@@ -194,6 +279,7 @@ export function normalizarDia(d) {
     gira: typeof d.gira === 'boolean' ? d.gira : undefined,
     habitos: habitos(d.habitos),
     ciclo: ciclo(d.ciclo),
+    cicloFator: umDe(d.cicloFator, FATORES_CICLO),
     antes: limpo({ humor: nota(d.antes?.humor), emo: emocoes(d.antes?.emo), energia: nota(d.antes?.energia), sono: umDe(d.antes?.sono, SONO) }),
     depois: limpo({ humor: nota(d.depois?.humor), emo: emocoes(d.depois?.emo), energia: nota(d.depois?.energia), sensacao: umDe(d.depois?.sensacao, SENSACOES) }),
     linha: umDe(d.linha, LINHAS_DIARIO),
