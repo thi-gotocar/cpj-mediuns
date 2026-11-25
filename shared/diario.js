@@ -46,7 +46,16 @@ export const ESCAPE = ['escape', 'Escape'];
 // ficam desligados (como no app Saúde do iPhone); em gravidez, amamentação e menopausa, a previsão também.
 export const FATORES_CICLO = [['nenhum', 'Nenhuma'], ['anticoncepcional', 'Anticoncepcional'], ['gravidez', 'Gravidez'], ['amamentacao', 'Amamentação'], ['menopausa', 'Menopausa']];
 const SEM_PREVISAO = ['gravidez', 'amamentacao', 'menopausa'];
-export const SINTOMAS_CICLO = [['colica', 'Cólica'], ['cabeca', 'Dor de cabeça'], ['inchaco', 'Inchaço'], ['sensibilidade', 'Sensibilidade'], ['cansaco', 'Cansaço']];
+// Sintomas do ciclo em grupos (as chaves de antes continuam; 'sensibilidade' é a dor nos seios). O humor, as emoções e o
+// sono do dia já têm campo próprio no Diário: aqui ficam só os sentimentos típicos do ciclo.
+export const GRUPOS_SINTOMAS = [
+  { k: 'dor', titulo: 'Dor', itens: [['colica', 'Cólica'], ['cabeca', 'Dor de cabeça'], ['costas', 'Dor nas costas'], ['sensibilidade', 'Dor nos seios']] },
+  { k: 'corpo', titulo: 'Corpo', itens: [['inchaco', 'Inchaço'], ['cansaco', 'Cansaço'], ['nausea', 'Náusea'], ['intestino', 'Intestino solto ou preso'], ['pele', 'Pele e espinhas'], ['doce', 'Vontade de doce']] },
+  { k: 'emocional', titulo: 'Emocional do ciclo', itens: [['irritabilidade', 'Irritabilidade'], ['choro', 'Choro fácil'], ['libidoAlta', 'Libido alta'], ['libidoBaixa', 'Libido baixa']] },
+];
+export const SINTOMAS_CICLO = GRUPOS_SINTOMAS.flatMap((g) => g.itens);
+// Intensidade da dor do dia (uma só) e "tomei remédio".
+export const DORES_CICLO = [['leve', 'Leve'], ['moderada', 'Moderada'], ['forte', 'Forte']];
 
 // Ciclo: inícios (dia menstruada depois de um dia sem), a média entre eles (só intervalos de 15 a 45 dias, para não
 // contar um registro esquecido) e a previsão do próximo; e a energia média nos dias do ciclo e nos outros.
@@ -247,11 +256,14 @@ function habitos(h) {
   });
 }
 function ciclo(c) {
-  if (!c || typeof c !== 'object' || (c.menstruada !== true && c.escape !== true)) return undefined;
+  if (!c || typeof c !== 'object') return undefined;
   const sint = Array.isArray(c.sintomas) ? [...new Set(c.sintomas.filter((s) => umDe(s, SINTOMAS_CICLO)))] : [];
+  // Sintomas, dor e remédio valem em qualquer dia (a TPM vem antes da menstruação).
+  const extra = { sintomas: sint.length ? sint : undefined, dor: umDe(c.dor, DORES_CICLO), remedio: c.remedio === true ? true : undefined };
   // Menstruada e escape não andam juntos: menstruada vale mais.
-  if (c.menstruada !== true) return limpo({ escape: true, sintomas: sint.length ? sint : undefined });
-  return limpo({ menstruada: true, fluxo: umDe(c.fluxo, FLUXOS), sintomas: sint.length ? sint : undefined });
+  if (c.menstruada === true) return limpo({ menstruada: true, fluxo: umDe(c.fluxo, FLUXOS), ...extra });
+  if (c.escape === true) return limpo({ escape: true, ...extra });
+  return limpo(extra);
 }
 const nota = (v) => (Number.isInteger(v) && v >= 1 && v <= 5 ? v : undefined);
 const texto = (v, max) => (typeof v === 'string' && v.trim() ? v.replace(/\r/g, '').trim().slice(0, max) : undefined);
@@ -269,7 +281,7 @@ export const MAX_ERVAS = 15;
 //   linha, conselho (dia de gira) · reflexao (dia comum)
 //   habitos: { preceito, atividade, agua, litros, banho, orixa | ervas: [até 7] } (só os marcados)
 //   banho: { ervas: [..], feito, origem: 'guia' | 'orientador' | 'proprio' (anotado pela pessoa num dia comum) }
-//   ciclo: { menstruada: true, fluxo: 'leve' | 'medio' | 'forte', sintomas: [..] } | { escape: true, sintomas } (só quando marcada)
+//   ciclo: { menstruada: true, fluxo } | { escape: true } | {} — e, em qualquer dia, sintomas: [..], dor, remedio
 //   cicloFator: a situação do ciclo a partir deste dia (FATORES_CICLO)
 export function normalizarDia(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return {};

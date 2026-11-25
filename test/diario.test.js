@@ -103,3 +103,11 @@ test('ciclo: avisos de padrão nos últimos 6 meses, desligados com uma situaç�
   assert.deepEqual(analiseCiclo(poucas, '2026-10-30').avisos.map((a) => a.k), ['infrequente']);
   assert.deepEqual(analiseCiclo(poucas.slice(1), '2026-10-30').avisos, []);
 });
+
+test('ciclo: sintomas, dor e remédio valem em qualquer dia e não contam como menstruação', () => {
+  assert.deepEqual(normalizarDia({ ciclo: { sintomas: ['irritabilidade', 'inventado', 'doce'], dor: 'forte', remedio: true } }),
+    { ciclo: { sintomas: ['irritabilidade', 'doce'], dor: 'forte', remedio: true } });
+  assert.deepEqual(normalizarDia({ ciclo: { menstruada: true, dor: 'muita', remedio: 'sim' } }), { ciclo: { menstruada: true } });
+  const dias = [...menstruada('2026-10-01', 5), { data: '2026-10-27', dados: { ciclo: { sintomas: ['irritabilidade'] } } }, ...menstruada('2026-10-29', 5)];
+  assert.deepEqual(analiseCiclo(dias, '2026-11-10').ciclos.map((c) => c.inicio), ['2026-10-29', '2026-10-01']);
+});

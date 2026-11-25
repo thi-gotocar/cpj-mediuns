@@ -16,7 +16,7 @@ import { esc, toast, hoje, dLong, dDM, pd } from '../util.js';
 import { linhaDaEntidade, LINHA_LABEL } from '/shared/regras.js';
 import {
   EMOCOES, GRUPOS_EMOCOES, HUMOR, MAX_EMOCOES, GRUPOS_SENSACOES, SONO, LINHAS_DIARIO, TEMPERATURAS, AVISO_QUENTE, ERVAS_SUGESTOES, MAX_CONSELHO, MAX_REFLEXAO,
-  ORIXAS_BANHO, ERVAS_APOSTILA, MAX_ERVAS_BANHO, litros, temperaturaDaErva, sugestaoOrientador, faseDaLua, deltaAxe, FLUXOS, SINTOMAS_CICLO, resumoCiclo, ESCAPE, FATORES_CICLO, analiseCiclo,
+  ORIXAS_BANHO, ERVAS_APOSTILA, MAX_ERVAS_BANHO, litros, temperaturaDaErva, sugestaoOrientador, faseDaLua, deltaAxe, FLUXOS, GRUPOS_SINTOMAS, DORES_CICLO, resumoCiclo, ESCAPE, FATORES_CICLO, analiseCiclo,
   acompanhamento, MIN_COMPARAR,
 } from '/shared/diario.js';
 import { BANHO_ORIXA } from '/shared/banhos.js';
@@ -119,15 +119,26 @@ const ICONE_CUIDADO = {
   banho: '<path d="M5 19c8 0 13-5 14-14-9 1-14 6-14 14z"/><path d="M5 19l7-7"/>',
   ciclo: '<path d="M12 3s5.5 6 5.5 10.5a5.5 5.5 0 0 1-11 0C6.5 9 12 3 12 3z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/>',
 };
-// Menstruada: fluxo (ou Escape, sangramento fora da menstruação), sintomas (opcionais) e o resumo do ciclo.
+// Sintomas do ciclo (em grupos), a intensidade da dor e o remédio: no dia menstruada e, para quem usa o ciclo, em
+// qualquer dia (a TPM vem antes da menstruação).
+function sintomasCiclo(C) {
+  const sint = C.sintomas || [];
+  return `<p class="di-rot">Sintomas <span class="muted">(opcional)</span></p>
+    ${GRUPOS_SINTOMAS.map((g) => `<div class="di-sens"><span class="muted">${g.titulo}</span><div class="di-chips">${g.itens.map(([k, t]) => `<button type="button" class="di-chip" data-act="dicicloval" data-k="sintomas" data-v="${k}" aria-pressed="${sint.includes(k)}">${t}</button>`).join('')}</div></div>`).join('')}
+    <p class="di-rot">Intensidade da dor</p><div class="di-chips">${DORES_CICLO.map(([k, t]) => `<button type="button" class="di-chip" data-act="dicicloval" data-k="dor" data-v="${k}" aria-pressed="${C.dor === k}">${t}</button>`).join('')}
+      <button type="button" class="di-chip" data-act="dicicloval" data-k="remedio" data-v="1" aria-pressed="${!!C.remedio}">💊 Tomei remédio</button></div>`;
+}
+// Usa o ciclo: já registrou algo do ciclo (menstruada, escape, sintomas) ou a situação.
+const usaCiclo = () => (estado.diario?.dias || []).some((x) => x.dados?.ciclo || x.dados?.cicloFator);
+
+// Menstruada: fluxo (ou Escape, sangramento fora da menstruação), os sintomas e o resumo do ciclo.
 function painelCiclo(C) {
   const R = resumoCiclo(estado.diario?.dias, hoje());
-  const sint = C.sintomas || [];
   const info = [ui.dia === hoje() && R.diaAtual ? `Dia ${R.diaAtual} do ciclo` : '', R.proximo ? `próximo previsto por volta de ${dDM(R.proximo)} (média de ${R.media} dias)` : ''].filter(Boolean).join(' · ');
   return `<div class="di-hab-sub di-ciclo">
     <p class="di-rot">Fluxo</p><div class="di-chips">${[ESCAPE, ...FLUXOS].map(([k, t]) => `<button type="button" class="di-chip" data-act="dicicloval" data-k="fluxo" data-v="${k}" aria-pressed="${k === 'escape' ? !!C.escape : C.fluxo === k}">${t}</button>`).join('')}</div>
     ${C.escape ? '<p class="muted di-ciclo-i">Escape: sangramento fora da menstruação. Não conta como início de ciclo.</p>' : ''}
-    <p class="di-rot">Sintomas <span class="muted">(opcional)</span></p><div class="di-chips">${SINTOMAS_CICLO.map(([k, t]) => `<button type="button" class="di-chip" data-act="dicicloval" data-k="sintomas" data-v="${k}" aria-pressed="${sint.includes(k)}">${t}</button>`).join('')}</div>
+    ${sintomasCiclo(C)}
     ${info ? `<p class="muted di-ciclo-i">${esc(info)}</p>` : ''}
     ${R.energiaCiclo !== null ? `<p class="muted di-ciclo-i">Nos dias do ciclo, sua energia média foi ${String(R.energiaCiclo).replace('.', ',')}${R.energiaOutros !== null ? ` (nos outros, ${String(R.energiaOutros).replace('.', ',')})` : ''}.</p>` : ''}
   </div>`;
@@ -150,6 +161,12 @@ function cuidados(d) {
     <div class="di-cuids cinco">${bloco('preceito', 'Preceito')}${bloco('atividade', 'Atividade física')}${bloco('agua', 'Água')}${bloco('banho', 'Banho de ervas')}${blocoCiclo}</div>`;
   // Só os detalhes do último bloco tocado (e marcado): Água, Banho de ervas ou Menstruada.
   if (ui.cuid === 'ciclo' && (C.menstruada || C.escape)) h += painelCiclo(C);
+  // Fora da menstruação, para quem usa o ciclo: os sintomas (TPM) em qualquer dia.
+  else if (!C.menstruada && !C.escape && usaCiclo()) {
+    const n = (C.sintomas || []).length + (C.dor ? 1 : 0) + (C.remedio ? 1 : 0);
+    h += `<button type="button" class="btn small di-cic-sint" data-act="dicicsint" aria-expanded="${ui.cuid === 'sint'}">🩸 Sintomas do ciclo${n ? ` · ${n}` : ''} <span class="seta" aria-hidden="true">${ui.cuid === 'sint' ? '▾' : '▸'}</span></button>`;
+    if (ui.cuid === 'sint') h += `<div class="di-hab-sub di-ciclo">${sintomasCiclo(C)}<p class="muted di-ciclo-i">Ajuda a ver depois o que aparece nos dias antes da menstruação (TPM).</p></div>`;
+  }
   if (ui.cuid === 'agua' && H.agua) {
     h += `<label class="field di-hab-sub">Quantos litros?<input type="text" inputmode="decimal" maxlength="5" data-act="dilitros" placeholder="Ex.: 1,5" value="${H.litros ? String(H.litros).replace('.', ',') : ''}"></label>`;
   }
@@ -425,6 +442,13 @@ function painelEmocoes(R) {
     <p class="muted di-ac-nota">Quantos dias cada emoção apareceu (manhã ou noite).</p>`;
 }
 
+// 🩸 Seu ciclo: card próprio, sempre aberto, só para quem já registrou algo do ciclo (menstruada, escape ou situação).
+function cardCiclo(D) {
+  if (!D.dias.some((x) => x.dados?.ciclo || x.dados?.cicloFator)) return '';
+  return `<div class="card di-acomp di-ciclo-card"><h2>🩸 Seu ciclo</h2>${painelCicloHist(D)}
+    <p class="muted di-ac-nota">Só você vê. São observações dos seus registros, não um diagnóstico.</p></div>`;
+}
+
 function cardAcompanhamento(D) {
   const cab = `<button type="button" class="grp-h dobra" data-act="diacomp" aria-expanded="${ui.acomp}"><h2>📈 Seu acompanhamento</h2><span class="seta" aria-hidden="true">${ui.acomp ? '▾' : '▸'}</span></button>`;
   if (!ui.acomp) return `<div class="card di-acomp">${cab}<p class="muted di-ac-nota">Como você sai das giras, o efeito dos cuidados e as emoções mais frequentes.</p></div>`;
@@ -435,7 +459,6 @@ function cardAcompanhamento(D) {
     <div class="di-ac-sec"><h3>🌡️ Termômetro das giras</h3>${painelAxe(R)}</div>
     <div class="di-ac-sec"><h3>🌿 Cuidados e energia</h3>${painelCuidados(R)}</div>
     <div class="di-ac-sec"><h3>💭 Emoções</h3>${painelEmocoes(R)}</div>
-    <div class="di-ac-sec"><h3>🩸 Ciclo</h3>${painelCicloHist(D)}</div>
     <p class="muted di-ac-nota">Só você vê. São observações dos seus registros, não um diagnóstico.</p></div>`;
 }
 
@@ -476,7 +499,7 @@ export function render() {
   if (D.erro) return `<section class="panel"><div class="card"><p class="erro">${esc(D.erro)}</p><button class="btn" data-act="direcarregar">Tentar de novo</button></div></section>`;
   if (ui.dia > hoje()) limpar();
   // A Galeria de fotos vem logo depois do Como você está hoje? (segundo card).
-  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardAcompanhamento(D)}${cardRoot(D)}${telaFotoGaleria(D)}</section>`;
+  return `<section class="panel di-tela">${cabecalho(D)}${galeria(D)}${paraHoje(D)}${dia()}${cardCiclo(D)}${cardAcompanhamento(D)}${cardRoot(D)}${telaFotoGaleria(D)}</section>`;
 }
 
 // ---------- ações ----------
@@ -583,20 +606,28 @@ export const cliques = {
     const on = !!(c?.menstruada || c?.escape);
     if (on && ui.cuid !== 'ciclo') { ui.cuid = 'ciclo'; avisar(); return; }
     ui.cuid = on ? null : 'ciclo';
-    salvar((d) => { if (on) delete d.ciclo; else d.ciclo = { menstruada: true }; });
+    // Desmarcar tira só a menstruação (os sintomas do dia ficam); marcar mantém os sintomas que já estavam.
+    salvar((d) => {
+      if (on) { const { menstruada, escape, fluxo, ...resto } = d.ciclo || {}; d.ciclo = resto; if (!Object.keys(resto).length) delete d.ciclo; }
+      else d.ciclo = { ...(d.ciclo || {}), menstruada: true };
+    });
   },
+  dicicsint() { ui.cuid = ui.cuid === 'sint' ? null : 'sint'; avisar(); },
   dicicloval(el) {
     const { k, v } = el.dataset;
     salvar((d) => {
-      const sintomas = d.ciclo?.sintomas;
+      const { menstruada, escape, fluxo: _f, ...extra } = d.ciclo || {};
       // Escape troca o dia para "sangramento fora da menstruação" (tocar de novo volta a menstruada); fluxo volta a menstruada.
-      if (k === 'fluxo' && v === 'escape') { d.ciclo = d.ciclo?.escape ? { menstruada: true, sintomas } : { escape: true, sintomas }; return; }
+      if (k === 'fluxo' && v === 'escape') { d.ciclo = escape ? { menstruada: true, ...extra } : { escape: true, ...extra }; return; }
       if (k === 'fluxo') {
-        const fluxo = d.ciclo?.menstruada && d.ciclo.fluxo === v ? undefined : v;
-        d.ciclo = { menstruada: true, sintomas, fluxo };
+        const fluxo = menstruada && _f === v ? undefined : v;
+        d.ciclo = { menstruada: true, ...extra, fluxo };
         return;
       }
-      d.ciclo = { ...(d.ciclo?.escape ? { escape: true } : { menstruada: true }), ...(d.ciclo || {}) };
+      // Sintomas, dor e remédio: não mudam se o dia é de menstruação, escape ou nenhum dos dois.
+      d.ciclo = { ...(d.ciclo || {}) };
+      if (k === 'dor') { if (d.ciclo.dor === v) delete d.ciclo.dor; else d.ciclo.dor = v; return; }
+      if (k === 'remedio') { if (d.ciclo.remedio) delete d.ciclo.remedio; else d.ciclo.remedio = true; return; }
       const L = d.ciclo.sintomas || [];
       d.ciclo.sintomas = L.includes(v) ? L.filter((x) => x !== v) : [...L, v];
       if (!d.ciclo.sintomas.length) delete d.ciclo.sintomas;
