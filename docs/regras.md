@@ -323,7 +323,8 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 
 ## Sub-abas de Oferendas
 
-- A aba **Oferendas** tem sub-abas: **Gerais**, **Iemanjá**, **Caboclos** e as que o root criar no **＋** (pede só o nome; lista normal de oferendas). As encerradas na data da unificação foram para Caboclos; as demais, para Gerais. Encerrar uma oferenda depois **não** a muda de sub-aba; o admin move em **Editar**.
+- A aba se chama **Eventos** no menu desde a v185 (antes, **Oferendas**; a chave e as permissões continuam `oferendas`).
+- A aba tem sub-abas: **Gerais**, **Iemanjá**, **Caboclos**, **Eventos** e as que o root criar no **＋** (pede só o nome; lista normal de oferendas). As encerradas na data da unificação foram para Caboclos; as demais, para Gerais. Encerrar uma oferenda depois **não** a muda de sub-aba; o admin move em **Editar**.
 - **Ervas** saiu das sub-abas de Oferendas e virou sub-aba da aba **Gira** (entre Gira e Histórico); a tela e a permissão continuam as mesmas. O perfil **Admin ervas** saiu (v133): quem era dele passou para o **Admin oferendas**, que administra oferendas e ervas (as sessões abertas caem e a pessoa entra de novo).
 - Só o **root** cria, renomeia, exclui e liga **Visível para todos** nas sub-abas. Só exclui se estiver vazia e sobrar outra de lista; Iemanjá é fixa e segue o Visível para todos do evento.
 - **Visível para todos**: desligado, só quem administra oferendas vê a sub-aba e o que há nela (some também dos compromissos e da aba Geral). Sub-aba nova nasce oculta.
@@ -332,6 +333,15 @@ Estado atual das regras da casa e do app. Código: `shared/regras.js` (e demais 
 - **＋ Nova oferenda** pede confirmação antes de criar: na lista, ao tocar em Criar; na Iemanjá, ao tocar no botão.
 - **Seus compromissos** e **Oferendas por pessoa** ficam acima das sub-abas e valem para todas. O compromisso de Iemanjá aparece para quem está num grupo do evento aberto (itens assumidos, grupo, responsável, evento e data).
 - Quem só tem acesso à Iemanjá (alunos) vê a aba Oferendas sem barra de sub-abas, só com ela.
+
+## Eventos (sub-aba da aba Eventos)
+
+- Sub-aba **fixa** como a Iemanjá (não é excluída; o root pode renomear) e **nasce oculta**: só aparece para todos quando o root liga **Visível para todos**. Não recebe oferendas.
+- Cada **evento** tem nome e data; **＋ Novo evento**, **✎ Editar** e **Excluir evento** (com Cancelar / Confirmar; leva a lista junto). Os de hoje em diante vêm primeiro, por data, e o próximo já abre; os que passaram ficam embaixo, em "Eventos que já passaram".
+- **＋ Adicionar pessoas**: escolhe **de qual lista do cadastro** (Corrente, Curimba, cada turma de alunos, Alunos sem turma) e marca quem entra (com **Marcar todos**; quem já está na lista aparece marcado e travado), ou **Pessoa de fora**, digitando o nome: quem não tem cadastro vai para o grupo **Convidados**. O nome e a lista de quem vem do cadastro são os do cadastro na hora de adicionar.
+- A lista aparece **separada por grupos** (Corrente, Curimba, turmas, Alunos sem turma, Convidados), cada um em ordem de nome. O **✕** tira a pessoa, pedindo **Cancelar / Confirmar**.
+- **Compartilhar lista** (no fim do evento): manda pelo WhatsApp o nome e a data do evento e os nomes numerados numa lista só, **sem os títulos dos grupos mas na ordem deles**, e o total.
+- Quem mexe: quem administra as oferendas (o root e o Admin oferendas). Quem vê a aba lê as listas quando a sub-aba está visível.
 
 ## Iemanjá (sub-aba de Oferendas)
 

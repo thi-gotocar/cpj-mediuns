@@ -1,4 +1,5 @@
-// Tela "Oferendas": as sub-abas com as listas de itens (o admin monta; todos escolhem o que vão doar) e a Iemanjá.
+// Tela "Eventos" (chave oferendas; antes se chamava Oferendas): as sub-abas com as listas de itens (o admin monta; todos
+// escolhem o que vão doar), a Iemanjá e a sub-aba Eventos (listas de pessoas por evento, em convites.js).
 
 import { situacao, textoEntrega, dataBR, PAGAMENTO, ENTREGA, ROTULO_MEDIUM, medConferido, percentualDoado, travadaPara, fechaEm, GRUPOS_CORRENTE, opcoesGruposOferenda, gruposMarcados, gruposParaEnviar, faixaPct, compromissosDe, estatisticasPorPessoa, qtdTxt, qtdAntes, arred, passoLevar, responsaveisItem } from '/shared/oferendas.js';
 import { estado, pode, pessoasOrd, carregarOferendas, abrirOferendasAnteriores, acaoOferendas, doarItem, carregarAlunos, avisar, veIemanja, carregarIemanja, visaoAtiva } from '../estado.js';
@@ -6,8 +7,10 @@ import { esc, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } 
 import { gerarImagemOferenda } from '../imagemOferenda.js';
 import { U, Dia, camposItem, listaItens, botoesCompartilhar, painelCompartilhar, textoCompartilhar, blocoDetalhes, salvarDetalhes, atualizarPrevia, dobrarCategoria } from './oferendaComum.js';
 export { atualizarPrevia };
-export const aoAbrirAba = () => iemanja.aoAbrirAba();
+// Ao abrir a aba: a Iemanjá volta ao padrão e as listas dos eventos são buscadas de novo (outro admin pode ter mexido).
+export const aoAbrirAba = () => { iemanja.aoAbrirAba(); if (estado.convites) estado.convites = null; convites.limpar(); };
 import * as iemanja from './iemanja.js';
+import * as convites from './convites.js';
 
 const opcoesPessoas = (atual) => `<option value="">— escolha —</option>${pessoasOrd().map((p) => `<option value="${p.id}" ${p.id === atual ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}`;
 // "rascunho" aparece como Bloqueado (vermelho): a corrente não vê e os itens ficam ocultos.
@@ -216,7 +219,7 @@ function cardOferenda(of, admin) {
       <label class="field grow">Título<input type="text" name="titulo" maxlength="120" required value="${esc(of.titulo)}"></label>
       <label class="field" style="flex:0 1 170px">Data<input type="date" name="data" required value="${of.data}"></label>
       <label class="field grow">Responsável<select name="resp" required>${opcoesPessoas(of.responsavelId)}</select></label>
-      <label class="field grow">Sub-aba<select name="aba">${estado.oferendas.abas.filter((a) => !a.iemanja).map((a) => `<option value="${a.id}" ${a.id === of.abaId ? 'selected' : ''}>${esc(a.nome)}</option>`).join('')}</select></label>
+      <label class="field grow">Sub-aba<select name="aba">${estado.oferendas.abas.filter((a) => !a.iemanja && !a.convites).map((a) => `<option value="${a.id}" ${a.id === of.abaId ? 'selected' : ''}>${esc(a.nome)}</option>`).join('')}</select></label>
       <button class="btn small primary" type="submit">Salvar</button><button class="btn small" type="button" data-act="cancelarof">Cancelar</button></form>`;
   } else {
     const pend = of.itens.filter((i) => !situacao(i).completo).length;
@@ -313,7 +316,7 @@ function barraAbas(aba) {
   const nome = (a) => `${a.iemanja || a.visivel ? '' : '<span title="Só os admins veem" aria-label="Oculta">🔒</span> '}${esc(a.nome)}`;
   const botoes = l.map((a) => `<button class="subaba" role="tab" data-act="ofaba" data-id="${a.id}" aria-selected="${a.id === aba.id}">${nome(a)}</button>`);
   return `<div class="subabas" role="tablist" aria-label="Sub-abas de oferendas">${botoes.join('')}${root ? '<button class="subaba mais" data-act="ofabanova" aria-label="Criar sub-aba" title="Criar sub-aba">＋</button>' : ''}</div>
-    ${root && !aba.iemanja ? `<div class="subaba-adm"><label class="of-sw"><input type="checkbox" role="switch" data-act="ofabavisivel" data-id="${aba.id}" ${aba.visivel ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label><span class="subaba-bts"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button><button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button></span></div>` : ''}`;
+    ${root && !aba.iemanja ? `<div class="subaba-adm"><label class="of-sw"><input type="checkbox" role="switch" data-act="ofabavisivel" data-id="${aba.id}" ${aba.visivel ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label><span class="subaba-bts"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button>${aba.convites ? '' : '<button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button>'}</span></div>` : ''}`;
 }
 
 function janelaNova() {
@@ -339,7 +342,7 @@ export function render() {
   if (carregandoLista || carregandoIem) return `<div class="loading">Carregando oferendas…</div>`;
   const aba = abaAtiva();
   if (!aba) return `<section class="panel"><div class="card empty"><p class="muted">Nenhuma oferenda disponível.</p></div></section>`;
-  return `<section class="panel">${cardMeusCompromissos()}${veLista() ? cardPorPessoa() : ''}${barraAbas(aba)}${aba.iemanja ? iemanja.conteudo() : listaDaAba(aba)}${janelaEntregue()}${janelaAba()}${janelaNova()}</section>`;
+  return `<section class="panel">${cardMeusCompromissos()}${veLista() ? cardPorPessoa() : ''}${barraAbas(aba)}${aba.iemanja ? iemanja.conteudo() : aba.convites ? convites.conteudo() : listaDaAba(aba)}${janelaEntregue()}${janelaAba()}${janelaNova()}</section>`;
 }
 
 // Janela "Confirmar entrega" da caixinha de entregue da linha do item: OK marca, Cancelar deixa como está.
@@ -367,6 +370,7 @@ const achar = (id) => {
 
 export const cliques = {
   ...iemanja.cliques,
+  ...convites.cliques,
   catdobra: dobrarCategoria,
   iemver(el) { U().aba = subabas().find((a) => a.iemanja)?.id; iemanja.cliques.iemver(el); },
   ofaba(el) { U().aba = el.dataset.id; U().novaAberta = undefined; U().novaRascunho = null; avisar(); },
@@ -549,6 +553,7 @@ async function porAlguem(el, delta) {
 
 export const mudancas = {
   ...iemanja.mudancas,
+  ...convites.mudancas,
   async ofabavisivel(t) {
     const visivel = t.checked;
     if (await acaoOferendas('abaVisivel', { id: t.dataset.id, visivel })) toast(visivel ? 'Sub-aba visível para todos.' : 'Sub-aba oculta: só os admins veem.');
@@ -587,6 +592,7 @@ export function avisoLevar(item, q) {
 // Formulários (criar oferenda, editar, adicionar/editar item).
 export async function enviar(form) {
   if (form.dataset.form?.startsWith('iem')) return iemanja.enviar(form);
+  if (form.dataset.form?.startsWith('cv')) return convites.enviar(form);
   const v = (n) => form.elements[n]?.value ?? '';
   if (form.id === 'f-of') {
     const titulo = document.getElementById('of-titulo').value, data = document.getElementById('of-data').value;

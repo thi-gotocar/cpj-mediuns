@@ -1972,21 +1972,6 @@ export const MIGRACOES = [
      raise exception 'Já existe uma sub-aba com esse nome.';
    end;
    $$`,
-  `create or replace function oferenda_aba_excluir(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare v_id uuid := (p ->> 'id')::uuid;
-   begin
-     if exists (select 1 from oferendas where aba_id = v_id) then
-       raise exception 'Mova ou exclua as oferendas desta sub-aba antes.';
-     end if;
-     if (select count(*) from oferenda_abas where not iemanja) <= 1 then
-       raise exception 'É preciso manter pelo menos uma sub-aba de oferendas.';
-     end if;
-     delete from oferenda_abas where id = v_id and not iemanja;
-     if not found then raise exception 'Sub-aba não encontrada.'; end if;
-     return oferenda_abas_listar();
-   end;
-   $$`,
   // Igual à v32, com a sub-aba: sem escolha, vai para a primeira; ao editar, sem escolha, fica onde está.
   `create or replace function oferenda_salvar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -2432,10 +2417,6 @@ export const MIGRACOES = [
    $$`,
   // ================================================== v100: Detalhes de cada sub-aba de Oferendas (texto do admin para o pessoal)
   `alter table oferenda_abas add column if not exists detalhes text not null default ''`,
-  `create or replace function oferenda_abas_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'iemanja', iemanja, 'visivel', visivel, 'detalhes', detalhes) order by ordem), '[]'::jsonb) from oferenda_abas
-   $$`,
   `create or replace function oferenda_aba_detalhes(p jsonb)
    returns jsonb language plpgsql as $$
    begin
@@ -6279,5 +6260,108 @@ export const MIGRACOES = [
                                    where gira_data = (p ->> 'data')::date and tipo = 'atendimento' and status = 'aguardando'), '[]'::jsonb),
          'passe', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
                              where gira_data = (p ->> 'data')::date and tipo = 'passe' and status = 'aguardando'), '[]'::jsonb)))
+   $$`,
+
+  // ---------- v185: sub-aba Eventos (listas de convidados) na aba Oferendas, que passa a se chamar Eventos ----------
+  // Sub-aba fixa como a Iemanjá (marcada em oferenda_abas.convites), nasce oculta. Cada evento tem nome, data e a lista
+  // de pessoas: do cadastro (chave p:/a:, com a lista de onde veio) ou de fora (chave n:, lista "Convidados").
+  `alter table oferenda_abas add column if not exists convites boolean not null default false`,
+  `do $$
+   begin
+     if not exists (select 1 from sistema where chave = 'v185_convites') then
+       insert into oferenda_abas (nome, ordem, visivel, convites)
+       select case when exists (select 1 from oferenda_abas where lower(nome) = 'eventos') then 'Convidados' else 'Eventos' end,
+              coalesce(max(ordem), 0) + 1, false, true from oferenda_abas;
+       insert into sistema (chave, valor) values ('v185_convites', 'ok');
+     end if;
+   end $$`,
+  // Substitui a da v101: leva a marca da sub-aba Eventos.
+  `create or replace function oferenda_abas_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nome', nome, 'iemanja', iemanja, 'convites', convites, 'visivel', visivel, 'detalhes', detalhes) order by ordem), '[]'::jsonb) from oferenda_abas
+   $$`,
+  // Substitui a da v89: a sub-aba Eventos, como a Iemanjá, não é excluída nem conta como sub-aba de lista.
+  `create or replace function oferenda_aba_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_id uuid := (p ->> 'id')::uuid;
+   begin
+     if exists (select 1 from oferendas where aba_id = v_id) then
+       raise exception 'Mova ou exclua as oferendas desta sub-aba antes.';
+     end if;
+     if exists (select 1 from oferenda_abas where id = v_id and convites) then
+       raise exception 'A sub-aba Eventos é fixa: não pode ser excluída.';
+     end if;
+     if (select count(*) from oferenda_abas where not iemanja and not convites) <= 1 then
+       raise exception 'É preciso manter pelo menos uma sub-aba de oferendas.';
+     end if;
+     delete from oferenda_abas where id = v_id and not iemanja and not convites;
+     if not found then raise exception 'Sub-aba não encontrada.'; end if;
+     return oferenda_abas_listar();
+   end;
+   $$`,
+  `create table if not exists convite_eventos (
+     id         uuid primary key default gen_random_uuid(),
+     nome       text not null check (length(btrim(nome)) between 1 and 80),
+     data       date not null,
+     criado_em  timestamptz not null default now()
+   )`,
+  `create table if not exists convite_pessoas (
+     evento_id  uuid not null references convite_eventos (id) on delete cascade,
+     chave      text not null,
+     nome       text not null,
+     lista      text not null,
+     criado_em  timestamptz not null default now(),
+     primary key (evento_id, chave)
+   )`,
+  // Os eventos (os de hoje em diante primeiro, por data; depois os que passaram, do mais recente) com as pessoas.
+  `create or replace function convites_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'data', e.data,
+       'pessoas', (select coalesce(jsonb_agg(jsonb_build_object('chave', x.chave, 'nome', x.nome, 'lista', x.lista) order by lower(x.nome)), '[]'::jsonb)
+                     from convite_pessoas x where x.evento_id = e.id))
+       order by (e.data < (now() at time zone 'America/Sao_Paulo')::date), case when e.data >= (now() at time zone 'America/Sao_Paulo')::date then e.data end, e.data desc), '[]'::jsonb)
+     from convite_eventos e
+   $$`,
+  // p = { id?, nome, data } (já validados no servidor)
+  `create or replace function convite_evento_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into convite_eventos (nome, data) values (btrim(p ->> 'nome'), (p ->> 'data')::date);
+     else
+       update convite_eventos set nome = btrim(p ->> 'nome'), data = (p ->> 'data')::date where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Evento não encontrado.'; end if;
+     end if;
+     return convites_listar();
+   end;
+   $$`,
+  `create or replace function convite_evento_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from convite_eventos where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Evento não encontrado.'; end if;
+     return convites_listar();
+   end;
+   $$`,
+  // p = { eventoId, pessoas: [{ chave, nome, lista }] } — quem já está na lista fica como está.
+  `create or replace function convite_incluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if not exists (select 1 from convite_eventos where id = (p ->> 'eventoId')::uuid) then raise exception 'Evento não encontrado.'; end if;
+     insert into convite_pessoas (evento_id, chave, nome, lista)
+       select (p ->> 'eventoId')::uuid, x ->> 'chave', x ->> 'nome', x ->> 'lista'
+       from jsonb_array_elements(coalesce(p -> 'pessoas', '[]'::jsonb)) x
+     on conflict (evento_id, chave) do nothing;
+     return convites_listar();
+   end;
+   $$`,
+  // p = { eventoId, chave }
+  `create or replace function convite_remover(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from convite_pessoas where evento_id = (p ->> 'eventoId')::uuid and chave = p ->> 'chave';
+     if not found then raise exception 'Pessoa não encontrada na lista.'; end if;
+     return convites_listar();
+   end;
    $$`,
 ];

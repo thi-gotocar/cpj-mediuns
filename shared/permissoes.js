@@ -11,7 +11,7 @@ export const ABAS = [
   { k: 'alunos', nome: 'Alunos (na aba Pessoas)', ver: 'O bloco Alunos na aba Pessoas.', editar: 'Cadastrar alunos e turmas.' },
   { k: 'hist', nome: 'Histórico', ver: 'Histórico, estatísticas e a presença completa na Gira.', editar: 'Excluir giras, backup e restauração.' },
   { k: 'ervas', nome: 'Ervas', ver: 'Escolher as próprias ervas.', editar: 'Ervas, preços, frete, pedidos e cobrança.' },
-  { k: 'oferendas', nome: 'Oferendas', ver: 'Escolher o que doar.', editar: 'Criar oferendas, itens e marcar entregas.' },
+  { k: 'oferendas', nome: 'Eventos (oferendas)', ver: 'Escolher o que doar nas oferendas e ver as listas de pessoas dos eventos.', editar: 'Criar oferendas, itens e marcar entregas; montar as listas de pessoas dos eventos.' },
   { k: 'guias', nome: 'Compras', ver: 'Ver os itens à venda e fazer os próprios pedidos.', editar: 'Grupos e itens, encerrar e começar pedidos, marcar ok e exportar.' },
   { k: 'amaci', nome: 'Amaci', ver: 'A aba Amaci (quando está visível para todos): o amaci de cada orixá liberado.', editar: 'Ligar Visível para todos, liberar os orixás por turma e escrever os Recados.' },
   { k: 'fotos', nome: 'Fotos', ver: 'Ver os álbuns e enviar fotos (quem entra pela corrente precisa ter senha).', editar: 'Apagar fotos de qualquer pessoa; editar e excluir álbuns.' },

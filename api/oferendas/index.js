@@ -14,6 +14,7 @@
 //              GET ?lista=doacoes e POST { acao: 'guias', op: 'doar' } — a doação do bloco da fila na Geral, para qualquer logado.
 //              GET ?lista=guiaFoto&id=<item>&v=<versão> — a foto do item (JPEG, sem sessão, com cache longo).
 //              GET ?lista=pedidos — sub-aba Pedidos (só quem administra as Compras); o andamento muda em POST { acao: 'guias', op: 'andamento' }.
+// Sub-aba Eventos (veja api/_lib/convites.js): GET ?lista=convites e POST { acao: 'convites', op, ... }.
 // Oráculo (veja api/_lib/oraculo.js): GET ?lista=oraculo e POST { acao: 'oraculo', op, ... }; qualquer pessoa logada.
 // ASAAS (veja api/_lib/asaas.js): webhook sem sessão, com token, em POST ?webhook=asaas; aba ASAAS (root e quem tem a aba no perfil) em GET ?lista=asaas e POST { acao: 'asaas', op, ... }.
 // Quem não administra as oferendas vê as publicadas (e doa nelas) e as bloqueadas (sem os itens).
@@ -29,6 +30,7 @@ import { respostaIemanja, acaoIemanja } from '../_lib/iemanja.js';
 import { respostaGuias, acaoGuias, fotoGuia, respostaPedidos, respostaDoacoes } from '../_lib/guias.js';
 import { webhookAsaas, respostaAsaas, acaoAsaas, buscaAsaas } from '../_lib/asaas.js';
 import { respostaOraculo, acaoOraculo, avisarPagos } from '../_lib/oraculo.js';
+import { respostaConvites, acaoConvites } from '../_lib/convites.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 // abas: as sub-abas, quando já vieram junto (a leitura da aba busca as duas em paralelo).
@@ -85,6 +87,7 @@ export default rota({
     if (req.query.lista === 'guiaFoto') return fotoGuia(req, res);
     if (req.query.lista === 'asaas') return respostaAsaas(await exigir(req));
     if (req.query.lista === 'oraculo') return respostaOraculo(await exigir(req), req.query);
+    if (req.query.lista === 'convites') return respostaConvites(await exigir(req), req.query);
     if (req.query.lista === 'asaasbusca') return buscaAsaas(await exigir(req), req.query);
     if (req.query.lista === 'pedidos') return respostaPedidos(await exigir(req));
     // Sessão, oferendas, sub-abas e quantas anteriores ficaram fora numa ida só (só leitura: os novos cadastrados
@@ -105,6 +108,7 @@ export default rota({
     if (b.acao === 'guias') return acaoGuias(await exigir(req), b);
     if (b.acao === 'asaas') return acaoAsaas(await exigir(req), b);
     if (b.acao === 'oraculo') return acaoOraculo(await exigir(req), b);
+    if (b.acao === 'convites') return acaoConvites(await exigir(req), b);
     if (b.acao === 'doar') {
       // Sessão, sub-abas e a sub-aba do item numa ida só (antes: sessão, sub-abas e todas as oferendas, uma depois da outra).
       let itemId;
@@ -148,7 +152,7 @@ export default rota({
         const grupos = porMedium && b.grupos !== undefined ? validarGrupos(b.grupos) : null;
         const antes = grupos ? new Set((await db.rpc('oferendas_estado')).map((o) => o.id)) : null;
         const abaId = b.abaId ? validarId(b.abaId, 'Sub-aba') : null;
-        if (abaId && !(await db.rpc('oferenda_abas_listar')).some((a) => a.id === abaId && !a.iemanja)) throw new HttpError(400, 'Sub-aba inválida.');
+        if (abaId && !(await db.rpc('oferenda_abas_listar')).some((a) => a.id === abaId && !a.iemanja && !a.convites)) throw new HttpError(400, 'Sub-aba inválida.');
         estado = await db.rpc('oferenda_salvar', { id: b.id ? validarId(b.id, 'Oferenda') : null, titulo: texto(b.titulo, 'o título', 120), data: validarData(String(b.data || '')), responsavelId: resp.id, porMedium, abaId });
         // Uma linha por pessoa só dos grupos escolhidos (funções da corrente e/ou alunos).
         const nova = grupos && estado.find((o) => !antes.has(o.id));

@@ -2778,3 +2778,32 @@ div.pf-of-total{cursor:default}
 .geral .evs-l.or-l.or-aluno{border-color:var(--line);border-left-color:#4f8ef7}
 .geral .evs-l.or-l.or-corrente{border-color:var(--line);border-left-color:#a066e8}
 .geral .evs-l.or-l:last-child{border-bottom-color:transparent}
+
+/* Sub-aba Eventos (aba Eventos, antiga Oferendas): listas de pessoas por evento */
+.cv{display:grid;gap:10px}
+.cv-novo{justify-self:start}
+.cv-form{display:grid;gap:8px}
+.cv-ev .grp-h h2{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:1.05rem}
+.cv-data{font-size:.85rem;font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums}
+.cv-ev.passou{opacity:.8}
+.cv-bts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}
+.cv-conf{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.88rem}
+.cv-add{display:grid;gap:8px;padding:10px;margin:4px 0 10px;border:1px solid var(--gold);border-radius:var(--r);background:var(--bg)}
+.cv-add-h{display:flex;justify-content:space-between;align-items:center}
+.cv-escolha{display:grid;gap:8px}
+.cv-cks{display:grid;gap:2px;max-height:280px;overflow-y:auto;padding:4px;border:1px solid var(--line);border-radius:8px}
+.cv-ck{display:flex;gap:8px;align-items:center;min-height:36px;padding:0 6px;font-size:.92rem;cursor:pointer}
+.cv-ck input{width:18px;height:18px;flex:none}
+.cv-ck.ja{color:var(--muted)}
+.cv-todos{border-bottom:1px solid var(--line)}
+.cv-fora{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.cv-dica{margin:0;font-size:.85rem}
+.cv-grupo{margin-top:10px}
+.cv-g-h{margin:0 0 4px;font-size:.92rem;color:var(--gold)}
+.cv-lista{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.cv-p{display:flex;align-items:center;gap:8px;min-height:38px;padding:2px 4px 2px 8px;border-radius:8px;background:var(--bg);flex-wrap:wrap}
+.cv-p.conf{outline:1px solid var(--off)}
+.cv-nome{flex:1;min-width:0;overflow-wrap:anywhere}
+.cv-x{width:34px;height:34px;border-radius:50%;border:1px solid var(--off);background:transparent;color:var(--off);font-size:1rem;cursor:pointer;flex:none}
+.cv-fim{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.cv-passados{margin:8px 0 0;font-size:.9rem;color:var(--muted)}

@@ -30,7 +30,7 @@ function paraTela(ev, eu) {
 }
 
 // Quem pode entrar no sorteio ou num grupo. Não muda nenhum cadastro.
-async function candidatos() {
+export async function candidatos() {
   const [pessoas, al] = await Promise.all([db.rpc('pessoas_listar'), db.rpc('alunos_estado')]);
   const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
   const aluno = (a) => ({ chave: 'a:' + a.id, nome: a.nome });

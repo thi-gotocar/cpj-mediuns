@@ -3745,3 +3745,67 @@ test('v181: Oráculo — agenda, reserva travada, pagamento conferido no ASAAS, 
     sql(`update sistema set valor = 'false' where chave = 'oraculo_publicado'`);
   }
 });
+
+test('v185: sub-aba Eventos — listas de pessoas por evento (cadastro e de fora), tirar e só quem administra mexe', async () => {
+  const { textoWhatsConvites } = await import('../shared/convites.js');
+  const cv = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'convites', ...b });
+  const abas = (await api('GET', '/api/oferendas', ADMIN)).json.abas;
+  const aba = abas.find((a) => a.convites);
+  assert.ok(aba, 'a sub-aba Eventos existe');
+  assert.equal(aba.visivel, false, 'nasce oculta');
+  assert.equal((await api('GET', '/api/oferendas?lista=convites', USER)).status, 403, 'oculta: só quem administra');
+  assert.match((await api('POST', '/api/oferendas', ADMIN, { acao: 'abaExcluir', id: aba.id })).json.erro, /fixa/);
+  let r = await api('GET', '/api/oferendas?lista=convites', ADMIN);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.admin, true);
+
+  assert.equal((await cv(USER, { op: 'eventoSalvar', nome: 'Festa', data: '2030-06-20' })).status, 403);
+  assert.equal((await cv(ADMIN, { op: 'eventoSalvar', nome: 'X', data: '2030-06-20' })).status, 400, 'nome curto');
+  r = await cv(ADMIN, { op: 'eventoSalvar', nome: 'Festa de Caboclo', data: '2030-06-20' });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const ev = r.json.eventos.find((e) => e.nome === 'Festa de Caboclo');
+  assert.deepEqual([ev.data, ev.pessoas], ['2030-06-20', []]);
+
+  // Do cadastro: o servidor pega o nome e a lista do cadastro (o navegador só manda as chaves).
+  const cad = (await api('GET', '/api/oferendas?lista=convites&cadastro=1', ADMIN)).json.cadastro;
+  const corrente = cad.find((g) => g.lista === 'Corrente');
+  assert.ok(corrente?.pessoas.length >= 2, JSON.stringify(cad.map((g) => g.lista)));
+  const duas = corrente.pessoas.slice(0, 2);
+  assert.equal((await cv(ADMIN, { op: 'incluir', eventoId: ev.id, chaves: ['p:00000000-0000-0000-0000-000000000000'] })).status, 400, 'quem não está no cadastro');
+  r = await cv(ADMIN, { op: 'incluir', eventoId: ev.id, chaves: duas.map((p) => p.chave) });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  r = await cv(ADMIN, { op: 'incluir', eventoId: ev.id, chaves: [duas[0].chave] });
+  assert.equal(r.json.eventos.find((e) => e.id === ev.id).pessoas.length, 2, 'quem já está não repete');
+  // De fora: vai para Convidados.
+  assert.equal((await cv(ADMIN, { op: 'incluir', eventoId: ev.id, nome: 'A' })).status, 400);
+  r = await cv(ADMIN, { op: 'incluir', eventoId: ev.id, nome: '  Visita   de Fora ' });
+  let lista = r.json.eventos.find((e) => e.id === ev.id).pessoas;
+  assert.deepEqual(lista.find((p) => p.lista === 'Convidados'), { chave: 'n:visita de fora', nome: 'Visita de Fora', lista: 'Convidados' });
+  assert.deepEqual(lista.filter((p) => p.lista === 'Corrente').map((p) => p.nome).sort(), duas.map((p) => p.nome).sort());
+
+  // O WhatsApp: uma lista só, na ordem dos grupos (Corrente antes de Convidados), com o total.
+  const txt = textoWhatsConvites(r.json.eventos.find((e) => e.id === ev.id));
+  assert.match(txt, /^\*Festa de Caboclo\*\n📅 20\/06\/2030\n\n1\. /);
+  assert.ok(txt.indexOf('Visita de Fora') > txt.indexOf(duas[0].nome) && txt.indexOf('Visita de Fora') > txt.indexOf(duas[1].nome));
+  assert.match(txt, /\n3\. Visita de Fora\n\nTotal: 3 pessoas$/);
+  assert.ok(!txt.includes('Corrente') && !txt.includes('Convidados'), 'sem os títulos dos grupos');
+
+  // Visível para todos: quem vê a aba lê, sem as listas do cadastro e sem mexer.
+  assert.equal((await api('POST', '/api/oferendas', ADMIN, { acao: 'abaVisivel', id: aba.id, visivel: true })).status, 200);
+  r = await api('GET', '/api/oferendas?lista=convites&cadastro=1', USER);
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.deepEqual([r.json.admin, 'cadastro' in r.json], [false, false]);
+  assert.equal(r.json.eventos.find((e) => e.id === ev.id).pessoas.length, 3);
+  assert.equal((await cv(USER, { op: 'remover', eventoId: ev.id, chave: 'n:visita de fora' })).status, 403);
+
+  // Tirar da lista e excluir o evento.
+  r = await cv(ADMIN, { op: 'remover', eventoId: ev.id, chave: 'n:visita de fora' });
+  assert.equal(r.json.eventos.find((e) => e.id === ev.id).pessoas.length, 2);
+  assert.equal((await cv(ADMIN, { op: 'remover', eventoId: ev.id, chave: 'n:visita de fora' })).status, 400, 'já tinha saído');
+  r = await cv(ADMIN, { op: 'eventoSalvar', id: ev.id, nome: 'Festa de Caboclo 2030', data: '2030-06-21' });
+  assert.equal(r.json.eventos.find((e) => e.id === ev.id).nome, 'Festa de Caboclo 2030');
+  r = await cv(ADMIN, { op: 'eventoExcluir', id: ev.id });
+  assert.ok(!r.json.eventos.some((e) => e.id === ev.id));
+  assert.equal(sql(`select count(*) from convite_pessoas where evento_id = '${ev.id}'`), '0', 'as pessoas saem junto');
+  await api('POST', '/api/oferendas', ADMIN, { acao: 'abaVisivel', id: aba.id, visivel: false });
+});

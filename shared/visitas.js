@@ -7,7 +7,7 @@ export const VISITAS_DIAS = 3;
 // Abas que contam, com o nome que aparece na tela (data-tab do index.html → rótulo).
 export const ABAS_VISITA = [
   ['gira', 'Geral'], ['agenda', 'Gira'], ['hist', 'Histórico'], ['diario', 'Diário'], ['perfil', 'Perfil'],
-  ['oferendas', 'Oferendas'], ['ervas', 'Ervas'], ['guias', 'Compras'], ['pedidos', 'Pedidos'], ['asaas', 'ASAAS'],
+  ['oferendas', 'Eventos'], ['ervas', 'Ervas'], ['guias', 'Compras'], ['pedidos', 'Pedidos'], ['asaas', 'ASAAS'],
   ['amaci', 'Amaci'], ['fotos', 'Fotos'], ['curimba', 'Curimba'], ['videos', 'Vídeos'], ['transparencia', 'Transparência'],
   ['oraculo', 'Oráculo'],
 ];
