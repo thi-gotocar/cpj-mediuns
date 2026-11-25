@@ -554,6 +554,10 @@ body.deslogado header.top{min-height:0;padding-bottom:0}
 /* Gira em aberto: borda realçada para chamar a atenção. */
 /* Histórico: bloco Eventos com o Cadastrar evento e os Eventos cadastrados dentro. */
 .ev-grupo{gap:10px}
+/* Cadastro de eventos dentro do card 📅 Eventos da Geral (＋ Evento, só o root) */
+.evs-cadastro{display:grid;margin-top:10px;padding:12px;border:2px solid var(--gold);border-radius:var(--r);background:color-mix(in srgb,var(--gold) 5%,var(--surface))}
+.evs-cadastro .ev-form{margin:0}
+.evs-cad{min-height:32px}
 .ev-grupo>.card{padding:12px;background:var(--bg);box-shadow:none}
 .ev-grupo>.card h2{font-size:1.05rem}
 /* Admin root → Eventos: cadastrar (sem título), eventos cadastrados e tipos, separados por uma linha. */

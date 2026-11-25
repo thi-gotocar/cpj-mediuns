@@ -6,6 +6,7 @@ import { eventosDoTopo, proximosEventos, orixasDoDia, dataCurta, rotuloTipo, ani
 import { corDaFaixa } from './curimba.js';
 import { textoEntrega, dataBR, ROTULO_MEDIUM, compromissosDe, qtdTxt } from '/shared/oferendas.js';
 import { abertos, cabDobra, ICONE_WHATS } from './giraComum.js';
+import { blocosEventos, blocoTipos } from './eventos.js';
 
 // Aba Gira: gira dos próximos 30 dias; amaci, evento, aviso e os tipos novos, todos os futuros.
 export function cardSemana({ ocultarAvisos = false } = {}) {
@@ -28,7 +29,13 @@ export function cardSemana({ ocultarAvisos = false } = {}) {
   // Root: WhatsApp com a imagem dos aniversariantes de hoje (só aparece quando há algum).
   const niver = !ocultarAvisos && pode('usuarios:gerenciar') && aniversariantesDoDia(estado.pessoas, hj).length
     ? `<button class="btn small or-wa" data-act="niverabrir" title="Mandar os aniversariantes de hoje no WhatsApp"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Parabéns</button>` : '';
-  return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2><span class="or-cab-d">${niver}${mais}${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</span></div>
+  // Root: ＋ Evento abre aqui mesmo o cadastro (os mesmos blocos que ficavam no Admin root): cadastrar, eventos
+  // cadastrados e tipos de evento. O servidor só aceita o root.
+  const cadastra = !ocultarAvisos && pode('usuarios:gerenciar') && !estado.verComo;
+  const cadAberto = cadastra && !!estado.evCadastro;
+  const btCad = cadastra ? `<button class="btn small evs-cad" data-act="evcadastro" aria-expanded="${cadAberto}">${cadAberto ? 'Fechar' : '＋ Evento'}</button>` : '';
+  return `<div class="card ev-semana"><div class="grp-h"><h2 class="evs-tit"><span aria-hidden="true">📅</span> Eventos</h2><span class="or-cab-d">${niver}${mais}${btCad}${evs.length ? `<span class="evs-qtd">${evs.length}</span>` : ''}</span></div>
+    ${cadAberto ? `<div class="evs-cadastro ev-grupo" data-tela="eventos">${blocosEventos(true)}${blocoTipos()}</div>` : ''}
     ${lista.length ? `<div class="evs-lista">${lista.map((e) => { const [k, rot] = tipo(e); return `<div class="evs-l${e.data === hj ? ' hoje' : ''}">
         <span class="evs-data"><span class="evs-sem">${semana(e.data)}</span><b>${dataCurta(e.data)}</b></span>
         <span class="evs-nome">${e.niver ? '<span class="evs-niver" aria-hidden="true">🎈🎂</span> ' : ''}${esc(e.nome)}</span>

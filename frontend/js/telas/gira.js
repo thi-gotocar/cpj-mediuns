@@ -2,7 +2,7 @@
 
 import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, carregarFila, salvarDiaGira, salvarRecadoCorrente, publicarEscala, travarEscala, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
-import { esc, dLong, dDM, pd, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem } from '../util.js';
+import { esc, dLong, dDM, pd, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem, ajustarRolagem } from '../util.js';
 import { textoWhats } from '../exportar.js';
 import { calendarioMes, mesMais } from '../calendario.js';
 import { painelResumo, cliquesResumo } from '../compartilharResumo.js';
@@ -699,6 +699,8 @@ export const cliques = {
   fotofechar() { estado.fotoVer = null; atualizarJanela(); },
   // Bloco Eventos: só os de hoje ↔ todos.
   evsmais() { estado.evsTodos = !estado.evsTodos; avisar(); },
+  // Root: abre e fecha o cadastro de eventos (e tipos) dentro do card 📅 Eventos.
+  evcadastro() { estado.evCadastro = !estado.evCadastro; avisar(); setTimeout(ajustarRolagem, 0); },
   async eventoimagem() {
     fecharCompartilhar();
     const g = giraAtual();

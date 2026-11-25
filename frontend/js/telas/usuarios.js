@@ -1,15 +1,15 @@
 // Aba "Admin root" (só o admin root): Acessos e perfis (um bloco só, por perfil), Quem entrou nas abas, Versão do app e, do Histórico,
-// Cadastrar gira antiga e Cadastrar escala, as Regras da casa e os eventos da casa (cadastrar e eventos cadastrados).
+// Cadastrar gira antiga e Cadastrar escala e as Regras da casa. Os eventos da casa saíram daqui: o root cadastra no ＋ Evento
+// do card 📅 Eventos da aba Geral.
 
 import { SEM_CADASTRO, ABAS, ABAS_CONSULENTE, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '/shared/permissoes.js';
 import { estado, pessoasOrd, carregarUsuarios, carregarVisitas, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, salvarRegrasCasa, avisar } from '../estado.js';
-import { esc, toast, ajustarRolagem, hoje } from '../util.js';
+import { esc, toast, hoje } from '../util.js';
 import { ICONE_WHATS } from './giraComum.js';
 import { ABAS_VISITA, VISITAS_DIAS, agruparVisitas, textoVisitas } from '/shared/visitas.js';
 import { emDemo } from '../auth.js';
 import { api } from '../api.js';
 import { renderAjustesPerfil, formSenha } from './perfil.js';
-import { blocosEventos, blocoTipos, cliques as cliquesEventos } from './eventos.js';
 import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, corpoBackup, cliquesBackup } from './historico.js';
 import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
 import { contaNaPresenca, LINHA_LABEL } from '/shared/regras.js';
@@ -73,7 +73,7 @@ export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   if (abertosRoot.has('ajperfil') && estado.perfil === null) { estado.perfil = undefined; carregarPerfil(); }
   let h = `<section class="panel">${cardAcessos()}${cardVisitas()}${cardVersoes()}
-    ${secao('Configurações da casa')}${cardConfig()}${cardRegras()}${cardEntidades()}${cardEventos()}
+    ${secao('Configurações da casa')}${cardConfig()}${cardRegras()}${cardEntidades()}
     ${secao('Pessoas e histórico')}${cardAjustesPerfil()}${cardRegistros()}${cardBackup()}</section>`;
   return h;
 }
@@ -336,14 +336,6 @@ function cardEntidades() {
   `}</div>`;
 }
 
-// Eventos da casa (só o root cadastra, edita e exclui): Cadastrar evento e Eventos cadastrados.
-// A corrente continua vendo os eventos da semana no card 📅 Eventos da aba Gira.
-function cardEventos() {
-  setTimeout(ajustarRolagem, 0);
-  const ab = abertosRoot.has('eventos');
-  return `<div class="card adm root ev-grupo">${cabRoot('eventos', '<span aria-hidden="true">🗓️</span> Eventos', (estado.eventos || []).length)}${ab ? blocosEventos(true) + blocoTipos() : ''}</div>`;
-}
-
 // Do Histórico: cadastrar gira antiga (já encerrada, só para o histórico) e cadastrar a escala de uma gira salva.
 function cardRegistros() {
   // Com um cadastro em andamento, fica aberto.
@@ -363,7 +355,6 @@ export const cliques = {
   vervoltar() { avisar(); },
   async verexigir() { await exigirVersao(window.__smVersao || ''); },
   async verparar() { await exigirVersao(''); },
-  ...cliquesEventos,
   ...cliquesGiraAntiga,
   ...cliquesEscala,
   ...cliquesBackup,

@@ -194,7 +194,7 @@ function cardPresencaAdmin(A) {
   const cab = `<div class="am-padm-h"><button class="grp-h dobra am-cfg-h" data-act="ampresadm" aria-expanded="${ui.presAdm}"><h3><span aria-hidden="true">📋</span> Presenças</h3>
     <span class="am-turma-x"><span class="seta" aria-hidden="true">${ui.presAdm ? '▴' : '▾'}</span></span></button>${sel}</div>`;
   if (!ui.presAdm) return `<div class="am-adm-sec">${cab}</div>`;
-  if (!turma) return `<div class="am-adm-sec">${cab}<p class="muted" style="margin:0">Cadastre um tipo de evento com Amaci no nome (ex.: T09 - Amaci), marque a turma nele (Admin root → Eventos) e os alunos aparecem aqui.</p></div>`;
+  if (!turma) return `<div class="am-adm-sec">${cab}<p class="muted" style="margin:0">Cadastre um tipo de evento com Amaci no nome (ex.: T09 - Amaci), marque a turma nele (Geral → ＋ Evento → Tipos de evento) e os alunos aparecem aqui.</p></div>`;
   const amacis = P.amacis.filter((ev) => !ev.turmas || ev.turmas.includes(turma.id));
   if (ui.abrirNovo) {
     const n = amacis.find((ev) => ev.data === ui.abrirNovo.data && ev.nome === ui.abrirNovo.nome);
@@ -235,7 +235,7 @@ function cardPresencaAdmin(A) {
   return `<div class="am-adm-sec">${cab}${novo}<p class="muted am-pres-nota">${esc(turma.nome)} · ${plural(alunos.length, 'aluno', 'alunos')} · ${plural(amacis.length, 'amaci', 'amacis')}</p><div class="am-padm-lista">${corpo}</div></div>`;
 }
 
-// Root: corrige o nome e a data de um amaci (o mesmo evento de Admin root → Eventos; o tipo continua o mesmo).
+// Root: corrige o nome e a data de um amaci (o mesmo evento do ＋ Evento da Geral; o tipo continua o mesmo).
 function formEditar(ev) {
   const E = ui.editar;
   const carregando = estado.eventosTipos === null;   // os eventos (com o tipo de cada um) chegam pelo ameditar
@@ -294,7 +294,7 @@ function blocoNovoAmaci(turma) {
   if (estado.eventosTipos === null) { carregarEventosTipos(); return '<p class="muted am-pres-nota">Carregando os tipos de evento…</p>'; }
   const tipos = tiposAmaciDa(turma.id);
   if (!tipos.length) {
-    return `<div class="am-novo"><p class="muted am-pres-nota">A ${esc(turma.nome)} não está marcada em nenhum tipo de amaci. Crie o tipo (ex.: <b>${esc(turma.nome)} - Amaci</b>) em Admin root → Eventos e marque a turma nele.</p>
+    return `<div class="am-novo"><p class="muted am-pres-nota">A ${esc(turma.nome)} não está marcada em nenhum tipo de amaci. Crie o tipo (ex.: <b>${esc(turma.nome)} - Amaci</b>) em Geral → ＋ Evento → Tipos de evento e marque a turma nele.</p>
       <button class="btn small" data-act="amnovocancel">Fechar</button></div>`;
   }
   const V = ui.novoRasc || {};
@@ -333,7 +333,7 @@ export async function enviarNovoAmaci(form) {
   const nome = ui.novoRasc.nome.replace(/\s+/g, ' ').trim();
   const erro = (texto) => { ui.novoMsg = { ok: false, texto }; avisar(); };
   if (!data) return erro('Não cadastrado: data inválida. Use o formato 31/10/2026.');
-  if (data > hojeData) return erro('Não cadastrado: aqui é só amaci que já passou. Amaci futuro vai em Admin root → Eventos.');
+  if (data > hojeData) return erro('Não cadastrado: aqui é só amaci que já passou. Amaci futuro vai no ＋ Evento da aba Geral.');
   if (!nome) return erro('Não cadastrado: digite o nome do amaci.');
   ui.novoSalvando = true;
   ui.novoMsg = null;

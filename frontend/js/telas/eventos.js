@@ -3,11 +3,11 @@
 
 import { lerDataCurta, dataCurta, TIPOS_EVENTO, TIPOS_TODOS_ALUNOS, rotuloTipo } from '/shared/eventos.js';
 import { estado, pode, acaoEventos, carregarEventosTipos, salvarEventoTipo, avisar } from '../estado.js';
-import { esc, toast, hoje, wd } from '../util.js';
+import { esc, toast, hoje, wd, ajustarRolagem } from '../util.js';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const U = () => (estado.evUi ||= { novo: null, editar: null, passados: false });
-// Tipos cadastrados (o root carrega na aba Admin root); antes de chegarem, os quatro de sempre.
+// Tipos cadastrados (carregados ao abrir o cadastro de eventos); antes de chegarem, os quatro de sempre.
 const listaTipos = () => estado.eventosTipos?.tipos?.map((t) => [t.chave, t.nome]) || TIPOS_EVENTO;
 const seletorTipo = (atual = 'evento') => `<label class="field ev-tipo">Tipo<select name="tipo">${listaTipos().map(([k, l]) => `<option value="${k}" ${k === atual ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
 const dia = (d) => `${wd(d).replace(/^./, (c) => c.toUpperCase())} ${dataCurta(d)}`;
@@ -35,9 +35,9 @@ function blocoMes(chave, lista, editar) {
     ${aberto ? `<div class="ev-lista">${lista.map((e) => linha(e, editar)).join('')}</div>` : ''}</div>`;
 }
 
-// Blocos de eventos (ficam na aba Admin root): 1) cadastrar evento (admin); 2) eventos cadastrados, por mês.
+// Blocos de eventos (no card 📅 Eventos da aba Geral, pelo ＋ Evento do root): 1) cadastrar evento (admin); 2) eventos cadastrados, por mês.
 // Os dois começam minimizados. Na lista aparecem até 3 meses; o resto rola dentro do bloco.
-// embutido: dentro de um bloco que já abre e fecha (aba Admin root), os dois vêm abertos, sem card próprio.
+// embutido: dentro de um bloco que já abre e fecha (o card da Geral), os dois vêm abertos, sem card próprio.
 export function blocosEventos(embutido = false) {
   const editar = pode('usuarios:gerenciar');   // só o admin root (o servidor confere)
   if (editar && estado.eventosTipos === null) { estado.eventosTipos = undefined; carregarEventosTipos(); }
@@ -72,7 +72,7 @@ export function blocosEventos(embutido = false) {
   return h + fim;
 }
 
-// Tipos de evento (dentro do bloco Eventos da aba Admin root): o root cria e edita o nome e as turmas de alunos que veem.
+// Tipos de evento (no cadastro de eventos da aba Geral): o root cria e edita o nome e as turmas de alunos que veem.
 // A corrente vê todos os tipos; gira e evento, todos os alunos.
 function formTipo(t) {
   const todos = t && TIPOS_TODOS_ALUNOS.includes(t.chave);
@@ -151,6 +151,7 @@ export const cliques = {
     const s = (U().meses ||= new Set());
     if (s.has(el.dataset.k)) s.delete(el.dataset.k); else s.add(el.dataset.k);
     avisar();
+    setTimeout(ajustarRolagem, 0);
   },
   evlista(el) { U().lista = el.getAttribute('aria-expanded') !== 'true'; avisar(); },
   eveditar(el) { U().editar = el.dataset.id; avisar(); },
