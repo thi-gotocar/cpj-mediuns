@@ -16,7 +16,7 @@
 
 /* topo: a foto da mesa (velas, cartas, sino) atrás do nome, escura em cima para o título ler bem e esfumada no fundo da
    aba embaixo. A foto é um WebP de 26 KB (vai no cache do app como os outros arquivos). O brilho de vela é o único efeito. */
-.oc-topo{text-align:center; position:relative; margin:-22px -16px 0; padding:22px 16px 132px;
+.oc-topo{text-align:center; position:relative; margin:-22px -16px 0; padding:34px 16px 132px;
   background:
     linear-gradient(180deg,rgba(6,1,2,.92) 0%,rgba(6,1,2,.7) 34%,rgba(6,1,2,.25) 62%,rgba(6,1,2,.35) 80%,#0d0204 100%),
     radial-gradient(120% 70% at 50% 100%,transparent 55%,rgba(6,1,2,.6) 100%),
@@ -26,7 +26,6 @@
   background:radial-gradient(closest-side,rgba(236,170,70,.22),rgba(212,42,53,.08) 60%,transparent); pointer-events:none;
   animation:oc-chama 5s ease-in-out infinite alternate}
 @keyframes oc-chama{from{opacity:.75; transform:translateX(-50%) scale(.96)} to{opacity:1; transform:translateX(-50%) scale(1.04)}}
-.oc-selo{display:block; margin:0 auto 10px; border-radius:50%; border:1px solid var(--oc-ouro); background:#120405; object-fit:contain; box-shadow:0 0 14px rgba(201,162,74,.3)}
 /* letras douradas: gradiente metálico no próprio texto, com um halo quente para destacar do fundo */
 .oc-pre,.oc-sub,.oc-h2,.oc-cal-cab b,.oc-quando b{background:var(--oc-ouro-texto); -webkit-background-clip:text; background-clip:text; color:transparent;
   filter:drop-shadow(0 0 6px rgba(236,190,90,.35)) drop-shadow(0 1px 1px rgba(0,0,0,.8))}

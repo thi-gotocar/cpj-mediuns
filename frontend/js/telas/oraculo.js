@@ -43,7 +43,7 @@ function conferirPagamento(ligar) {
 const ROSA = `<svg class="oc-rosa" viewBox="0 0 120 24" aria-hidden="true"><path d="M2 12h44M74 12h44" stroke="currentColor" stroke-width="1"/>
   <circle cx="60" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M60 5c-3 3-3 11 0 14M60 5c3 3 3 11 0 14M53 12h14" fill="none" stroke="currentColor" stroke-width="1"/>
   <circle cx="49" cy="12" r="1.6" fill="currentColor"/><circle cx="71" cy="12" r="1.6" fill="currentColor"/></svg>`;
-const topo = () => `<header class="oc-topo"><img class="oc-selo" src="/img/terreiro.png" alt="" width="54" height="54">
+const topo = () => `<header class="oc-topo">
   <p class="oc-pre">Oráculo de</p><h1 class="oc-tit">Maria Mulambo</h1>${ROSA}<p class="oc-sub">Agende sua consulta</p></header>`;
 const rodape = (O) => `<footer class="oc-rodape"><b>Casa do Pai João</b><span>${esc(ENDERECO)}</span>
   <a class="oc-whats" href="${linkWhats(O.config.contato, 'Olá! Tenho uma dúvida sobre o Oráculo de Maria Mulambo.')}" target="_blank" rel="noopener">Falar com a casa no WhatsApp</a></footer>`;
