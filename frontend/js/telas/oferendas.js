@@ -316,7 +316,7 @@ function barraAbas(aba) {
   const nome = (a) => `${a.iemanja || a.visivel ? '' : '<span title="Só os admins veem" aria-label="Oculta">🔒</span> '}${esc(a.nome)}`;
   const botoes = l.map((a) => `<button class="subaba" role="tab" data-act="ofaba" data-id="${a.id}" aria-selected="${a.id === aba.id}">${nome(a)}</button>`);
   return `<div class="subabas" role="tablist" aria-label="Sub-abas de oferendas">${botoes.join('')}${root ? '<button class="subaba mais" data-act="ofabanova" aria-label="Criar sub-aba" title="Criar sub-aba">＋</button>' : ''}</div>
-    ${root && !aba.iemanja ? `<div class="subaba-adm"><label class="of-sw"><input type="checkbox" role="switch" data-act="ofabavisivel" data-id="${aba.id}" ${aba.visivel ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label><span class="subaba-bts"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button>${aba.convites ? '' : '<button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button>'}</span></div>` : ''}`;
+    ${root && !aba.iemanja ? `<div class="subaba-adm"><label class="of-sw"><input type="checkbox" role="switch" data-act="ofabavisivel" data-id="${aba.id}" ${aba.visivel ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>${aba.convites ? 'Visível para a corrente CPJ' : 'Visível para todos'}</b></label><span class="subaba-bts"><button class="btn link small" data-act="ofabaeditar">✎ Renomear</button>${aba.convites ? '' : '<button class="btn link small danger" data-act="ofabaexcluir">Excluir sub-aba</button>'}</span></div>` : ''}`;
 }
 
 function janelaNova() {

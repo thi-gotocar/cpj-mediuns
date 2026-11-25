@@ -6266,15 +6266,6 @@ export const MIGRACOES = [
      criado_em  timestamptz not null default now(),
      primary key (evento_id, chave)
    )`,
-  // Os eventos (os de hoje em diante primeiro, por data; depois os que passaram, do mais recente) com as pessoas.
-  `create or replace function convites_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'data', e.data,
-       'pessoas', (select coalesce(jsonb_agg(jsonb_build_object('chave', x.chave, 'nome', x.nome, 'lista', x.lista) order by lower(x.nome)), '[]'::jsonb)
-                     from convite_pessoas x where x.evento_id = e.id))
-       order by (e.data < (now() at time zone 'America/Sao_Paulo')::date), case when e.data >= (now() at time zone 'America/Sao_Paulo')::date then e.data end, e.data desc), '[]'::jsonb)
-     from convite_eventos e
-   $$`,
   // p = { id?, nome, data } (já validados no servidor)
   `create or replace function convite_evento_salvar(p jsonb)
    returns jsonb language plpgsql as $$
@@ -6341,4 +6332,73 @@ export const MIGRACOES = [
      from alunos a where a.id = (p ->> 'id')::uuid and a.saida is null
    $$`,
   `delete from perfis where chave = 'usuario' and not exists (select 1 from usuarios where papel = 'usuario')`,
+
+  // ---------- v188: sub-aba Eventos — a corrente responde (Vou / Não vou / Desisti) e põe convidados ----------
+  // resposta: '' (o admin pôs e a pessoa não respondeu), 'vou', 'nao', 'desisti'. por: a chave de quem convidou
+  // (só nos convidados que a própria pessoa da corrente pôs; o admin continua pondo e tirando qualquer um).
+  `alter table convite_pessoas add column if not exists resposta text not null default ''`,
+  `alter table convite_pessoas drop constraint if exists convite_pessoas_resposta_check`,
+  `alter table convite_pessoas add constraint convite_pessoas_resposta_check check (resposta in ('', 'vou', 'nao', 'desisti'))`,
+  `alter table convite_pessoas add column if not exists por text`,
+  // Os eventos (os de hoje em diante primeiro, por data; depois os que passaram, do mais recente) com as pessoas, a
+  // resposta de cada uma e quem convidou (com o nome do cadastro). Substitui a da v185.
+  `create or replace function convites_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', e.id, 'nome', e.nome, 'data', e.data,
+       'pessoas', (select coalesce(jsonb_agg(jsonb_build_object('chave', x.chave, 'nome', x.nome, 'lista', x.lista, 'resposta', x.resposta, 'por', x.por,
+                     'porNome', (select pe.nome from pessoas pe where 'p:' || pe.id::text = x.por)) order by lower(x.nome)), '[]'::jsonb)
+                     from convite_pessoas x where x.evento_id = e.id))
+       order by (e.data < (now() at time zone 'America/Sao_Paulo')::date), case when e.data >= (now() at time zone 'America/Sao_Paulo')::date then e.data end, e.data desc), '[]'::jsonb)
+     from convite_eventos e
+   $$`,
+  // O evento ainda aberto (de hoje em diante): a corrente só responde e convida nele.
+  `create or replace function convite_aberto(p_id uuid)
+   returns void language plpgsql as $$
+   begin
+     if not exists (select 1 from convite_eventos where id = p_id) then raise exception 'Evento não encontrado.'; end if;
+     if (select data from convite_eventos where id = p_id) < (now() at time zone 'America/Sao_Paulo')::date then
+       raise exception 'Este evento já passou.';
+     end if;
+   end;
+   $$`,
+  // p = { eventoId, chave, nome, lista, resposta } — a resposta da própria pessoa (entra na lista se ainda não está).
+  // Desisti só vale para quem tinha dito Vou.
+  `create or replace function convite_responder(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v_atual text;
+   begin
+     perform convite_aberto((p ->> 'eventoId')::uuid);
+     select resposta into v_atual from convite_pessoas where evento_id = (p ->> 'eventoId')::uuid and chave = p ->> 'chave';
+     if p ->> 'resposta' = 'desisti' and coalesce(v_atual, '') <> 'vou' then raise exception 'Desisti é para quem tinha marcado Vou.'; end if;
+     insert into convite_pessoas (evento_id, chave, nome, lista, resposta)
+     values ((p ->> 'eventoId')::uuid, p ->> 'chave', p ->> 'nome', p ->> 'lista', p ->> 'resposta')
+     on conflict (evento_id, chave) do update set resposta = excluded.resposta;
+     return convites_listar();
+   end;
+   $$`,
+  // p = { eventoId, por, chave, nome } — convidado de uma pessoa da corrente (vai para Convidados, já como Vou).
+  `create or replace function convite_convidar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     perform convite_aberto((p ->> 'eventoId')::uuid);
+     if (select count(*) from convite_pessoas where evento_id = (p ->> 'eventoId')::uuid and por = p ->> 'por') >= 10 then
+       raise exception 'Cada pessoa pode pôr até 10 convidados.';
+     end if;
+     insert into convite_pessoas (evento_id, chave, nome, lista, resposta, por)
+     values ((p ->> 'eventoId')::uuid, p ->> 'chave', p ->> 'nome', 'Convidados', 'vou', p ->> 'por')
+     on conflict (evento_id, chave) do nothing;
+     if not found then raise exception 'Esse nome já está na lista.'; end if;
+     return convites_listar();
+   end;
+   $$`,
+  // p = { eventoId, chave, por } — a pessoa tira um convidado dela.
+  `create or replace function convite_tirar_convidado(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     perform convite_aberto((p ->> 'eventoId')::uuid);
+     delete from convite_pessoas where evento_id = (p ->> 'eventoId')::uuid and chave = p ->> 'chave' and por = p ->> 'por';
+     if not found then raise exception 'Convidado não encontrado.'; end if;
+     return convites_listar();
+   end;
+   $$`,
 ];

@@ -2,4 +2,4 @@
 // as migrações (centenas de KB de SQL): db/esquema.js só é carregado quando o banco está atrás (api/_lib/db.js).
 // Ao acrescentar comandos no fim de MIGRACOES (db/esquema.js), aumente aqui.
 
-export const VERSAO = 187;  // v187: perfil Alunos (o que os alunos veem) e sai o perfil Usuário
+export const VERSAO = 188;  // v188: sub-aba Eventos — a corrente responde (Vou / Não vou / Desisti) e põe convidados

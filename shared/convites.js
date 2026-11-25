@@ -4,6 +4,17 @@
 
 export const LISTA_CONVIDADOS = 'Convidados';
 export const LISTA_SEM_TURMA = 'Alunos sem turma';
+// Resposta de quem é da corrente (Desisti só para quem tinha marcado Vou). Sem resposta: o admin pôs na lista.
+export const RESPOSTAS = [['vou', 'Vou'], ['nao', 'Não vou'], ['desisti', 'Desisti']];
+// Quem não vai (Não vou ou Desisti) fica fora do WhatsApp e da contagem de quem vai.
+export const naoVai = (p) => p.resposta === 'nao' || p.resposta === 'desisti';
+// Contagem para os admins: vão (Vou e os que o admin pôs sem resposta), não vão, desistiram e sem resposta.
+export function contagem(pessoas) {
+  const L = pessoas || [];
+  return { vao: L.filter((p) => !naoVai(p)).length, confirmados: L.filter((p) => p.resposta === 'vou').length,
+    nao: L.filter((p) => p.resposta === 'nao').length, desistiram: L.filter((p) => p.resposta === 'desisti').length,
+    semResposta: L.filter((p) => !p.resposta).length };
+}
 
 // Ordem dos grupos: Corrente, Curimba, as turmas (por nome), Alunos sem turma e, por último, Convidados.
 function pesoLista(l) {
@@ -29,9 +40,10 @@ export function gruposDe(pessoas) {
 
 const dataBR = (d) => d.split('-').reverse().join('/');
 
-// Texto do WhatsApp: título, data e os nomes numerados, sem os títulos dos grupos (mas na ordem deles).
+// Texto do WhatsApp: título, data e os nomes numerados, sem os títulos dos grupos (mas na ordem deles). Quem marcou
+// Não vou ou Desisti fica de fora.
 export function textoWhatsConvites(ev) {
-  const nomes = gruposDe(ev.pessoas).flatMap((g) => g.pessoas.map((p) => p.nome));
+  const nomes = gruposDe(ev.pessoas.filter((p) => !naoVai(p))).flatMap((g) => g.pessoas.map((p) => p.nome));
   return [
     `*${ev.nome}*`,
     `📅 ${dataBR(ev.data)}`,

@@ -6,7 +6,7 @@
 import { estado, avisar } from '../estado.js';
 import { api } from '../api.js';
 import { esc, toast, hoje } from '../util.js';
-import { gruposDe, textoWhatsConvites, LISTA_CONVIDADOS } from '/shared/convites.js';
+import { gruposDe, textoWhatsConvites, LISTA_CONVIDADOS, RESPOSTAS, contagem, naoVai } from '/shared/convites.js';
 import { ICONE_WHATS } from './giraComum.js';
 
 const FORA = '__fora__';
@@ -74,6 +74,35 @@ function formEvento(ev) {
       <button class="btn" type="button" data-act="${ev ? 'cveditarnao' : 'cvnovo'}">Cancelar</button></span></form>`;
 }
 
+// Selo da resposta na lista (todos veem; sem resposta: o admin pôs e a pessoa ainda não respondeu).
+const SELO = { vou: ['vou', '✓ Vou'], nao: ['nao', 'Não vou'], desisti: ['desisti', 'Desisti'] };
+const selo = (p) => (SELO[p.resposta] ? `<span class="cv-selo ${SELO[p.resposta][0]}">${SELO[p.resposta][1]}</span>` : '');
+
+// "Você vai?": a pessoa da corrente responde e põe os convidados dela (só no evento que ainda não passou).
+function blocoEu(ev) {
+  const u = U();
+  const eu = estado.convites.eu;
+  if (!eu || ev.data < hoje()) return '';
+  const minha = ev.pessoas.find((p) => p.chave === eu.chave);
+  const r = minha?.resposta || '';
+  const bts = RESPOSTAS.filter(([k]) => k !== 'desisti' || r === 'vou' || r === 'desisti')
+    .map(([k, t]) => `<button type="button" class="btn small cv-resp ${k}" data-act="cvresp" data-id="${ev.id}" data-v="${k}" aria-pressed="${r === k}" ${u.enviando ? 'disabled' : ''}>${t}</button>`).join('');
+  const meus = ev.pessoas.filter((p) => p.por === eu.chave);
+  const conv = meus.map((p) => {
+    const k = 'g:' + ev.id + ':' + p.chave;
+    return `<li class="cv-p${u.confirmar === k ? ' conf' : ''}"><span class="cv-nome">${esc(p.nome)}</span>${u.confirmar === k
+      ? `<span class="cv-conf">Tirar o convidado? <button class="btn small" data-act="cvcancelar">Cancelar</button><button class="btn small danger" data-act="cvtirarconv" data-id="${ev.id}" data-chave="${esc(p.chave)}">Confirmar</button></span>`
+      : `<button class="cv-x" data-act="cvconfirmar" data-k="${esc(k)}" aria-label="Tirar ${esc(p.nome)}">✕</button>`}</li>`;
+  }).join('');
+  return `<div class="cv-eu"><p class="cv-eu-t">${minha && !r ? 'Você está na lista. Vai?' : 'Você vai?'}</p><div class="cv-bts">${bts}</div>
+    ${r === 'desisti' ? '<p class="muted cv-dica">Você desistiu. Se mudar de ideia, toque em Vou.</p>' : ''}
+    <p class="cv-eu-t">Seus convidados <span class="muted">· ${meus.length}</span></p>
+    ${meus.length ? `<ul class="cv-lista">${conv}</ul>` : ''}
+    <form class="cv-fora" data-form="cvconv" data-id="${ev.id}" autocomplete="off">
+      <label class="field grow">Nome do convidado<input type="text" name="nome" maxlength="60" required placeholder="Ex.: Maria Souza"></label>
+      <button class="btn" type="submit" ${u.enviando ? 'disabled' : ''}>＋ Convidar</button></form></div>`;
+}
+
 function cardEvento(ev, admin) {
   const u = U();
   const aberto = u.abertos.has(ev.id);
@@ -81,6 +110,13 @@ function cardEvento(ev, admin) {
   let h = `<div class="card cv-ev${passou ? ' passou' : ''}"><button class="grp-h dobra" data-act="cvabrir" data-id="${ev.id}" aria-expanded="${aberto}">
     <h2><span class="cv-data">${dataBR(ev.data)}</span> ${esc(ev.nome)}</h2><span class="count">${ev.pessoas.length} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
   if (!aberto) return h + '</div>';
+  h += blocoEu(ev);
+  // Quem administra: o resumo das respostas.
+  if (admin && ev.pessoas.length) {
+    const c = contagem(ev.pessoas);
+    const pl = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+    h += `<p class="cv-cont"><b>${c.vao}</b> na lista para ir · ${pl(c.confirmados, 'confirmou', 'confirmaram')} · ${pl(c.nao, 'não vai', 'não vão')} · ${pl(c.desistiram, 'desistiu', 'desistiram')} · ${c.semResposta} sem resposta</p>`;
+  }
   if (admin && u.editar === ev.id) h += formEvento(ev);
   else if (admin) {
     const conf = u.confirmar === 'ev:' + ev.id;
@@ -90,18 +126,37 @@ function cardEvento(ev, admin) {
         : `<button class="btn small" data-act="cvconfirmar" data-k="ev:${ev.id}">Excluir evento</button>`}</div>`;
     if (u.add === ev.id) h += painelAdicionar(ev);
   }
-  const grupos = gruposDe(ev.pessoas);
-  h += grupos.length ? grupos.map((g) => `<div class="cv-grupo"><h3 class="cv-g-h">${esc(g.lista)} <span class="muted">· ${g.pessoas.length}</span></h3>
-      <ul class="cv-lista">${g.pessoas.map((p) => {
-        const k = 'p:' + ev.id + ':' + p.chave;
-        const conf = u.confirmar === k;
-        return `<li class="cv-p${conf ? ' conf' : ''}"><span class="cv-nome">${esc(p.nome)}</span>${!admin ? '' : conf
-          ? `<span class="cv-conf">Tirar da lista? <button class="btn small" data-act="cvcancelar">Cancelar</button><button class="btn small danger" data-act="cvremover" data-id="${ev.id}" data-chave="${esc(p.chave)}">Confirmar</button></span>`
-          : `<button class="cv-x" data-act="cvconfirmar" data-k="${esc(k)}" aria-label="Tirar ${esc(p.nome)} da lista">✕</button>`}</li>`;
-      }).join('')}</ul></div>`).join('')
-    : '<p class="muted cv-dica">Ninguém na lista ainda.</p>';
+  // Uma pessoa da lista: o nome (com quem convidou), o selo da resposta e, para quem administra, o ✕ (Cancelar / Confirmar).
+  const linha = (p) => {
+    const k = 'p:' + ev.id + ':' + p.chave;
+    const conf = u.confirmar === k;
+    const de = p.por && p.porNome ? `<small class="muted cv-de">convidado de ${esc(p.porNome)}</small>` : '';
+    return `<li class="cv-p${conf ? ' conf' : ''}${naoVai(p) ? ' fora' : ''}"><span class="cv-nome">${esc(p.nome)}${de}</span>${selo(p)}${!admin ? '' : conf
+      ? `<span class="cv-conf">Tirar da lista? <button class="btn small" data-act="cvcancelar">Cancelar</button><button class="btn small danger" data-act="cvremover" data-id="${ev.id}" data-chave="${esc(p.chave)}">Confirmar</button></span>`
+      : `<button class="cv-x" data-act="cvconfirmar" data-k="${esc(k)}" aria-label="Tirar ${esc(p.nome)} da lista">✕</button>`}</li>`;
+  };
+  const porGrupo = (L) => gruposDe(L).map((g) => `<div class="cv-grupo"><h3 class="cv-g-h">${esc(g.lista)} <span class="muted">· ${g.pessoas.length}</span></h3>
+      <ul class="cv-lista">${g.pessoas.map(linha).join('')}</ul></div>`).join('');
+  if (admin) {
+    // Quem administra: separado em quem vai (por grupo), quem não vai e quem da corrente ainda falta responder.
+    const vao = ev.pessoas.filter((p) => !naoVai(p));
+    const nao = ev.pessoas.filter(naoVai).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const naLista = new Set(ev.pessoas.map((p) => p.chave));
+    const faltam = (estado.pessoas || []).filter((x) => !naLista.has('p:' + x.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const passou = ev.data < hoje();
+    const sec = (cls, titulo, n, corpo) => `<div class="cv-sec ${cls}"><h3 class="cv-sec-h">${titulo} <span class="count">${n}</span></h3>${corpo}</div>`;
+    h += sec('vao', '✅ Vão', vao.length, vao.length ? porGrupo(vao) : '<p class="muted cv-dica">Ninguém ainda.</p>');
+    h += sec('nao', '❌ Não vão', nao.length, nao.length ? `<ul class="cv-lista">${nao.map(linha).join('')}</ul>` : '<p class="muted cv-dica">Ninguém.</p>');
+    if (!passou) {
+      h += sec('falta', '⏳ Faltam responder <small class="muted">(corrente)</small>', faltam.length, faltam.length
+        ? `<div class="cv-faltam" data-rolar="8">${faltam.map((x) => `<span>${esc(x.nome)}</span>`).join('')}</div>`
+        : '<p class="muted cv-dica">Toda a corrente já respondeu ou está na lista.</p>');
+    }
+  } else {
+    h += ev.pessoas.length ? porGrupo(ev.pessoas) : '<p class="muted cv-dica">Ninguém na lista ainda.</p>';
+  }
   if (ev.pessoas.length) {
-    h += `<div class="cv-fim"><span class="muted">${qtd(ev.pessoas.length)}</span>
+    h += `<div class="cv-fim"><span class="muted">${qtd(contagem(ev.pessoas).vao)} no WhatsApp</span>
       <a class="btn wa-bt" href="https://wa.me/?text=${encodeURIComponent(textoWhatsConvites(ev))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar lista</a></div>`;
   }
   return h + '</div>';
@@ -125,6 +180,8 @@ export function conteudo() {
 }
 
 export const cliques = {
+  async cvresp(el) { if (await acao('responder', { eventoId: el.dataset.id, resposta: el.dataset.v })) toast({ vou: 'Que bom! Você está na lista.', nao: 'Anotado: você não vai.', desisti: 'Anotado: você desistiu.' }[el.dataset.v]); },
+  async cvtirarconv(el) { U().confirmar = null; if (await acao('tirarConvidado', { eventoId: el.dataset.id, chave: el.dataset.chave })) toast('Convidado tirado da lista.'); },
   cvrecarregar() { estado.convites = null; avisar(); },
   cvnovo() { U().novo = !U().novo; avisar(); },
   cvabrir(el) { const a = U().abertos; if (a.has(el.dataset.id)) a.delete(el.dataset.id); else a.add(el.dataset.id); avisar(); },
@@ -170,6 +227,9 @@ export async function enviar(form) {
       toast(id ? 'Evento salvo.' : 'Evento criado.');
       avisar();
     }
+  } else if (form.dataset.form === 'cvconv') {
+    const nome = v('nome');
+    if (await acao('convidar', { eventoId: form.dataset.id, nome })) { form.reset(); toast(`${nome.trim()} está na lista como seu convidado.`); }
   } else if (form.dataset.form === 'cvfora') {
     const nome = v('nome');
     if (await acao('incluir', { eventoId: form.dataset.id, nome })) { form.reset(); toast(`${nome.trim()} entrou em ${LISTA_CONVIDADOS}.`); }

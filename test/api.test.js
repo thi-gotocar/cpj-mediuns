@@ -3785,3 +3785,56 @@ test('v185: sub-aba Eventos — listas de pessoas por evento (cadastro e de fora
   assert.equal(sql(`select count(*) from convite_pessoas where evento_id = '${ev.id}'`), '0', 'as pessoas saem junto');
   await api('POST', '/api/oferendas', ADMIN, { acao: 'abaVisivel', id: aba.id, visivel: false });
 });
+
+test('v188: sub-aba Eventos — a corrente responde (Vou / Não vou / Desisti) e põe convidados; os admins veem', async () => {
+  const { textoWhatsConvites, contagem } = await import('../shared/convites.js');
+  const cv = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'convites', ...b });
+  const aba = (await api('GET', '/api/oferendas', ADMIN)).json.abas.find((a) => a.convites);
+  await api('POST', '/api/oferendas', ADMIN, { acao: 'abaVisivel', id: aba.id, visivel: true });
+  try {
+    let r = await cv(ADMIN, { op: 'eventoSalvar', nome: 'Confra CPJ', data: '2030-12-13' });
+    const ev = r.json.eventos.find((e) => e.nome === 'Confra CPJ');
+    r = await cv(ADMIN, { op: 'eventoSalvar', nome: 'Confra antiga', data: '2020-12-13' });
+    const antigo = r.json.eventos.find((e) => e.nome === 'Confra antiga');
+    const doEv = (x) => x.json.eventos.find((e) => e.id === ev.id).pessoas;
+
+    // Quem não é da corrente (o root sem cadastro) só lê.
+    assert.equal((await cv(ADMIN, { op: 'responder', eventoId: ev.id, resposta: 'vou' })).status, 403);
+    const eu = (await api('GET', '/api/oferendas?lista=convites', USER)).json.eu;
+    assert.match(eu?.chave || '', /^p:/, 'a pessoa da corrente sabe a própria chave');
+    assert.match((await cv(USER, { op: 'responder', eventoId: ev.id, resposta: 'desisti' })).json.erro, /Vou/, 'Desisti só depois de Vou');
+    assert.equal((await cv(USER, { op: 'responder', eventoId: ev.id, resposta: 'talvez' })).status, 400);
+    r = await cv(USER, { op: 'responder', eventoId: ev.id, resposta: 'vou' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    let eu1 = doEv(r).find((p) => p.chave === eu.chave);
+    assert.equal(eu1.resposta, 'vou');
+    assert.ok(['Corrente', 'Curimba'].includes(eu1.lista));
+    // Convidado: vai para Convidados, já como Vou, com quem convidou.
+    assert.equal((await cv(USER, { op: 'convidar', eventoId: ev.id, nome: 'A' })).status, 400);
+    r = await cv(USER, { op: 'convidar', eventoId: ev.id, nome: 'Primo do Zé' });
+    const primo = doEv(r).find((p) => p.nome === 'Primo do Zé');
+    assert.deepEqual([primo.lista, primo.resposta, primo.por, primo.porNome], ['Convidados', 'vou', eu.chave, eu1.nome]);
+    assert.match((await cv(USER, { op: 'convidar', eventoId: ev.id, nome: 'primo do zé' })).json.erro, /já está na lista/);
+    // O convidado que o admin pôs não é dela: não tira.
+    await cv(ADMIN, { op: 'incluir', eventoId: ev.id, nome: 'Visita da Casa' });
+    assert.equal((await cv(USER, { op: 'tirarConvidado', eventoId: ev.id, chave: 'n:visita da casa' })).status, 400);
+    // Desistir: sai do WhatsApp e aparece para os admins.
+    r = await cv(USER, { op: 'responder', eventoId: ev.id, resposta: 'desisti' });
+    eu1 = doEv(r).find((p) => p.chave === eu.chave);
+    assert.equal(eu1.resposta, 'desisti');
+    const evAgora = r.json.eventos.find((e) => e.id === ev.id);
+    assert.ok(!textoWhatsConvites(evAgora).includes(eu1.nome), 'quem desistiu fica fora do WhatsApp');
+    assert.ok(textoWhatsConvites(evAgora).includes('Primo do Zé'));
+    assert.deepEqual(contagem(evAgora.pessoas), { vao: 2, confirmados: 1, nao: 0, desistiram: 1, semResposta: 1 });
+    const visto = (await api('GET', '/api/oferendas?lista=convites', ADMIN)).json.eventos.find((e) => e.id === ev.id).pessoas.find((p) => p.chave === eu.chave);
+    assert.equal(visto.resposta, 'desisti', 'a lista dos admins mostra a resposta');
+    // Tira o próprio convidado; evento que já passou não aceita resposta.
+    r = await cv(USER, { op: 'tirarConvidado', eventoId: ev.id, chave: primo.chave });
+    assert.ok(!doEv(r).some((p) => p.chave === primo.chave));
+    assert.match((await cv(USER, { op: 'responder', eventoId: antigo.id, resposta: 'vou' })).json.erro, /já passou/);
+    await cv(ADMIN, { op: 'eventoExcluir', id: ev.id });
+    await cv(ADMIN, { op: 'eventoExcluir', id: antigo.id });
+  } finally {
+    await api('POST', '/api/oferendas', ADMIN, { acao: 'abaVisivel', id: aba.id, visivel: false });
+  }
+});
