@@ -5536,17 +5536,7 @@ export const MIGRACOES = [
   // ---------- v171: resumo público da fila (guardado pela Vercel) ----------
   // p = { data } — o mesmo para todos: o resumo sem a própria senha e os números aguardando de cada tipo, em ordem,
   // para a página /fila calcular sozinha quantos estão na frente (a mesma conta de fila_json). Sem nomes.
-  `create or replace function fila_resumo(p jsonb)
-   returns jsonb language sql stable as $$
-     select fila_json((p ->> 'data')::date, null, null)
-       || jsonb_build_object('espera', jsonb_build_object(
-         'preferencial', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
-                                    where gira_data = (p ->> 'data')::date and tipo = 'preferencial' and status = 'aguardando'), '[]'::jsonb),
-         'atendimento', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
-                                   where gira_data = (p ->> 'data')::date and tipo = 'atendimento' and status = 'aguardando'), '[]'::jsonb),
-         'passe', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
-                             where gira_data = (p ->> 'data')::date and tipo = 'passe' and status = 'aguardando'), '[]'::jsonb)))
-   $$`,
+  // (fila_resumo foi redefinida na v184 e mora lá.)
 
   // ---------- v172: o aluno volta ao app com a versão dos dados ----------
   // O que o aluno recebe (eventos, tipos de evento, orações, curimba, config) sobe versao_dados(): com a mesma versão,
@@ -6274,5 +6264,20 @@ export const MIGRACOES = [
      delete from oraculo_eventos where id = (p ->> 'id')::uuid;
      return jsonb_build_object('ok', true);
    end;
+   $$`,
+
+  // ---------- v184: o resumo público da fila sem os campos pessoais ----------
+  // O resumo (igual para todos, guardado pela Vercel) vinha com minha: null e eu: null de fila_json; agora sai sem eles.
+  // Substitui a da v171.
+  `create or replace function fila_resumo(p jsonb)
+   returns jsonb language sql stable as $$
+     select (fila_json((p ->> 'data')::date, null, null) - 'minha' - 'eu')
+       || jsonb_build_object('espera', jsonb_build_object(
+         'preferencial', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
+                                    where gira_data = (p ->> 'data')::date and tipo = 'preferencial' and status = 'aguardando'), '[]'::jsonb),
+         'atendimento', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
+                                   where gira_data = (p ->> 'data')::date and tipo = 'atendimento' and status = 'aguardando'), '[]'::jsonb),
+         'passe', coalesce((select jsonb_agg(numero order by numero) from fila_senhas
+                             where gira_data = (p ->> 'data')::date and tipo = 'passe' and status = 'aguardando'), '[]'::jsonb)))
    $$`,
 ];

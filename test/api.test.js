@@ -572,25 +572,23 @@ test('gestão de usuários: só admin root, com travas', async () => {
   assert.equal((await api('PATCH', '/api/usuarios/' + nu.id, ADMIN, { nome: 'Outro nome' })).status, 400);
   await api('PATCH', '/api/pessoas/' + pNovo.id, ADMIN, { nome: 'Novo Silva' });
   assert.equal((await api('GET', '/api/usuarios', ADMIN)).json.find((u) => u.id === nu.id).nome, 'Novo Silva');
-  // Admin root: não precisa de cadastro; os outros perfis precisam.
-  const root2 = await api('POST', '/api/usuarios', ADMIN, { email: 'root2@corrente.org', nome: 'Suporte TI', senha: '12345678', papel: 'root' });
-  assert.equal(root2.status, 200);
-  const r2 = root2.json.find((u) => u.email === 'root2@corrente.org');
-  assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { papel: 'usuario' })).status, 400, 'sem cadastro só pode ser root');
-  assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { nome: 'Suporte' })).json.nome, 'Suporte');
-  // No root a pessoa é opcional: pode ligar e desligar.
-  const ligado = await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: nu.pessoaId });
-  assert.equal(ligado.status, 400, 'a pessoa do Novo já tem usuário');
+  // Dar acesso: só a quem está na corrente, até o root (v180). Um root que já existe pode ficar sem cadastro.
+  assert.match((await api('POST', '/api/usuarios', ADMIN, { email: 'root2@corrente.org', nome: 'Suporte TI', senha: '12345678', papel: 'root' })).json.erro, /pessoa da corrente/);
   await api('POST', '/api/pessoas', ADMIN, { nome: 'Root Pessoa', funcao: 'senha' });
   const pr = (await api('GET', '/api/pessoas', ADMIN)).json.find((p) => p.nome === 'Root Pessoa');
-  const lig = (await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: pr.id })).json;
-  assert.deepEqual([lig.nome, lig.pessoaId, lig.papel], ['Root Pessoa', pr.id, 'root']);
+  const root2 = await api('POST', '/api/usuarios', ADMIN, { email: 'root2@corrente.org', pessoaId: pr.id, senha: '12345678', papel: 'root' });
+  assert.equal(root2.status, 200, JSON.stringify(root2.json));
+  const r2 = root2.json.find((u) => u.email === 'root2@corrente.org');
+  assert.deepEqual([r2.nome, r2.pessoaId, r2.papel], ['Root Pessoa', pr.id, 'root']);
+  // No root a pessoa é opcional: desliga e liga de novo.
   const des = (await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: '' })).json;
   assert.equal(des.pessoaId, null, JSON.stringify(des));
+  assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { papel: 'usuario' })).status, 400, 'sem cadastro só pode ser root');
+  assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { nome: 'Suporte' })).json.nome, 'Suporte');
+  assert.equal((await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: nu.pessoaId })).status, 400, 'a pessoa do Novo já tem usuário');
+  const lig = (await api('PATCH', '/api/usuarios/' + r2.id, ADMIN, { pessoaId: pr.id })).json;
+  assert.deepEqual([lig.nome, lig.pessoaId, lig.papel], ['Root Pessoa', pr.id, 'root']);
   assert.equal((await api('PATCH', '/api/usuarios/' + nu.id, ADMIN, { pessoaId: '' })).status, 400, 'quem não é root não fica sem cadastro');
-  const rootCom = await api('POST', '/api/usuarios', ADMIN, { email: 'root3@corrente.org', pessoaId: pr.id, senha: '12345678', papel: 'root' });
-  assert.equal(rootCom.json.find((u) => u.email === 'root3@corrente.org').nome, 'Root Pessoa');
-  await api('DELETE', '/api/usuarios/' + rootCom.json.find((u) => u.email === 'root3@corrente.org').id, ADMIN);
   await api('DELETE', '/api/usuarios/' + r2.id, ADMIN);
 
   const eu = (await api('GET', '/api/auth/me', ADMIN)).json;
@@ -2502,13 +2500,16 @@ test('CPF do Perfil: cifrado, só a própria pessoa e o root', async () => {
   process.env.CPF_CHAVE = 'chave-de-teste-do-cpf-com-32-letras-ou-mais';
   try {
     await api('POST', '/api/pessoas', ADMIN, { nome: 'Cpf Dona, Cpf Vizinha', funcao: 'cambone' });
+    // O admin do Perfil é uma terceira pessoa: quem ganha perfil perde a sessão da corrente (v180), e a vizinha segue comum.
+    await api('POST', '/api/pessoas', ADMIN, { nome: 'Cpf Admin', funcao: 'senha' });
     const pes = (await api('GET', '/api/pessoas', ADMIN)).json;
     const dona = pes.find((p) => p.nome === 'Cpf Dona');
     const vizinha = pes.find((p) => p.nome === 'Cpf Vizinha');
+    const admPessoa = pes.find((p) => p.nome === 'Cpf Admin');
     const tDona = await entrarComSenha('Cpf Dona');
     const tViz = await entrarComSenha('Cpf Vizinha');
     // Admin do Perfil (vê o perfil de todos), mas não é root.
-    assert.equal((await api('POST', '/api/usuarios', ADMIN, { pessoaId: vizinha.id, email: 'admperfil@corrente.org', senha: 'senha-forte-7', papel: 'admin_perfil' })).status, 200);
+    assert.equal((await api('POST', '/api/usuarios', ADMIN, { pessoaId: admPessoa.id, email: 'admperfil@corrente.org', senha: 'senha-forte-7', papel: 'admin_perfil' })).status, 200);
     const tAdmPerfil = (await api('POST', '/api/auth/entrar', null, { email: 'admperfil@corrente.org', senha: 'senha-forte-7' })).json.token;
 
     assert.deepEqual((await api('GET', '/api/auth/cpf', tDona)).json, { tem: false, mascarado: '', atualizadoEm: null });
