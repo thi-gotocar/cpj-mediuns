@@ -125,7 +125,7 @@ function pix(b, titulo) {
   </div>`;
 }
 function aguardando(O, c, b) {
-  return `<div class="oc-bloco"><h2 class="oc-h2">Pagamento</h2>
+  return `<div class="oc-bloco oc-altar"><h2 class="oc-h2">Pagamento</h2>
     <p class="oc-resumo"><b>${esc(dataLonga(c.data))}</b>, às <b>${c.hora}</b> · ${moeda(b.valor)}</p>
     ${pix(b, 'Link gerado. Pague para garantir o horário.')}
     <p class="oc-dica">O horário fica guardado até ${horaDe(c.expiraEm)}. Pago depois disso, você escolhe outro horário se este tiver sido tomado.</p>
@@ -144,7 +144,7 @@ function marcada(O, c) {
       ${O.cliente ? '' : '<label class="oc-campo">CPF (pedido pelo pagamento)<input id="oc-cpf-pres" inputmode="numeric" maxlength="14"></label>'}
       <button class="oc-cta" data-act="ocpagarpres" data-id="${c.id}" ${ui.enviando ? 'disabled' : ''}>Pagar a taxa do presencial</button></div>`;
   const cancelar = linkWhats(O.config.contato, mensagemPedirCancelamento(c, c.nome));
-  return `<div class="oc-bloco oc-marcada">
+  return `<div class="oc-bloco oc-marcada oc-altar">
     ${c.status === 'conflito' ? '<p class="oc-aviso forte">Seu pagamento caiu depois que a reserva venceu e o horário foi tomado. Escolha um novo horário, sem pagar de novo.</p>' : ''}
     <p class="oc-selo-st">${STATUS[c.status]}</p>
     <p class="oc-quando">${esc(dataLonga(c.data))}<b>${c.hora}</b></p>

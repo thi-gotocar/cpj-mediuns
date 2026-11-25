@@ -1,8 +1,8 @@
 // Sub-aba Admin do Oráculo: a agenda de quem administra (o cliente fica em oraculo.js; os mesmos dados, estado.oraculo).
-// Semana (como a faixa da aba Gira) ou o mês inteiro; o dia com compromisso leva o 🔮. Tocar num dia abre o dia na tela
-// toda: a grade de horários com as consultas, os compromissos da admin e os horários de consulta (livre ou bloqueado);
+// Semana (como a faixa da aba Gira) ou o mês inteiro; o dia com compromisso leva o 🔮. Tocar num dia abre o dia abaixo
+// do calendário: a grade de horários com as consultas, os compromissos da admin e os horários de consulta (livre ou bloqueado);
 // o ＋ de cada hora cria um compromisso (início, fim, nome, telefone e anotação). Abaixo: Visível para todos, o aviso no
-// celular e a configuração da agenda. Quem tem só o Ver do Oráculo vê a agenda, sem mudar nada.
+// celular e a configuração da agenda. O dia abre logo abaixo do calendário (o calendário continua à vista). Quem tem só o Ver do Oráculo vê a agenda, sem mudar nada.
 
 import { estado, carregarOraculo, acaoOraculo, avisar } from '../estado.js';
 import { esc, toast } from '../util.js';
@@ -39,7 +39,7 @@ function calendario(O) {
   if (A.mes) {
     A.mesCal ||= A.sem.slice(0, 7);
     return `<div class="gn-sem"><div class="gn-sem-h"><b>Calendário</b><button type="button" class="btn small gn-mes-bt" data-act="ocamesbt" aria-expanded="true">Semana</button></div>
-      <div class="gira-cal">${calendarioMes({ mes: A.mesCal, sel: null, acaoDia: 'ocadia', acaoMes: 'ocamesnav', marcas: m })}</div></div>`;
+      <div class="gira-cal">${calendarioMes({ mes: A.mesCal, sel: A.dia, acaoDia: 'ocadia', acaoMes: 'ocamesnav', marcas: m })}</div></div>`;
   }
   const ini = somarDias(A.sem, -diaDaSemana(A.sem));
   const [y, mm] = ini.split('-').map(Number);
@@ -50,7 +50,7 @@ function calendario(O) {
       <b>${MESES[mm - 1]} de ${y}</b>
       <button type="button" class="btn small" data-act="ocasem" data-v="7" aria-label="Próxima semana">▸</button>
       <button type="button" class="btn small gn-mes-bt" data-act="ocamesbt" aria-expanded="false">Mês</button></div>
-    <div class="gn-dias">${dias.map((d, i) => `<button type="button" class="gn-dia${d === hoje ? ' sel' : ''}" data-act="ocadia" data-d="${d}" aria-label="${esc(dataLonga(d))}">
+    <div class="gn-dias">${dias.map((d, i) => `<button type="button" class="gn-dia${d === (A.dia || hoje) ? ' sel' : ''}" data-act="ocadia" data-d="${d}" aria-label="${esc(dataLonga(d))}" aria-pressed="${d === A.dia}">
       <small>${SEMANA_CURTA[i]}</small><b>${Number(d.slice(8))}</b><span class="di-marcas">${m(d)}</span></button>`).join('')}</div>
     <p class="di-leg muted"><span><i aria-hidden="true">🔮</i> tem compromisso</span><span><i aria-hidden="true">⛔</i> dia bloqueado</span><span>Toque no dia para abrir.</span></p></div>`;
 }
@@ -125,17 +125,18 @@ function telaDia(O) {
   const msg = A.cancelada ? `<div class="oc-aviso"><p>Consulta cancelada. Mande a mensagem para o cliente:</p><pre class="oc-msg">${esc(A.cancelada.mensagem)}</pre>
     ${A.cancelada.whatsapp ? `<a class="oc-sec" href="${linkWhats(A.cancelada.whatsapp, A.cancelada.mensagem)}" target="_blank" rel="noopener">Enviar no WhatsApp</a>` : ''}
     <button class="oc-mini" data-act="ocacopiarmsg">Copiar</button> <button class="oc-mini" data-act="ocafecharmsg">Fechar</button></div>` : '';
-  return `<section class="panel oc-adm oc-dia-tela">
-    <div class="oc-dia-cab"><button class="btn small" data-act="ocavoltar">◂ Agenda</button>
+  return `<div class="oc-dia-tela" id="oc-dia">
+    <div class="oc-dia-cab">
       <button class="btn small" data-act="ocadiamais" data-v="-1" aria-label="Dia anterior">‹</button>
       <h2>${esc(dataLonga(d))}</h2>
-      <button class="btn small" data-act="ocadiamais" data-v="1" aria-label="Próximo dia">›</button></div>
+      <button class="btn small" data-act="ocadiamais" data-v="1" aria-label="Próximo dia">›</button>
+      <button class="btn small" data-act="ocavoltar" aria-label="Fechar o dia">✕</button></div>
     ${msg}
     ${!naAgenda ? '<p class="oc-dica">Dia da semana fora da agenda de consultas (só compromissos da admin).</p>' : ''}
     ${O.admin && naAgenda ? `<button class="oc-sec" data-act="ocabloq" data-data="${d}" data-hora="" data-b="${bloqDia ? 0 : 1}">${bloqDia ? 'Liberar o dia para consultas' : 'Bloquear o dia todo para consultas'}</button>` : ''}
     ${A.form && A.form.data === d ? formEvento() : ''}
     <div class="oc-grade-dia">${linhas.join('')}</div>
-  </section>`;
+  </div>`;
 }
 
 // ---------- configuração ----------
@@ -165,10 +166,10 @@ export function render() {
   if (!O.veTodas) return '<section class="panel"><p class="muted">Só quem administra o Oráculo vê esta agenda.</p></section>';
   O.config = configOraculo(O.config);
   A.sem ||= agoraBR().data;
-  if (A.dia) return telaDia(O);
   return `<section class="panel oc-adm">
     <h2>Agenda do Oráculo</h2>
     ${calendario(O)}
+    ${A.dia ? telaDia(O) : ''}
     ${O.admin ? `<div class="oc-adm-cfg">
       <label class="of-sw oc-pub"><input type="checkbox" role="switch" data-act="ocapub" ${O.publicado ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label>
       <p class="oc-dica">${O.publicado ? 'Todos que entram no app veem a aba Oráculo e podem agendar.' : 'Desligado: só quem administra o Oráculo vê a aba.'}</p>
@@ -202,15 +203,20 @@ if (navigator.serviceWorker && 'PushManager' in globalThis) {
   navigator.serviceWorker.ready.then((r) => r.pushManager.getSubscription()).then((s) => { if (s) { estado.ocPush = true; avisar(); } }).catch(() => {});
 }
 const rolarAoForm = () => setTimeout(() => document.getElementById('f-oraculo-ev')?.scrollIntoView({ block: 'center' }), 0);
-const abrirDia = (d) => { Object.assign(A, { dia: d, form: null, aberta: null, cancelar: null }); avisar(); window.scrollTo(0, 0); };
+// Abre o dia logo abaixo do calendário (a semana ou o mês acompanham o dia) e rola até ele.
+const abrirDia = (d) => {
+  Object.assign(A, { dia: d, sem: d, mesCal: d.slice(0, 7), form: null, aberta: null, cancelar: null });
+  avisar();
+  setTimeout(() => document.getElementById('oc-dia')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
+};
 
 export const cliques = {
   ocarecarregar: () => { estado.oraculo = null; avisar(); },
   ocasem: (el) => { A.sem = somarDias(A.sem, Number(el.dataset.v)); avisar(); },
   ocamesbt: () => { A.mes = !A.mes; A.mesCal = A.sem.slice(0, 7); avisar(); },
   ocamesnav: (el) => { A.mesCal = mesMais(A.mesCal, Number(el.dataset.v)); avisar(); },
-  ocadia: (el) => { A.sem = el.dataset.d; abrirDia(el.dataset.d); },
-  ocavoltar: () => { A.sem = A.dia; A.mesCal = A.dia.slice(0, 7); limpar(); avisar(); },
+  ocadia: (el) => (el.dataset.d === A.dia ? cliques.ocavoltar() : abrirDia(el.dataset.d)),
+  ocavoltar: () => { limpar(); avisar(); },
   ocadiamais: (el) => abrirDia(somarDias(A.dia, Number(el.dataset.v))),
   ocaconsulta: (el) => { A.aberta = A.aberta === el.dataset.id ? null : el.dataset.id; A.cancelar = null; avisar(); },
   ocanovo: (el) => { A.form = { data: A.dia, inicio: el.dataset.h, fim: maisHora(el.dataset.h) }; avisar(); rolarAoForm(); },
