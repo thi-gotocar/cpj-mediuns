@@ -137,6 +137,10 @@ function cardEvento(ev, admin) {
   };
   const porGrupo = (L) => gruposDe(L).map((g) => `<div class="cv-grupo"><h3 class="cv-g-h">${esc(g.lista)} <span class="muted">· ${g.pessoas.length}</span></h3>
       <ul class="cv-lista">${g.pessoas.map(linha).join('')}</ul></div>`).join('');
+  // O WhatsApp leva quem vai: para quem administra, fica logo depois de ✅ Vão (antes da lista longa de Faltam responder,
+  // embaixo da qual parecia ter sumido); para a corrente, no fim da lista.
+  const whats = ev.pessoas.length ? `<div class="cv-fim"><span class="muted">${qtd(contagem(ev.pessoas).vao)} no WhatsApp</span>
+      <a class="btn wa-bt" href="https://wa.me/?text=${encodeURIComponent(textoWhatsConvites(ev))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar lista</a></div>` : '';
   if (admin) {
     // Quem administra: separado em quem vai (por grupo), quem não vai e quem da corrente ainda falta responder.
     const vao = ev.pessoas.filter((p) => !naoVai(p));
@@ -145,7 +149,7 @@ function cardEvento(ev, admin) {
     const faltam = (estado.pessoas || []).filter((x) => !naLista.has('p:' + x.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
     const passou = ev.data < hoje();
     const sec = (cls, titulo, n, corpo) => `<div class="cv-sec ${cls}"><h3 class="cv-sec-h">${titulo} <span class="count">${n}</span></h3>${corpo}</div>`;
-    h += sec('vao', '✅ Vão', vao.length, vao.length ? porGrupo(vao) : '<p class="muted cv-dica">Ninguém ainda.</p>');
+    h += sec('vao', '✅ Vão', vao.length, vao.length ? porGrupo(vao) : '<p class="muted cv-dica">Ninguém ainda.</p>') + whats;
     h += sec('nao', '❌ Não vão', nao.length, nao.length ? `<ul class="cv-lista">${nao.map(linha).join('')}</ul>` : '<p class="muted cv-dica">Ninguém.</p>');
     if (!passou) {
       h += sec('falta', '⏳ Faltam responder <small class="muted">(corrente)</small>', faltam.length, faltam.length
@@ -153,11 +157,7 @@ function cardEvento(ev, admin) {
         : '<p class="muted cv-dica">Toda a corrente já respondeu ou está na lista.</p>');
     }
   } else {
-    h += ev.pessoas.length ? porGrupo(ev.pessoas) : '<p class="muted cv-dica">Ninguém na lista ainda.</p>';
-  }
-  if (ev.pessoas.length) {
-    h += `<div class="cv-fim"><span class="muted">${qtd(contagem(ev.pessoas).vao)} no WhatsApp</span>
-      <a class="btn wa-bt" href="https://wa.me/?text=${encodeURIComponent(textoWhatsConvites(ev))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Compartilhar lista</a></div>`;
+    h += (ev.pessoas.length ? porGrupo(ev.pessoas) : '<p class="muted cv-dica">Ninguém na lista ainda.</p>') + whats;
   }
   return h + '</div>';
 }

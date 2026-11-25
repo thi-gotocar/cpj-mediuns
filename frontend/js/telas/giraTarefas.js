@@ -29,10 +29,12 @@ const opcoesResp = (sel) => `<option value="">Sem responsável</option>${[...est
 
 function linha(t) {
   const meu = !!t.responsavelId && t.responsavelId === estado.me?.pessoaId;
-  const resp = t.responsavel ? `${esc(t.responsavel)}${meu ? ' <b class="tf-voce">(você)</b>' : ''}` : '<span class="muted">sem responsável</span>';
-  return `<label class="tf-l${t.feito ? ' feito' : ''}">
+  // Uma linha por tarefa: descrição à esquerda, responsável à direita (o próprio vira "Você"); quem marcou fica no title.
+  const resp = meu ? '<b class="tf-voce">Você</b>' : t.responsavel ? esc(t.responsavel) : '';
+  const titulo = [t.responsavel && `Responsável: ${t.responsavel}`, t.feito && t.por && `Feito por ${t.por}`].filter(Boolean).join(' · ');
+  return `<label class="tf-l${t.feito ? ' feito' : ''}"${titulo ? ` title="${esc(titulo)}"` : ''}>
     <input type="checkbox" data-act="tfmarcar" data-id="${t.id}" ${t.feito ? 'checked' : ''} ${podeMarcar(t) ? '' : 'disabled'} aria-label="${esc(t.descricao)}: feito">
-    <span class="tf-t"><span class="tf-d">${esc(t.descricao)}</span><small class="tf-r">${resp}${t.feito && t.por ? ` · ✓ ${esc(t.por)}` : ''}</small></span></label>`;
+    <span class="tf-d">${esc(t.descricao)}</span>${resp ? `<small class="tf-r">${resp}</small>` : ''}</label>`;
 }
 
 function linhaEditar(t, grupos, i, n) {

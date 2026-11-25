@@ -3,8 +3,8 @@
 // pediu, pagamento (Pago / Pendente) e andamento. Agrupadas pelo andamento e, dentro dele, pelo modelo (o item): a foto
 // e o nome do modelo aparecem uma vez, com as pessoas embaixo (começam minimizadas); tocar na foto abre em tela cheia e
 // tocar no nome abre (ou minimiza) as pessoas daquele modelo.
-// No topo, os quadradinhos com o total de pedidos Pendentes, Em confecção e com Falta matéria-prima; tocar em Falta
-// matéria-prima abre a lista de compras (descrição, quantidade, a caixinha de comprado e o ✕ para excluir).
+// No topo, os quadradinhos com o total de pedidos Pendentes, Em confecção e com Falta matéria-prima; embaixo deles, o botão
+// Lista de compras abre a lista da matéria-prima (descrição, quantidade, a caixinha de comprado e o ✕ para excluir).
 // Os grupos de andamento começam todos minimizados.
 // O andamento muda no combo da própria linha.
 // Quem tem cobrança vencida no ASAAS (última leitura do CPJ - Pgto atrasado) ganha o selo vermelho "pendências R$ X".
@@ -47,7 +47,8 @@ function listaMateria(M) {
       ${conf ? `<span class="pd-mt-conf">Excluir? <button class="btn small" data-act="pdmatnao">Cancelar</button><button class="btn small danger" data-act="pdmatexcluir" data-id="${esc(x.id)}">Confirmar</button></span>`
         : `<button class="pd-mt-x" data-act="pdmatpedir" data-id="${esc(x.id)}" aria-label="Excluir ${esc(x.descricao)} da lista">✕</button>`}</li>`;
   }).join('');
-  return `<div class="pd-mt"><div class="pd-mt-h"><h3>🧾 Lista de compras <span class="muted">· matéria-prima</span></h3><span class="count">${falta ? `${falta} a comprar` : 'tudo comprado'}</span></div>
+  // O título e quantos faltam comprar ficam no botão que abre a lista (render).
+  return `<div class="pd-mt">
     <form id="f-materia" class="pd-mt-form" autocomplete="off">
       <label class="field grow">O que comprar<input type="text" name="descricao" maxlength="80" required placeholder="Ex.: Miçanga vermelha"></label>
       <label class="field pd-mt-qf">Qtd.<input type="text" name="quantidade" inputmode="decimal" maxlength="8" required placeholder="1"></label>
@@ -118,14 +119,15 @@ export function render() {
   const pend = P.pendencias || {};
   const abertos = lista.filter((l) => l.andamento !== 'entregue').length;
   let h = `<section class="panel pd-tela"><div class="card adm adm-compras"><div class="grp-h"><h2>📦 Pedidos em andamento</h2><span class="count">${abertos}</span></div>`;
-  if (!lista.length) return h + `<p class="muted" style="margin:0">Nenhum pedido ainda.</p><button type="button" class="btn small" data-act="pdmateria" aria-expanded="${ui.materia}">🧾 Lista de compras</button>${ui.materia ? listaMateria(P.materia || []) : ''}</div></section>`;
+  const aComprar = (P.materia || []).filter((x) => !x.comprado).length;
+  const btMateria = `<button type="button" class="btn pd-mt-bt" data-act="pdmateria" aria-expanded="${ui.materia}"><span>🧾 Lista de compras</span>
+    <span class="muted">${aComprar ? `${aComprar} a comprar` : ''} <span class="seta" aria-hidden="true">${ui.materia ? '▾' : '▸'}</span></span></button>`;
+  if (!lista.length) return h + `<p class="muted" style="margin:0">Nenhum pedido ainda.</p>${btMateria}${ui.materia ? listaMateria(P.materia || []) : ''}</div></section>`;
   h += `<div class="pf-of-totais pd-quads">${QUADROS.map(([k, cls]) => {
     const n = lista.filter((l) => l.andamento === k).length;
     const rot = ANDAMENTOS.find(([x]) => x === k)[1];
-    // Falta matéria-prima: tocar abre a lista de compras.
-    if (k === 'falta_materia') return `<button type="button" class="pf-of-total ${cls} pd-q-bt" data-act="pdmateria" aria-expanded="${ui.materia}" aria-label="${n} ${n === 1 ? 'pedido' : 'pedidos'}: ${rot}. Abrir a lista de compras"><b>${n}</b><span>${rot}</span><small>🧾 lista de compras</small></button>`;
     return `<div class="pf-of-total ${cls}" aria-label="${n} ${n === 1 ? 'pedido' : 'pedidos'}: ${rot}"><b>${n}</b><span>${rot}</span></div>`;
-  }).join('')}</div>`;
+  }).join('')}</div>${btMateria}`;
   if (ui.materia) h += listaMateria(P.materia || []);
   h += ANDAMENTOS.map(([k, rot]) => {
     const L = lista.filter((l) => l.andamento === k);

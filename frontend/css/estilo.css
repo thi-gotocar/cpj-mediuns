@@ -2768,21 +2768,24 @@ div.pf-of-total{cursor:default}
 .gn-amaci-lista{display:flex;flex-wrap:wrap;gap:6px}
 .gn-nome.pres{background:var(--ok-soft);border-color:transparent;color:var(--ok);margin:0}
 .gn-ok{font-weight:900;margin-right:4px}
-/* Aba Gira: Tarefas da corrente */
+/* Aba Gira: Tarefas da corrente (uma linha por tarefa) */
+.gn-tarefas{gap:2px}
 .tf-cab{display:flex;align-items:center;gap:8px}
-.tf-grupo{display:grid;gap:4px;min-width:0}
-.tf-g{font-family:var(--f-display);font-size:1.02rem;margin:6px 0 0;color:var(--gold)}
+.tf-grupo{display:grid;min-width:0}
+.tf-g{font:700 .74rem var(--f-body);letter-spacing:.08em;text-transform:uppercase;margin:8px 0 0;color:var(--gold)}
 .tf-gh{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.tf-l{display:flex;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);min-width:0}
-.tf-l input[type=checkbox]{width:22px;height:22px;flex:none;margin:1px 0 0;accent-color:var(--ok)}
-.tf-t{display:grid;gap:1px;min-width:0;flex:1}
-.tf-d{overflow-wrap:anywhere}
-.tf-r{font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+.tf-l{display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px solid var(--line);min-width:0;min-height:34px}
+.tf-grupo>.tf-l:last-of-type{border-bottom:0}
+.tf-l input[type=checkbox]{width:20px;height:20px;flex:none;margin:0;accent-color:var(--ok)}
+.tf-d{flex:1;min-width:0;font-size:.95rem;overflow-wrap:anywhere}
+.tf-r{flex:none;max-width:42%;font-size:.8rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tf-voce{color:var(--gold);font-weight:700}
 .tf-l.feito .tf-d{text-decoration:line-through;color:var(--muted)}
-.tf-ed{flex-wrap:wrap;align-items:center}
+.tf-t{display:grid;gap:1px;min-width:0;flex:1}
+.tf-ed{flex-wrap:wrap}
+.tf-ed .tf-r{white-space:normal;max-width:none}
 .tf-bts{display:flex;gap:4px;flex:none}
-.tf-bts .btn{min-width:34px;padding-inline:8px}
+.tf-bts .btn{min-width:32px;min-height:30px;padding:2px 6px}
 .tf-conf{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.88rem}
 .tf-form{display:grid;gap:6px;padding:6px 0}
 .tf-form .row{justify-content:flex-end;gap:6px}
@@ -2870,13 +2873,9 @@ div.pf-of-total{cursor:default}
 .cv-faltam span{overflow-wrap:anywhere}
 
 /* Compras → Pedidos: o quadrado Falta matéria-prima abre a lista de compras */
-.pd-q-bt{font:inherit;color:inherit;cursor:pointer;text-align:center}
-.pd-q-bt small{display:block;font-size:.72rem;margin-top:2px;opacity:.85}
-.pd-q-bt[aria-expanded="true"]{outline:2px solid currentColor;outline-offset:2px}
+.pd-mt-bt{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;margin-top:10px}
+.pd-mt-bt[aria-expanded="true"]{border-color:var(--gold)}
 .pd-mt{display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
-.pd-mt-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.pd-mt-h h3{margin:0;font-size:1rem}
-.pd-mt-h .count{font-size:.85rem;color:var(--muted)}
 .pd-mt-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
 .pd-mt-qf{width:72px}
 .pd-mt-l{list-style:none;margin:0;padding:0;display:grid;gap:4px}
