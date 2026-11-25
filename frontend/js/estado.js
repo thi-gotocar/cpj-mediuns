@@ -4,7 +4,7 @@
 import { api, definirVerComo } from './api.js';
 import { token, emDemo } from './auth.js';
 import { giraVazia, ordenarPessoas, pessoasDe, expandirRetrato } from '/shared/regras.js';
-import { permissoesDe, PERFIS_PADRAO, PERMISSOES_GRUPO } from '/shared/permissoes.js';
+import { permissoesDe, permissoesAluno, PERFIS_PADRAO, PERMISSOES_GRUPO } from '/shared/permissoes.js';
 import { definirConfig } from '/shared/config.js';
 import { abaValida } from '/shared/visitas.js';
 import { hoje, toast } from './util.js';
@@ -44,7 +44,6 @@ export const estado = {
   renomear: null,
   editLic: null,
   renomearUsuario: null, // id do usuário com o nome em edição (aba Admin root)
-  giraAntiga: null,
   oferendas: null,     // GET /api/oferendas: { oferendas, eu, anterioresTotal? }
   oferendasAnteriores: false, // o admin abriu "Oferendas anteriores": os pedidos trazem também as encerradas antigas
   iemanja: null,       // GET /api/oferendas?lista=iemanja: { eventos, root, candidatos? }
@@ -56,7 +55,6 @@ export const estado = {
   pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' },
   perfisCfg: null,     // aba Admin root: perfis e as abas de cada um
   visitas: null,       // aba Admin root: quem entrou em cada aba nos últimos 3 dias (GET /api/usuarios?lista=visitas)
-  versoes: null,       // aba Admin root: versão do app de cada pessoa e a exigida (GET /api/usuarios?lista=versoes)
   senhas: null,        // aba Admin root: quem tem senha (PIN) no acesso da corrente
   alunos: null,        // aba Pessoas: { turmas, alunos }
   alunosAdicionarTurma: null, // aba Pessoas: turma com o formulário de inclusão de alunos aberto
@@ -106,7 +104,11 @@ export const pode = (perm) => {
   if (!estado.me) return false;
   if (estado.me.papel === 'root') {
     if (estado.visaoRoot === 'cpj') return (estado.permCorrente || []).includes(perm);
-    if (estado.visaoRoot === 'alunos' || estado.visaoRoot === 'curimba') return PERMISSOES_GRUPO[estado.visaoRoot].includes(perm);
+    if (estado.visaoRoot === 'alunos') {
+      const fa = estado.perfisCfg?.find((x) => x.chave === 'aluno');
+      return (fa ? permissoesAluno(fa.abas) : PERMISSOES_GRUPO.alunos).includes(perm);
+    }
+    if (estado.visaoRoot === 'curimba') return PERMISSOES_GRUPO.curimba.includes(perm);
   }
   return (estado.me.permissoes || []).includes(perm);
 };
@@ -433,26 +435,6 @@ export async function corrigirPresenca(data, pessoaId, status) {
 }
 export const sortear = () => acaoDaGira('sortear');
 export const remanejar = (mensagem) => acaoDaGira('remanejar', mensagem);
-
-// Gira antiga (só registro): data, entidade, presença e atendidos, já encerrada e sem escala.
-export async function cadastrarGiraAntiga(data, dados) {
-  try {
-    estado.giras[data] = await api('PUT', '/giras/' + data, { ...dados, encerrada: true });
-    avisar();
-    return true;
-  } catch (e) { toast(e.message); return false; }
-}
-
-// Histórico → Cadastrar escala: grava as duplas de uma gira que já foi (cria a gira, já encerrada, se não existir).
-export async function cadastrarEscala(data, dados) {
-  try {
-    const r = await api('POST', '/giras/' + data, { acao: 'escala', ...dados });
-    estado.giras[data] = r.gira;
-    toast(r.mensagem);
-    avisar();
-    return true;
-  } catch (e) { toast(e.message); return false; }
-}
 
 export async function excluirGira(data) {
   try {

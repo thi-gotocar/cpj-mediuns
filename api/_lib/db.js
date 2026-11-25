@@ -54,16 +54,14 @@ async function enviar(corpo, extras = {}) {
 
 let esquemaPronto = null;
 let segredoLido = null;     // o segredo das sessões vem na mesma ida que confere a versão (instância nova: uma ida a menos)
-let exigidaLida = null;     // idem, a versão do app exigida pelo root (api/_lib/versao.js), entregue uma vez só
 const JA_MIGRADO = 'SM001'; // SQLSTATE nosso: outro acesso terminou a migração enquanto este esperava a trava
 
 async function garantirEsquema() {
   esquemaPronto ||= (async () => {
     try {
-      const r = await enviar({ query: "select chave, valor from sistema where chave in ('versao_esquema', 'segredo_sessao', 'app_versao_exigida')", params: [] });
+      const r = await enviar({ query: "select chave, valor from sistema where chave in ('versao_esquema', 'segredo_sessao')", params: [] });
       const v = Object.fromEntries(r?.rows || []);
       segredoLido = v.segredo_sessao || null;
-      exigidaLida = v.app_versao_exigida ?? null;
       if (Number(v.versao_esquema) >= VERSAO) return;
     } catch (e) {
       if (e.code !== '42P01') throw e; // 42P01 = tabela ainda não existe
@@ -143,12 +141,5 @@ export const db = {
   async segredo() {
     await garantirEsquema();
     return segredoLido || db.rpc('sistema_segredo');
-  },
-  // Versão do app exigida, lida junto com a versão do esquema: só na primeira pergunta da instância (null depois).
-  async exigidaInicial() {
-    await garantirEsquema();
-    const v = exigidaLida;
-    exigidaLida = null;
-    return v;
   },
 };

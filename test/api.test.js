@@ -62,6 +62,11 @@ async function entrarComSenha(nome, pin = '24682468') {
 before(async () => {
   prepararBanco();
   usarBancoLocal();
+  // O perfil Usuário saiu na v187; os testes antigos usam um perfil igual a ele para o USER (só nos testes).
+  const { normalizarAbas } = await import('../shared/permissoes.js');
+  const ver = { ver: true };
+  const abasUsuario = normalizarAbas({ gira: ver, pessoas: ver, hist: ver, ervas: ver, oferendas: ver, guias: ver, perfil: ver, amaci: ver, fotos: ver });
+  sql(`insert into perfis (chave, nome, abas, ordem) values ('usuario', 'Usuário', '${JSON.stringify(abasUsuario)}'::jsonb, 2) on conflict do nothing`);
   srv = await criarServidor();
   await new Promise((ok) => srv.listen(0, ok));
   base = 'http://127.0.0.1:' + srv.address().port;
@@ -3460,35 +3465,6 @@ test('v169: Vou ao amaci — só a corrente marca, até o dia; todos da corrente
     const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === n);
     if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
   }
-});
-
-test('v170: versão do app — a abertura grava a de cada pessoa; o root exige uma e quem está em outra recebe o aviso', async () => {
-  const pedir = async (rota, token, versao) => {
-    const r = await fetch(base + rota, { headers: { Authorization: 'Bearer ' + token, ...(versao ? { 'X-App-Versao': versao } : {}) } });
-    return { status: r.status, exigida: r.headers.get('x-app-versao-exigida'), json: await r.json().catch(() => null) };
-  };
-  await api('POST', '/api/pessoas', ADMIN, { nome: 'Versao Antiga', funcao: 'cambone' });
-  const TOK = await tokenCorrente('Versao Antiga');
-  assert.equal((await pedir('/api/auth/inicio', TOK, 'abc123')).status, 200);
-  assert.equal((await pedir('/api/auth/inicio', TOK, 'nao-e-versao')).status, 200, 'versão estranha é ignorada');
-  let V = (await api('GET', '/api/usuarios?lista=versoes', ADMIN)).json;
-  assert.equal(V.exigida, '');
-  assert.equal(V.pessoas.find((p) => p.nome === 'Versao Antiga')?.versao, 'abc123');
-  assert.equal((await api('GET', '/api/usuarios?lista=versoes', USER)).status, 403);
-  assert.equal((await api('POST', '/api/usuarios', USER, { acao: 'versaoExigir', versao: 'def456' })).status, 403);
-  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'versaoExigir', versao: 'X!' })).status, 400);
-
-  // Sem versão exigida, ninguém recebe o aviso.
-  assert.equal((await pedir('/api/giras?lista=eventos', TOK, 'abc123')).exigida, null);
-  V = (await api('POST', '/api/usuarios', ADMIN, { acao: 'versaoExigir', versao: 'def456' })).json;
-  assert.equal(V.exigida, 'def456');
-  assert.equal((await pedir('/api/giras?lista=eventos', TOK, 'abc123')).exigida, 'def456', 'outra versão: atualizar');
-  assert.equal((await pedir('/api/giras?lista=eventos', TOK, 'def456')).exigida, null, 'na versão exigida: nada');
-  assert.equal((await pedir('/api/giras?lista=eventos', TOK, '')).exigida, null, 'sem versão (sem o app instalado): nada');
-  assert.equal((await api('POST', '/api/usuarios', ADMIN, { acao: 'versaoExigir', versao: '' })).json.exigida, '');
-  assert.equal((await pedir('/api/giras?lista=eventos', TOK, 'abc123')).exigida, null);
-  const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === 'Versao Antiga');
-  if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
 });
 
 test('v173: dia da semana das giras — quem edita a Gira marca; vem na config e o Salvar do root não apaga', async () => {

@@ -49,7 +49,6 @@ import { permissoesDe, grupoAcesso, pode, PIN_VALIDO, PIN_NOVO, PIN_NOVO_MSG, PE
 import { normalizarNome } from '../../shared/ervas.js';
 import { cpfValido, normalizarPerfil } from '../../shared/perfil.js';
 import { compactarRetratos } from '../../shared/regras.js';
-import { versaoDoPedido } from '../_lib/versao.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -218,14 +217,6 @@ async function registrarVisitas(eu, texto) {
   await db.rpc('visitas_registrar', { chave: chavePessoa(eu), abas, nome }).catch((e) => console.error('[visitas]', e));
 }
 
-// A versão do app de cada pessoa (Admin root → 📲 Versão do app): a última com que ela abriu ou voltou ao app.
-// O "Ver como" não conta. Falha não atrapalha a abertura.
-async function registrarVersao(eu, req) {
-  const versao = versaoDoPedido(req);
-  if (!versao || eu.verComo) return;
-  await db.rpc('app_versao_registrar', { chave: chavePessoa(eu), nome: String(eu.nome || '').trim(), versao }).catch((e) => console.error('[versao]', e));
-}
-
 // Corrente e usuários: tudo de uma vez no banco (inicio_dados, que já veio junto com a sessão). Com a versão que o
 // app já tem e nada mudado, volta só { versao, semMudanca }. extras: o que decide as abas, quando me = true.
 async function listasIniciais(eu, d) {
@@ -264,7 +255,7 @@ const acoes = {
     ]), { soLeitura: false });
     // ?visitas=gira,ervas: abas abertas desde o último pedido, que pegam carona aqui em vez de um pedido só para isso
     // (cada pedido avulso acordava o banco). Falha não atrapalha a abertura; vai junto com o resto.
-    const visitas = Promise.all([registrarVisitas(u, req.query.visitas), registrarVersao(u, req)]);
+    const visitas = registrarVisitas(u, req.query.visitas);
     // Aluno: as listas e o "me" vão ao banco ao mesmo tempo.
     // Na volta ao app, com a mesma versão, só { versao, semMudanca }, como na corrente.
     if (u.grupo) {

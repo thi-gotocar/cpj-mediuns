@@ -2,17 +2,16 @@
 // Cadastrar gira antiga e Cadastrar escala e as Regras da casa. Os eventos da casa saíram daqui: o root cadastra no ＋ Evento
 // do card 📅 Eventos da aba Geral.
 
-import { SEM_CADASTRO, ABAS, ABAS_CONSULENTE, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '/shared/permissoes.js';
-import { estado, pessoasOrd, carregarUsuarios, carregarVisitas, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, salvarRegrasCasa, avisar } from '../estado.js';
+import { SEM_CADASTRO, ABAS, ABAS_CONSULENTE, ABAS_ALUNO, PERFIS_SISTEMA, PIN_NOVO, PIN_NOVO_MSG, normalizarAbas } from '/shared/permissoes.js';
+import { estado, pessoasOrd, carregarAlunos, carregarUsuarios, carregarVisitas, carregarPerfil, criarUsuario, atualizarUsuario, excluirUsuario, atualizarPessoa, acaoUsuarios, salvarApelidosEntidade, salvarConfigCasa, salvarRegrasCasa, avisar } from '../estado.js';
 import { esc, toast, hoje } from '../util.js';
 import { ICONE_WHATS } from './giraComum.js';
 import { ABAS_VISITA, VISITAS_DIAS, agruparVisitas, textoVisitas } from '/shared/visitas.js';
 import { emDemo } from '../auth.js';
 import { api } from '../api.js';
 import { renderAjustesPerfil, formSenha } from './perfil.js';
-import { cardGiraAntiga, cliquesGiraAntiga, mudancasGiraAntiga, corpoBackup, cliquesBackup } from './historico.js';
-import { cardEscala, cliquesEscala, mudancasEscala } from '../cadastrarEscala.js';
-import { contaNaPresenca, LINHA_LABEL } from '/shared/regras.js';
+import { corpoBackup, cliquesBackup } from './historico.js';
+import { LINHA_LABEL } from '/shared/regras.js';
 import { CAMPOS_CONFIG, config, SEGUNDO_CAMBONE, LIMITES_REGRAS } from '/shared/config.js';
 
 const secao = (titulo) => `<h3 class="root-secao">${titulo}</h3>`;
@@ -20,7 +19,7 @@ const paraBusca = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 
 
 // Perfis que podem ser dados a um usuário com e-mail (Corrente e Consulentes são de quem entra pelo próprio cadastro).
-const SEM_EMAIL = ['corrente', 'consulente'];
+const SEM_EMAIL = ['corrente', 'consulente', 'aluno'];
 const papeis = () => (estado.perfisCfg || []).filter((f) => !SEM_EMAIL.includes(f.chave));
 const opcoesPapel = (atual) => papeis().map((f) => `<option value="${esc(f.chave)}" ${f.chave === atual ? 'selected' : ''}>${esc(f.nome)}</option>`).join('');
 
@@ -36,22 +35,34 @@ const cabRoot = (k, titulo, count = '', ab = abertosRoot.has(k)) => `<button cla
 function configPerfil(f) {
   if (f.chave === 'root') return '<p class="leitura" style="margin:0">O Admin root pode tudo, inclusive a aba Admin root, e não precisa estar no cadastro da corrente.</p>';
   const a = normalizarAbas(f.abas);
-  const consulente = f.chave === 'consulente';
-  const abas = consulente ? ABAS.filter((x) => ABAS_CONSULENTE.includes(x.k)) : ABAS;
+  // Consulentes e Alunos entram pelo próprio cadastro (não são da corrente): só o Ver, e só das abas que funcionam
+  // para eles; as outras aparecem travadas, para a lista ser a mesma em todo perfil.
+  const fora = f.chave === 'consulente' || f.chave === 'aluno';
+  const livres = f.chave === 'consulente' ? ABAS_CONSULENTE : f.chave === 'aluno' ? ABAS_ALUNO : null;
+  const texto = f.chave === 'consulente'
+    ? 'Marque as abas que os consulentes podem <b>ver</b> (a Geral, com os eventos, sempre aparece). Eles nunca editam; as abas em cinza dependem de ser da corrente.'
+    : f.chave === 'aluno'
+      ? 'Marque as abas que os alunos podem <b>ver</b> (a Geral, o próprio Perfil e o próprio cadastro sempre aparecem). Eles nunca editam; as abas em cinza dependem de ser da corrente.'
+      : 'Marque, em cada aba, se o perfil pode <b>Ver</b> e/ou <b>Editar</b>. Vale na hora para todos desse perfil (eles veem a mudança ao abrir o app de novo).';
+  const linha = (x) => {
+    const sempre = f.chave === 'aluno' && x.k === 'alunos';
+    const travada = fora && !sempre && !livres.includes(x.k);
+    const ver = sempre ? '<label class="pa-ck"><input type="checkbox" checked disabled aria-label="Sempre"></label>'
+      : travada ? '<label class="pa-ck"><input type="checkbox" disabled aria-label="Não disponível"></label>'
+        : `<label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(f.chave)}" data-k="${x.k}" data-t="ver" ${a[x.k].ver ? 'checked' : ''} aria-label="${esc(f.nome)}: ver ${x.nome}"></label>`;
+    const editar = fora ? '<span></span>'
+      : `<label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(f.chave)}" data-k="${x.k}" data-t="editar" ${a[x.k].editar ? 'checked' : ''} aria-label="${esc(f.nome)}: editar ${x.nome}"></label>`;
+    const nota = sempre ? 'Sempre: cada aluno vê o próprio cadastro.' : travada ? 'Não funciona para quem não é da corrente.' : `Ver: ${x.ver}${fora ? '' : `<br>Editar: ${x.editar}`}`;
+    return `<div class="pa-tr${travada ? ' travada' : ''}" role="row"><span class="pa-aba"><b>${x.nome}</b><small class="muted">${nota}</small></span>${ver}${editar}</div>`;
+  };
   let h = `<div class="pf-config">
-    <p class="muted" style="margin:0;font-size:.85rem">${consulente
-      ? 'Marque as abas que os consulentes podem <b>ver</b> (a Geral, com os eventos, sempre aparece). Só aparecem aqui as abas que funcionam para quem não é da corrente; eles nunca editam.'
-      : 'Marque, em cada aba, se o perfil pode <b>Ver</b> e/ou <b>Editar</b>. Vale na hora para todos desse perfil (eles veem a mudança ao abrir o app de novo).'}</p>
+    <p class="muted" style="margin:0;font-size:.85rem">${texto}</p>
     ${SEM_EMAIL.includes(f.chave) ? '' : `<form id="f-perfilnome" class="row" data-chave="${esc(f.chave)}" autocomplete="off" style="gap:6px;align-items:flex-end">
       <label class="field grow">Nome do perfil<input type="text" id="pf-nomecfg" maxlength="40" value="${esc(f.nome)}"></label>
       <button class="btn small" type="submit">Renomear</button></form>`}
     <div class="pa-tab" role="table" aria-label="Acessos do perfil ${esc(f.nome)}">
-      <div class="pa-th" role="row"><span>Aba</span><span>Ver</span><span>${consulente ? '' : 'Editar'}</span></div>
-      ${abas.map((x) => `<div class="pa-tr" role="row">
-        <span class="pa-aba"><b>${x.nome}</b><small class="muted">Ver: ${x.ver}${consulente ? '' : `<br>Editar: ${x.editar}`}</small></span>
-        <label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(f.chave)}" data-k="${x.k}" data-t="ver" ${a[x.k].ver ? 'checked' : ''} aria-label="${esc(f.nome)}: ver ${x.nome}"></label>
-        ${consulente ? '<span></span>' : `<label class="pa-ck"><input type="checkbox" data-act="pfaba" data-chave="${esc(f.chave)}" data-k="${x.k}" data-t="editar" ${a[x.k].editar ? 'checked' : ''} aria-label="${esc(f.nome)}: editar ${x.nome}"></label>`}
-      </div>`).join('')}
+      <div class="pa-th" role="row"><span>Aba</span><span>Ver</span><span>${fora ? '' : 'Editar'}</span></div>
+      ${ABAS.map(linha).join('')}
     </div>`;
   if (!PERFIS_SISTEMA.includes(f.chave)) {
     const conf = estado.confirm === 'pf:' + f.chave;
@@ -72,9 +83,9 @@ const pessoasLivres = (manter = null) => {
 export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   if (abertosRoot.has('ajperfil') && estado.perfil === null) { estado.perfil = undefined; carregarPerfil(); }
-  let h = `<section class="panel">${cardAcessos()}${cardVisitas()}${cardVersoes()}
+  let h = `<section class="panel">${cardAcessos()}${cardVisitas()}
     ${secao('Configurações da casa')}${cardConfig()}${cardRegras()}${cardEntidades()}
-    ${secao('Pessoas e histórico')}${cardAjustesPerfil()}${cardRegistros()}${cardBackup()}</section>`;
+    ${secao('Pessoas e histórico')}${cardAjustesPerfil()}${cardBackup()}</section>`;
   return h;
 }
 
@@ -106,51 +117,6 @@ function cardVisitas() {
   h += grupos.map((g) => `<div class="vis-grupo"><div class="grp-h"><h3>${esc(g.grupo)}</h3><span class="count">${g.pessoas.length}</span></div>
     ${g.pessoas.map((p) => `<div class="vis-linha"><span class="nm">${esc(p.nome)}</span><span class="muted">${quandoVisita(p.ultima)}${p.vezes > 1 ? ` · ${p.vezes}×` : ''}</span></div>`).join('')}</div>`).join('');
   return h + `<p class="muted" style="margin:0;font-size:.8rem">Hora da última entrada · × = quantas vezes abriu nos ${VISITAS_DIAS} dias. O root não entra na lista.</p></div>`;
-}
-
-// ---------- versão do app ----------
-// A última versão com que cada pessoa abriu (ou voltou ao) app nos últimos 30 dias. A referência é a exigida ou, sem
-// ela, a deste aparelho. Forçar atualização exige a versão deste aparelho: quem estiver em outra troca na hora, no
-// próximo pedido ao servidor (quem está com o app fechado atualiza ao abrir, como sempre).
-const versaoCurta = (v) => String(v || '').slice(0, 6);
-async function lerVersoes() {
-  try { estado.versoes = await api('GET', '/usuarios?lista=versoes'); } catch (e) { toast(e.message); estado.versoes = { exigida: '', pessoas: [] }; }
-  avisar();
-}
-async function exigirVersao(versao) {
-  try {
-    estado.versoes = await api('POST', '/usuarios', { acao: 'versaoExigir', versao });
-    toast(versao ? `Versão ${versaoCurta(versao)} exigida: quem estiver em outra atualiza no próximo uso.` : 'Parou de exigir a versão.');
-  } catch (e) { toast(e.message); }
-  avisar();
-}
-function cardVersoes() {
-  const ab = abertosRoot.has('versoes');
-  const minha = window.__smVersao || '';
-  const V = estado.versoes;
-  const ref = V?.exigida || minha;
-  const outras = (V?.pessoas || []).filter((p) => ref && p.versao !== ref);
-  let h = `<div class="card adm root">${cabRoot('versoes', '<span aria-hidden="true">📲</span> Versão do app', V ? (outras.length ? `${outras.length} em outra versão` : 'todos em dia') : '', ab)}`;
-  if (!ab) return h + '</div>';
-  if (V === null) { estado.versoes = undefined; lerVersoes(); }
-  if (!V) return h + '<div class="loading">Carregando…</div></div>';
-  const linha = (p) => `<div class="vis-linha"><span class="nm">${esc(p.nome || '(sem nome)')}</span><span class="muted">versão ${esc(versaoCurta(p.versao))} · ${quandoVisita(p.vistoEm)}</span></div>`;
-  const naRef = V.pessoas.filter((p) => !ref || p.versao === ref);
-  const forcar = !minha ? '<p class="muted" style="margin:0">Este aparelho não informa a versão (sem o app instalado pelo navegador). Use outro aparelho para exigir a versão.</p>'
-    : estado.confirm === 'verex'
-      ? `<div class="infobox"><span><b>Exigir a versão ${esc(versaoCurta(minha))}?</b> Quem estiver em outra versão atualiza na hora, no próximo uso do app.</span>
-        <span class="row"><button class="btn small primary" data-act="verexigir">Exigir ${esc(versaoCurta(minha))}</button><button class="btn small" data-act="vervoltar">Voltar</button></span></div>`
-      : `<span class="row"><button class="btn small primary" data-act="askdel" data-k="verex" ${V.exigida === minha ? 'disabled' : ''}>Forçar atualização para ${esc(versaoCurta(minha))}</button>
-          ${V.exigida ? '<button class="btn small" data-act="verparar">Parar de exigir</button>' : ''}<button class="btn vis-atual" data-act="veratualizar" title="Atualizar a lista" aria-label="Atualizar a lista">↻</button></span>`;
-  h += `<p style="margin:0">Este aparelho: <b>${minha ? `versão ${esc(versaoCurta(minha))}` : 'versão desconhecida'}</b> · Exigida: <b>${V.exigida ? `versão ${esc(versaoCurta(V.exigida))}` : 'nenhuma'}</b></p>
-    <p class="muted" style="margin:0;font-size:.85rem">Antes de forçar, toque em <b>Atualizar app</b> no rodapé, para este aparelho estar na versão mais nova.</p>
-    ${forcar}
-    <div class="vis-grupo"><div class="grp-h"><h3>Em outra versão</h3><span class="count">${outras.length}</span></div>
-      ${outras.length ? outras.map(linha).join('') : '<p class="muted" style="margin:0">Ninguém.</p>'}</div>
-    <div class="vis-grupo"><div class="grp-h"><h3>Na versão ${esc(versaoCurta(ref))}</h3><span class="count">${naRef.length}</span></div>
-      ${naRef.map(linha).join('')}</div>
-    <p class="muted" style="margin:0;font-size:.8rem">A última versão com que cada pessoa abriu ou voltou ao app nos últimos 30 dias.</p>`;
-  return h + '</div>';
 }
 
 // Uma pessoa com acesso: nome (do cadastro), e-mail, troca de perfil, Nova senha e Excluir.
@@ -199,18 +165,43 @@ function formNovoUsuario(chave) {
 }
 
 // Um perfil: as pessoas, o ＋ e o ⚙️. O Corrente não tem lista (é quem entra pela corrente), só o que ele pode fazer.
+// Nomes da corrente e dos alunos (por turma), só para consulta: entram e saem pelo cadastro.
+const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+const listaNomes = (l) => `<div class="pf-nomes" data-rolar="8">${l.map((x) => `<span>${esc(x.nome)}</span>`).join('')}</div>`;
+function nomesCorrente() {
+  const L = [...(estado.pessoas || [])].sort(porNome);
+  return L.length ? listaNomes(L) : '<p class="muted" style="margin:0">Ninguém na corrente.</p>';
+}
+function nomesAlunos() {
+  const A = estado.alunos;
+  if (A === null) { estado.alunos = undefined; carregarAlunos(); }
+  if (!A) return '<p class="muted" style="margin:0">Carregando os alunos…</p>';
+  const turmas = [...A.turmas].sort(porNome);
+  const ids = new Set(turmas.map((t) => t.id));
+  const grupos = [...turmas.map((t) => [t.nome, A.alunos.filter((a) => a.turmaId === t.id)]), ['Sem turma', A.alunos.filter((a) => !ids.has(a.turmaId))]]
+    .filter(([, l]) => l.length);
+  return grupos.length ? grupos.map(([t, l]) => `<p class="pf-nomes-t">${esc(t)} <span class="muted">· ${l.length}</span></p>${listaNomes([...l].sort(porNome))}`).join('')
+    : '<p class="muted" style="margin:0">Nenhum aluno cadastrado.</p>';
+}
+
 function grupoPerfil(f, usuarios, buscando) {
   const k = 'pf:' + f.chave;
   const aberto = buscando || abertosRoot.has(k);
   const corrente = SEM_EMAIL.includes(f.chave);
-  const contagem = f.chave === 'corrente' ? 'toda a corrente' : f.chave === 'consulente' ? 'cadastros pelo login' : `${usuarios.length} pessoa${usuarios.length === 1 ? '' : 's'}`;
+  const nCorrente = (estado.pessoas || []).length;
+  const nAlunos = estado.alunos?.alunos?.length;
+  const contagem = f.chave === 'corrente' ? `${nCorrente} pessoa${nCorrente === 1 ? '' : 's'}`
+    : f.chave === 'aluno' ? (nAlunos === undefined ? 'todos os alunos' : `${nAlunos} aluno${nAlunos === 1 ? '' : 's'}`)
+      : f.chave === 'consulente' ? 'cadastros pelo login' : `${usuarios.length} pessoa${usuarios.length === 1 ? '' : 's'}`;
   let h = `<div class="pf-grupo${aberto ? ' aberto' : ''}"><button class="grp-h dobra" data-act="dobrarroot" data-k="${k}" aria-expanded="${aberto}">
     <h2>${esc(f.nome)}</h2><span class="count">${contagem} <span class="seta" aria-hidden="true">${aberto ? '▾' : '▸'}</span></span></button>`;
   if (!aberto) return h + '</div>';
   if (corrente) {
     h += f.chave === 'corrente'
-      ? '<p class="muted" style="margin:0;font-size:.85rem">O acesso da corrente: quem está em Perfil → Pessoas entra com e-mail, celular ou CPF e a senha de números.</p>'
-      : '<p class="muted" style="margin:0;font-size:.85rem">Quem se cadastrou pelo login e foi posto em Consulentes (Perfil → Pessoas → Cadastros pelo login). Entra com e-mail, celular ou CPF e a senha.</p>';
+      ? `<p class="muted" style="margin:0;font-size:.85rem">Toda a corrente (Perfil → Pessoas): entra com e-mail, celular ou CPF e a senha de números. Quem tem outro perfil abre com ele.</p>${nomesCorrente()}`
+      : f.chave === 'aluno'
+        ? `<p class="muted" style="margin:0;font-size:.85rem">Todos os alunos das turmas (Perfil → Pessoas → Alunos): entram com e-mail, celular ou CPF e a senha. Consulentes e o grupo Oferenda têm acesso próprio.</p>${nomesAlunos()}`
+        : '<p class="muted" style="margin:0;font-size:.85rem">Quem se cadastrou pelo login e foi posto em Consulentes (Perfil → Pessoas → Cadastros pelo login). Entra com e-mail, celular ou CPF e a senha.</p>';
   } else {
     h += usuarios.length ? `<div class="pf-pessoas">${usuarios.map(linhaUsuario).join('')}</div>` : '<p class="muted" style="margin:0;font-size:.88rem">Ninguém neste perfil.</p>';
     if (!buscando) {
@@ -336,27 +327,7 @@ function cardEntidades() {
   `}</div>`;
 }
 
-// Do Histórico: cadastrar gira antiga (já encerrada, só para o histórico) e cadastrar a escala de uma gira salva.
-function cardRegistros() {
-  // Com um cadastro em andamento, fica aberto.
-  const ab = abertosRoot.has('registros') || !!estado.giraAntiga || !!estado.escalaTxt;
-  let h = `<div class="card adm root">${cabRoot('registros', '<span aria-hidden="true">🗂️</span> Giras antigas e escalas', '', ab)}`;
-  if (!ab) return h + '</div>';
-  if (!estado.giraAntiga && !estado.escalaTxt) {
-    h += '<div class="row"><button class="btn small" data-act="gaabrir">＋ Cadastrar gira antiga</button><button class="btn small" data-act="esabrir">＋ Cadastrar escala</button></div>';
-  }
-  if (estado.giraAntiga) h += cardGiraAntiga(pessoasOrd().filter(contaNaPresenca));
-  if (estado.escalaTxt) h += cardEscala();
-  return h + '</div>';
-}
-
 export const cliques = {
-  veratualizar() { estado.versoes = null; avisar(); },
-  vervoltar() { avisar(); },
-  async verexigir() { await exigirVersao(window.__smVersao || ''); },
-  async verparar() { await exigirVersao(''); },
-  ...cliquesGiraAntiga,
-  ...cliquesEscala,
   ...cliquesBackup,
   deluser(el) { estado.confirm = null; excluirUsuario(el.dataset.id); },
   uren(el) {
@@ -467,8 +438,6 @@ export async function renomear(form) {
 
 export const mudancas = {
   visaba(t) { abaVisitas = t.value; avisar(); },
-  ...mudancasGiraAntiga,
-  ...mudancasEscala,
   // Editar inclui ver; tirar o ver tira o editar.
   pfaba(t) {
     const f = (estado.perfisCfg || []).find((x) => x.chave === t.dataset.chave);

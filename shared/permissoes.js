@@ -85,7 +85,6 @@ export const PERFIS_PADRAO = [
   { chave: 'admin', nome: 'Admin', ordem: 1, abas: abasDe(Object.fromEntries(ABA_KEYS.filter((k) => !['curimba', 'videos', 'asaas', 'transparencia'].includes(k)).map((k) => [k, tudo(true, true)]))) },
   // Fotos: todos veem e enviam; os perfis de admin também apagam a foto de qualquer pessoa.
   // Amaci: todos veem (quando está visível para todos); administram o root e o Admin.
-  { chave: 'usuario', nome: 'Usuário', ordem: 2, abas: abasDe({ gira: tudo(true), pessoas: tudo(true), hist: tudo(true), ervas: tudo(true), oferendas: tudo(true), guias: tudo(true), perfil: tudo(true), amaci: tudo(true), fotos: tudo(true) }) },
   // Ervas é uma sub-aba de Oferendas: o Admin oferendas administra as duas (o Admin ervas saiu na v133).
   { chave: 'admin_oferendas', nome: 'Admin oferendas', ordem: 3, abas: abasDe({ gira: tudo(true), alunos: tudo(true, true), hist: tudo(true), ervas: tudo(true, true), oferendas: tudo(true, true), guias: tudo(true), perfil: tudo(true), amaci: tudo(true), fotos: tudo(true, true) }) },
   { chave: 'admin_curimba', nome: 'Admin curimba', ordem: 5, abas: abasDe({ gira: tudo(true), perfil: tudo(true), curimba: tudo(true, true), videos: tudo(true, true), amaci: tudo(true), fotos: tudo(true, true) }) },
@@ -96,6 +95,9 @@ export const PERFIS_PADRAO = [
   // Consulentes: quem se cadastrou pelo login e o admin pôs em Consulentes (turma escondida). O root escolhe no ⚙️ o
   // que ele vê, entre as abas de ABAS_CONSULENTE (a Geral sempre aparece).
   { chave: 'consulente', nome: 'Consulentes', ordem: 98, abas: abasDe({ perfil: tudo(true) }) },
+  // Alunos (turmas comuns): o root escolhe no ⚙️ o que eles veem, entre as abas de ABAS_ALUNO. Nasce como era antes
+  // de existir o perfil (o próprio cadastro, Compras e Amaci).
+  { chave: 'aluno', nome: 'Alunos', ordem: 97, abas: abasDe({ alunos: tudo(true), guias: tudo(true), amaci: tudo(true) }) },
   { chave: 'corrente', nome: 'Corrente', ordem: 99, abas: abasDe({ gira: tudo(true), ervas: tudo(true), oferendas: tudo(true), guias: tudo(true), perfil: tudo(true), amaci: tudo(true), fotos: tudo(true) }) },
 ];
 // Perfis do sistema: não podem ser excluídos (o root e o acesso da corrente também não mudam de nome).
@@ -120,9 +122,18 @@ export const PERMISSOES_GRUPO = { alunos: ['alunos:ver', 'guias:pedir', 'amaci:v
 // Consulente: só o "Ver" das abas que funcionam fora da corrente, escolhidas pelo root no perfil Consulentes. Sem os
 // nomes da corrente (pessoas:ler) e sem a escala (giras:ler), que todo perfil da corrente tem.
 export const ABAS_CONSULENTE = ['perfil', 'guias', 'amaci', 'videos'];
+// Alunos: o próprio cadastro (alunos:ver) sempre; das outras, só o "Ver" das que funcionam fora da corrente.
+export const ABAS_ALUNO = ['guias', 'amaci', 'videos'];
 export function permissoesConsulente(abas) {
   const a = normalizarAbas(abas);
   return [...new Set(['alunos:ver', ...ABAS_CONSULENTE.filter((k) => a[k].ver).flatMap((k) => MAPA[k].ver)])];
+}
+
+// Aluno de turma comum: as abas marcadas no perfil Alunos. Sem o perfil (banco antigo), o que era fixo antes.
+export function permissoesAluno(abas) {
+  if (!abas) return PERMISSOES_GRUPO.alunos;
+  const a = normalizarAbas(abas);
+  return [...new Set(['alunos:ver', ...ABAS_ALUNO.filter((k) => a[k].ver).flatMap((k) => MAPA[k].ver)])];
 }
 
 // Grupo Oferenda (cadastro pelo login posto no grupo Oferenda, turma escondida): só a Geral e a aba Oferendas, sem doar

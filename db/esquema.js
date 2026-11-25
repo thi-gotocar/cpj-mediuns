@@ -4540,14 +4540,6 @@ export const MIGRACOES = [
        'grupoOferenda', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'nome', nome) order by lower(nome)) from alunos
                            where saida is null and turma_id = (select turma_oferenda_id())), '[]'::jsonb))
    $$`,
-  `create or replace function aluno_acesso(p jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id, 'temSenha', a.pin_hash is not null, 'pinVersao', a.pin_versao,
-                               'consulente', a.turma_id is not distinct from turma_consulentes_id() and a.turma_id is not null,
-                               'grupoOferenda', a.turma_id is not distinct from turma_oferenda_id() and a.turma_id is not null,
-                               'abasConsulente', (select abas from perfis where chave = 'consulente'), 'bloqueado', a.bloqueado)
-     from alunos a where a.id = (p ->> 'id')::uuid and a.saida is null
-   $$`,
   // ================================================== v156: responsável Todos no cadastro e na edição do item
   // p.todos (opcional, só na oferenda com uma linha por pessoa): true deixa o item de todos da lista (as doações saem),
   // false volta à escolha por pessoa; sem p.todos, o item fica como está. Tudo numa ida só ao banco.
@@ -5473,46 +5465,7 @@ export const MIGRACOES = [
    end;
    $$`,
 
-  // ================================================== v170: versão do app de cada pessoa e "forçar atualização"
-  // O app manda a versão (a marca do service worker) em todo pedido; a abertura grava a última de cada pessoa.
-  // O root vê quem está em outra versão e pode exigir a versão do aparelho dele: quem estiver em outra atualiza na hora.
-  `create table if not exists app_versoes (
-     chave     text primary key,
-     nome      text not null default '',
-     versao    text not null,
-     visto_em  timestamptz not null default now()
-   )`,
-  `insert into sistema (chave, valor) values ('app_versao_exigida', '') on conflict (chave) do nothing`,
-  // p = { chave, nome, versao } — a última versão de cada pessoa; quem não abre há 60 dias sai da lista.
-  `create or replace function app_versao_registrar(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     insert into app_versoes (chave, nome, versao) values (p ->> 'chave', coalesce(p ->> 'nome', ''), p ->> 'versao')
-     on conflict (chave) do update set nome = excluded.nome, versao = excluded.versao, visto_em = now();
-     delete from app_versoes where visto_em < now() - interval '60 days';
-     return '{}'::jsonb;
-   end;
-   $$`,
-  `create or replace function app_versao_exigida(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select to_jsonb(coalesce((select valor from sistema where chave = 'app_versao_exigida'), ''))
-   $$`,
-  // Quem abriu o app nos últimos 30 dias, do mais recente ao mais antigo, e a versão exigida ('' = nenhuma).
-  `create or replace function app_versoes_listar(p jsonb default '{}'::jsonb)
-   returns jsonb language sql stable as $$
-     select jsonb_build_object('exigida', app_versao_exigida(),
-       'pessoas', coalesce((select jsonb_agg(jsonb_build_object('chave', v.chave, 'nome', v.nome, 'versao', v.versao, 'vistoEm', v.visto_em) order by v.visto_em desc)
-                              from app_versoes v where v.visto_em > now() - interval '30 days'), '[]'::jsonb))
-   $$`,
-  // p = { versao } — a versão exigida ('' para de exigir).
-  `create or replace function app_versao_exigir(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     insert into sistema (chave, valor) values ('app_versao_exigida', coalesce(p ->> 'versao', ''))
-     on conflict (chave) do update set valor = excluded.valor;
-     return app_versoes_listar();
-   end;
-   $$`,
+  // ================================================== v170: versão do app de cada pessoa e "forçar atualização" (saiu na v186)
 
   // ---------- v171: resumo público da fila (guardado pela Vercel) ----------
   // p = { data } — o mesmo para todos: o resumo sem a própria senha e os números aguardando de cada tipo, em ordem,
@@ -6364,4 +6317,28 @@ export const MIGRACOES = [
      return convites_listar();
    end;
    $$`,
+
+  // ---------- v186: sai o bloco Versão do app (Admin root) ----------
+  // A versão de cada aparelho e o "forçar atualização" saíram (a troca de versão continua sozinha, pelo service
+  // worker). Apaga a tabela e as funções da v170 e a versão exigida, para nenhum aparelho receber ordem de atualizar.
+  `drop function if exists app_versao_registrar(jsonb)`,
+  `drop function if exists app_versoes_listar(jsonb)`,
+  `drop function if exists app_versao_exigir(jsonb)`,
+  `drop function if exists app_versao_exigida(jsonb)`,
+  `drop table if exists app_versoes`,
+  `delete from sistema where chave = 'app_versao_exigida'`,
+
+  // ---------- v187: perfil Alunos (o que os alunos veem, como o de Consulentes) e sai o perfil Usuário ----------
+  // O perfil Alunos entra pela lista dos perfis padrão (shared/permissoes.js), nascendo com o que era fixo antes. A
+  // sessão do aluno lê as abas dele (substitui a aluno_acesso da v134). O Usuário sai só se ninguém estiver nele.
+  `create or replace function aluno_acesso(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', a.id, 'nome', a.nome, 'turmaId', a.turma_id, 'temSenha', a.pin_hash is not null, 'pinVersao', a.pin_versao,
+                               'consulente', a.turma_id is not distinct from turma_consulentes_id() and a.turma_id is not null,
+                               'grupoOferenda', a.turma_id is not distinct from turma_oferenda_id() and a.turma_id is not null,
+                               'abasConsulente', (select abas from perfis where chave = 'consulente'),
+                               'abasAluno', (select abas from perfis where chave = 'aluno'), 'bloqueado', a.bloqueado)
+     from alunos a where a.id = (p ->> 'id')::uuid and a.saida is null
+   $$`,
+  `delete from perfis where chave = 'usuario' and not exists (select 1 from usuarios where papel = 'usuario')`,
 ];

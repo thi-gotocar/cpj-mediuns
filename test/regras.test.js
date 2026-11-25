@@ -545,7 +545,8 @@ test('aba Curimba: só o root e o Admin curimba (o Admin não vem com ela)', () 
   const abas = (chave) => PERFIS_PADRAO.find((p) => p.chave === chave).abas;
   assert.ok(PERMISSOES_ROOT.includes('curimba:editar'));
   assert.ok(permissoesDe('admin_curimba', abas('admin_curimba')).includes('curimba:editar'));
-  for (const k of ['admin', 'usuario', 'corrente']) assert.ok(!permissoesDe(k, abas(k)).includes('curimba:ver'), k);
+  for (const k of ['admin', 'corrente']) assert.ok(!permissoesDe(k, abas(k)).includes('curimba:ver'), k);
+  assert.ok(!PERFIS_PADRAO.some((p) => p.chave === 'usuario'), 'o perfil Usuário saiu (v187)');
 });
 
 test('eventos: orixá aparece só no próprio dia (com duas datas, nas duas)', async () => {
@@ -592,8 +593,8 @@ test('aba ASAAS: o root vê e edita; o Admin financeiro só olha; os outros perf
 });
 
 test('aba Fotos: todos veem; só os perfis de admin apagam a foto dos outros', () => {
-  // Consulentes não são da corrente: as Fotos não estão entre as abas deles.
-  for (const p of PERFIS_PADRAO.filter((x) => x.chave !== 'consulente')) {
+  // Consulentes e Alunos não são da corrente: as Fotos não estão entre as abas deles.
+  for (const p of PERFIS_PADRAO.filter((x) => x.chave !== 'consulente' && x.chave !== 'aluno')) {
     const perms = permissoesDe(p.chave, p.abas);
     assert.ok(perms.includes('fotos:ver'), p.chave);
     assert.equal(perms.includes('fotos:editar'), p.chave === 'root' || p.chave.startsWith('admin'), p.chave);
@@ -928,4 +929,14 @@ test('Suporte roda entre os cambones: quem esteve lá na última gira volta a ca
     assert.notEqual(papeis.c3, 'sup', 'c3 esteve no Suporte na última gira');
     assert.equal(Object.values(papeis).filter((v) => v === 'sup').length, 1);
   }
+});
+
+test('perfil Alunos: nasce como era fixo; só o Ver das abas que funcionam fora da corrente', async () => {
+  const { permissoesAluno, ABAS_ALUNO, PERMISSOES_GRUPO: G } = await import('../shared/permissoes.js');
+  const aluno = PERFIS_PADRAO.find((p) => p.chave === 'aluno');
+  assert.deepEqual(permissoesAluno(aluno.abas).sort(), [...G.alunos].sort(), 'o padrão é o que era fixo antes');
+  assert.deepEqual(ABAS_ALUNO, ['guias', 'amaci', 'videos']);
+  // Editar não vale, e abas da corrente (Pessoas, Gira) são ignoradas.
+  assert.deepEqual(permissoesAluno({ videos: { ver: true, editar: true }, pessoas: { ver: true }, gira: { ver: true } }), ['alunos:ver', 'videos:ver']);
+  assert.deepEqual(permissoesAluno(null), G.alunos, 'sem o perfil, o de antes');
 });

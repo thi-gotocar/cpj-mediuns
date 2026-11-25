@@ -31,12 +31,6 @@ export const MSG_ENCERRADA = 'Esta gira está encerrada. Toque em Reabrir para a
 export function rota(metodos) {
   return async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
-    // App numa versão diferente da exigida pelo root: o cabeçalho manda atualizar (api/_lib/versao.js; import
-    // dinâmico porque versao.js usa o db.js, que importa este arquivo). Corre junto com o pedido e só é esperado antes
-    // de responder, para a consulta da versão não somar uma ida ao banco na frente. Falha aqui nunca atrapalha o pedido.
-    const aviso = req.headers?.['x-app-versao']
-      ? import('./versao.js').then((m) => m.avisarVersao(req, res)).catch(() => { /* segue sem o aviso */ })
-      : null;
     try {
       const fn = metodos[req.method];
       if (!fn) {
@@ -44,10 +38,8 @@ export function rota(metodos) {
         throw new HttpError(405, 'Método não permitido.');
       }
       const corpo = await fn(req, res);
-      await aviso;
       if (!res.headersSent) res.status(200).json(corpo ?? { ok: true });
     } catch (e) {
-      await aviso;
       const nossa = e instanceof HttpError;
       const err = nossa ? e : deErroDoBanco(e) || e;
       const status = err.status || 500;

@@ -3,7 +3,7 @@
 import { db } from './db.js';
 
 export async function papelValido(papel) {
-  // Corrente e Consulentes são de quem entra pelo próprio cadastro: não vão para um usuário de e-mail.
-  if (!papel || papel === 'corrente' || papel === 'consulente') return false;
+  // Corrente, Consulentes e Alunos são de quem entra pelo próprio cadastro: não vão para um usuário.
+  if (!papel || papel === 'corrente' || papel === 'consulente' || papel === 'aluno') return false;
   return (await db.rpc('perfis_config')).some((f) => f.chave === papel);
 }

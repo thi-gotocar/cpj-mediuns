@@ -4,11 +4,11 @@
 import { HttpError, validarId } from './http.js';
 import { db } from './db.js';
 import { lerToken } from './senhas.js';
-import { permissoesDe, permissoesConsulente, PERMISSOES_GRUPO, PERMISSOES_OFERENDA } from '../../shared/permissoes.js';
+import { permissoesDe, permissoesConsulente, permissoesAluno, PERMISSOES_OFERENDA } from '../../shared/permissoes.js';
 
 // Aluno no grupo escondido Consulentes (perfil Consulentes, escolhido pelo root) ou Oferenda (Geral e Oferendas, sem doar).
 const papelAluno = (aluno) => (aluno.consulente ? ['Consulente', permissoesConsulente(aluno.abasConsulente)]
-  : aluno.grupoOferenda ? ['Oferenda', PERMISSOES_OFERENDA] : ['Aluno', PERMISSOES_GRUPO.alunos || []]);
+  : aluno.grupoOferenda ? ['Oferenda', PERMISSOES_OFERENDA] : ['Aluno', permissoesAluno(aluno.abasAluno)]);
 
 async function lerSessao(req) {
   const h = req.headers.authorization || req.headers.Authorization || '';
