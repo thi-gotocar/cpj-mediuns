@@ -6,13 +6,14 @@
 //             pagarPresencial { id, cpf? } · push { endpoint, remover? } (só quem administra inscreve o aparelho)
 //     admin:  publicar { publicado } (Visível para todos; nasce desligado) · config { config } · bloquear { data, hora ('' = dia todo), bloquear } · cancelar { id, motivo }
 //             responderPresencial { id, aceitar, valor }
+//             evento { id?, data, inicio, fim, nome, telefone, nota } · eventoExcluir { id }  (compromissos da agenda da admin)
 // Qualquer pessoa logada agenda (inclusive quem acabou de criar o cadastro), quando a aba está Visível para todos;
 // desligada, só quem tem o Oráculo no perfil (Ver ou Editar) entra. Quem administra: oraculo:gerenciar.
 import { HttpError, validarId, validarData } from './http.js';
 import { db } from './db.js';
 import { pode } from '../../shared/permissoes.js';
 import { chavePessoa } from '../../shared/ervas.js';
-import { configOraculo, validarConfig, horariosDoDia, agoraBR, nascimentoValido, telefoneValido, mensagemCancelamento, DESCRICAO_COBRANCA } from '../../shared/oraculo.js';
+import { configOraculo, validarConfig, validarEvento, horariosDoDia, agoraBR, nascimentoValido, telefoneValido, mensagemCancelamento, DESCRICAO_COBRANCA } from '../../shared/oraculo.js';
 import { configurado as asaasConfigurado, cobrarAvulso, conferirPagamento, cancelarNoAsaas, conferirReservas } from './asaas.js';
 import { enviarPush, chavePublicaPush, endpointValido } from './push.js';
 
@@ -146,6 +147,15 @@ export async function acaoOraculo(eu, b) {
       const c = r.consulta;
       return tela(eu, { cancelada: { id: c.id, whatsapp: c.whatsapp, mensagem: mensagemCancelamento({ ...c, pago: !!c.pagoEm }, motivo) } });
     }
+    case 'evento': {
+      const v = validarEvento(b);
+      if (v.erro) throw new HttpError(400, v.erro);
+      await db.rpc('oraculo_evento_salvar', { ...v.evento, id: b.id ? validarId(b.id, 'Compromisso') : null });
+      return tela(eu);
+    }
+    case 'eventoExcluir':
+      await db.rpc('oraculo_evento_excluir', { id: validarId(b.id, 'Compromisso') });
+      return tela(eu);
     case 'responderPresencial': {
       const aceitar = b.aceitar === true;
       const valor = Number(String(b.valor ?? '').replace(',', '.'));

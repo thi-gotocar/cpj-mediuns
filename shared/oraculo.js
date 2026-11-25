@@ -74,8 +74,10 @@ export function agoraBR(d = new Date()) {
   return { data: `${p.year}-${p.month}-${p.day}`, hora: `${p.hour}:${p.minute}` };
 }
 
-// t = { config, bloqueios: [{ data, hora }] (hora '' = dia todo), ocupados: [{ data, hora }] } (ocupados: confirmadas e
-// reservas ainda seguras). Horários do dia: [{ hora, livre, motivo }]; o dia fora da agenda devolve [].
+// t = { config, bloqueios: [{ data, hora }] (hora '' = dia todo), ocupados: [{ data, hora }], tomados: [{ data, inicio, fim }] }
+// (ocupados: confirmadas e reservas ainda seguras; tomados: compromissos da admin, que ocupam o horário que encostam).
+// Horários do dia: [{ hora, livre, motivo }]; o dia fora da agenda devolve [].
+export const maisHora = (h) => (h >= '23:00' ? '24:00' : `${String(Number(h.slice(0, 2)) + 1).padStart(2, '0')}${h.slice(2)}`);
 export function horariosDoDia(t, data, agora = agoraBR(), ignorar = null) {
   const c = configOraculo(t.config);
   const ultimo = somarDias(agora.data, c.diasFuturos);
@@ -84,16 +86,33 @@ export function horariosDoDia(t, data, agora = agoraBR(), ignorar = null) {
   if (bloq.some((b) => !b.hora)) return [];
   const ocup = (t.ocupados || []).filter((o) => o.data === data && !(ignorar && o.data === ignorar.data && o.hora === ignorar.hora));
   const cheio = ocup.length >= c.limiteDia;
+  const tom = (t.tomados || []).filter((e) => e.data === data);
   return c.horarios.map((hora) => {
     let motivo = '';
     if (data === agora.data && hora <= agora.hora) motivo = 'passou';
     else if (bloq.some((b) => b.hora === hora)) motivo = 'bloqueado';
-    else if (ocup.some((o) => o.hora === hora)) motivo = 'ocupado';
+    else if (ocup.some((o) => o.hora === hora) || tom.some((e) => e.inicio < maisHora(hora) && e.fim > hora)) motivo = 'ocupado';
     else if (cheio) motivo = 'cheio';
     return { hora, livre: !motivo, motivo };
   });
 }
 export const diaTemVaga = (t, data, agora, ignorar) => horariosDoDia(t, data, agora, ignorar).some((h) => h.livre);
+
+// Compromisso que a admin põe na agenda: devolve { evento } limpo ou { erro }.
+export function validarEvento(e) {
+  const o = e && typeof e === 'object' ? e : {};
+  const data = String(o.data ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || Number.isNaN(Date.parse(data + 'T12:00:00Z'))) return { erro: 'Data inválida.' };
+  const inicio = String(o.inicio ?? ''), fim = String(o.fim ?? '');
+  if (!HORA.test(inicio) || !(HORA.test(fim) || fim === '24:00')) return { erro: 'Informe o horário de início e de fim.' };
+  if (fim <= inicio) return { erro: 'O fim precisa ser depois do início.' };
+  const nome = String(o.nome ?? '').replace(/\s+/g, ' ').trim();
+  if (nome.length < 2 || nome.length > 120) return { erro: 'Informe o nome do cliente.' };
+  const telefone = String(o.telefone ?? '').replace(/\D/g, '');
+  if (telefone && (telefone.length < 10 || telefone.length > 13)) return { erro: 'Telefone inválido (DDD e número).' };
+  const nota = String(o.nota ?? '').trim().slice(0, 500);
+  return { evento: { data, inicio, fim, nome, telefone, nota } };
+}
 
 export const STATUS = {
   reservada: 'Aguardando pagamento',

@@ -3715,6 +3715,21 @@ test('v181: Oráculo — agenda, reserva travada, pagamento conferido no ASAAS, 
     assert.equal((await or(ADMIN, { op: 'bloquear', data: d2, hora: '', bloquear: true })).status, 200);
     assert.equal((await or(USER, { op: 'reservar', data: d2, hora: '15:30' })).status, 400, 'dia todo bloqueado');
 
+    // Compromisso da admin (agenda): só quem administra; ocupa o horário de consulta que encosta.
+    assert.equal((await or(USER, { op: 'evento', data: d1, inicio: '15:00', fim: '16:00', nome: 'Pelo telefone' })).status, 403);
+    assert.match((await or(ADMIN, { op: 'evento', data: d1, inicio: '16:00', fim: '15:00', nome: 'X' })).json.erro, /depois do início/);
+    r = await or(ADMIN, { op: 'evento', data: d1, inicio: '15:00', fim: '16:00', nome: 'Pelo telefone', telefone: '(11) 97777-6666', nota: 'trazer foto' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const ev = r.json.eventos.find((e) => e.nome === 'Pelo telefone');
+    assert.deepEqual([ev.telefone, ev.nota], ['11977776666', 'trazer foto']);
+    let U = (await tela(USER)).json;
+    assert.ok(U.tomados.some((t) => t.data === d1 && t.inicio === '15:00') && !JSON.stringify(U.tomados).includes('Pelo telefone'), 'o cliente vê o horário tomado, sem o nome');
+    assert.equal(U.eventos, null);
+    assert.equal((await or(USER, { op: 'reservar', data: d1, hora: '15:30' })).status, 409, 'compromisso das 15h às 16h ocupa o das 15:30');
+    r = await or(ADMIN, { op: 'evento', id: ev.id, data: d1, inicio: '09:00', fim: '10:00', nome: 'Pelo telefone' });
+    assert.equal(r.json.eventos.find((e) => e.id === ev.id).inicio, '09:00');
+    assert.equal((await or(ADMIN, { op: 'eventoExcluir', id: ev.id })).json.eventos.some((e) => e.id === ev.id), false);
+
     // Aviso no aparelho: só quem administra inscreve; endereço precisa ser https.
     assert.equal((await or(USER, { op: 'push', endpoint: 'https://push.teste/1' })).status, 403);
     assert.equal((await or(ADMIN, { op: 'push', endpoint: 'http://push.teste/1' })).status, 400);
@@ -3725,6 +3740,7 @@ test('v181: Oráculo — agenda, reserva travada, pagamento conferido no ASAAS, 
     for (const k of nomes) { if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
     sql(`update sistema set valor = '{}' where chave = 'oraculo_config'`);
     sql('delete from oraculo_bloqueios');
+    sql('delete from oraculo_eventos');
     sql(`update sistema set valor = 'false' where chave = 'oraculo_publicado'`);
   }
 });

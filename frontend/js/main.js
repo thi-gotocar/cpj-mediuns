@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, cadastrar, criarSenhaContato, verificarCpf, entrarCpf, criarSenhaCpf, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar, definirVerComo } from './api.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veAmaci, veTransparencia, vePedidos, veDiario, veOraculo, vePessoas, temPendencia } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veAmaci, veTransparencia, vePedidos, veDiario, veOraculo, veOraculoAdmin, vePessoas, temPendencia } from './estado.js';
 import { esc, toast, hoje, mascaraTel, guardarRascunhos, devolverRascunhos, guardarTela, devolverTela } from './util.js';
 import { PIN_NOVO, PIN_NOVO_MSG } from '/shared/permissoes.js';
 import { cpfValido } from '/shared/perfil.js';
@@ -32,6 +32,7 @@ const SOB_DEMANDA = {
   pedidos: () => import('./telas/pedidos.js'),
   diario: () => import('./telas/diario.js'),
   oraculo: () => import('./telas/oraculo.js'),
+  oraculoAdm: () => import('./telas/oraculoAdmin.js'),
   transparencia: () => import('./telas/transparencia.js'),
   perfil: () => import('./telas/perfil.js'),
   videos: () => import('./telas/videos.js'),
@@ -82,6 +83,7 @@ let arrastoAnamnese = null;
 const GRUPOS_ABAS = [
   { topo: 'agenda', subs: [['agenda', 'Gira'], ['fila', 'Fila'], ['ervas', 'Ervas'], ['hist', 'Histórico']] },
   { topo: 'guias', subs: [['guias', 'Compras'], ['pedidos', 'Pedidos'], ['asaas', 'ASAAS']] },
+  { topo: 'oraculo', subs: [['oraculo', 'Oráculo'], ['oraculoAdm', 'Admin']] },
 ];
 const grupoDa = (tab) => GRUPOS_ABAS.find((g) => g.subs.some(([k]) => k === tab));
 function barraSubabas(grupo, VE) {
@@ -142,7 +144,7 @@ function render() {
   const visao = visaoAtiva();
   // Abas que o perfil pode ver.
   let VE = { usuarios: pode('usuarios:gerenciar'), asaas: pode('asaas:ver'), pedidos: vePedidos(), transparencia: veTransparencia(), ervas: veErvas(), oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(),
-    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), fila: fila.veFila(), oraculo: veOraculo(), gira: true, agenda: true };
+    hist: pode('historico:ver'), perfil: pode('perfil:ver') || vePessoas(), curimba: pode('curimba:ver'), videos: pode('videos:ver') || !!estado.me.videosPublicada, fotos: FOTOS_ATIVA && pode('fotos:ver'), diario: veDiario(), fila: fila.veFila(), oraculo: veOraculo(), oraculoAdm: veOraculoAdmin(), gira: true, agenda: true };
   if (visao === 'alunos') VE = { usuarios: false, asaas: false, pedidos: false, transparencia: false, ervas: false, oferendas: veOferendas(), guias: veGuias(), amaci: veAmaci(), hist: false, perfil: true, curimba: false, videos: !!estado.me.videosPublicada, fotos: false, diario: veDiario(), oraculo: veOraculo(), gira: true, agenda: false };
   // Consulente: a Geral e as abas que o root marcou no perfil Consulentes (Perfil, Compras, Amaci, Vídeos).
   if (visao === 'alunos' && estado.me.consulente) Object.assign(VE, { oferendas: false, perfil: pode('perfil:ver'), guias: veGuias(), amaci: veAmaci(), videos: pode('videos:ver') || !!estado.me.videosPublicada });
@@ -225,8 +227,8 @@ async function iniciar() {
   main.innerHTML = '<div class="loading">Carregando a corrente…</div>';
   // Ao abrir o app (ou entrar), começa em Geral; a visão root começa no perfil Root.
   prefs.tab = 'gira';
-  // Aberto pela notificação do Oráculo (consulta paga): começa na aba Oráculo.
-  if (location.hash === '#oraculo') { prefs.tab = 'oraculo'; history.replaceState(null, '', location.pathname + location.search); }
+  // Aberto pela notificação do Oráculo (consulta paga): começa na agenda do Admin do Oráculo.
+  if (location.hash === '#oraculo') { prefs.tab = 'oraculoAdm'; history.replaceState(null, '', location.pathname + location.search); }
   estado.visaoRoot = 'root';
   try {
     await carregarTudo();
@@ -236,10 +238,10 @@ async function iniciar() {
   }
 }
 
-// Toque na notificação com o app já aberto: o service worker pede para ir à aba Oráculo.
+// Toque na notificação com o app já aberto: o service worker pede para ir à agenda do Admin do Oráculo.
 navigator.serviceWorker?.addEventListener('message', (e) => {
   if (e.data !== 'abrir-oraculo' || !logado() || !estado.pronto) return;
-  tabs.querySelector('[data-tab="oraculo"]')?.click();
+  tabs.querySelector('[data-tab="oraculoAdm"]')?.click();
 });
 
 quandoSessaoExpirar(() => {
@@ -288,6 +290,8 @@ tabs.addEventListener('click', (e) => {
   if (b.dataset.tab === 'diario') { atualizarAoAbrir('diario', '/pessoas?lista=diario'); TELAS.diario?.limpar(); }
   // Oráculo: horários mudam a cada reserva; a tela volta ao calendário.
   if (b.dataset.tab === 'oraculo') { atualizarAoAbrir('oraculo', '/oferendas?lista=oraculo'); TELAS.oraculo?.limpar(); }
+  // Oráculo → Admin: mesmos dados; volta à semana (o dia aberto fecha).
+  if (b.dataset.tab === 'oraculoAdm') { atualizarAoAbrir('oraculo', '/oferendas?lista=oraculo'); TELAS.oraculoAdm?.limpar(); }
   // Transparência: volta ao mês atual (o guardado só serve se já for o do mês atual).
   if (b.dataset.tab === 'transparencia') {
     if (estado.transparencia?.mes === hoje().slice(0, 7)) atualizarAoAbrir('transparencia', '/giras?lista=transparencia');

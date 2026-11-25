@@ -1,7 +1,7 @@
 // Aba Oráculo: agendar uma consulta com o Oráculo de Maria Mulambo (regras em shared/oraculo.js).
 // Quem está logado escolhe o dia e o horário (só de hoje em diante), confirma os dados e gera o link de pagamento; a
 // tela fica perguntando se o pagamento caiu enquanto espera. Com a consulta marcada: reagendar, pedir presencial e o
-// caminho para cancelar (WhatsApp da casa). Quem administra vê as consultas, bloqueia dias e horários e ajusta a agenda.
+// caminho para cancelar (WhatsApp da casa). O que é de quem administra fica na sub-aba Admin (oraculoAdmin.js).
 
 import { estado, carregarOraculo, acaoOraculo, avisar } from '../estado.js';
 import { esc, toast } from '../util.js';
@@ -17,10 +17,9 @@ if (!document.querySelector('link[data-oraculo]')) {
   document.head.append(l);
 }
 
-const ui = { mes: null, data: null, hora: null, reagendar: null, trocar: false, adm: { dia: null, cancelar: null, motivo: '', aberto: 'consultas' }, cancelada: null, enviando: false };
+const ui = { mes: null, data: null, hora: null, reagendar: null, trocar: false, enviando: false };
 export function limpar() {
-  Object.assign(ui, { mes: null, data: null, hora: null, reagendar: null, trocar: false, cancelada: null, enviando: false });
-  ui.adm.cancelar = null;
+  Object.assign(ui, { mes: null, data: null, hora: null, reagendar: null, trocar: false, enviando: false });
 }
 
 const pendente = (c) => c.cobrancas.find((b) => b.status === 'pendente' || b.status === 'criando');
@@ -158,83 +157,6 @@ function marcada(O, c) {
   </div>`;
 }
 
-// ---------- admin ----------
-function linhaAdmin(c) {
-  const b = pendente(c);
-  const st = c.status === 'reservada' ? (b ? 'aguardando pagamento' : 'preenchendo') : STATUS[c.status].toLowerCase();
-  const confirmar = ui.adm.cancelar === c.id;
-  return `<li class="oc-adm-c st-${c.status}">
-    <div class="oc-adm-l1"><b>${c.hora}</b> ${esc(c.nome || '(sem nome)')} <span class="oc-tag">${esc(st)}</span>${c.presencial === 'pago' ? '<span class="oc-tag pres">presencial</span>' : ''}</div>
-    <div class="oc-adm-l2">${c.whatsapp ? `<a href="${linkWhats(c.whatsapp, '')}" target="_blank" rel="noopener">${esc(c.whatsapp)}</a>` : ''}${c.nascimento ? ` · nasc. ${esc(c.nascimento)}` : ''}${c.mae ? ` · mãe ${esc(c.mae)}` : ''}</div>
-    ${c.presencial === 'pedido' || (c.presencial === 'aceito' && !c.cobrancas.some((x) => x.tipo === 'presencial')) ? `<div class="oc-adm-pres">
-      <span>${c.presencial === 'pedido' ? 'Pediu atendimento presencial.' : `Presencial aceito (${moeda(c.presencialValor)}), aguardando o cliente pagar.`}</span>
-      <input class="oc-in" id="oc-taxa-${c.id}" inputmode="decimal" placeholder="Taxa R$" value="${c.presencialValor ?? ''}">
-      <button class="oc-mini" data-act="ocpresresp" data-id="${c.id}" data-aceitar="1">Aceitar</button>
-      <button class="oc-mini" data-act="ocpresresp" data-id="${c.id}" data-aceitar="0">Recusar</button></div>` : ''}
-    ${['reservada', 'confirmada', 'conflito'].includes(c.status) ? (confirmar
-      ? `<div class="oc-adm-canc"><input class="oc-in" id="oc-motivo" maxlength="200" placeholder="Motivo (opcional, vai na mensagem)">
-          <button class="oc-mini perigo" data-act="occancelar" data-id="${c.id}">Cancelar consulta</button><button class="oc-mini" data-act="occancelarnao">Voltar</button></div>`
-      : `<button class="oc-mini" data-act="occancelarsim" data-id="${c.id}">Cancelar…</button>`) : ''}
-  </li>`;
-}
-function adminConsultas(O) {
-  const hoje = O.hoje;
-  const proximas = (O.todas || []).filter((c) => futura(c, hoje) && c.status !== 'cancelada');
-  if (!proximas.length) return '<p class="oc-dica">Nenhuma consulta marcada daqui para frente.</p>';
-  const dias = [...new Set(proximas.map((c) => c.data))];
-  return dias.map((d) => `<h4 class="oc-adm-dia">${esc(dataLonga(d))}</h4><ul class="oc-adm-lista">${proximas.filter((c) => c.data === d).map(linhaAdmin).join('')}</ul>`).join('');
-}
-function adminDia(O) {
-  const d = ui.adm.dia || O.hoje;
-  const cfg = O.config;
-  const bloqDia = O.bloqueios.some((b) => b.data === d && !b.hora);
-  const naAgenda = cfg.dias.includes(diaDaSemana(d));
-  const doDia = (O.todas || []).filter((c) => c.data === d && ['reservada', 'confirmada'].includes(c.status));
-  return `<label class="oc-campo">Dia<input type="date" id="oc-adm-dia" data-act="ocadmdia" value="${d}" min="${O.hoje}"></label>
-    ${naAgenda ? '' : '<p class="oc-dica">Este dia da semana está fora da agenda (veja Agenda abaixo).</p>'}
-    <button class="oc-sec" data-act="ocbloq" data-data="${d}" data-hora="" data-b="${bloqDia ? 0 : 1}">${bloqDia ? 'Liberar o dia todo' : 'Bloquear o dia todo'}</button>
-    ${bloqDia ? '' : `<ul class="oc-adm-horas">${cfg.horarios.map((h) => {
-      const c = doDia.find((x) => x.hora === h);
-      const bloq = O.bloqueios.some((b) => b.data === d && b.hora === h);
-      return `<li><b>${h}</b> ${c ? `<span>${esc(c.nome || 'reservado')}</span>` : bloq ? '<span class="muted">bloqueado</span>' : '<span class="muted">livre</span>'}
-        ${c ? '' : `<button class="oc-mini" data-act="ocbloq" data-data="${d}" data-hora="${h}" data-b="${bloq ? 0 : 1}">${bloq ? 'Liberar' : 'Bloquear'}</button>`}</li>`;
-    }).join('')}</ul>`}`;
-}
-function adminConfig(O) {
-  const c = O.config;
-  return `<form id="f-oraculo-cfg" class="oc-cfg" data-rascunho autocomplete="off">
-    <label class="oc-campo">Horários de início (separados por vírgula)<input name="horarios" value="${esc(c.horarios.join(', '))}"></label>
-    <fieldset class="oc-dias"><legend>Dias com consulta</legend>${SEMANA_CURTA.map((n, i) => `<label class="chip"><input type="checkbox" name="dias" value="${i}" ${c.dias.includes(i) ? 'checked' : ''}> ${n}</label>`).join('')}</fieldset>
-    <div class="oc-cfg-lin"><label class="oc-campo">Limite por dia<input name="limiteDia" type="number" min="1" max="24" value="${c.limiteDia}"></label>
-      <label class="oc-campo">Agenda aberta por (dias)<input name="diasFuturos" type="number" min="1" max="365" value="${c.diasFuturos}"></label></div>
-    <div class="oc-cfg-lin"><label class="oc-campo">Valor da consulta (R$)<input name="valor" inputmode="decimal" value="${String(c.valor).replace('.', ',')}"></label>
-      <label class="oc-campo">WhatsApp da casa<input name="contato" inputmode="tel" value="${esc(c.contato)}"></label></div>
-    <button class="oc-sec" type="button" data-act="occfg">Salvar agenda</button>
-  </form>`;
-}
-function avisos(O) {
-  if (!O.push) return '<p class="oc-dica">Avisos no celular desligados: faltam as chaves VAPID na Vercel.</p>';
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return '<p class="oc-dica">Este aparelho não recebe avisos. No iPhone, instale o app na tela de início (iOS 16.4 ou mais novo) e abra por ele.</p>';
-  const st = typeof Notification !== 'undefined' ? Notification.permission : 'default';
-  if (st === 'denied') return '<p class="oc-dica">Os avisos estão bloqueados nos ajustes do aparelho para este app.</p>';
-  return `<button class="oc-sec" data-act="ocpush">${estado.ocPush ? 'Avisos ligados neste aparelho · Desligar' : 'Ativar avisos de consulta paga neste aparelho'}</button>`;
-}
-function admin(O) {
-  if (!O.veTodas) return '';
-  const aba = (k, t) => `<button class="oc-adm-aba${ui.adm.aberto === k ? ' sel' : ''}" data-act="ocadmaba" data-k="${k}" aria-pressed="${ui.adm.aberto === k}">${t}</button>`;
-  const cancelada = ui.cancelada ? `<div class="oc-aviso"><p>Consulta cancelada. Mande a mensagem para o cliente:</p><pre class="oc-msg">${esc(ui.cancelada.mensagem)}</pre>
-    ${ui.cancelada.whatsapp ? `<a class="oc-sec" href="${linkWhats(ui.cancelada.whatsapp, ui.cancelada.mensagem)}" target="_blank" rel="noopener">Enviar no WhatsApp</a>` : ''}
-    <button class="oc-mini" data-act="occopiarmsg">Copiar</button> <button class="oc-mini" data-act="ocfecharmsg">Fechar</button></div>` : '';
-  const pub = O.admin ? `<label class="of-sw oc-pub"><input type="checkbox" role="switch" data-act="ocpub" ${O.publicado ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label>
-    <p class="oc-dica">${O.publicado ? 'Todos que entram no app veem a aba e podem agendar.' : 'Desligado: só quem administra o Oráculo vê a aba.'}</p>` : '';
-  return `<section class="oc-adm card adm"><h2>Agenda do Oráculo</h2>${pub}
-    <div class="oc-adm-abas">${aba('consultas', 'Consultas')}${O.admin ? aba('dia', 'Bloquear') + aba('config', 'Agenda') : ''}</div>
-    ${cancelada}
-    ${ui.adm.aberto === 'consultas' || !O.admin ? adminConsultas(O) : ui.adm.aberto === 'dia' ? adminDia(O) : adminConfig(O)}
-    ${O.admin ? `<div class="oc-adm-push">${avisos(O)}</div>` : ''}
-  </section>`;
-}
-
 // ---------- tela ----------
 export function render() {
   const O = estado.oraculo;
@@ -256,7 +178,7 @@ export function render() {
   else if (conflito || confirmada) corpo = marcada(O, conflito || confirmada);
   else corpo = agenda(O, null);
   conferirPagamento(!!(b || taxa));
-  return `<section class="panel oc">${topo()}${corpo}${rodape(O)}</section>${admin(O)}`;
+  return `<section class="panel oc">${topo()}${corpo}${rodape(O)}</section>`;
 }
 
 // ---------- ações ----------
@@ -266,28 +188,6 @@ async function enviando(fn) {
   ui.enviando = true;
   avisar();
   try { return await fn(); } finally { ui.enviando = false; avisar(); }
-}
-function base64Url(s) {
-  const b = atob((s + '='.repeat((4 - (s.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
-  return Uint8Array.from(b, (c) => c.charCodeAt(0));
-}
-async function alternarPush() {
-  const reg = await navigator.serviceWorker.ready;
-  const atual = await reg.pushManager.getSubscription();
-  if (estado.ocPush && atual) {
-    await acaoOraculo('push', { endpoint: atual.endpoint, remover: true });
-    await atual.unsubscribe().catch(() => {});
-    estado.ocPush = false;
-    toast('Avisos desligados neste aparelho.');
-    return;
-  }
-  if ((await Notification.requestPermission()) !== 'granted') { toast('Sem permissão, o aparelho não mostra os avisos.'); avisar(); return; }
-  const sub = atual || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64Url(estado.oraculo.push) });
-  if (await acaoOraculo('push', { endpoint: sub.endpoint })) { estado.ocPush = true; toast('Pronto: este aparelho avisa quando uma consulta for paga.'); }
-}
-// Já tem inscrição neste aparelho? (para o botão dizer Ligado/Desligar).
-if (typeof navigator !== 'undefined' && navigator.serviceWorker && 'PushManager' in globalThis) {
-  navigator.serviceWorker.ready.then((r) => r.pushManager.getSubscription()).then((s) => { if (s) { estado.ocPush = true; avisar(); } }).catch(() => {});
 }
 
 export const cliques = {
@@ -331,34 +231,5 @@ export const cliques = {
   },
   ocpedirpres: (el) => enviando(async () => { if (await acaoOraculo('presencial', { id: el.dataset.id })) toast('Pedido enviado. A casa responde aqui.'); }),
   ocpagarpres: (el) => enviando(() => acaoOraculo('pagarPresencial', { id: el.dataset.id, cpf: document.getElementById('oc-cpf-pres')?.value })),
-  // admin
-  ocadmaba: (el) => { ui.adm.aberto = el.dataset.k; avisar(); },
-  ocbloq: (el) => acaoOraculo('bloquear', { data: el.dataset.data, hora: el.dataset.hora, bloquear: el.dataset.b === '1' }),
-  occancelarsim: (el) => { ui.adm.cancelar = el.dataset.id; avisar(); },
-  occancelarnao: () => { ui.adm.cancelar = null; avisar(); },
-  occancelar: async (el) => {
-    const r = await acaoOraculo('cancelar', { id: el.dataset.id, motivo: document.getElementById('oc-motivo')?.value || '' });
-    if (r) { ui.adm.cancelar = null; ui.cancelada = r.cancelada; avisar(); }
-  },
-  occopiarmsg: () => { navigator.clipboard?.writeText(ui.cancelada?.mensagem || '').then(() => toast('Mensagem copiada.'), () => toast('Não deu para copiar.')); },
-  ocfecharmsg: () => { ui.cancelada = null; avisar(); },
-  ocpresresp: (el) => acaoOraculo('responderPresencial', { id: el.dataset.id, aceitar: el.dataset.aceitar === '1', valor: document.getElementById('oc-taxa-' + el.dataset.id)?.value }),
-  occfg: async (el) => {
-    const f = formDe(el);
-    const fd = new FormData(f);
-    const config = {
-      horarios: String(fd.get('horarios')).split(/[,;\s]+/).filter(Boolean).map((h) => (/^\d:\d\d$/.test(h) ? '0' + h : h)),
-      dias: fd.getAll('dias').map(Number), limiteDia: Number(fd.get('limiteDia')), diasFuturos: Number(fd.get('diasFuturos')),
-      valor: fd.get('valor'), contato: fd.get('contato'),
-    };
-    if (await acaoOraculo('config', { config })) { f.reset(); toast('Agenda salva.'); }
-  },
-  ocpush: () => alternarPush().catch((e) => { toast('Não deu para ligar os avisos: ' + (e?.message || e)); avisar(); }),
 };
-export const mudancas = {
-  ocpub: async (el) => {
-    const r = await acaoOraculo('publicar', { publicado: el.checked });
-    if (r) toast(r.publicado ? 'O Oráculo está visível para todos.' : 'O Oráculo ficou visível só para quem administra.');
-  },
-  ocadmdia: (el) => { if (el.value) { ui.adm.dia = el.value; avisar(); } },
-};
+export const mudancas = {};

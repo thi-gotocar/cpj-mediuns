@@ -572,6 +572,8 @@ export async function acaoAsaas(op, dados = {}) {
 // Quem tem o Oráculo no perfil (Ver ou Editar) sempre vê; os outros, quando está Visível para todos. Fora da curimba.
 export const veOraculo = () => estado.me?.grupo !== 'curimba' && visaoAtiva() !== 'curimba'
   && (pode('oraculo:ver') || pode('oraculo:gerenciar') || !!estado.me?.oraculoPublicado);
+// Sub-aba Admin do Oráculo: quem tem o Oráculo no perfil (Ver ou Editar; o root sempre).
+export const veOraculoAdmin = () => estado.me?.grupo !== 'curimba' && visaoAtiva() !== 'curimba' && (pode('oraculo:ver') || pode('oraculo:gerenciar'));
 // conferir: a tela esperando o pagamento pergunta ao ASAAS se o link já foi pago.
 export async function carregarOraculo(conferir = false) {
   try { estado.oraculo = await api('GET', '/oferendas?lista=oraculo' + (conferir ? '&conferir=1' : '')); } catch (e) {

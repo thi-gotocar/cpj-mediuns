@@ -5955,74 +5955,6 @@ export const MIGRACOES = [
              'pixImagem', case when pix and b.status = 'pendente' then b.pix_imagem end) order by b.criado_em)
            from asaas_cobrancas b where b.oraculo_id = c.id and b.status in ('criando', 'pendente', 'paga', 'estornada')), '[]'::jsonb))
    $$`,
-  // p = { chave, admin } — tudo o que a aba precisa numa ida: agenda, horários ocupados (sem nomes), as consultas da
-  // pessoa e, para quem administra, as consultas de todos (de 60 dias atrás em diante).
-  `create or replace function oraculo_tela(p jsonb)
-   returns jsonb language plpgsql as $$
-   begin
-     perform oraculo_expirar();
-     return jsonb_build_object(
-       'config', oraculo_config(),
-       'publicado', oraculo_publicado(),
-       'hoje', oraculo_hoje(),
-       'bloqueios', coalesce((select jsonb_agg(jsonb_build_object('data', data, 'hora', hora) order by data, hora) from oraculo_bloqueios where data >= oraculo_hoje()), '[]'::jsonb),
-       'ocupados', coalesce((select jsonb_agg(jsonb_build_object('data', c.data, 'hora', c.hora)) from oraculo_consultas c where c.data >= oraculo_hoje() and oraculo_ocupa(c)), '[]'::jsonb),
-       'contato', oraculo_contato(p ->> 'chave'),
-       'cliente', exists (select 1 from asaas_clientes where chave = p ->> 'chave' and conta = 'A'),
-       'minhas', coalesce((select jsonb_agg(oraculo_json(c, true) order by c.criado_em desc) from oraculo_consultas c
-                            where c.chave = p ->> 'chave' and (c.status in ('reservada', 'confirmada', 'conflito') or c.criado_em > now() - interval '30 days')), '[]'::jsonb),
-       'todas', case when coalesce((p ->> 'admin')::boolean, false) then
-                  coalesce((select jsonb_agg(oraculo_json(c, false) order by c.data, c.hora) from oraculo_consultas c
-                             where c.data >= oraculo_hoje() - 60 and c.status <> 'expirada'), '[]'::jsonb) end);
-   end;
-   $$`,
-  // p = { chave, nome, whatsapp, data, hora, consultaId? } — segura o horário (ou, com consultaId, reagenda a consulta paga).
-  // O servidor já conferiu a agenda (dia, horário, bloqueio); aqui a trava do dia garante que dois pedidos juntos não
-  // peguem o mesmo horário nem passem do limite do dia.
-  `create or replace function oraculo_reservar(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_data date := (p ->> 'data')::date;
-     v_hora text := p ->> 'hora';
-     v_id uuid := nullif(p ->> 'consultaId', '')::uuid;
-     v oraculo_consultas%rowtype;
-     v_limite int := coalesce((oraculo_config() ->> 'limiteDia')::int, 4);
-   begin
-     perform pg_advisory_xact_lock(hashtext('oraculo:' || v_data::text));
-     perform oraculo_expirar();
-     if v_id is null then
-       -- Reserva ainda segura da mesma pessoa: troca o horário dela (não cria outra).
-       select * into v from oraculo_consultas where chave = p ->> 'chave' and status = 'reservada' order by criado_em desc limit 1 for update;
-       if found then
-         if exists (select 1 from asaas_cobrancas where oraculo_id = v.id and status in ('criando', 'pendente')) then
-           raise exception 'Você já gerou um link de pagamento. Pague ou cancele esse pedido antes de escolher outro horário.';
-         end if;
-         v_id := v.id;
-       elsif exists (select 1 from oraculo_consultas where chave = p ->> 'chave' and (status = 'conflito' or (status = 'confirmada' and data >= oraculo_hoje()))) then
-         raise exception 'Você já tem uma consulta marcada. Para mudar o dia, use Reagendar.';
-       end if;
-     else
-       select * into v from oraculo_consultas where id = v_id and chave = p ->> 'chave' for update;
-       if not found then raise exception 'Consulta não encontrada.'; end if;
-       if v.status not in ('confirmada', 'conflito') then raise exception 'Só dá para reagendar uma consulta já paga.'; end if;
-     end if;
-     if exists (select 1 from oraculo_consultas c where c.data = v_data and c.hora = v_hora and c.id is distinct from v_id and oraculo_ocupa(c)) then
-       raise exception 'Este horário acabou de ser reservado. Escolha outro.';
-     end if;
-     if (select count(*) from oraculo_consultas c where c.data = v_data and c.id is distinct from v_id and oraculo_ocupa(c)) >= v_limite then
-       raise exception 'Este dia acabou de lotar. Escolha outro dia.';
-     end if;
-     if v_id is null then
-       insert into oraculo_consultas (chave, data, hora, nome, whatsapp, expira_em)
-       values (p ->> 'chave', v_data, v_hora, coalesce(p ->> 'nome', ''), coalesce(p ->> 'whatsapp', ''), now() + interval '15 minutes');
-     elsif v.status = 'reservada' then
-       update oraculo_consultas set data = v_data, hora = v_hora, expira_em = now() + interval '15 minutes' where id = v_id;
-     else
-       update oraculo_consultas set data = v_data, hora = v_hora, status = 'confirmada' where id = v_id;
-     end if;
-     return oraculo_tela(jsonb_build_object('chave', p ->> 'chave'));
-   end;
-   $$`,
   // p = { id, chave, nome, nascimento, mae, whatsapp, presencial } — os dados do formulário (antes de gerar o link).
   `create or replace function oraculo_dados(p jsonb)
    returns jsonb language plpgsql as $$
@@ -6222,4 +6154,125 @@ export const MIGRACOES = [
   // A v181 criou a função sem parâmetro; o db.rpc sempre manda um jsonb, então o aviso de consulta paga falhava (a
   // consulta era confirmada, só a notificação não saía). A de cima já recebe p; esta tira a antiga.
   `drop function if exists oraculo_avisos()`,
+
+  // ---------- v183: agenda da admin do Oráculo (compromissos manuais) ----------
+  // Compromisso que a admin põe na agenda (consulta marcada por telefone, um evento): início e fim, nome, telefone e
+  // anotação. Ocupa os horários de consulta que encosta (o cliente não agenda por cima), sem contar no limite do dia.
+  `create table if not exists oraculo_eventos (
+     id         uuid primary key default gen_random_uuid(),
+     data       date not null,
+     inicio     text not null check (inicio ~ '^[0-2][0-9]:[0-5][0-9]$'),
+     fim        text not null check (fim ~ '^[0-2][0-9]:[0-5][0-9]$'),
+     nome       text not null,
+     telefone   text not null default '',
+     nota       text not null default '',
+     criado_em  timestamptz not null default now(),
+     check (fim > inicio)
+   )`,
+  `create index if not exists oraculo_eventos_data on oraculo_eventos (data, inicio)`,
+  // 'HH:MM' + 1 hora (a duração da consulta); depois da meia-noite, fica em 24:00 para comparar como texto.
+  `create or replace function oraculo_mais_hora(h text)
+   returns text language sql immutable as $$
+     select case when h >= '23:00' then '24:00' else to_char(h::time + interval '1 hour', 'HH24:MI') end
+   $$`,
+  // p = { chave, admin } — tudo o que a aba precisa numa ida: agenda, horários ocupados e compromissos da admin (sem
+  // nomes), as consultas da pessoa e, para quem administra, as consultas e os compromissos de todos (de 60 dias atrás em diante).
+  // Substitui a da v181.
+  `create or replace function oraculo_tela(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     perform oraculo_expirar();
+     return jsonb_build_object(
+       'config', oraculo_config(),
+       'publicado', oraculo_publicado(),
+       'hoje', oraculo_hoje(),
+       'bloqueios', coalesce((select jsonb_agg(jsonb_build_object('data', data, 'hora', hora) order by data, hora) from oraculo_bloqueios where data >= oraculo_hoje()), '[]'::jsonb),
+       'ocupados', coalesce((select jsonb_agg(jsonb_build_object('data', c.data, 'hora', c.hora)) from oraculo_consultas c where c.data >= oraculo_hoje() and oraculo_ocupa(c)), '[]'::jsonb),
+       'tomados', coalesce((select jsonb_agg(jsonb_build_object('data', data, 'inicio', inicio, 'fim', fim)) from oraculo_eventos where data >= oraculo_hoje()), '[]'::jsonb),
+       'contato', oraculo_contato(p ->> 'chave'),
+       'cliente', exists (select 1 from asaas_clientes where chave = p ->> 'chave' and conta = 'A'),
+       'minhas', coalesce((select jsonb_agg(oraculo_json(c, true) order by c.criado_em desc) from oraculo_consultas c
+                            where c.chave = p ->> 'chave' and (c.status in ('reservada', 'confirmada', 'conflito') or c.criado_em > now() - interval '30 days')), '[]'::jsonb),
+       'todas', case when coalesce((p ->> 'admin')::boolean, false) then
+                  coalesce((select jsonb_agg(oraculo_json(c, false) order by c.data, c.hora) from oraculo_consultas c
+                             where c.data >= oraculo_hoje() - 60 and c.status <> 'expirada'), '[]'::jsonb) end,
+       'eventos', case when coalesce((p ->> 'admin')::boolean, false) then
+                  coalesce((select jsonb_agg(jsonb_build_object('id', id, 'data', data, 'inicio', inicio, 'fim', fim, 'nome', nome, 'telefone', telefone, 'nota', nota) order by data, inicio)
+                             from oraculo_eventos where data >= oraculo_hoje() - 60), '[]'::jsonb) end);
+   end;
+   $$`,
+  // p = { chave, nome, whatsapp, data, hora, consultaId? } — segura o horário (ou, com consultaId, reagenda a consulta paga).
+  // O servidor já conferiu a agenda (dia, horário, bloqueio); aqui a trava do dia garante que dois pedidos juntos não
+  // peguem o mesmo horário nem passem do limite do dia, nem caiam em cima de um compromisso da admin. Substitui a da v181.
+  `create or replace function oraculo_reservar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_hora text := p ->> 'hora';
+     v_id uuid := nullif(p ->> 'consultaId', '')::uuid;
+     v oraculo_consultas%rowtype;
+     v_limite int := coalesce((oraculo_config() ->> 'limiteDia')::int, 4);
+   begin
+     perform pg_advisory_xact_lock(hashtext('oraculo:' || v_data::text));
+     perform oraculo_expirar();
+     if v_id is null then
+       -- Reserva ainda segura da mesma pessoa: troca o horário dela (não cria outra).
+       select * into v from oraculo_consultas where chave = p ->> 'chave' and status = 'reservada' order by criado_em desc limit 1 for update;
+       if found then
+         if exists (select 1 from asaas_cobrancas where oraculo_id = v.id and status in ('criando', 'pendente')) then
+           raise exception 'Você já gerou um link de pagamento. Pague ou cancele esse pedido antes de escolher outro horário.';
+         end if;
+         v_id := v.id;
+       elsif exists (select 1 from oraculo_consultas where chave = p ->> 'chave' and (status = 'conflito' or (status = 'confirmada' and data >= oraculo_hoje()))) then
+         raise exception 'Você já tem uma consulta marcada. Para mudar o dia, use Reagendar.';
+       end if;
+     else
+       select * into v from oraculo_consultas where id = v_id and chave = p ->> 'chave' for update;
+       if not found then raise exception 'Consulta não encontrada.'; end if;
+       if v.status not in ('confirmada', 'conflito') then raise exception 'Só dá para reagendar uma consulta já paga.'; end if;
+     end if;
+     if exists (select 1 from oraculo_consultas c where c.data = v_data and c.hora = v_hora and c.id is distinct from v_id and oraculo_ocupa(c)) then
+       raise exception 'Este horário acabou de ser reservado. Escolha outro.';
+     end if;
+     if exists (select 1 from oraculo_eventos e where e.data = v_data and e.inicio < oraculo_mais_hora(v_hora) and e.fim > v_hora) then
+       raise exception 'Este horário acabou de ser reservado. Escolha outro.';
+     end if;
+     if (select count(*) from oraculo_consultas c where c.data = v_data and c.id is distinct from v_id and oraculo_ocupa(c)) >= v_limite then
+       raise exception 'Este dia acabou de lotar. Escolha outro dia.';
+     end if;
+     if v_id is null then
+       insert into oraculo_consultas (chave, data, hora, nome, whatsapp, expira_em)
+       values (p ->> 'chave', v_data, v_hora, coalesce(p ->> 'nome', ''), coalesce(p ->> 'whatsapp', ''), now() + interval '15 minutes');
+     elsif v.status = 'reservada' then
+       update oraculo_consultas set data = v_data, hora = v_hora, expira_em = now() + interval '15 minutes' where id = v_id;
+     else
+       update oraculo_consultas set data = v_data, hora = v_hora, status = 'confirmada' where id = v_id;
+     end if;
+     return oraculo_tela(jsonb_build_object('chave', p ->> 'chave'));
+   end;
+   $$`,
+  // p = { id?, data, inicio, fim, nome, telefone, nota } — grava (sem id: cria) o compromisso. Já validado no servidor.
+  `create or replace function oraculo_evento_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if nullif(p ->> 'id', '') is null then
+       insert into oraculo_eventos (data, inicio, fim, nome, telefone, nota)
+       values ((p ->> 'data')::date, p ->> 'inicio', p ->> 'fim', p ->> 'nome', coalesce(p ->> 'telefone', ''), coalesce(p ->> 'nota', ''));
+     else
+       update oraculo_eventos set data = (p ->> 'data')::date, inicio = p ->> 'inicio', fim = p ->> 'fim', nome = p ->> 'nome',
+              telefone = coalesce(p ->> 'telefone', ''), nota = coalesce(p ->> 'nota', '')
+        where id = (p ->> 'id')::uuid;
+       if not found then raise exception 'Compromisso não encontrado.'; end if;
+     end if;
+     delete from oraculo_eventos where data < oraculo_hoje() - 400;
+     return jsonb_build_object('ok', true);
+   end;
+   $$`,
+  `create or replace function oraculo_evento_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from oraculo_eventos where id = (p ->> 'id')::uuid;
+     return jsonb_build_object('ok', true);
+   end;
+   $$`,
 ];
