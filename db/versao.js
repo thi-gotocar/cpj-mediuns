@@ -2,4 +2,4 @@
 // as migrações (centenas de KB de SQL): db/esquema.js só é carregado quando o banco está atrás (api/_lib/db.js).
 // Ao acrescentar comandos no fim de MIGRACOES (db/esquema.js), aumente aqui.
 
-export const VERSAO = 189;  // v189: Compras → Pedidos: lista de compras da matéria-prima
+export const VERSAO = 190;  // v190: Tarefas da corrente (aba Gira)

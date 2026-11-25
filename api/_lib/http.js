@@ -18,6 +18,7 @@ function deErroDoBanco(e) {
     case '22008': return new HttpError(400, 'Dados inválidos.');
     case 'P0001': return new HttpError(400, e.message);
     // Códigos nossos, com o status no nome (ex.: gira_acao em db/esquema.js).
+    case 'SM403': return new HttpError(403, e.message);
     case 'SM404': return new HttpError(404, e.message);
     case 'SM409': return new HttpError(409, e.message);
     default: return null;

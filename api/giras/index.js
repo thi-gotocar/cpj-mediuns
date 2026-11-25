@@ -1,5 +1,7 @@
 // GET  /api/giras — todas as giras (com presença e duplas), da mais recente para a mais antiga.
 // GET  /api/giras?lista=amaciVou&evento=id · POST { acao: 'amaciVou', eventoId, vou } — quem da corrente vai ao amaci → { pessoas, eu, podeMarcar }
+// GET  /api/giras?lista=tarefas&data=AAAA-MM-DD · POST { acao: 'tarefas', op, data, ... } — Tarefas da corrente (api/_lib/tarefas.js)
+//      → [{ id, nome, tarefas: [{ id, descricao, responsavelId, responsavel, feito, por }] }]
 // GET  /api/giras?lista=filaGeral · POST { acao: 'filaGeral', ativa } — bloco da fila na aba Geral visível para todos (só o root) → { ativa }
 //      O frontend usa a lista para o histórico, os selos de rodízio e a tabela "quem já cambonou quem".
 // GET  /api/giras?lista=eventos — eventos da casa (a corrente vê todos; alunos, gira, evento e os tipos da sua turma)
@@ -44,6 +46,7 @@ import { transparencia, acaoTransparencia } from '../_lib/transparencia.js';
 import { eventosDe } from '../_lib/eventos.js';
 import { ACOES_FOTOS, exigirFotosAtiva, fotosEstado, acaoFoto } from '../_lib/fotos.js';
 import { importar } from '../_lib/importar.js';
+import { tarefas, acaoTarefas } from '../_lib/tarefas.js';
 import { pode } from '../../shared/permissoes.js';
 import { OPCOES_GIRA, LINHA_LABEL, compactarRetratos } from '../../shared/regras.js';
 
@@ -99,6 +102,10 @@ export default rota({
       const pessoas = await db.rpc('amaci_vou_listar', { eventoId: validarId(req.query.evento, 'Amaci') });
       return { pessoas, eu: !!eu.pessoaId && pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: !!eu.pessoaId };
     }
+    if (req.query.lista === 'tarefas') {
+      await exigir(req, 'giras:ler');
+      return tarefas(req.query);
+    }
     // Bloco da fila na aba Geral: o interruptor "Visível para todos" (só o root lê e liga; o bloco lê pela rota da fila).
     if (req.query.lista === 'filaGeral') {
       await exigir(req, 'usuarios:gerenciar');
@@ -134,6 +141,7 @@ export default rota({
       const pessoas = await db.rpc('amaci_vou_marcar', { eventoId: validarId(b.eventoId, 'Amaci'), pessoaId: eu.pessoaId, vou: b.vou });
       return { pessoas, eu: pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: true };
     }
+    if (b.acao === 'tarefas') return acaoTarefas(await exigir(req, 'giras:ler'), b);
     // Recado para a corrente (topo da aba Gira, todos os dias): até 5 linhas e 300 letras; '' tira → a config da casa.
     if (b.acao === 'recadoCorrente') {
       await exigir(req, 'giras:editar');

@@ -2768,6 +2768,27 @@ div.pf-of-total{cursor:default}
 .gn-amaci-lista{display:flex;flex-wrap:wrap;gap:6px}
 .gn-nome.pres{background:var(--ok-soft);border-color:transparent;color:var(--ok);margin:0}
 .gn-ok{font-weight:900;margin-right:4px}
+/* Aba Gira: Tarefas da corrente */
+.tf-cab{display:flex;align-items:center;gap:8px}
+.tf-grupo{display:grid;gap:4px;min-width:0}
+.tf-g{font-family:var(--f-display);font-size:1.02rem;margin:6px 0 0;color:var(--gold)}
+.tf-gh{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.tf-l{display:flex;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);min-width:0}
+.tf-l input[type=checkbox]{width:22px;height:22px;flex:none;margin:1px 0 0;accent-color:var(--ok)}
+.tf-t{display:grid;gap:1px;min-width:0;flex:1}
+.tf-d{overflow-wrap:anywhere}
+.tf-r{font-size:.8rem;color:var(--muted);overflow-wrap:anywhere}
+.tf-voce{color:var(--gold);font-weight:700}
+.tf-l.feito .tf-d{text-decoration:line-through;color:var(--muted)}
+.tf-ed{flex-wrap:wrap;align-items:center}
+.tf-bts{display:flex;gap:4px;flex:none}
+.tf-bts .btn{min-width:34px;padding-inline:8px}
+.tf-conf{flex-basis:100%;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:.88rem}
+.tf-form{display:grid;gap:6px;padding:6px 0}
+.tf-form .row{justify-content:flex-end;gap:6px}
+.tf-nova{grid-template-columns:1fr auto}
+.tf-nova input{grid-column:1/-1}
+.tf-vazio{margin:0;font-size:.88rem}
 .er-pagos{display:grid;gap:6px}
 .er-pagos-h h3{margin:0}
 .er-pagos-l{display:grid;gap:4px}

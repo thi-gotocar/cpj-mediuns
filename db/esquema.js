@@ -1018,7 +1018,7 @@ export const MIGRACOES = [
    end;
    $$`,
 
-  // v56: trocar a data programada de uma gira (gira_mudar_data) — a definição que vale é a da v164.
+  // v56: trocar a data programada de uma gira (gira_mudar_data) — a definição que vale é a da v190.
 
   // ================================================== v57: aba Curimba (controle à parte: alunos, aulas e presença)
   // O aluno pode ser alguém da corrente (pessoa_id: o nome vem do cadastro) ou de fora (só o nome).
@@ -5219,25 +5219,7 @@ export const MIGRACOES = [
      unique (gira_data, tipo, numero)
    )`,
   `create index if not exists fila_senhas_gira on fila_senhas (gira_data, status)`,
-  // A data é a chave da gira e presenças, duplas e senhas apontam para ela (sem "on update cascade"): cria a gira na data
-  // nova com a mesma linha (todas as colunas, sem precisar listá-las), passa o que aponta para ela e apaga a antiga.
-  // Quem chama confere antes que a gira existe, está em aberto e que a data nova está livre.
-  `create or replace function gira_mudar_data(p jsonb)
-   returns jsonb language plpgsql as $$
-   declare
-     v_de date := (p ->> 'data')::date;
-     v_para date := (p ->> 'para')::date;
-   begin
-     insert into giras
-     select (jsonb_populate_record(null::giras, to_jsonb(g) || jsonb_build_object('data', v_para, 'atualizado_em', now()))).*
-       from giras g where g.data = v_de;
-     update presencas set gira_data = v_para where gira_data = v_de;
-     update duplas set gira_data = v_para where gira_data = v_de;
-     update fila_senhas set gira_data = v_para where gira_data = v_de;
-     delete from giras where data = v_de;
-     return gira_obter(jsonb_build_object('data', v_para));
-   end;
-   $$`,
+  // gira_mudar_data: a definição que vale é a da v190 (passa também as tarefas feitas).
   // O que qualquer pessoa vê da fila (sem nomes dos outros) e a própria senha, achada pelo aparelho ou pelo login.
   // aFrente: preferencial só tem preferencial na frente; atendimento tem todas as preferenciais aguardando e os números menores.
   `create or replace function fila_json(v_data date, v_aparelho text, v_autor text)
@@ -6441,6 +6423,157 @@ export const MIGRACOES = [
      delete from compras_materia where id = (p ->> 'id')::uuid;
      if not found then raise exception 'Item não encontrado na lista de compras.'; end if;
      return compras_materia_listar();
+   end;
+   $$`,
+
+  // ================================================== v190: Tarefas da corrente (aba Gira)
+  // A lista é uma só, para toda gira: blocos (Pré Gira, Pós Gira…) com as tarefas e o responsável fixo de cada uma.
+  // O feito é por gira (tarefas_feitas), então cada gira começa com tudo por fazer.
+  `create table if not exists tarefas_grupos (
+     id     uuid primary key default gen_random_uuid(),
+     nome   text not null check (length(btrim(nome)) between 1 and 40),
+     ordem  integer not null default 0
+   )`,
+  `create table if not exists tarefas (
+     id              uuid primary key default gen_random_uuid(),
+     grupo_id        uuid not null references tarefas_grupos (id) on delete cascade,
+     descricao       text not null check (length(btrim(descricao)) between 1 and 80),
+     responsavel_id  uuid references pessoas (id) on delete set null,
+     ordem           integer not null default 0
+   )`,
+  `create table if not exists tarefas_feitas (
+     gira_data  date not null references giras (data) on delete cascade,
+     tarefa_id  uuid not null references tarefas (id) on delete cascade,
+     por        text not null default '',
+     em         timestamptz not null default now(),
+     primary key (gira_data, tarefa_id)
+   )`,
+  // A lista que a casa usa hoje (uma vez só; depois o admin muda pela tela).
+  `do $$
+   declare v_g uuid;
+   begin
+     if exists (select 1 from sistema where chave = 'v190_tarefas') then return; end if;
+     insert into tarefas_grupos (nome, ordem) values ('Pré Gira', 1) returning id into v_g;
+     insert into tarefas (grupo_id, descricao, ordem)
+     select v_g, x.d, x.o from unnest(array['Velas Congá', 'Velas Tronqueira', 'Limpeza de portas velas', 'Cadeiras',
+       'Ficha de atendimento', 'Defumador / Carvão']) with ordinality as x(d, o);
+     insert into tarefas_grupos (nome, ordem) values ('Pós Gira', 2) returning id into v_g;
+     insert into tarefas (grupo_id, descricao, ordem)
+     select v_g, x.d, x.o from unnest(array['Limpeza parte de baixo', 'Limpeza parte de cima', 'Banheiros', 'Trocar lixo',
+       'Repor água']) with ordinality as x(d, o);
+     insert into sistema (chave, valor) values ('v190_tarefas', 'ok');
+   end;
+   $$`,
+  // p = { data } → [{ id, nome, tarefas: [{ id, descricao, responsavelId, responsavel, feito, por }] }], na ordem.
+  // Responsável que saiu da corrente aparece como sem responsável.
+  `create or replace function tarefas_listar(p jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'nome', g.nome, 'tarefas',
+       (select coalesce(jsonb_agg(jsonb_build_object('id', t.id, 'descricao', t.descricao,
+           'responsavelId', pe.id, 'responsavel', pe.nome, 'feito', f.tarefa_id is not null, 'por', coalesce(f.por, ''))
+           order by t.ordem, t.id), '[]'::jsonb)
+          from tarefas t
+          left join pessoas pe on pe.id = t.responsavel_id and pe.saida is null
+          left join tarefas_feitas f on f.tarefa_id = t.id and f.gira_data = nullif(p ->> 'data', '')::date
+         where t.grupo_id = g.id)) order by g.ordem, g.id), '[]'::jsonb)
+       from tarefas_grupos g
+   $$`,
+  // p = { op, data, ... } (validado em api/_lib/tarefas.js) → tarefas_listar da data.
+  //   marcar { id, feito, por, pessoaId, admin }: só o responsável ou quem edita a Gira (admin), com a gira criada.
+  //   grupo { id?, nome } · grupoExcluir { id } · grupoMover { id, delta }
+  //   tarefa { id?, grupoId, descricao, responsavelId } · tarefaExcluir { id } · mover { id, delta }
+  //   delta -1 sobe e 1 desce: renumera o bloco (1..n) e troca de lugar com o vizinho.
+  `create or replace function tarefas_acao(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_op text := p ->> 'op';
+     v_id uuid := nullif(p ->> 'id', '')::uuid;
+     v_data date := nullif(p ->> 'data', '')::date;
+     v_d integer := coalesce((p ->> 'delta')::integer, 0);
+     v_grupo uuid;
+     v_resp uuid;
+     v_ordem integer;
+   begin
+     if v_op = 'marcar' then
+       if not exists (select 1 from giras where data = v_data) then
+         raise exception using errcode = 'SM404', message = 'A gira desta data ainda não foi criada.';
+       end if;
+       select responsavel_id into v_resp from tarefas where id = v_id;
+       if not found then raise exception using errcode = 'SM404', message = 'Tarefa não encontrada.'; end if;
+       if not coalesce((p ->> 'admin')::boolean, false) and v_resp is distinct from nullif(p ->> 'pessoaId', '')::uuid then
+         raise exception using errcode = 'SM403', message = 'Só o responsável ou quem conduz a gira marca esta tarefa.';
+       end if;
+       if coalesce((p ->> 'feito')::boolean, false) then
+         insert into tarefas_feitas (gira_data, tarefa_id, por) values (v_data, v_id, coalesce(p ->> 'por', '')) on conflict do nothing;
+       else
+         delete from tarefas_feitas where gira_data = v_data and tarefa_id = v_id;
+       end if;
+     elsif v_op = 'grupo' then
+       if v_id is null then
+         insert into tarefas_grupos (nome, ordem) values (btrim(p ->> 'nome'), (select coalesce(max(ordem), 0) + 1 from tarefas_grupos));
+       else
+         update tarefas_grupos set nome = btrim(p ->> 'nome') where id = v_id;
+         if not found then raise exception using errcode = 'SM404', message = 'Bloco não encontrado.'; end if;
+       end if;
+     elsif v_op = 'grupoExcluir' then
+       delete from tarefas_grupos where id = v_id;
+       if not found then raise exception using errcode = 'SM404', message = 'Bloco não encontrado.'; end if;
+     elsif v_op = 'grupoMover' then
+       update tarefas_grupos g set ordem = r.n from (select id, row_number() over (order by ordem, id) as n from tarefas_grupos) r where g.id = r.id;
+       select ordem into v_ordem from tarefas_grupos where id = v_id;
+       if not found then raise exception using errcode = 'SM404', message = 'Bloco não encontrado.'; end if;
+       update tarefas_grupos set ordem = case when id = v_id then v_ordem + v_d else v_ordem end where ordem in (v_ordem, v_ordem + v_d);
+     elsif v_op = 'tarefa' then
+       v_grupo := nullif(p ->> 'grupoId', '')::uuid;
+       if not exists (select 1 from tarefas_grupos where id = v_grupo) then
+         raise exception using errcode = 'SM404', message = 'Bloco não encontrado.';
+       end if;
+       if v_id is null then
+         insert into tarefas (grupo_id, descricao, responsavel_id, ordem)
+         values (v_grupo, btrim(p ->> 'descricao'), nullif(p ->> 'responsavelId', '')::uuid,
+                 (select coalesce(max(ordem), 0) + 1 from tarefas where grupo_id = v_grupo));
+       else
+         -- Mudou de bloco: vai para o fim do bloco novo.
+         update tarefas set descricao = btrim(p ->> 'descricao'), responsavel_id = nullif(p ->> 'responsavelId', '')::uuid,
+                ordem = case when grupo_id = v_grupo then ordem else (select coalesce(max(ordem), 0) + 1 from tarefas where grupo_id = v_grupo) end,
+                grupo_id = v_grupo
+          where id = v_id;
+         if not found then raise exception using errcode = 'SM404', message = 'Tarefa não encontrada.'; end if;
+       end if;
+     elsif v_op = 'tarefaExcluir' then
+       delete from tarefas where id = v_id;
+       if not found then raise exception using errcode = 'SM404', message = 'Tarefa não encontrada.'; end if;
+     elsif v_op = 'mover' then
+       select grupo_id into v_grupo from tarefas where id = v_id;
+       if not found then raise exception using errcode = 'SM404', message = 'Tarefa não encontrada.'; end if;
+       update tarefas t set ordem = r.n from (select id, row_number() over (order by ordem, id) as n from tarefas where grupo_id = v_grupo) r where t.id = r.id;
+       select ordem into v_ordem from tarefas where id = v_id;
+       update tarefas set ordem = case when id = v_id then v_ordem + v_d else v_ordem end
+        where grupo_id = v_grupo and ordem in (v_ordem, v_ordem + v_d);
+     else
+       raise exception 'Ação inválida.';
+     end if;
+     return tarefas_listar(p);
+   end;
+   $$`,
+  // A data é a chave da gira e presenças, duplas, senhas e tarefas feitas apontam para ela (sem "on update cascade"): cria
+  // a gira na data nova com a mesma linha (todas as colunas, sem precisar listá-las), passa o que aponta para ela e apaga
+  // a antiga. Quem chama confere antes que a gira existe, está em aberto e que a data nova está livre.
+  `create or replace function gira_mudar_data(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_de date := (p ->> 'data')::date;
+     v_para date := (p ->> 'para')::date;
+   begin
+     insert into giras
+     select (jsonb_populate_record(null::giras, to_jsonb(g) || jsonb_build_object('data', v_para, 'atualizado_em', now()))).*
+       from giras g where g.data = v_de;
+     update presencas set gira_data = v_para where gira_data = v_de;
+     update duplas set gira_data = v_para where gira_data = v_de;
+     update fila_senhas set gira_data = v_para where gira_data = v_de;
+     update tarefas_feitas set gira_data = v_para where gira_data = v_de;
+     delete from giras where data = v_de;
+     return gira_obter(jsonb_build_object('data', v_para));
    end;
    $$`,
 ];

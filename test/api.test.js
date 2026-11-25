@@ -3855,3 +3855,77 @@ test('v189: Compras → Pedidos — lista de compras da matéria-prima (só quem
   assert.ok(!r.json.materia.some((x) => x.id === item.id));
   assert.equal((await gu(ADMIN, { op: 'materiaExcluir', id: item.id })).status, 400, 'já excluído');
 });
+
+test('v190: Tarefas da corrente — lista fixa em blocos, o feito é por gira; o responsável marca a própria, o admin cadastra e ordena', async () => {
+  const d = '2031-05-10', outra = '2031-05-17', nova = '2031-05-24';
+  const tf = (tok, b, data = d) => api('POST', '/api/giras', tok, { acao: 'tarefas', data, ...b });
+  const ler = (tok, data = d) => api('GET', '/api/giras?lista=tarefas&data=' + data, tok);
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Faz A Vela', funcao: 'cambone' });
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Outro Da Corrente', funcao: 'medium' });
+  const faz = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === 'Faz A Vela');
+  const FAZ = await tokenCorrente('Faz A Vela');
+  const OUTRO = await tokenCorrente('Outro Da Corrente');
+  try {
+    // A lista da casa já vem cadastrada pela migração.
+    let r = await ler(FAZ);
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual(r.json.slice(0, 2).map((g) => g.nome), ['Pré Gira', 'Pós Gira']);
+    assert.equal(r.json[0].tarefas[0].descricao, 'Velas Congá');
+    assert.equal((await ler(FAZ, '2031-02-30')).status, 400);
+    // Só quem edita a Gira cadastra.
+    assert.equal((await tf(FAZ, { op: 'grupo', nome: 'Teste' })).status, 403);
+    assert.equal((await tf(ADMIN, { op: 'grupo', nome: '' })).status, 400);
+    r = await tf(ADMIN, { op: 'grupo', nome: '  Bloco   de teste ' });
+    const g = r.json.find((x) => x.nome === 'Bloco de teste');
+    assert.ok(g, 'nome limpo');
+    assert.equal(r.json[r.json.length - 1].id, g.id, 'bloco novo vai para o fim');
+    r = await tf(ADMIN, { op: 'tarefa', grupoId: g.id, descricao: 'Acender vela', responsavelId: faz.id });
+    r = await tf(ADMIN, { op: 'tarefa', grupoId: g.id, descricao: 'Varrer' });
+    let tarefas = r.json.find((x) => x.id === g.id).tarefas;
+    assert.deepEqual(tarefas.map((t) => [t.descricao, t.responsavel, t.feito]), [['Acender vela', 'Faz A Vela', false], ['Varrer', null, false]]);
+    const [vela, varrer] = tarefas;
+    // Ordenar: Varrer sobe; o bloco sobe.
+    r = await tf(ADMIN, { op: 'mover', id: varrer.id, delta: -1 });
+    assert.deepEqual(r.json.find((x) => x.id === g.id).tarefas.map((t) => t.descricao), ['Varrer', 'Acender vela']);
+    assert.equal((await tf(ADMIN, { op: 'mover', id: varrer.id, delta: 2 })).status, 400);
+    const pos = (lista) => lista.findIndex((x) => x.id === g.id);
+    const antes = pos(r.json);
+    r = await tf(ADMIN, { op: 'grupoMover', id: g.id, delta: -1 });
+    assert.equal(pos(r.json), antes - 1);
+    // Marcar: só com a gira criada; só o responsável (ou o admin).
+    assert.equal((await tf(FAZ, { op: 'marcar', id: vela.id, feito: true })).status, 404, 'gira ainda não criada');
+    await api('PUT', `/api/giras/${d}`, ADMIN, { entidade: 'Caboclo' });
+    await api('PUT', `/api/giras/${outra}`, ADMIN, { entidade: 'Baiano' });
+    assert.equal((await tf(OUTRO, { op: 'marcar', id: vela.id, feito: true })).status, 403, 'não é o responsável');
+    assert.equal((await tf(FAZ, { op: 'marcar', id: varrer.id, feito: true })).status, 403, 'tarefa sem responsável: só o admin');
+    assert.equal((await tf(FAZ, { op: 'marcar', id: vela.id, feito: 'sim' })).status, 400);
+    r = await tf(FAZ, { op: 'marcar', id: vela.id, feito: true });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual(['feito', 'por'].map((k) => r.json.find((x) => x.id === g.id).tarefas.find((t) => t.id === vela.id)[k]), [true, 'Faz A Vela']);
+    r = await tf(ADMIN, { op: 'marcar', id: varrer.id, feito: true });
+    assert.equal(r.json.find((x) => x.id === g.id).tarefas.find((t) => t.id === varrer.id).feito, true);
+    // A outra gira começa por fazer.
+    assert.ok((await ler(OUTRO, outra)).json.find((x) => x.id === g.id).tarefas.every((t) => !t.feito));
+    r = await tf(ADMIN, { op: 'marcar', id: varrer.id, feito: false });
+    assert.equal(r.json.find((x) => x.id === g.id).tarefas.find((t) => t.id === varrer.id).feito, false);
+    // Mudar a data da gira leva o feito junto.
+    await api('POST', `/api/giras/${d}`, ADMIN, { acao: 'mudarData', para: nova });
+    assert.equal((await ler(FAZ, nova)).json.find((x) => x.id === g.id).tarefas.find((t) => t.id === vela.id).feito, true);
+    // Editar: trocar de bloco vai para o fim do outro; tirar o responsável.
+    const pre = r.json.find((x) => x.nome === 'Pré Gira');
+    r = await tf(ADMIN, { op: 'tarefa', id: vela.id, grupoId: pre.id, descricao: 'Acender a vela', responsavelId: '' }, nova);
+    const noPre = r.json.find((x) => x.id === pre.id).tarefas;
+    assert.deepEqual([noPre[noPre.length - 1].descricao, noPre[noPre.length - 1].responsavel], ['Acender a vela', null]);
+    r = await tf(ADMIN, { op: 'tarefaExcluir', id: vela.id }, nova);
+    assert.ok(!r.json.some((x) => x.tarefas.some((t) => t.id === vela.id)));
+    r = await tf(ADMIN, { op: 'grupoExcluir', id: g.id }, nova);
+    assert.ok(!r.json.some((x) => x.id === g.id), 'o bloco sai com as tarefas');
+    assert.equal(sql(`select count(*) from tarefas where id = '${varrer.id}'`), '0');
+  } finally {
+    for (const x of [d, outra, nova]) await api('DELETE', `/api/giras/${x}`, ADMIN);
+    for (const n of ['Faz A Vela', 'Outro Da Corrente']) {
+      const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === n);
+      if (p) await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+    }
+  }
+});

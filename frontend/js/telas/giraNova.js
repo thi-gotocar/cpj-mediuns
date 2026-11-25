@@ -11,6 +11,7 @@ import { config } from '/shared/config.js';
 import { ICONE_WHATS, htmlStatus } from './giraComum.js';
 import { blocoLimpeza, blocoBanho, blocoPedirErvas, blocosOferenda, escolhaTurma } from './giraInformacoes.js';
 import { atualizarJanela } from './giraJanelas.js';
+import { blocoTarefas } from './giraTarefas.js';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -255,6 +256,7 @@ function daCorrente(ctx) {
   const banho = blocoBanho(g);
   if (banho) partes.push(`<div class="gn-sec">${banho}</div>`);
   partes.push(quemNaoVem(ps, g));
+  partes.push(blocoTarefas(g));
   const tambem = blocoPedirErvas(g) + blocosOferenda(g);
   if (tambem) partes.push(`<div class="gn-sec gn-tambem"><h3>Também nesta gira</h3>${tambem}</div>`);
   const html = partes.filter(Boolean).join('');

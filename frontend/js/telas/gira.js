@@ -20,6 +20,7 @@ import { cardFilaGeral, cliquesFilaGeral } from './giraFilaGeral.js';
 import { cardAtrasos, cliquesAtrasos } from './giraAtrasos.js';
 import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
 import { montarNova, cliquesNova, fecharCompartilhar } from './giraNova.js';
+import { cliquesTarefas, mudancasTarefas } from './giraTarefas.js';
 export { enviarOracao } from './giraTopo.js';
 export { enviarConduta, digitarConduta } from './giraConduta.js';
 import { imagemOracoesPronta, prepararOracoes, imagemNiverPronta, prepararNiver, botaoWhatsLimpeza, imagemPronta, imagemEventoPronta, botaoImagemEvento, prepararImagemEvento, prepararImagem, blocoImagemEscala, atualizarJanela } from './giraJanelas.js';
@@ -539,6 +540,7 @@ export const cliques = {
   ...cliquesAtrasos,
   ...cliquesAno,
   ...cliquesNova,
+  ...cliquesTarefas,
   // Resumo pelo Compartilhar (data-de="comp"): só abre (não fecha se já estiver aberto) e rola até ele.
   rsabrir(el) {
     if (el.dataset.de === 'comp') {
@@ -838,6 +840,7 @@ function gravarRapida(c) {
 export const mudancas = {
   ...mudancasConduta,
   ...mudancasAno,
+  ...mudancasTarefas,
   // “Não poderei ir” usa o valor de presença 'a' (Ausente) no cadastro da gira.
   // A própria pessoa só pode declarar até a véspera.
   async ausencia(t) {
