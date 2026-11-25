@@ -3756,7 +3756,7 @@ test('v185: sub-aba Eventos — listas de pessoas por evento (cadastro e de fora
   assert.equal((await cv(ADMIN, { op: 'incluir', eventoId: ev.id, nome: 'A' })).status, 400);
   r = await cv(ADMIN, { op: 'incluir', eventoId: ev.id, nome: '  Visita   de Fora ' });
   let lista = r.json.eventos.find((e) => e.id === ev.id).pessoas;
-  assert.deepEqual(lista.find((p) => p.lista === 'Convidados'), { chave: 'n:visita de fora', nome: 'Visita de Fora', lista: 'Convidados' });
+  assert.deepEqual(lista.find((p) => p.lista === 'Convidados'), { chave: 'n:visita de fora', nome: 'Visita de Fora', lista: 'Convidados', resposta: '', por: null, porNome: null });
   assert.deepEqual(lista.filter((p) => p.lista === 'Corrente').map((p) => p.nome).sort(), duas.map((p) => p.nome).sort());
 
   // O WhatsApp: uma lista só, na ordem dos grupos (Corrente antes de Convidados), com o total.
@@ -3837,4 +3837,21 @@ test('v188: sub-aba Eventos — a corrente responde (Vou / Não vou / Desisti) e
   } finally {
     await api('POST', '/api/oferendas', ADMIN, { acao: 'abaVisivel', id: aba.id, visivel: false });
   }
+});
+
+test('v189: Compras → Pedidos — lista de compras da matéria-prima (só quem administra as Compras)', async () => {
+  const gu = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'guias', ...b });
+  assert.equal((await gu(USER, { op: 'materiaIncluir', descricao: 'Miçanga', quantidade: 2 })).status, 403);
+  assert.equal((await gu(ADMIN, { op: 'materiaIncluir', descricao: '', quantidade: 2 })).status, 400);
+  assert.equal((await gu(ADMIN, { op: 'materiaIncluir', descricao: 'Miçanga', quantidade: '0' })).status, 400);
+  let r = await gu(ADMIN, { op: 'materiaIncluir', descricao: '  Miçanga   vermelha ', quantidade: '2,5' });
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  const item = r.json.materia.find((x) => x.descricao === 'Miçanga vermelha');
+  assert.deepEqual([item.quantidade, item.comprado], [2.5, false]);
+  r = await gu(ADMIN, { op: 'materiaMarcar', id: item.id, comprado: true });
+  assert.equal(r.json.materia.find((x) => x.id === item.id).comprado, true);
+  assert.ok((await api('GET', '/api/oferendas?lista=pedidos', ADMIN)).json.materia.some((x) => x.id === item.id), 'vem junto com os pedidos');
+  r = await gu(ADMIN, { op: 'materiaExcluir', id: item.id });
+  assert.ok(!r.json.materia.some((x) => x.id === item.id));
+  assert.equal((await gu(ADMIN, { op: 'materiaExcluir', id: item.id })).status, 400, 'já excluído');
 });

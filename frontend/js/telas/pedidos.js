@@ -3,12 +3,15 @@
 // pediu, pagamento (Pago / Pendente) e andamento. Agrupadas pelo andamento e, dentro dele, pelo modelo (o item): a foto
 // e o nome do modelo aparecem uma vez, com as pessoas embaixo (começam minimizadas); tocar na foto abre em tela cheia e
 // tocar no nome abre (ou minimiza) as pessoas daquele modelo.
-// No topo, os quadradinhos com o total de pedidos Pendentes, Em confecção e com Falta matéria-prima.
+// No topo, os quadradinhos com o total de pedidos Pendentes, Em confecção e com Falta matéria-prima; tocar em Falta
+// matéria-prima abre a lista de compras (descrição, quantidade, a caixinha de comprado e o ✕ para excluir).
+// Os grupos de andamento começam todos minimizados.
 // O andamento muda no combo da própria linha.
 // Quem tem cobrança vencida no ASAAS (última leitura do CPJ - Pgto atrasado) ganha o selo vermelho "pendências R$ X".
 
-import { estado, carregarPedidos, mudarAndamento, avisar } from '../estado.js';
-import { esc } from '../util.js';
+import { estado, carregarPedidos, mudarAndamento, acaoMateria, avisar } from '../estado.js';
+import { esc, toast } from '../util.js';
+import { ICONE_WHATS } from './giraComum.js';
 import { centavos, reais } from '/shared/ervas.js';
 
 const R = (v) => reais(centavos(v));
@@ -27,8 +30,36 @@ const fotoUrl = (l) => `/api/oferendas?lista=guiaFoto&id=${encodeURIComponent(l.
 const modeloDe = (l) => l.itemId || 'd:' + l.descricao;
 // fechados: grupos minimizados (Entregue começa assim); modAbertos: modelos com as pessoas à mostra ('andamento|modelo';
 // começam minimizados); salvando: id da linha indo ao servidor; zoom: modelo com a foto aberta.
-const ui = { fechados: new Set(['entregue']), modAbertos: new Set(), salvando: null, zoom: null };
-export function limpar() { ui.fechados = new Set(['entregue']); ui.modAbertos = new Set(); ui.salvando = null; ui.zoom = null; }
+// materia: a lista de compras aberta; excluir: o item da lista esperando o Confirmar.
+const todosFechados = () => new Set(ANDAMENTOS.map(([k]) => k));
+const ui = { fechados: todosFechados(), modAbertos: new Set(), salvando: null, zoom: null, materia: false, excluir: null };
+export function limpar() { Object.assign(ui, { fechados: todosFechados(), modAbertos: new Set(), salvando: null, zoom: null, materia: false, excluir: null }); }
+
+const qtdTxt = (n) => String(n).replace('.', ',');
+// Lista de compras da matéria-prima: o que falta comprar em cima, os comprados embaixo (riscados).
+function listaMateria(M) {
+  const falta = M.filter((x) => !x.comprado).length;
+  const itens = M.map((x) => {
+    const conf = ui.excluir === x.id;
+    return `<li class="pd-mt-i${x.comprado ? ' ok' : ''}">
+      <label class="pd-mt-ck"><input type="checkbox" data-act="pdmatmarcar" data-id="${esc(x.id)}" ${x.comprado ? 'checked' : ''} aria-label="Comprado: ${esc(x.descricao)}"></label>
+      <span class="pd-mt-d">${esc(x.descricao)}</span><b class="pd-mt-q">${qtdTxt(x.quantidade)}</b>
+      ${conf ? `<span class="pd-mt-conf">Excluir? <button class="btn small" data-act="pdmatnao">Cancelar</button><button class="btn small danger" data-act="pdmatexcluir" data-id="${esc(x.id)}">Confirmar</button></span>`
+        : `<button class="pd-mt-x" data-act="pdmatpedir" data-id="${esc(x.id)}" aria-label="Excluir ${esc(x.descricao)} da lista">✕</button>`}</li>`;
+  }).join('');
+  return `<div class="pd-mt"><div class="pd-mt-h"><h3>🧾 Lista de compras <span class="muted">· matéria-prima</span></h3><span class="count">${falta ? `${falta} a comprar` : 'tudo comprado'}</span></div>
+    <form id="f-materia" class="pd-mt-form" autocomplete="off">
+      <label class="field grow">O que comprar<input type="text" name="descricao" maxlength="80" required placeholder="Ex.: Miçanga vermelha"></label>
+      <label class="field pd-mt-qf">Qtd.<input type="text" name="quantidade" inputmode="decimal" maxlength="8" required placeholder="1"></label>
+      <button class="btn primary" type="submit">Adicionar</button></form>
+    ${M.length ? `<ul class="pd-mt-l">${itens}</ul>` : '<p class="muted" style="margin:0">A lista está vazia.</p>'}
+    ${falta ? `<a class="btn wa-bt pd-mt-wa" href="https://wa.me/?text=${encodeURIComponent(textoMateria(M))}" target="_blank" rel="noopener"><span class="wa-ico" aria-hidden="true">${ICONE_WHATS}</span> Mandar a lista no WhatsApp</a>` : ''}</div>`;
+}
+// Texto do WhatsApp: só o que ainda falta comprar, com a quantidade.
+function textoMateria(M) {
+  const L = M.filter((x) => !x.comprado);
+  return ['*🧾 Lista de compras — matéria-prima*', '', ...L.map((x) => `▫️ ${x.descricao} — ${qtdTxt(x.quantidade)}`), '', `Total: ${L.length} ${L.length === 1 ? 'item' : 'itens'}`].join('\n');
+}
 
 function foto(l) {
   if (!l.fotoV || !l.itemId) return '<div class="gi-foto pd-foto"><span aria-hidden="true">📿</span></div>';
@@ -87,12 +118,15 @@ export function render() {
   const pend = P.pendencias || {};
   const abertos = lista.filter((l) => l.andamento !== 'entregue').length;
   let h = `<section class="panel pd-tela"><div class="card adm adm-compras"><div class="grp-h"><h2>📦 Pedidos em andamento</h2><span class="count">${abertos}</span></div>`;
-  if (!lista.length) return h + '<p class="muted" style="margin:0">Nenhum pedido ainda.</p></div></section>';
+  if (!lista.length) return h + `<p class="muted" style="margin:0">Nenhum pedido ainda.</p><button type="button" class="btn small" data-act="pdmateria" aria-expanded="${ui.materia}">🧾 Lista de compras</button>${ui.materia ? listaMateria(P.materia || []) : ''}</div></section>`;
   h += `<div class="pf-of-totais pd-quads">${QUADROS.map(([k, cls]) => {
     const n = lista.filter((l) => l.andamento === k).length;
     const rot = ANDAMENTOS.find(([x]) => x === k)[1];
+    // Falta matéria-prima: tocar abre a lista de compras.
+    if (k === 'falta_materia') return `<button type="button" class="pf-of-total ${cls} pd-q-bt" data-act="pdmateria" aria-expanded="${ui.materia}" aria-label="${n} ${n === 1 ? 'pedido' : 'pedidos'}: ${rot}. Abrir a lista de compras"><b>${n}</b><span>${rot}</span><small>🧾 lista de compras</small></button>`;
     return `<div class="pf-of-total ${cls}" aria-label="${n} ${n === 1 ? 'pedido' : 'pedidos'}: ${rot}"><b>${n}</b><span>${rot}</span></div>`;
   }).join('')}</div>`;
+  if (ui.materia) h += listaMateria(P.materia || []);
   h += ANDAMENTOS.map(([k, rot]) => {
     const L = lista.filter((l) => l.andamento === k);
     if (!L.length) return '';
@@ -110,9 +144,20 @@ export const cliques = {
   pdzoom(el) { ui.zoom = el.dataset.m; avisar(); },
   pdzoomfechar() { ui.zoom = null; avisar(); },
   pdrecarregar() { estado.pedidos = null; avisar(); },
+  pdmateria() { ui.materia = !ui.materia; ui.excluir = null; avisar(); },
+  pdmatpedir(el) { ui.excluir = el.dataset.id; avisar(); },
+  pdmatnao() { ui.excluir = null; avisar(); },
+  async pdmatexcluir(el) { ui.excluir = null; if (await acaoMateria('materiaExcluir', { id: el.dataset.id })) toast('Item excluído da lista de compras.'); },
 };
 
+// Adicionar à lista de compras (formulário f-materia, roteado pelo main.js).
+export async function enviarMateria(form) {
+  const descricao = form.elements.descricao.value, quantidade = form.elements.quantidade.value;
+  if (await acaoMateria('materiaIncluir', { descricao, quantidade })) { form.reset(); form.elements.descricao.focus(); }
+}
+
 export const mudancas = {
+  pdmatmarcar(t) { acaoMateria('materiaMarcar', { id: t.dataset.id, comprado: t.checked }); },
   async pdandamento(t) {
     // Com erro, o redesenho volta o combo para o andamento que está no servidor.
     ui.salvando = t.dataset.id;

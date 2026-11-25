@@ -6401,4 +6401,46 @@ export const MIGRACOES = [
      return convites_listar();
    end;
    $$`,
+
+  // ---------- v189: Compras → Pedidos: lista de compras da matéria-prima ----------
+  // O que falta comprar para confeccionar os pedidos (descrição e quantidade), com a caixinha de comprado. Uma lista só,
+  // de quem administra as Compras.
+  `create table if not exists compras_materia (
+     id         uuid primary key default gen_random_uuid(),
+     descricao  text not null check (length(btrim(descricao)) between 1 and 80),
+     quantidade numeric(10, 2) not null check (quantidade > 0),
+     comprado   boolean not null default false,
+     criado_em  timestamptz not null default now()
+   )`,
+  // Os que faltam comprar primeiro (na ordem em que entraram), depois os comprados.
+  `create or replace function compras_materia_listar(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', id, 'descricao', descricao, 'quantidade', quantidade::float8, 'comprado', comprado)
+       order by comprado, criado_em), '[]'::jsonb) from compras_materia
+   $$`,
+  // p = { descricao, quantidade } (já validados no servidor)
+  `create or replace function compras_materia_incluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into compras_materia (descricao, quantidade) values (btrim(p ->> 'descricao'), (p ->> 'quantidade')::numeric);
+     return compras_materia_listar();
+   end;
+   $$`,
+  // p = { id, comprado }
+  `create or replace function compras_materia_marcar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update compras_materia set comprado = (p ->> 'comprado')::boolean where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Item não encontrado na lista de compras.'; end if;
+     return compras_materia_listar();
+   end;
+   $$`,
+  `create or replace function compras_materia_excluir(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     delete from compras_materia where id = (p ->> 'id')::uuid;
+     if not found then raise exception 'Item não encontrado na lista de compras.'; end if;
+     return compras_materia_listar();
+   end;
+   $$`,
 ];

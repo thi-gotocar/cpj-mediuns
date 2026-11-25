@@ -404,6 +404,14 @@ export async function carregarPedidos() {
   catch (e) { estado.pedidos = { erroTela: e.message }; }
   avisar();
 }
+// Lista de compras da matéria-prima (sub-aba Pedidos): a resposta traz só a lista.
+export async function acaoMateria(op, dados = {}) {
+  try {
+    const r = await api('POST', '/oferendas', { acao: 'guias', op, ...dados });
+    if (estado.pedidos) estado.pedidos = { ...estado.pedidos, materia: r.materia };
+    return true;
+  } catch (e) { toast(e.message); return false; } finally { avisar(); }
+}
 export async function mudarAndamento(id, andamento) {
   try {
     estado.pedidos = await api('POST', '/oferendas', { acao: 'guias', op: 'andamento', id, andamento });

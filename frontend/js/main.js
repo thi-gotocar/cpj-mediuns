@@ -639,6 +639,8 @@ main.addEventListener('submit', async (e) => {
     await (await telaDe('usuarios')).renomear(e.target);
   } else if (id === 'f-evento' || id === 'f-evento-ed') {
     await eventos.enviar(e.target);
+  } else if (id === 'f-materia') {
+    await (await telaDe('pedidos')).enviarMateria(e.target);
   } else if (id === 'f-evtipo') {
     await eventos.enviarTipo(e.target);
   } else if (id === 'f-cur-aluno') {

@@ -113,7 +113,8 @@ async function pendenciasPorChave() {
 }
 
 async function telaPedidos(pedidos) {
-  return { pedidos: pedidos.map((l) => ({ ...l, valor: Number(l.valor) })), ...(await pendenciasPorChave()) };
+  const [pend, materia] = await Promise.all([pendenciasPorChave(), db.rpc('compras_materia_listar')]);
+  return { pedidos: pedidos.map((l) => ({ ...l, valor: Number(l.valor) })), ...pend, materia };
 }
 
 export async function respostaPedidos(eu) {
@@ -211,6 +212,15 @@ export async function acaoGuias(eu, b) {
     return telaCompleta(eu);
   }
   if (!ehAdmin(eu)) throw new HttpError(403, 'Só quem administra a aba Compras pode fazer isso.');
+  // Lista de compras da matéria-prima (sub-aba Pedidos): devolve só a lista.
+  if (b.op === 'materiaIncluir') {
+    const descricao = texto(b.descricao, 'o que comprar', 80);
+    const quantidade = Number(String(b.quantidade ?? '').replace(',', '.'));
+    if (!Number.isFinite(quantidade) || quantidade <= 0 || quantidade > 99999) throw new HttpError(400, 'Quantidade inválida.');
+    return { materia: await db.rpc('compras_materia_incluir', { descricao, quantidade: Math.round(quantidade * 100) / 100 }) };
+  }
+  if (b.op === 'materiaMarcar') return { materia: await db.rpc('compras_materia_marcar', { id: validarId(b.id, 'Item'), comprado: b.comprado === true }) };
+  if (b.op === 'materiaExcluir') return { materia: await db.rpc('compras_materia_excluir', { id: validarId(b.id, 'Item') }) };
   if (b.op === 'andamento') {
     if (!ANDAMENTOS.includes(b.andamento)) throw new HttpError(400, 'Andamento inválido.');
     return telaPedidos(await db.rpc('guia_linha_andamento', { id: validarId(b.id, 'Pedido'), andamento: b.andamento }));

@@ -2847,3 +2847,23 @@ div.pf-of-total{cursor:default}
 .cv-sec.falta .cv-sec-h{color:var(--warn)}
 .cv-faltam{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:.9rem;max-height:240px;overflow-y:auto;padding:2px 0}
 .cv-faltam span{overflow-wrap:anywhere}
+
+/* Compras → Pedidos: o quadrado Falta matéria-prima abre a lista de compras */
+.pd-q-bt{font:inherit;color:inherit;cursor:pointer;text-align:center}
+.pd-q-bt small{display:block;font-size:.72rem;margin-top:2px;opacity:.85}
+.pd-q-bt[aria-expanded="true"]{outline:2px solid currentColor;outline-offset:2px}
+.pd-mt{display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.pd-mt-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pd-mt-h h3{margin:0;font-size:1rem}
+.pd-mt-h .count{font-size:.85rem;color:var(--muted)}
+.pd-mt-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.pd-mt-qf{width:72px}
+.pd-mt-l{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.pd-mt-i{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;min-height:42px;padding:2px 4px 2px 6px;border-radius:8px;background:var(--surface)}
+.pd-mt-ck input{width:20px;height:20px;accent-color:var(--ok)}
+.pd-mt-d{overflow-wrap:anywhere}
+.pd-mt-q{font-variant-numeric:tabular-nums}
+.pd-mt-i.ok .pd-mt-d,.pd-mt-i.ok .pd-mt-q{text-decoration:line-through;color:var(--muted)}
+.pd-mt-x{width:34px;height:34px;border-radius:50%;border:1px solid var(--off);background:transparent;color:var(--off);cursor:pointer}
+.pd-mt-wa{justify-self:start}
+.pd-mt-conf{grid-column:1/-1;display:flex;gap:6px;align-items:center;justify-content:flex-end;font-size:.88rem}
