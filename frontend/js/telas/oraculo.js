@@ -101,7 +101,7 @@ function formulario(O, c) {
     <p class="oc-resumo"><b>${esc(dataLonga(c.data))}</b>, às <b>${c.hora}</b> · ${moeda(O.config.valor)}</p>
     <p class="oc-dica">Horário guardado para você até ${horaDe(c.expiraEm)}.</p>
     <label class="oc-campo">Nome completo<input name="nome" required maxlength="120" value="${esc(c.nome || ct.nome || '')}"></label>
-    <label class="oc-campo">Data de nascimento<input name="nascimento" required inputmode="numeric" maxlength="10" placeholder="dd/mm/aa" value="${esc(c.nascimento)}"></label>
+    <label class="oc-campo">Data de nascimento<input name="nascimento" required type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="dd/mm/aa" value="${esc(c.nascimento)}"></label>
     <label class="oc-campo">Nome completo da mãe<input name="mae" required maxlength="120" value="${esc(c.mae)}"></label>
     <label class="oc-campo">WhatsApp<input name="whatsapp" required inputmode="tel" data-mascara="tel" maxlength="16" placeholder="(11) 90000-0000" value="${esc(c.whatsapp || ct.celular || '')}"></label>
     ${O.cliente ? '' : '<label class="oc-campo">CPF (pedido pelo pagamento)<input name="cpf" required inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></label>'}
