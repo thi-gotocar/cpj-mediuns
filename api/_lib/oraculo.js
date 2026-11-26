@@ -2,6 +2,7 @@
 //   GET  /api/oferendas?lista=oraculo[&conferir=1]   a tela; conferir=1 pergunta ao ASAAS se o link pendente já foi pago
 //   POST /api/oferendas { acao: 'oraculo', op, ... }
 //     todos:  reservar { data, hora, consultaId? (reagendar a paga) } · pagar { id, nome, nascimento, mae, whatsapp, presencial, cpf? }
+//             editarDados { id, nome, nascimento, mae, whatsapp } (reservada, marcada ou em conflito: corrige os próprios dados)
 //             desistir { id } (reserva ainda não paga) · presencial { id } (pedir atendimento presencial)
 //             pagarPresencial { id, cpf? } · push { endpoint, remover? } (só quem administra inscreve o aparelho)
 //     admin:  publicar { publicado } (Visível para todos; nasce desligado) · config { config } · bloquear { data, hora ('' = dia todo), bloquear } · cancelar { id, motivo }
@@ -77,16 +78,19 @@ async function reservar(eu, b) {
   return tela(eu);
 }
 
-async function pagar(eu, b) {
-  const chave = chavePessoa(eu);
-  const id = validarId(b.id, 'Consulta');
+// Os dados do formulário, validados (pagar e editarDados).
+function dados(b) {
   const nascimento = nascimentoValido(b.nascimento);
   if (!nascimento) throw new HttpError(400, 'Data de nascimento inválida (use dd/mm/aa).');
   const whatsapp = telefoneValido(b.whatsapp);
   if (!whatsapp) throw new HttpError(400, 'Informe o WhatsApp com DDD.');
-  await db.rpc('oraculo_dados', {
-    id, chave, nome: texto(b.nome, 'o nome completo'), nascimento, mae: texto(b.mae, 'o nome completo da mãe'), whatsapp, presencial: b.presencial === true,
-  });
+  return { nome: texto(b.nome, 'o nome completo'), nascimento, mae: texto(b.mae, 'o nome completo da mãe'), whatsapp };
+}
+
+async function pagar(eu, b) {
+  const chave = chavePessoa(eu);
+  const id = validarId(b.id, 'Consulta');
+  await db.rpc('oraculo_dados', { id, chave, ...dados(b), presencial: b.presencial === true });
   await cobrar(eu, chave, id, 'consulta', DESCRICAO_COBRANCA, b);
   return tela(eu);
 }
@@ -104,6 +108,9 @@ export async function acaoOraculo(eu, b) {
   switch (b.op) {
     case 'reservar': return reservar(eu, b);
     case 'pagar': return pagar(eu, b);
+    case 'editarDados':
+      await db.rpc('oraculo_dados_editar', { id: validarId(b.id, 'Consulta'), chave, ...dados(b) });
+      return tela(eu);
     case 'pagarPresencial':
       await cobrar(eu, chave, validarId(b.id, 'Consulta'), 'presencial', DESCRICAO_COBRANCA + ' · atendimento presencial', b);
       return tela(eu);

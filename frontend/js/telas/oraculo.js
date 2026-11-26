@@ -5,6 +5,7 @@
 
 import { estado, carregarOraculo, acaoOraculo, avisar } from '../estado.js';
 import { esc, toast } from '../util.js';
+import { telefoneBR } from '/shared/perfil.js';
 import {
   configOraculo, horariosDoDia, diaTemVaga, agoraBR, somarDias, diaDaSemana, SEMANA_CURTA, MESES, STATUS, moeda, dataLonga,
   linkWhats, mensagemPedirCancelamento, ENDERECO, DURACAO_MIN,
@@ -17,9 +18,10 @@ if (!document.querySelector('link[data-oraculo]')) {
   document.head.append(l);
 }
 
-const ui = { mes: null, data: null, hora: null, reagendar: null, trocar: false, enviando: false };
+// editar: id da consulta com o formulário Editar meus dados aberto.
+const ui = { mes: null, data: null, hora: null, reagendar: null, trocar: false, enviando: false, editar: null };
 export function limpar() {
-  Object.assign(ui, { mes: null, data: null, hora: null, reagendar: null, trocar: false, enviando: false });
+  Object.assign(ui, { mes: null, data: null, hora: null, reagendar: null, trocar: false, enviando: false, editar: null });
 }
 
 const pendente = (c) => c.cobrancas.find((b) => b.status === 'pendente' || b.status === 'criando');
@@ -113,6 +115,18 @@ function formulario(O, c) {
       <button class="oc-link" type="button" data-act="ocdesistir" data-id="${c.id}">Desistir</button></span>
   </form>`;
 }
+// Corrigir os dados depois de reservar (aguardando pagamento ou consulta marcada): não mexe no horário nem no pagamento.
+function formEditar(c) {
+  return `<form class="oc-form oc-editar" id="f-oc-editar" data-rascunho data-id="${c.id}" autocomplete="off">
+    <h3 class="oc-h3">Editar meus dados</h3>
+    <label class="oc-campo">Nome completo<input name="nome" required maxlength="120" value="${esc(c.nome)}"></label>
+    <label class="oc-campo">Data de nascimento<input name="nascimento" required type="text" inputmode="numeric" maxlength="10" data-mascara="data" placeholder="dd/mm/aa" value="${esc(c.nascimento)}"></label>
+    <label class="oc-campo">Nome completo da mãe<input name="mae" required maxlength="120" value="${esc(c.mae)}"></label>
+    <label class="oc-campo">WhatsApp<input name="whatsapp" required inputmode="tel" data-mascara="tel" maxlength="16" placeholder="(11) 90000-0000" value="${esc(telefoneBR(c.whatsapp) || c.whatsapp)}"></label>
+    <span class="oc-acoes"><button class="oc-link" type="button" data-act="ocnaoeditar">Cancelar</button>
+      <button class="oc-cta" type="button" data-act="ocsalvardados" data-id="${c.id}" ${ui.enviando ? 'disabled' : ''}>${ui.enviando ? 'Salvando…' : 'Salvar'}</button></span>
+  </form>`;
+}
 function pix(b, titulo) {
   return `<div class="oc-pix">
     <p class="oc-ok">${titulo}</p>
@@ -129,6 +143,7 @@ function aguardando(O, c, b) {
     <p class="oc-resumo"><b>${esc(dataLonga(c.data))}</b>, às <b>${c.hora}</b> · ${moeda(b.valor)}</p>
     ${pix(b, 'Link gerado. Pague para garantir o horário.')}
     <p class="oc-dica">O horário fica guardado até ${horaDe(c.expiraEm)}. Pago depois disso, você escolhe outro horário se este tiver sido tomado.</p>
+    ${ui.editar === c.id ? formEditar(c) : `<button class="oc-link" data-act="oceditar" data-id="${c.id}">Corrigir meus dados</button>`}
     <button class="oc-link" data-act="ocdesistir" data-id="${c.id}">Cancelar este pedido</button></div>`;
 }
 
@@ -149,7 +164,8 @@ function marcada(O, c) {
     <p class="oc-selo-st">${STATUS[c.status]}</p>
     <p class="oc-quando">${esc(dataLonga(c.data))}<b>${c.hora}</b></p>
     <p class="oc-modo ${presencial ? 'pres' : ''}">${presencial ? `Atendimento presencial · ${esc(ENDERECO)}` : 'Atendimento a distância'}</p>
-    <dl class="oc-dados"><dt>Nome</dt><dd>${esc(c.nome)}</dd><dt>Nascimento</dt><dd>${esc(c.nascimento)}</dd><dt>Mãe</dt><dd>${esc(c.mae)}</dd><dt>WhatsApp</dt><dd>${esc(c.whatsapp)}</dd></dl>
+    ${ui.editar === c.id ? formEditar(c) : `<dl class="oc-dados"><dt>Nome</dt><dd>${esc(c.nome)}</dd><dt>Nascimento</dt><dd>${esc(c.nascimento)}</dd><dt>Mãe</dt><dd>${esc(c.mae)}</dd><dt>WhatsApp</dt><dd>${esc(telefoneBR(c.whatsapp) || c.whatsapp)}</dd></dl>
+    <button class="oc-link" data-act="oceditar" data-id="${c.id}">Editar meus dados</button>`}
     ${pres}
     <button class="${c.status === 'conflito' ? 'oc-cta' : 'oc-sec'}" data-act="ocreagendar" data-id="${c.id}">Reagendar</button>
     ${c.status === 'confirmada' && !c.presencial ? `<button class="oc-sec" data-act="ocpedirpres" data-id="${c.id}">Pedir atendimento presencial</button>` : ''}
@@ -217,6 +233,20 @@ export const cliques = {
     return enviando(async () => {
       const r = await acaoOraculo('pagar', { id: f.dataset.id, nome: v.nome, nascimento: v.nascimento, mae: v.mae, whatsapp: v.whatsapp, cpf: v.cpf, presencial: !!v.presencial });
       if (r) { f.reset(); toast('Link gerado. Aguardando o pagamento.'); }
+    });
+  },
+  oceditar: (el) => { ui.editar = el.dataset.id; avisar(); },
+  ocnaoeditar: () => { ui.editar = null; avisar(); },
+  ocsalvardados: (el) => {
+    const f = formDe(el);
+    if (!f.reportValidity()) return;
+    const v = Object.fromEntries(new FormData(f));
+    return enviando(async () => {
+      if (await acaoOraculo('editarDados', { id: el.dataset.id, nome: v.nome, nascimento: v.nascimento, mae: v.mae, whatsapp: v.whatsapp })) {
+        f.reset();
+        ui.editar = null;
+        toast('Dados atualizados.');
+      }
     });
   },
   ocdesistir: (el) => enviando(async () => {

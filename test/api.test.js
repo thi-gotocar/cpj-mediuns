@@ -3631,6 +3631,14 @@ test('v181: Oráculo — agenda, reserva travada, pagamento conferido no ASAAS, 
     assert.equal(sql(`select count(*) from asaas_cobrancas where oraculo_id = '${c.id}'`), '1');
     assert.equal((await or(USER, { op: 'pagar', id: c.id, nome: 'Cliente Teste', nascimento: '05/03/88', mae: 'Maria Teste', whatsapp: '11999990000' })).status, 200);
     assert.equal(sql(`select count(*) from asaas_cobrancas where oraculo_id = '${c.id}'`), '1', 'tocar de novo não gera outro link');
+    // A pessoa corrige os próprios dados (aguardando pagamento); outra pessoa não mexe; a data é validada.
+    const novos = { id: c.id, nome: 'Cliente Corrigido', nascimento: '06/03/1988', mae: 'Maria Corrigida', whatsapp: '(11) 98888-7777' };
+    assert.match((await or(USER, { op: 'editarDados', ...novos, nascimento: '31/02/88' })).json.erro, /nascimento/);
+    assert.equal((await or(ADMIN, { op: 'editarDados', ...novos })).status, 400, 'consulta de outra pessoa');
+    r = await or(USER, { op: 'editarDados', ...novos });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    c = r.json.minhas[0];
+    assert.deepEqual([c.nome, c.nascimento, c.mae, c.whatsapp, c.status], ['Cliente Corrigido', '06/03/1988', 'Maria Corrigida', '11988887777', 'reservada']);
     // As Compras não mostram a cobrança do Oráculo.
     assert.ok(!((await api('GET', '/api/oferendas?lista=guias', USER)).json.cobrancas || []).some((x) => x.valor === 290));
 
@@ -3669,6 +3677,10 @@ test('v181: Oráculo — agenda, reserva travada, pagamento conferido no ASAAS, 
     falso.status = 'RECEIVED';
     assert.equal(await hook({ id: 'evt_or2', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_or2', value: 80 } }), 200);
     assert.equal((await tela(USER)).json.minhas[0].presencial, 'pago');
+    // Com a consulta marcada, a pessoa ainda corrige os dados (o presencial pago continua).
+    r = await or(USER, { op: 'editarDados', id: c.id, nome: 'Cliente Teste', nascimento: '05/03/88', mae: 'Maria Teste', whatsapp: '11999990000' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([r.json.minhas[0].status, r.json.minhas[0].presencial, r.json.minhas[0].nome], ['confirmada', 'pago', 'Cliente Teste']);
 
     // A admin cancela: sai a mensagem para o WhatsApp do cliente e o horário fica livre.
     r = await or(ADMIN, { op: 'cancelar', id: c.id, motivo: 'imprevisto da casa' });

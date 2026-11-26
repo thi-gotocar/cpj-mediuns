@@ -6817,4 +6817,17 @@ export const MIGRACOES = [
      return ebook_admin();
    end;
    $$`,
+  // ---------- v192: Oráculo — a pessoa corrige os próprios dados depois de reservar ----------
+  // p = { id, chave, nome, nascimento, mae, whatsapp } — reserva ainda segura (aguardando pagamento), consulta marcada ou
+  // em conflito. Não mexe no horário, no pagamento nem no pedido de presencial.
+  `create or replace function oraculo_dados_editar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update oraculo_consultas set nome = p ->> 'nome', nascimento = p ->> 'nascimento', mae = p ->> 'mae', whatsapp = p ->> 'whatsapp'
+      where id = (p ->> 'id')::uuid and chave = p ->> 'chave'
+        and (status in ('confirmada', 'conflito') or (status = 'reservada' and expira_em > now()));
+     if not found then raise exception 'Não dá para editar os dados desta consulta.'; end if;
+     return jsonb_build_object('ok', true);
+   end;
+   $$`,
 ];

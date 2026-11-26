@@ -192,3 +192,6 @@
 .oc-mini.primario{border-color:var(--gold);color:var(--gold)}
 
 @media (prefers-reduced-motion:reduce){.oc-topo::before,.oc-vela{animation:none}}
+/* Editar meus dados (depois de reservar) */
+.oc-editar{display:flex; flex-direction:column; gap:12px; text-align:left; padding:12px; border:1px solid var(--oc-fio); border-radius:12px}
+.oc-editar .oc-acoes{flex-direction:column-reverse; align-items:stretch}
