@@ -2,7 +2,7 @@
 
 import { estadoDoApp, logado, entrar, cadastrar, criarSenhaContato, verificarCpf, entrarCpf, criarSenhaCpf, instalar, sair, trocarSenha, criarSenhaCorrente } from './auth.js';
 import { quandoSessaoExpirar, definirVerComo } from './api.js';
-import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veAmaci, veTransparencia, vePedidos, veDiario, veOraculo, veOraculoAdmin, vePessoas, temPendencia } from './estado.js';
+import { estado, prefs, salvarPrefs, pode, visaoAtiva, aoMudar, avisar, carregarTudo, atualizarDoServidor, atualizarOferendasAoAbrir, atualizarAoAbrir, atualizarUsuariosAoAbrir, registrarVisita, salvarPerfilAgora, mudarVisaoRoot, verComoPessoa, ehRootReal, veErvas, veOferendas, veGuias, veGuiasCompras, veAmaci, veTransparencia, vePedidos, veDiario, veOraculo, veOraculoAdmin, vePessoas, temPendencia } from './estado.js';
 import { esc, toast, hoje, mascaraTel, guardarRascunhos, devolverRascunhos, guardarTela, devolverTela } from './util.js';
 import { PIN_NOVO, PIN_NOVO_MSG } from '/shared/permissoes.js';
 import { cpfValido } from '/shared/perfil.js';
@@ -38,6 +38,7 @@ const SOB_DEMANDA = {
   videos: () => import('./telas/videos.js'),
   fotos: () => import('./telas/fotos.js'),
   usuarios: () => import('./telas/usuarios.js'),
+  ebook: () => import('./telas/ebook.js'),   // não é aba: o popup do e-book e os blocos dele em Compras e Admin root
 };
 const baixando = {};
 function telaDe(tab) {
@@ -179,7 +180,7 @@ function render() {
   const tela = TELAS[prefs.tab];
   if (!tela) { abrirTela(prefs.tab); return; }
   // Sub-abas (Gira | Histórico, Compras | ASAAS): só as que a pessoa vê; com uma só, nem aparece a barra.
-  const html = (grupoDa(prefs.tab) ? barraSubabas(grupoDa(prefs.tab), VE) : '') + tela.render();
+  const html = (grupoDa(prefs.tab) ? barraSubabas(grupoDa(prefs.tab), VE) : '') + tela.render() + popupEbook();
   // Aba Vídeos: redesenhar recarrega o vídeo que está tocando; se nada mudou na tela, deixa como está.
   const desenho = prefs.tab + '|' + html;
   if (prefs.tab === 'videos' && desenho === ultimoDesenho) return;
@@ -211,6 +212,13 @@ function render() {
   }
 }
 aoMudar(render);
+
+// Popup do e-book (ligado no Admin root): por cima de qualquer aba; o módulo só é baixado quando o popup está ligado.
+function popupEbook() {
+  if (!estado.me?.ebook?.popup || estado.verComo) return '';
+  if (!TELAS.ebook) { telaDe('ebook').then(render).catch(() => {}); return ''; }
+  return TELAS.ebook.renderPopup();
+}
 
 // ---------- início ----------
 async function iniciar() {
@@ -257,6 +265,8 @@ quandoSessaoExpirar(() => {
   estado.transparencia = null;
   estado.diario = null;
   estado.oraculo = null;
+  estado.ebook = null;
+  estado.ebookAdmin = null;
   estado.perfil = null;
   estado.curimba = null;
   estado.videos = null;
@@ -276,12 +286,12 @@ tabs.addEventListener('click', (e) => {
   // Admin root: o bloco Senhas volta minimizado.
   // Aba Gira: abre sempre no calendário de hoje (a Geral mostra a próxima gira por conta própria).
   if (b.dataset.tab === 'agenda') { prefs.data = hoje(); salvarPrefs(); }
-  if (b.dataset.tab === 'usuarios') { atualizarUsuariosAoAbrir(); estado.senhasAberto = false; estado.senhaEdit = null; estado.visitas = null; }
+  if (b.dataset.tab === 'usuarios') { atualizarUsuariosAoAbrir(); estado.senhasAberto = false; estado.senhaEdit = null; estado.visitas = null; estado.ebookAdmin = null; }
   if (b.dataset.tab === 'ervas') { atualizarAoAbrir('ervas', '/ervas'); estado.ervasCompra = null; estado.ervasFechar = false; estado.ervasNova = null; estado.ervasHist = null; }
   // Oferendas: abre com o que já está no aparelho e busca de novo por trás (para ver as que o admin acabou de publicar).
   if (b.dataset.tab === 'oferendas') { atualizarOferendasAoAbrir(); TELAS.oferendas?.aoAbrirAba(); }
   // Compras: estoque e pedidos mudam; a tela volta ao padrão.
-  if (b.dataset.tab === 'guias') { atualizarAoAbrir('guias', '/oferendas?lista=guias'); TELAS.guias?.limpar(); }
+  if (b.dataset.tab === 'guias') { if (veGuiasCompras()) atualizarAoAbrir('guias', '/oferendas?lista=guias'); if (estado.me?.ebook?.compra) atualizarAoAbrir('ebook', '/oferendas?lista=ebook'); TELAS.guias?.limpar(); }
   // Amaci: volta ao último orixá liberado.
   if (b.dataset.tab === 'amaci') { atualizarAoAbrir('amaci', '/pessoas?lista=amaci'); TELAS.amaci?.limpar(); }
   if (b.dataset.tab === 'asaas') { atualizarAoAbrir('asaas', '/oferendas?lista=asaas'); TELAS.asaas?.limpar(); }
@@ -324,7 +334,7 @@ async function cliqueConta(e) {
     sair();
     definirVerComo('');
     Object.assign(estado, { verComo: '', meRoot: null, vcLista: { pessoas: [], alunos: [] } });
-    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, infoPessoa: null, pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' }, recadoTxt: null, tituloTxt: null, usuarios: null, ervas: null, guias: null, amaci: null, asaas: null, transparencia: null, diario: null, oraculo: null, iemanja: null, ervasPara: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
+    Object.assign(estado, { me: null, pessoas: [], giras: {}, oferendas: null, infoPessoa: null, pfUi: { abertos: {}, infoBuscaVisivel: false, infoBusca: '' }, recadoTxt: null, tituloTxt: null, usuarios: null, ervas: null, guias: null, amaci: null, asaas: null, transparencia: null, diario: null, oraculo: null, ebook: null, ebookAdmin: null, iemanja: null, ervasPara: null, ervasCompra: null, perfil: null, alunos: null, curimba: null, minhaCurimba: null, curUi: null, videos: null, vidUi: null, fotos: null, fotUi: null, fotosPessoa: {}, visaoRoot: 'root', perfisCfg: null, senhas: null, pronto: false, img: null });
     erroLogin = '';
     render();
   } else if (b.dataset.conta === 'senha') {

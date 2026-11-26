@@ -6576,4 +6576,245 @@ export const MIGRACOES = [
      return gira_obter(jsonb_build_object('data', v_para));
    end;
    $$`,
+  // ---------- v191: E-book (popup do app, cobrança no ASAAS e download com marca d'água) ----------
+  // Uma compra por pessoa (chave p:/a:/u:), sem contar as canceladas. Paga pelo gatilho na cobrança (como o Oráculo).
+  // downloads/liberados: o download conta 1; o root libera mais um quando o da pessoa falhou.
+  `create table if not exists ebook_compras (
+     id          uuid primary key default gen_random_uuid(),
+     chave       text not null,
+     nome        text not null default '',
+     email       text not null default '',
+     status      text not null default 'aguardando' check (status in ('aguardando', 'paga', 'cancelada')),
+     downloads   int not null default 0,
+     liberados   int not null default 1,
+     criado_em   timestamptz not null default now(),
+     pago_em     timestamptz,
+     baixado_em  timestamptz
+   )`,
+  `create unique index if not exists ebook_compras_chave on ebook_compras (chave) where status <> 'cancelada'`,
+  // O PDF original (o repositório é público, então ele não vai no código): base64 em pedaços, por versão do upload,
+  // para um upload pela metade não estragar o download de quem está baixando. A versão em uso fica em sistema.ebook_pdf.
+  `create table if not exists ebook_partes (
+     versao  text not null,
+     parte   int not null,
+     dados   text not null,
+     primary key (versao, parte)
+   )`,
+  `alter table asaas_cobrancas add column if not exists ebook_id uuid references ebook_compras(id) on delete set null`,
+  `insert into sistema (chave, valor) values ('ebook_popup', 'false') on conflict (chave) do nothing`,
+  `create or replace function ebook_popup(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(coalesce((select valor = 'true' from sistema where chave = 'ebook_popup'), false))
+   $$`,
+  // Para a abertura do app: o popup está ligado? e a compra da pessoa (status), se houver.
+  `create or replace function ebook_me(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('popup', ebook_popup(),
+       'compra', (select status from ebook_compras where chave = p ->> 'chave' and status <> 'cancelada' limit 1),
+       'pdf', exists (select 1 from sistema where chave = 'ebook_pdf'))
+   $$`,
+  // Nome completo e e-mail do cadastro de quem está logado (pessoa, aluno ou usuário sem cadastro).
+  `create or replace function ebook_contato(p_chave text)
+   returns jsonb language sql stable as $$
+     select coalesce(
+       (select jsonb_build_object('nome', coalesce(nullif(btrim(perfil -> 'info' ->> 'nome'), ''), nome), 'email', coalesce(perfil -> 'info' ->> 'email', ''))
+          from pessoas where left(p_chave, 2) = 'p:' and id::text = substr(p_chave, 3)),
+       (select jsonb_build_object('nome', coalesce(nullif(btrim(perfil -> 'info' ->> 'nome'), ''), nome), 'email', coalesce(perfil -> 'info' ->> 'email', ''))
+          from alunos where left(p_chave, 2) = 'a:' and id::text = substr(p_chave, 3)),
+       (select jsonb_build_object('nome', nome, 'email', coalesce(email, '')) from usuarios where left(p_chave, 2) = 'u:' and id::text = substr(p_chave, 3)),
+       jsonb_build_object('nome', '', 'email', ''))
+   $$`,
+  // A compra para a tela. pix: manda o QR da cobrança pendente (só para a própria pessoa).
+  `create or replace function ebook_json(c ebook_compras, pix boolean)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('id', c.id, 'chave', c.chave, 'status', c.status, 'nome', c.nome, 'email', c.email,
+       'downloads', c.downloads, 'liberados', c.liberados, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em, 'baixadoEm', c.baixado_em,
+       'cobrancas', coalesce((select jsonb_agg(jsonb_build_object('id', b.id, 'valor', b.valor, 'status', b.status, 'link', b.link,
+             'criadoEm', b.criado_em, 'pagoEm', b.pago_em,
+             'pixPayload', case when pix and b.status = 'pendente' then b.pix_payload end,
+             'pixImagem', case when pix and b.status = 'pendente' then b.pix_imagem end) order by b.criado_em)
+           from asaas_cobrancas b where b.ebook_id = c.id and b.status in ('criando', 'pendente', 'paga', 'estornada')), '[]'::jsonb))
+   $$`,
+  `create or replace function ebook_tela(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'popup', ebook_popup(),
+       'pdf', exists (select 1 from sistema where chave = 'ebook_pdf'),
+       'contato', ebook_contato(p ->> 'chave'),
+       'cliente', exists (select 1 from asaas_clientes where chave = p ->> 'chave' and conta = 'A'),
+       'cpf', exists (select 1 from pessoas_cpf where left(p ->> 'chave', 2) = 'p:' and pessoa_id::text = substr(p ->> 'chave', 3))
+           or exists (select 1 from alunos_cpf where left(p ->> 'chave', 2) = 'a:' and aluno_id::text = substr(p ->> 'chave', 3)),
+       'compra', (select ebook_json(c, true) from ebook_compras c where c.chave = p ->> 'chave' and c.status <> 'cancelada' limit 1))
+   $$`,
+  // p = { chave, nome, email } — os dados do formulário (antes de gerar o link). Cria a compra ou atualiza a que aguarda.
+  `create or replace function ebook_dados(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v ebook_compras%rowtype;
+   begin
+     select * into v from ebook_compras where chave = p ->> 'chave' and status <> 'cancelada' for update;
+     if not found then
+       insert into ebook_compras (chave, nome, email) values (p ->> 'chave', p ->> 'nome', p ->> 'email') returning * into v;
+     elsif v.status = 'paga' then
+       raise exception 'Você já comprou o e-book. Ele está na aba Compras.';
+     else
+       update ebook_compras set nome = p ->> 'nome', email = p ->> 'email' where id = v.id;
+     end if;
+     return jsonb_build_object('id', v.id);
+   end;
+   $$`,
+  // p = { chave, nome, valor } — prende a cobrança antes de chamar o ASAAS (o valor vem do servidor, de shared/ebook.js).
+  // Já existe uma pendente: devolve { existe }.
+  `create or replace function ebook_cobranca_reservar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v ebook_compras%rowtype;
+     v_id uuid;
+   begin
+     if (select count(*) from asaas_cobrancas where chave = p ->> 'chave' and criado_em > now() - interval '1 hour') >= 20 then
+       raise exception 'Muitos links de pagamento em pouco tempo. Tente de novo mais tarde.';
+     end if;
+     select * into v from ebook_compras where chave = p ->> 'chave' and status <> 'cancelada' for update;
+     if not found then raise exception 'Preencha os seus dados para gerar o link.'; end if;
+     if v.status = 'paga' then raise exception 'Você já comprou o e-book. Ele está na aba Compras.'; end if;
+     if exists (select 1 from asaas_cobrancas where ebook_id = v.id and status in ('criando', 'pendente', 'paga')) then
+       return jsonb_build_object('existe', true);
+     end if;
+     insert into asaas_cobrancas (chave, nome, pedido, valor, conta, ebook_id)
+     values (p ->> 'chave', p ->> 'nome', 0, (p ->> 'valor')::numeric, 'A', v.id) returning id into v_id;
+     return jsonb_build_object('id', v_id, 'valor', (p ->> 'valor')::numeric);
+   end;
+   $$`,
+  `create or replace function ebook_cobranca_paga()
+   returns trigger language plpgsql as $$
+   begin
+     if new.status <> 'paga' or old.status = 'paga' then return new; end if;
+     update ebook_compras set status = 'paga', pago_em = now() where id = new.ebook_id and status <> 'paga';
+     return new;
+   end;
+   $$`,
+  `drop trigger if exists ebook_cobranca_paga on asaas_cobrancas`,
+  `create trigger ebook_cobranca_paga after update of status on asaas_cobrancas
+   for each row when (new.ebook_id is not null) execute function ebook_cobranca_paga()`,
+  // No retorno do webhook (aba ASAAS), a cobrança do Oráculo e a do e-book não têm itens: não é "conferir", é paga.
+  `create or replace function oraculo_evento_resultado()
+   returns trigger language plpgsql as $$
+   begin
+     if new.resultado like 'paga, mas %' then
+       if exists (select 1 from asaas_cobrancas where id = new.cobranca_id and oraculo_id is not null) then new.resultado := 'paga (Oráculo)';
+       elsif exists (select 1 from asaas_cobrancas where id = new.cobranca_id and ebook_id is not null) then new.resultado := 'paga (E-book)';
+       end if;
+     end if;
+     return new;
+   end;
+   $$`,
+  // O Pix da pessoa nas Compras não mostra as cobranças do Oráculo nem a do e-book (substitui a da v181).
+  `create or replace function asaas_minhas(p jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object(
+       'cliente', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'A'),
+       'clienteB', (select cliente_id from asaas_clientes where chave = p ->> 'chave' and conta = 'B'),
+       'credito', exists (select 1 from asaas_credito where chave = p ->> 'chave'),
+       'cobrancas', coalesce((select jsonb_agg(x.j order by x.ordem) from (
+           select row_number() over (order by (c.status = 'pendente') desc, c.criado_em desc) as ordem,
+                  jsonb_build_object('id', c.id, 'conta', c.conta, 'pedido', c.pedido, 'valor', c.valor, 'status', c.status, 'link', c.link, 'forma', c.forma,
+                    'pixPayload', case when c.status = 'pendente' then c.pix_payload end,
+                    'pixImagem', case when c.status = 'pendente' then c.pix_imagem end,
+                    'vencimento', c.vencimento, 'criadoEm', c.criado_em, 'pagoEm', c.pago_em,
+                    'itens', coalesce((select jsonb_agg(l.quantidade || 'x ' || l.descricao order by l.criado_em) from guias_linhas l where l.cobranca_id = c.id), c.itens_cancelados, '[]'::jsonb)) as j
+             from asaas_cobrancas c where c.chave = p ->> 'chave' and c.status <> 'criando' and c.oraculo_id is null and c.ebook_id is null
+            order by (c.status = 'pendente') desc, c.criado_em desc limit 10) x), '[]'::jsonb))
+   $$`,
+  `create or replace function ebook_pendentes(p jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(jsonb_build_object('id', b.id, 'asaasId', b.asaas_id)), '[]'::jsonb)
+       from asaas_cobrancas b join ebook_compras c on c.id = b.ebook_id
+      where b.status = 'pendente' and b.asaas_id is not null and c.chave = p ->> 'chave'
+   $$`,
+  // A pessoa desiste antes de pagar: a compra fica cancelada e devolve as cobranças pendentes (para cancelar no ASAAS).
+  `create or replace function ebook_cancelar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v ebook_compras%rowtype;
+   begin
+     select * into v from ebook_compras where chave = p ->> 'chave' and status = 'aguardando' for update;
+     if not found then raise exception 'Não há pedido do e-book aguardando pagamento.'; end if;
+     if exists (select 1 from asaas_cobrancas where ebook_id = v.id and status = 'criando') then
+       raise exception 'O link ainda está sendo gerado. Tente de novo em instantes.';
+     end if;
+     update ebook_compras set status = 'cancelada' where id = v.id;
+     return jsonb_build_object('pendentes', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'asaasId', asaas_id))
+       from asaas_cobrancas where ebook_id = v.id and status = 'pendente'), '[]'::jsonb));
+   end;
+   $$`,
+  // O download: confere se ainda pode (paga e downloads < liberados) e devolve os dados da marca. consumir: conta o download.
+  `create or replace function ebook_download(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare v ebook_compras%rowtype;
+   begin
+     select * into v from ebook_compras where chave = p ->> 'chave' and status = 'paga' for update;
+     if not found then raise exception using errcode = 'SM404', message = 'Compra do e-book não encontrada ou ainda não paga.'; end if;
+     if v.downloads >= v.liberados then
+       raise exception using errcode = 'SM409', message = 'O download do e-book já foi feito. Se não conseguiu baixar, fale com a casa.';
+     end if;
+     if coalesce((p ->> 'consumir')::boolean, false) then
+       update ebook_compras set downloads = downloads + 1, baixado_em = now() where id = v.id;
+     end if;
+     return jsonb_build_object('id', v.id, 'nome', v.nome, 'email', v.email, 'pagoEm', v.pago_em,
+       'pdf', (select valor::jsonb from sistema where chave = 'ebook_pdf'));
+   end;
+   $$`,
+  `create or replace function ebook_pdf_parte(p jsonb)
+   returns jsonb language sql stable as $$
+     select to_jsonb(dados) from ebook_partes where versao = p ->> 'versao' and parte = (p ->> 'parte')::int
+   $$`,
+  // ---------- Admin root ----------
+  `create or replace function ebook_admin(p jsonb default '{}'::jsonb)
+   returns jsonb language sql stable as $$
+     select jsonb_build_object('popup', ebook_popup(),
+       'pdf', (select valor::jsonb - 'versao' from sistema where chave = 'ebook_pdf'),
+       'compras', coalesce((select jsonb_agg(ebook_json(c, false) order by c.criado_em desc) from ebook_compras c
+          where c.id in (select id from ebook_compras where status <> 'cancelada' or criado_em > now() - interval '30 days' order by criado_em desc limit 300)), '[]'::jsonb))
+   $$`,
+  `create or replace function ebook_popup_salvar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into sistema (chave, valor) values ('ebook_popup', case when (p ->> 'visivel')::boolean then 'true' else 'false' end)
+     on conflict (chave) do update set valor = excluded.valor;
+     return ebook_admin();
+   end;
+   $$`,
+  // Mais um download para quem já baixou (o dela falhou).
+  `create or replace function ebook_liberar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     update ebook_compras set liberados = downloads + 1 where id = (p ->> 'id')::uuid and status = 'paga';
+     if not found then raise exception using errcode = 'SM404', message = 'Compra paga não encontrada.'; end if;
+     return ebook_admin();
+   end;
+   $$`,
+  // Upload do PDF em pedaços: cada pedaço de uma versão nova; o último grava a versão em uso e apaga as outras.
+  `create or replace function ebook_pdf_enviar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     insert into ebook_partes (versao, parte, dados) values (p ->> 'versao', (p ->> 'parte')::int, p ->> 'dados')
+     on conflict (versao, parte) do update set dados = excluded.dados;
+     delete from ebook_partes where versao <> p ->> 'versao' and versao <> coalesce((select valor::jsonb ->> 'versao' from sistema where chave = 'ebook_pdf'), '');
+     return jsonb_build_object('ok', true);
+   end;
+   $$`,
+  `create or replace function ebook_pdf_juntar(p jsonb)
+   returns jsonb language sql stable as $$
+     select coalesce(jsonb_agg(dados order by parte), '[]'::jsonb) from ebook_partes where versao = p ->> 'versao'
+   $$`,
+  `create or replace function ebook_pdf_usar(p jsonb)
+   returns jsonb language plpgsql as $$
+   begin
+     if (select count(*) from ebook_partes where versao = p -> 'meta' ->> 'versao') <> (p -> 'meta' ->> 'partes')::int then
+       raise exception 'O envio do PDF ficou incompleto. Envie de novo.';
+     end if;
+     insert into sistema (chave, valor) values ('ebook_pdf', (p -> 'meta')::text)
+     on conflict (chave) do update set valor = excluded.valor;
+     delete from ebook_partes where versao <> p -> 'meta' ->> 'versao';
+     return ebook_admin();
+   end;
+   $$`,
 ];

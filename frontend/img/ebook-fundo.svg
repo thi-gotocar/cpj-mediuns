@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 900" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="68%" r="80%">
+      <stop offset="0" stop-color="#4f0e1a"/>
+      <stop offset=".5" stop-color="#23060c"/>
+      <stop offset="1" stop-color="#090103"/>
+    </radialGradient>
+    <linearGradient id="capaE" x1="0" y1="0" x2="1" y2=".6">
+      <stop offset="0" stop-color="#140205"/>
+      <stop offset=".55" stop-color="#5e0c19"/>
+      <stop offset="1" stop-color="#2a0509"/>
+    </linearGradient>
+    <linearGradient id="capaD" x1="1" y1="0" x2="0" y2=".6">
+      <stop offset="0" stop-color="#140205"/>
+      <stop offset=".55" stop-color="#5e0c19"/>
+      <stop offset="1" stop-color="#2a0509"/>
+    </linearGradient>
+    <linearGradient id="ouro" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9c6b1c"/>
+      <stop offset=".5" stop-color="#f1cf78"/>
+      <stop offset="1" stop-color="#8a5c14"/>
+    </linearGradient>
+    <linearGradient id="chapeu" x1="0" x2="1">
+      <stop offset="0" stop-color="#030303"/>
+      <stop offset=".38" stop-color="#26262b"/>
+      <stop offset=".52" stop-color="#3b3b42"/>
+      <stop offset=".66" stop-color="#141417"/>
+      <stop offset="1" stop-color="#020202"/>
+    </linearGradient>
+    <linearGradient id="aba" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2c31"/>
+      <stop offset="1" stop-color="#050505"/>
+    </linearGradient>
+    <radialGradient id="petala" cx="38%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#ff5257"/>
+      <stop offset=".55" stop-color="#c2101f"/>
+      <stop offset="1" stop-color="#5c040e"/>
+    </radialGradient>
+    <radialGradient id="miolo" cx="50%" cy="45%" r="60%">
+      <stop offset="0" stop-color="#7a0612"/>
+      <stop offset="1" stop-color="#d81a2a"/>
+    </radialGradient>
+    <linearGradient id="folha" x1="0" x2="1">
+      <stop offset="0" stop-color="#1f4d24"/>
+      <stop offset="1" stop-color="#3f8a3a"/>
+    </linearGradient>
+    <linearGradient id="escuro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#090103" stop-opacity=".92"/>
+      <stop offset=".45" stop-color="#090103" stop-opacity=".55"/>
+      <stop offset=".62" stop-color="#090103" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="borra" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="borrinha"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+
+  <rect width="600" height="900" fill="url(#bg)"/>
+
+  <!-- brilho vermelho atrás da cartola e da rosa -->
+  <ellipse cx="300" cy="700" rx="250" ry="130" fill="#ff2436" opacity=".22" filter="url(#borra)"/>
+
+  <!-- fumaça -->
+  <g fill="none" stroke="#f3e6e8" stroke-linecap="round" filter="url(#borrinha)">
+    <path d="M300 560 C260 500 340 460 300 400 C265 350 330 310 300 250" stroke-width="16" opacity=".05"/>
+    <path d="M330 580 C380 520 300 470 350 410 C390 360 330 320 370 260" stroke-width="10" opacity=".05"/>
+    <path d="M270 590 C230 540 280 500 240 450" stroke-width="8" opacity=".06"/>
+  </g>
+
+  <!-- estrelas -->
+  <g fill="#f1cf78">
+    <circle cx="120" cy="120" r="1.6" opacity=".7"/><circle cx="470" cy="90" r="1.3" opacity=".6"/>
+    <circle cx="380" cy="210" r="1.1" opacity=".5"/><circle cx="210" cy="260" r="1.4" opacity=".55"/>
+    <circle cx="520" cy="300" r="1.2" opacity=".5"/><circle cx="80" cy="360" r="1.1" opacity=".45"/>
+    <circle cx="300" cy="140" r="1" opacity=".5"/><circle cx="440" cy="420" r="1.3" opacity=".45"/>
+    <path d="M495 175 l3 9 9 3 -9 3 -3 9 -3 -9 -9 -3 9 -3z" opacity=".55"/>
+    <path d="M110 470 l2.4 7 7 2.4 -7 2.4 -2.4 7 -2.4 -7 -7 -2.4 7 -2.4z" opacity=".45"/>
+  </g>
+
+  <!-- capa: duas abas laterais com a barra dourada -->
+  <path d="M0 0 H200 C168 150 118 320 104 520 C92 690 58 810 0 900 Z" fill="url(#capaE)"/>
+  <path d="M600 0 H400 C432 150 482 320 496 520 C508 690 542 810 600 900 Z" fill="url(#capaD)"/>
+  <g fill="none" stroke="#0c0103" stroke-width="10" opacity=".45">
+    <path d="M60 0 C55 250 40 520 12 900"/><path d="M130 0 C115 260 82 560 40 900"/>
+    <path d="M540 0 C545 250 560 520 588 900"/><path d="M470 0 C485 260 518 560 560 900"/>
+  </g>
+  <path d="M200 0 C168 150 118 320 104 520 C92 690 58 810 0 900" fill="none" stroke="url(#ouro)" stroke-width="3" opacity=".8"/>
+  <path d="M400 0 C432 150 482 320 496 520 C508 690 542 810 600 900" fill="none" stroke="url(#ouro)" stroke-width="3" opacity=".8"/>
+
+  <!-- chão -->
+  <ellipse cx="300" cy="842" rx="230" ry="34" fill="#000" opacity=".55"/>
+
+  <!-- cartola -->
+  <g transform="translate(250 772) rotate(-10)">
+    <ellipse cx="0" cy="6" rx="128" ry="30" fill="#000" opacity=".6"/>
+    <ellipse cx="0" cy="0" rx="124" ry="27" fill="url(#aba)"/>
+    <path d="M-74 -6 L-66 -168 Q0 -184 66 -168 L74 -6 Q0 10 -74 -6 Z" fill="url(#chapeu)"/>
+    <ellipse cx="0" cy="-168" rx="66" ry="14" fill="#18181b"/>
+    <ellipse cx="0" cy="-168" rx="66" ry="14" fill="none" stroke="#4a4a52" stroke-width="1.2"/>
+    <path d="M-73 -30 L-70 -66 Q0 -52 70 -66 L73 -30 Q0 -16 -73 -30 Z" fill="#a30f20"/>
+    <path d="M-70 -64 Q0 -50 70 -64" fill="none" stroke="#e0404d" stroke-width="1.4" opacity=".7"/>
+    <path d="M-120 -2 Q0 34 120 -2" fill="none" stroke="#45454d" stroke-width="2" opacity=".8"/>
+    <path d="M-30 -160 Q-26 -100 -32 -40" fill="none" stroke="#ffffff" stroke-width="5" opacity=".06"/>
+  </g>
+
+  <!-- rosa vermelha -->
+  <g transform="translate(398 690) rotate(16)">
+    <path d="M-6 40 C-20 110 -50 160 -96 210" fill="none" stroke="#1d4a22" stroke-width="7" stroke-linecap="round"/>
+    <path d="M-30 128 C-70 110 -98 128 -112 150 C-80 160 -50 150 -30 128 Z" fill="url(#folha)"/>
+    <path d="M-30 128 C-62 132 -86 142 -112 150" fill="none" stroke="#163a1a" stroke-width="1.5"/>
+    <path d="M-14 86 C14 64 46 70 60 90 C32 102 8 100 -14 86 Z" fill="url(#folha)"/>
+    <path d="M-14 86 C12 86 36 88 60 90" fill="none" stroke="#163a1a" stroke-width="1.5"/>
+    <path d="M-20 40 C-24 26 -8 18 0 30 C8 18 24 26 20 40 Z" fill="#2c6a2c"/>
+    <g stroke="#5a040e" stroke-width="1.2">
+      <ellipse cx="-34" cy="-6" rx="38" ry="30" transform="rotate(-25 -34 -6)" fill="url(#petala)"/>
+      <ellipse cx="34" cy="-6" rx="38" ry="30" transform="rotate(25 34 -6)" fill="url(#petala)"/>
+      <ellipse cx="0" cy="18" rx="46" ry="28" fill="url(#petala)"/>
+      <ellipse cx="-20" cy="-30" rx="30" ry="26" transform="rotate(-10 -20 -30)" fill="url(#petala)"/>
+      <ellipse cx="20" cy="-30" rx="30" ry="26" transform="rotate(10 20 -30)" fill="url(#petala)"/>
+      <path d="M-30 -2 C-32 -40 32 -40 30 -2 C20 14 -20 14 -30 -2 Z" fill="url(#miolo)"/>
+    </g>
+    <path d="M0 -10 C-12 -10 -14 -24 -2 -26 C12 -28 16 -12 6 -4 C-6 4 -22 -4 -20 -18" fill="none" stroke="#4e030b" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M-28 6 C-10 18 12 18 28 6" fill="none" stroke="#4e030b" stroke-width="1.6" opacity=".7"/>
+  </g>
+
+  <!-- pétalas caídas -->
+  <path d="M170 838 c10 -12 28 -10 30 2 c-8 10 -22 10 -30 -2 z" fill="#b30d1d" opacity=".9"/>
+  <path d="M440 846 c8 -10 22 -8 24 2 c-6 8 -18 8 -24 -2 z" fill="#9e0b19" opacity=".85"/>
+
+  <!-- escurece o alto, onde fica o texto -->
+  <rect width="600" height="900" fill="url(#escuro)"/>
+</svg>

@@ -13,6 +13,7 @@ import { renderAjustesPerfil, formSenha } from './perfil.js';
 import { corpoBackup, cliquesBackup } from './historico.js';
 import { LINHA_LABEL } from '/shared/regras.js';
 import { CAMPOS_CONFIG, config, SEGUNDO_CAMBONE, LIMITES_REGRAS } from '/shared/config.js';
+import { cardAdmin as cardEbook } from './ebook.js';
 
 const secao = (titulo) => `<h3 class="root-secao">${titulo}</h3>`;
 const paraBusca = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR');
@@ -84,7 +85,7 @@ export function render() {
   if (estado.usuarios === null) { carregarUsuarios(); return `<div class="loading">Carregando usuários…</div>`; }
   if (abertosRoot.has('ajperfil') && estado.perfil === null) { estado.perfil = undefined; carregarPerfil(); }
   let h = `<section class="panel">${cardAcessos()}${cardVisitas()}
-    ${secao('Configurações da casa')}${cardConfig()}${cardRegras()}${cardEntidades()}
+    ${secao('Configurações da casa')}${cardConfig()}${cardRegras()}${cardEntidades()}${cardEbook(abertosRoot.has('ebook'), cabRoot('ebook', '📕 E-book', estado.ebookAdmin?.popup ? 'popup ligado' : ''))}
     ${secao('Pessoas e histórico')}${cardAjustesPerfil()}${cardBackup()}</section>`;
   return h;
 }

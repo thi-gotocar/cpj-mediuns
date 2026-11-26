@@ -160,7 +160,7 @@ async function sessaoDe(c, versao) {
 
 // extras: o que decide as abas, quando já veio junto na abertura (inicio_dados); sem ele, busca aqui (/auth/me).
 async function dadosDoMe(u, extras = null) {
-  const [iemanja, abasOferendas, videosPublicada, ervasPublicada, guiasPublicada, amaciPublicada, transparenciaPublicada, diarioPublicada, oraculoPublicado] = await Promise.all([
+  const [iemanja, abasOferendas, videosPublicada, ervasPublicada, guiasPublicada, amaciPublicada, transparenciaPublicada, diarioPublicada, oraculoPublicado, ebook] = await Promise.all([
     // Falha na aba Iemanjá só esconde a aba: não pode impedir o app de abrir.
     abaIemanja(u, extras?.iemanja).catch((e) => {
       console.error('[auth/me] aba Iemanjá', e);
@@ -177,11 +177,14 @@ async function dadosDoMe(u, extras = null) {
     u.grupo && u.grupo !== 'alunos' ? false : extras && 'diarioPublicada' in extras ? extras.diarioPublicada : db.rpc('diario_publicada').catch(() => false),
     // Aba Oráculo: visível para todos quando quem administra liga (a curimba nunca tem). Na abertura já vem pronto.
     u.grupo && u.grupo !== 'alunos' ? false : extras && 'oraculoPublicado' in extras ? extras.oraculoPublicado : db.rpc('oraculo_publicado').catch(() => false),
+    // Popup do e-book (ligado no Admin root) e a compra da pessoa: para todos. Na abertura da corrente já vem pronto.
+    extras?.ebook || db.rpc('ebook_me', { chave: chavePessoa(u) }).catch(() => null),
   ]);
   // Sem nenhuma sub-aba visível, a aba Oferendas some para quem não administra.
   // Aba Vídeos publicada: aparece também para quem não tem a aba no perfil.
   return { ...publico(u), corrente: u.papel === 'corrente', ...(u.papel === 'corrente' || u.grupo === 'alunos' ? { temSenha: !!u.temSenha } : {}),
-    videosPublicada: !!videosPublicada, ervasPublicada: !!ervasPublicada, guiasPublicada: !!guiasPublicada, amaciPublicada: !!amaciPublicada, transparenciaPublicada: !!transparenciaPublicada, diarioPublicada: !!diarioPublicada, oraculoPublicado: !!oraculoPublicado, oferendasPublica: temAbaPublica(abasOferendas), ...iemanja };
+    videosPublicada: !!videosPublicada, ervasPublicada: !!ervasPublicada, guiasPublicada: !!guiasPublicada, amaciPublicada: !!amaciPublicada, transparenciaPublicada: !!transparenciaPublicada, diarioPublicada: !!diarioPublicada, oraculoPublicado: !!oraculoPublicado, oferendasPublica: temAbaPublica(abasOferendas), ...iemanja,
+    ebook: { popup: !!ebook?.popup && !!ebook?.pdf, compra: ebook?.compra || null } };
 }
 
 // Lista que não pode impedir o app de abrir: se falhar, a chave não vem e a tela usa o que já tem.
@@ -248,10 +251,11 @@ const acoes = {
     // Corrente e usuários: a sessão, as listas (inicio_dados) e, na abertura, "a Transparência / o Diário estão
     // visíveis?" (e o Oráculo) vão numa ida só ao banco. Ao voltar ao app, ?versao= é a que ele já tem: sem mudança, só { versao, semMudanca }.
     // Aluno: a sessão e a versão dos dados dele (aluno_versao) nessa ida; as listas vêm depois (listasDoGrupo), só se mudou.
-    const [u, d, transparencia, diarioPub, oraculoPub] = await exigirComLeitura(req, null, ({ pessoaId, usuarioId, alunoId }) => (alunoId ? [{ funcao: 'aluno_versao' }] : [
+    const [u, d, transparencia, diarioPub, oraculoPub, ebook] = await exigirComLeitura(req, null, ({ pessoaId, usuarioId, alunoId }) => (alunoId ? [{ funcao: 'aluno_versao' }] : [
       { funcao: 'inicio_dados', p: { versao: atualizar ? String(req.query.versao || '') : '', me: !atualizar, parcial: !!req.query.parcial,
         pessoaId: pessoaId || '', usuarioId: usuarioId || '' } },
-      ...(atualizar ? [] : [{ funcao: 'transparencia_publicada' }, { funcao: 'diario_publicada' }, { funcao: 'oraculo_publicado' }]),
+      ...(atualizar ? [] : [{ funcao: 'transparencia_publicada' }, { funcao: 'diario_publicada' }, { funcao: 'oraculo_publicado' },
+        { funcao: 'ebook_me', p: { chave: pessoaId ? 'p:' + pessoaId : 'u:' + usuarioId } }]),
     ]), { soLeitura: false });
     // ?visitas=gira,ervas: abas abertas desde o último pedido, que pegam carona aqui em vez de um pedido só para isso
     // (cada pedido avulso acordava o banco). Falha não atrapalha a abertura; vai junto com o resto.
@@ -273,7 +277,7 @@ const acoes = {
       return listas;
     }
     const [[conduta, atrasosEu]] = await Promise.all([blocosGeral(u), visitas]);
-    return { me: await dadosDoMe(u, extras && { ...extras, transparenciaPublicada: !!transparencia, diarioPublicada: !!diarioPub, oraculoPublicado: !!oraculoPub }), ...listas,
+    return { me: await dadosDoMe(u, extras && { ...extras, transparenciaPublicada: !!transparencia, diarioPublicada: !!diarioPub, oraculoPublicado: !!oraculoPub, ebook }), ...listas,
       conduta, atrasos: atrasosEu };
   },
 

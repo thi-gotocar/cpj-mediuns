@@ -391,7 +391,9 @@ export async function acaoErvas(acao, dados = {}) {
 // ---------- Compras (pedidos de guias) ----------
 // Aba: quem administra sempre vê; as pessoas com a aba no perfil, quando o admin liga "Visível para todos".
 // Alunos e curimba também pedem (shared/permissoes.js PERMISSOES_GRUPO), só com a aba visível para todos.
-export const veGuias = () => pode('guias:gerenciar') || (pode('guias:pedir') && !!estado.me?.guiasPublicada);
+export const veGuiasCompras = () => pode('guias:gerenciar') || (pode('guias:pedir') && !!estado.me?.guiasPublicada);
+// Quem comprou o e-book vê a aba Compras (com o e-book), mesmo sem as compras de guias.
+export const veGuias = () => veGuiasCompras() || !!estado.me?.ebook?.compra;
 // conferir: o "Já paguei, atualizar" (o servidor ignora; o modo demonstração simula ali o aviso de pagamento do ASAAS).
 export async function carregarGuias(conferir = false) {
   try { estado.guias = await api('GET', '/oferendas?lista=guias' + (conferir ? '&conferir=1' : '')); } catch (e) { toast(e.message); estado.guias = estado.guias || { grupos: [], pedidos: [], meus: [], aberto: null }; }
@@ -594,6 +596,50 @@ export async function acaoOraculo(op, dados = {}) {
   try {
     const r = await api('POST', '/oferendas', { acao: 'oraculo', op, ...dados });
     if (r?.config) { estado.oraculo = r; estado.me = { ...estado.me, oraculoPublicado: !!r.publicado }; }
+    return r;
+  } catch (e) { toast(e.message); return null; } finally { avisar(); }
+}
+
+// ---------- E-book (popup, aba Compras e Admin root) ----------
+// estado.ebook: a compra de quem está logado (GET ?lista=ebook); estado.ebookAdmin: o bloco do Admin root.
+function ebookNoMe() {
+  if (estado.ebook?.contato && estado.me) estado.me = { ...estado.me, ebook: { ...(estado.me.ebook || {}), compra: estado.ebook.compra?.status || null } };
+}
+export async function carregarEbook(conferir = false) {
+  try { estado.ebook = await api('GET', '/oferendas?lista=ebook' + (conferir ? '&conferir=1' : '')); } catch (e) {
+    if (!conferir) estado.ebook = estado.ebook?.contato ? estado.ebook : { erro: e.message };
+  }
+  ebookNoMe();
+  avisar();
+}
+export async function acaoEbook(op, dados = {}) {
+  try {
+    estado.ebook = await api('POST', '/oferendas', { acao: 'ebook', op, ...dados });
+    ebookNoMe();
+    return estado.ebook;
+  } catch (e) { toast(e.message); return null; } finally { avisar(); }
+}
+// O PDF com a marca d'água (o download conta 1). → Blob, ou lança o erro do servidor.
+export async function baixarEbook() {
+  let r;
+  try {
+    r = await fetch('/api/oferendas', { method: 'POST', headers: { Authorization: 'Bearer ' + token(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'ebook', op: 'baixar' }) });
+  } catch { throw new Error('Sem conexão. Verifique a internet e tente de novo.'); }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erro || 'Não foi possível baixar o e-book.');
+  return r.blob();
+}
+export async function carregarEbookAdmin() {
+  try { estado.ebookAdmin = await api('GET', '/oferendas?lista=ebookAdmin'); } catch (e) { toast(e.message); estado.ebookAdmin = estado.ebookAdmin || { erro: e.message }; }
+  avisar();
+}
+export async function acaoEbookAdmin(op, dados = {}) {
+  try {
+    const r = await api('POST', '/oferendas', { acao: 'ebook', op, ...dados });
+    if (r?.compras) {
+      estado.ebookAdmin = r;
+      if (estado.me) estado.me = { ...estado.me, ebook: { ...(estado.me.ebook || {}), popup: !!r.popup && !!r.pdf } };
+    }
     return r;
   } catch (e) { toast(e.message); return null; } finally { avisar(); }
 }

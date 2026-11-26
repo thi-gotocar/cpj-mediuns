@@ -1,0 +1,60 @@
+/* E-book: popup de venda, bloco "Seu e-book" das Compras e bloco do Admin root. Baixado só quando o popup ou os blocos aparecem. */
+.eb-fundo{background:rgba(5,1,2,.72);z-index:1100;padding:12px}
+.eb-pop{position:relative;width:100%;max-width:380px;max-height:calc(100dvh - 24px);overflow:auto;border-radius:18px;border:1px solid rgba(241,207,120,.45);
+  background:#0b0204 url(/img/ebook-fundo.svg) center bottom/cover no-repeat;color:#f6ead8;box-shadow:0 24px 60px rgba(0,0,0,.6);overscroll-behavior:contain}
+.eb-pop.eb-comprando{background-image:linear-gradient(rgba(11,2,4,.86),rgba(11,2,4,.93)),url(/img/ebook-fundo.svg)}
+.eb-x{position:absolute;top:8px;right:8px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(241,207,120,.4);background:rgba(10,2,4,.6);
+  color:#f6ead8;font-size:1.6rem;line-height:1;cursor:pointer;z-index:2}
+.eb-x:focus-visible{outline:2px solid #f1cf78;outline-offset:2px}
+.eb-anuncio{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:22px 22px 26px;min-height:min(620px,calc(100dvh - 24px))}
+.eb-logo{width:72px;height:72px;border-radius:50%;filter:invert(1) sepia(1) saturate(2.4) hue-rotate(-8deg) brightness(.95);mix-blend-mode:screen}
+.eb-pre{margin:4px 0 0;font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:#f1cf78}
+.eb-tit{margin:0;font-family:var(--f-display);font-weight:700;font-size:1.9rem;line-height:1.05;color:#fff4e2;text-shadow:0 2px 12px rgba(0,0,0,.7)}
+.eb-tit span{display:block;font-style:italic;font-weight:500;font-size:1.35rem;color:#f1cf78}
+.eb-tit-p{font-size:1.4rem;padding-right:40px}
+.eb-tit-p span{font-size:1.05rem;display:inline;margin-left:6px}
+.eb-sub{margin:0;font-size:.92rem;color:#ead7c0;max-width:30ch}
+.eb-itens{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;font-size:.88rem;color:#f6ead8}
+.eb-itens li::before{content:"✦ ";color:#f1cf78}
+.eb-preco{margin:auto 0 0;padding:4px 14px;border-radius:20px;background:rgba(10,2,4,.62);font-size:.95rem;color:#ead7c0}
+.eb-preco b{font-size:1.6rem;color:#fff4e2;margin-right:2px}
+.eb-cta{display:block;width:100%;min-height:48px;padding:12px 16px;border:0;border-radius:12px;font:inherit;font-weight:700;font-size:1.02rem;cursor:pointer;
+  color:#2a0509;background:linear-gradient(135deg,#f6dc8f,#d6a740 55%,#b9852a);box-shadow:0 6px 18px rgba(214,167,64,.35);text-align:center;text-decoration:none}
+.eb-cta:disabled{opacity:.6;cursor:default}
+.eb-sec{display:block;width:100%;min-height:44px;padding:10px 14px;border:1px solid rgba(241,207,120,.55);border-radius:12px;background:rgba(241,207,120,.08);
+  color:#f6dc8f;font:inherit;font-weight:600;cursor:pointer;text-align:center;text-decoration:none}
+.eb-link{background:none;border:0;padding:8px 2px;color:#f1cf78;font:inherit;font-size:.9rem;text-decoration:underline;cursor:pointer}
+.eb-corpo{display:flex;flex-direction:column;gap:12px;padding:20px 20px 22px}
+.eb-form{display:flex;flex-direction:column;gap:10px}
+.eb-campo{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:#ead7c0}
+.eb-campo input{font:inherit;font-size:1rem;padding:10px 12px;border-radius:10px;border:1px solid rgba(241,207,120,.35);background:rgba(0,0,0,.35);color:#fff4e2;min-width:0}
+.eb-dica{margin:0;font-size:.85rem;color:#d9c3ab}
+.eb-aviso{margin:0;font-size:.9rem;padding:10px 12px;border-radius:10px;background:rgba(241,207,120,.1);border:1px solid rgba(241,207,120,.3);color:#f6ead8}
+.eb-ok{margin:0;font-family:var(--f-display);font-size:1.3rem;color:#9fe0a3}
+.eb-resumo{margin:0;color:#ead7c0}
+.eb-pix{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+.eb-qr{align-self:center;background:#fff;border-radius:10px;padding:6px}
+.eb-espera{margin:0;display:flex;align-items:center;gap:8px;font-size:.9rem;color:#ead7c0}
+.eb-vela{width:8px;height:14px;border-radius:50% 50% 40% 40%;background:#f6b04a;box-shadow:0 0 10px #f6b04a;animation:eb-chama 1.2s ease-in-out infinite alternate}
+@keyframes eb-chama{from{transform:scaleY(.8);opacity:.7}to{transform:scaleY(1.1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.eb-vela{animation:none}}
+.eb-linha{display:flex;gap:8px}
+.eb-linha>*{flex:1}
+
+/* Aba Compras: o card usa as cores do app (fundo claro do card) */
+.eb-card{display:flex;flex-direction:column;gap:10px}
+.eb-card .eb-cta{color:#2a0509}
+.eb-card .eb-sec{color:var(--ink);border-color:var(--line,#ccc);background:transparent}
+.eb-card .eb-link{color:var(--gold)}
+.eb-card .eb-aviso{color:var(--ink);background:var(--surface-2,rgba(0,0,0,.04));border-color:var(--line,#ccc)}
+.eb-card .eb-espera,.eb-card .eb-dica,.eb-card .eb-campo{color:var(--muted)}
+.eb-card .eb-campo input{color:var(--ink);background:transparent;border-color:var(--line,#ccc)}
+
+/* Admin root */
+.eb-adm-pdf{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.eb-arquivo{align-self:flex-start;cursor:pointer}
+.eb-adm-h{margin:8px 0 4px;font-size:1rem;display:flex;justify-content:space-between;gap:8px}
+.eb-adm-lista{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.eb-adm-linha{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line,rgba(0,0,0,.1))}
+.eb-adm-linha span{min-width:0;overflow-wrap:anywhere}
+.badge.eb-esp{background:var(--warn-soft);color:var(--warn)}

@@ -14,6 +14,7 @@
 //              GET ?lista=doacoes e POST { acao: 'guias', op: 'doar' } — a doação do bloco da fila na Geral, para qualquer logado.
 //              GET ?lista=guiaFoto&id=<item>&v=<versão> — a foto do item (JPEG, sem sessão, com cache longo).
 //              GET ?lista=pedidos — sub-aba Pedidos (só quem administra as Compras); o andamento muda em POST { acao: 'guias', op: 'andamento' }.
+// E-book (veja api/_lib/ebook.js): GET ?lista=ebook e ?lista=ebookAdmin (root); POST { acao: 'ebook', op, ... } (baixar devolve o PDF).
 // Sub-aba Eventos (veja api/_lib/convites.js): GET ?lista=convites e POST { acao: 'convites', op, ... }.
 // Oráculo (veja api/_lib/oraculo.js): GET ?lista=oraculo e POST { acao: 'oraculo', op, ... }; qualquer pessoa logada.
 // ASAAS (veja api/_lib/asaas.js): webhook sem sessão, com token, em POST ?webhook=asaas; aba ASAAS (root e quem tem a aba no perfil) em GET ?lista=asaas e POST { acao: 'asaas', op, ... }.
@@ -31,6 +32,7 @@ import { respostaGuias, acaoGuias, fotoGuia, respostaPedidos, respostaDoacoes } 
 import { webhookAsaas, respostaAsaas, acaoAsaas, buscaAsaas } from '../_lib/asaas.js';
 import { respostaOraculo, acaoOraculo, avisarPagos } from '../_lib/oraculo.js';
 import { respostaConvites, acaoConvites } from '../_lib/convites.js';
+import { respostaEbook, respostaEbookAdmin, acaoEbook } from '../_lib/ebook.js';
 
 const STATUS = ['rascunho', 'aguardando', 'publicado', 'encerrado'];
 // abas: as sub-abas, quando já vieram junto (a leitura da aba busca as duas em paralelo).
@@ -88,6 +90,8 @@ export default rota({
     if (req.query.lista === 'asaas') return respostaAsaas(await exigir(req));
     if (req.query.lista === 'oraculo') return respostaOraculo(await exigir(req), req.query);
     if (req.query.lista === 'convites') return respostaConvites(await exigir(req), req.query);
+    if (req.query.lista === 'ebook') return respostaEbook(await exigir(req), req.query);
+    if (req.query.lista === 'ebookAdmin') return respostaEbookAdmin(await exigir(req));
     if (req.query.lista === 'asaasbusca') return buscaAsaas(await exigir(req), req.query);
     if (req.query.lista === 'pedidos') return respostaPedidos(await exigir(req));
     // Sessão, oferendas, sub-abas e quantas anteriores ficaram fora numa ida só (só leitura: os novos cadastrados
@@ -99,7 +103,7 @@ export default rota({
     if (!pode(eu, 'oferendas:doar') && !pode(eu, 'oferendas:ver')) throw new HttpError(403, 'Este acesso não tem permissão para isso.');
     return { ...(await resposta(oferendas, eu, abas)), ...(pode(eu, 'oferendas:gerenciar') ? { anterioresTotal: total, anteriores } : {}) };
   },
-  POST: async (req) => {
+  POST: async (req, res) => {
     // Conta A: a cobrança do Oráculo paga avisa quem administra (notificação no aparelho).
     if (req.query.webhook === 'asaas') { const r = await webhookAsaas(req); await avisarPagos(); return r; }
     if (req.query.webhook === 'asaas2') return webhookAsaas(req, 'B');   // conta B: Pix dos itens de doação
@@ -109,6 +113,7 @@ export default rota({
     if (b.acao === 'asaas') return acaoAsaas(await exigir(req), b);
     if (b.acao === 'oraculo') return acaoOraculo(await exigir(req), b);
     if (b.acao === 'convites') return acaoConvites(await exigir(req), b);
+    if (b.acao === 'ebook') return acaoEbook(await exigir(req), b, res);
     if (b.acao === 'doar') {
       // Sessão, sub-abas e a sub-aba do item numa ida só (antes: sessão, sub-abas e todas as oferendas, uma depois da outra).
       let itemId;

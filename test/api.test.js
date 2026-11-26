@@ -3929,3 +3929,90 @@ test('v190: Tarefas da corrente — lista fixa em blocos, o feito é por gira; o
     }
   }
 });
+
+test('e-book: root liga o popup e envia o PDF; compra pelo ASAAS e download único com marca d\'água', async () => {
+  // PDF mínimo de 1 página (o real não vai no repositório, que é público).
+  const objs = ['<</Type/Catalog/Pages 2 0 R>>', '<</Type/Pages/Count 1/Kids[3 0 R]>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 420 595]/Contents 4 0 R/Resources<<>>>>', '<</Length 0>>\nstream\n\nendstream'];
+  let txt = '%PDF-1.7\n';
+  const pos = objs.map((o, i) => { const p = txt.length; txt += `${i + 1} 0 obj\n${o}\nendobj\n`; return p; });
+  const xref = txt.length;
+  txt += `xref\n0 5\n0000000000 65535 f \n${pos.map((p) => `${String(p).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<</Size 5/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  const b64 = Buffer.from(txt, 'latin1').toString('base64');
+  const meio = Math.floor(b64.length / 8) * 4;
+
+  const fetchReal = globalThis.fetch;
+  const falso = { status: 'PENDING', n: 0, valores: {}, value: 0 };
+  globalThis.fetch = async (url, op = {}) => {
+    const u = String(url);
+    if (!u.startsWith('http://asaas.teste/v3')) return fetchReal(url, op);
+    const caminho = u.slice('http://asaas.teste/v3'.length);
+    const json = (st, j) => new Response(JSON.stringify(j), { status: st, headers: { 'Content-Type': 'application/json' } });
+    if (op.method === 'POST' && caminho === '/customers') return json(200, { id: 'cus_ebook' });
+    if (op.method === 'POST' && caminho === '/payments') {
+      const b = JSON.parse(op.body);
+      const id = 'pay_eb' + (++falso.n);
+      Object.assign(falso, { value: b.value, descricao: b.description });
+      falso.valores[id] = b.value;
+      return json(200, { id, value: b.value, dueDate: b.dueDate, invoiceUrl: 'https://sandbox.asaas.com/i/' + id, externalReference: b.externalReference, billingType: 'PIX' });
+    }
+    if (op.method === 'GET' && caminho.endsWith('/pixQrCode')) return json(200, { payload: '00020126EBOOK', encodedImage: 'iVBORw0KGgo=' });
+    if (op.method === 'GET' && caminho.startsWith('/payments/')) { const id = caminho.split('/')[2]; return json(200, { id, status: falso.status, value: falso.valores[id] }); }
+    return json(404, { errors: [{ description: 'não encontrado' }] });
+  };
+  const nomes = ['ASAAS_API_KEY', 'ASAAS_WEBHOOK_TOKEN', 'ASAAS_API_URL'];
+  const env = Object.fromEntries(nomes.map((k) => [k, process.env[k]]));
+  Object.assign(process.env, { ASAAS_API_KEY: 'chave-teste', ASAAS_WEBHOOK_TOKEN: 'token-teste', ASAAS_API_URL: 'http://asaas.teste/v3' });
+  const eb = (tok, b) => api('POST', '/api/oferendas', tok, { acao: 'ebook', ...b });
+  const baixar = (tok) => fetchReal(base + '/api/oferendas', { method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'ebook', op: 'baixar' }) });
+  try {
+    // Só o root mexe no popup e no PDF.
+    assert.equal((await eb(USER, { op: 'popup', visivel: true })).status, 403);
+    assert.equal((await api('GET', '/api/oferendas?lista=ebookAdmin', USER)).status, 403);
+    assert.equal((await eb(USER, { op: 'pdfParte', versao: 'teste0001', parte: 0, dados: b64.slice(0, meio) })).status, 403);
+    // Upload em 2 pedaços; incompleto é recusado.
+    assert.equal((await eb(ADMIN, { op: 'pdfParte', versao: 'teste0001', parte: 0, dados: b64.slice(0, meio) })).status, 200);
+    assert.equal((await eb(ADMIN, { op: 'pdfUsar', versao: 'teste0001', partes: 2 })).status, 400);
+    assert.equal((await eb(ADMIN, { op: 'pdfParte', versao: 'teste0001', parte: 1, dados: b64.slice(meio) })).status, 200);
+    let r = await eb(ADMIN, { op: 'pdfUsar', versao: 'teste0001', partes: 2, nome: 'ebook.pdf' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([r.json.pdf.paginas, r.json.pdf.nome, r.json.pdf.versao], [1, 'ebook.pdf', undefined]);
+    r = await eb(ADMIN, { op: 'popup', visivel: true });
+    assert.equal(r.json.popup, true);
+    assert.deepEqual((await api('GET', '/api/auth/me', USER)).json.ebook, { popup: true, compra: null });
+
+    // Compra (o root não precisa de senha): o valor e a descrição vêm do servidor.
+    assert.match((await eb(ADMIN, { op: 'pagar', nome: 'Root Teste', email: 'sem-arroba' })).json.erro, /e-mail/);
+    r = await eb(ADMIN, { op: 'pagar', nome: 'Root Teste', email: 'Root@Exemplo.com', cpf: '529.982.247-25', valor: 1 });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.deepEqual([falso.value, falso.descricao], [19, 'ebook Linha Esquerda']);
+    assert.deepEqual([r.json.compra.status, r.json.compra.email, r.json.compra.cobrancas[0].pixPayload], ['aguardando', 'root@exemplo.com', '00020126EBOOK']);
+    assert.equal((await eb(ADMIN, { op: 'pagar', nome: 'Root Teste', email: 'root@exemplo.com' })).status, 200);
+    assert.equal(sql(`select count(*) from asaas_cobrancas where ebook_id = '${r.json.compra.id}'`), '1', 'tocar de novo não gera outro link');
+    assert.equal((await baixar(ADMIN)).status, 404, 'sem pagar não baixa');
+
+    // Pago (a tela pergunta ao ASAAS): baixa uma vez, com o nome e o e-mail no PDF.
+    falso.status = 'RECEIVED';
+    r = await api('GET', '/api/oferendas?lista=ebook&conferir=1', ADMIN);
+    assert.equal(r.json.compra.status, 'paga');
+    let d = await baixar(ADMIN);
+    assert.equal(d.status, 200);
+    assert.equal(d.headers.get('content-type'), 'application/pdf');
+    assert.match(Buffer.from(await d.arrayBuffer()).toString('latin1'), /\(Root Teste \xb7 root@exemplo\.com\) Tj/);
+    assert.equal((await baixar(ADMIN)).status, 409, 'segundo download recusado');
+    assert.equal((await eb(ADMIN, { op: 'pagar', nome: 'Root Teste', email: 'root@exemplo.com' })).status, 400, 'já comprou');
+    // O root libera mais um.
+    const adm = (await api('GET', '/api/oferendas?lista=ebookAdmin', ADMIN)).json;
+    const compra = adm.compras.find((c) => c.status === 'paga');
+    assert.equal((await eb(ADMIN, { op: 'liberar', id: compra.id })).status, 200);
+    assert.equal((await baixar(ADMIN)).status, 200);
+    // Uma cobrança só, e ela não aparece no Pix das Compras (asaas_minhas).
+    assert.equal(sql(`select count(*) from asaas_cobrancas where ebook_id is not null`), '1');
+    const chave = sql(`select chave from ebook_compras where status = 'paga'`);
+    assert.equal(sql(`select count(*) from jsonb_array_elements(asaas_minhas(jsonb_build_object('chave', '${chave}')) -> 'cobrancas') x where (x ->> 'pedido')::int = 0`), '0');
+  } finally {
+    globalThis.fetch = fetchReal;
+    for (const k of nomes) { if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; }
+    sql(`update sistema set valor = 'false' where chave = 'ebook_popup'`);
+  }
+});

@@ -2,7 +2,8 @@
 // encerra e começa pedidos (numerados), marca ok em cada linha e exporta a lista.
 // Com o Pix ligado pelo root (aba ASAAS), a pessoa paga o que pediu; só o webhook do ASAAS marca como pago.
 
-import { estado, pode, visaoAtiva, carregarGuias, acaoGuias, avisar } from '../estado.js';
+import { estado, pode, visaoAtiva, carregarGuias, acaoGuias, avisar, veGuiasCompras } from '../estado.js';
+import { cardCompras as cardEbook } from './ebook.js';
 import { esc, toast, baixar, hoje } from '../util.js';
 import { centavos, reais } from '/shared/ervas.js';
 import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
@@ -547,10 +548,13 @@ function renderSemSenha() {
 
 export function render() {
   const me = estado.me || {};
+  // E-book comprado: o bloco "Seu e-book" vem primeiro; quem não tem as compras de guias vê só ele.
+  const ebook = me.ebook?.compra ? cardEbook() : '';
+  if (!veGuiasCompras()) return `<section class="panel gi-tela">${ebook}</section>`;
   if ((me.corrente || me.grupo === 'alunos') && !me.temSenha && visaoAtiva() !== 'root') return renderSemSenha();
   if (estado.guias === null) { carregarGuias(); return '<div class="loading">Carregando as compras…</div>'; }
   const G = estado.guias;
-  let h = `<section class="panel gi-tela${ui.ocupado ? ' gi-ocupado' : ''}" aria-busy="${!!ui.ocupado}">`;
+  let h = `<section class="panel gi-tela${ui.ocupado ? ' gi-ocupado' : ''}" aria-busy="${!!ui.ocupado}">${ebook}`;
   if (admin()) h += cardTopo(G);
   // Primeiro o que falta pagar (se houver), depois o que dá para comprar; os pedidos feitos ficam no fim, como histórico.
   h += cardPagar(G) + cardItens(G) + cardMeus(G);
