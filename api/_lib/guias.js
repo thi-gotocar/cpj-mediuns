@@ -3,7 +3,7 @@
 //   todos:  pedir { itemId, quantidade, valor? }  — no pedido aberto do grupo do item, sem passar do disponível
 //           (item de doação: valor digitado pela pessoa, quantidade 1, sem estoque)
 //           (com o Pix ligado, pedir { ..., cpf? } já gera o link de pagamento; pix { pedido, cpf? } tenta de novo — veja api/_lib/asaas.js)
-//   admin:  publicar { publicada } · grupo { id?, descricao?, visivel? } · excluirGrupo { id }
+//   admin:  publicar { publicada } (só o root) · grupo { id?, descricao?, visivel? } · excluirGrupo { id }
 //           item { id?, grupoId, descricao?, foto? (base64 JPEG | null tira), quantidade?, valor?, visivel?, cpj?, doacao? (cobrado na conta B) } · excluirItem { id }
 //           cancelar { id } (a quantidade volta para o item) · encerrar { grupoId } · novo { grupoId } (próximo número)
 //           andamento { id, andamento } → o mesmo de GET ?lista=pedidos
@@ -225,6 +225,7 @@ export async function acaoGuias(eu, b) {
     if (!ANDAMENTOS.includes(b.andamento)) throw new HttpError(400, 'Andamento inválido.');
     return telaPedidos(await db.rpc('guia_linha_andamento', { id: validarId(b.id, 'Pedido'), andamento: b.andamento }));
   }
+  if (b.op === 'publicar' && !pode(eu, 'usuarios:gerenciar')) throw new HttpError(403, 'Só o admin root liga a aba visível para todos.');
   // O Pix de quem administra não muda com estas ações: vai ao banco junto com a gravação, não depois.
   const [estado, pixAdmin] = await Promise.all([gravarAdmin(b), pixDaPessoa(eu)]);
   return { ...paraTela(estado, eu), ...pixAdmin };

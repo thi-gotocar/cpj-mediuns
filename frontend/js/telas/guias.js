@@ -257,7 +257,7 @@ function janelaPedir() {
 
 // ---------- admin ----------
 function cardTopo(G) {
-  return `<div class="card adm ervas-pub"><label class="of-sw"><input type="checkbox" role="switch" data-act="guiapub" ${G.publicada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Visível para todos</b></label></div>`;
+  return `<div class="card adm ervas-pub"><label class="of-sw"><input type="checkbox" role="switch" data-act="guiapub" ${G.publicada ? 'checked' : ''}><span class="of-sw-t" aria-hidden="true"></span><b>Aba visível para todos</b></label></div>`;
 }
 
 function formItem(I) {
@@ -555,7 +555,7 @@ export function render() {
   if (estado.guias === null) { carregarGuias(); return '<div class="loading">Carregando as compras…</div>'; }
   const G = estado.guias;
   let h = `<section class="panel gi-tela${ui.ocupado ? ' gi-ocupado' : ''}" aria-busy="${!!ui.ocupado}">${ebook}`;
-  if (admin()) h += cardTopo(G);
+  if (admin() && pode('usuarios:gerenciar')) h += cardTopo(G);
   // Primeiro o que falta pagar (se houver), depois o que dá para comprar; os pedidos feitos ficam no fim, como histórico.
   h += cardPagar(G) + cardItens(G) + cardMeus(G);
   if (admin()) h += cardGrupos(G) + cardPainel(G) + cardExportar(G) + cardFeitos(G);
