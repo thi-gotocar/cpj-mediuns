@@ -4,9 +4,8 @@
 
 import { estado, pode, visaoAtiva, carregarGuias, acaoGuias, avisar, veGuiasCompras } from '../estado.js';
 import { cardCompras as cardEbook } from './ebook.js';
-import { esc, toast, baixar, hoje } from '../util.js';
+import { esc, toast } from '../util.js';
 import { centavos, reais } from '/shared/ervas.js';
-import { gerarImagemLista, compartilharImagem } from '../imagemLista.js';
 import { VALORES_DOACAO } from '/shared/fila.js';
 import { abrirImagem, reduzirJpeg, base64 } from '../foto.js';
 
@@ -24,7 +23,7 @@ const ui = {
   abertos: new Set(),       // grupos expandidos (admin)
   feitos: new Set(),        // pedidos encerrados expandidos ('número:grupo')
   painel: new Set(),        // grupos abertos no Painel de pedidos (começam minimizados)
-  blocos: new Set(),        // blocos de admin abertos ('grupos', 'painel', 'exportar'); começam minimizados
+  blocos: new Set(),        // blocos de admin abertos ('grupos': a lista de grupos do Cadastro); começam minimizados
   painelSel: {},            // grupo → 'todos' quando a lista completa por pessoa está aberta no Painel
   itemSel: {},              // grupo → { item, k: 'paga' | 'pend' }: o quadradinho de item aberto no Painel
   minimizados: new Set(),   // blocos que a pessoa minimizou: id do grupo de itens ou 'meus' (Seus pedidos)
@@ -34,8 +33,6 @@ const ui = {
   pagar: null,              // janela de pagamento: { ids das cobranças, novo: aberta logo depois de pedir }
   doa: {},                  // valor digitado por item de doação (antes de Doar)
   pedir: null,              // janela de confirmação: { itemId, quantidade (sempre 1; doação: valor) }
-  exportar: null,           // pedido escolhido para exportar ('número:grupo')
-  img: null,                // imagem gerada: { chave, blob, url, nome }
   zoom: null,               // id do item com a foto aberta em tela cheia
   pix: null,                // pedido com o campo de CPF aberto (primeiro Pix da pessoa)
   gerando: false,           // link de pagamento sendo gerado (evita toque duplo)
@@ -44,9 +41,7 @@ const ui = {
 };
 export function limpar() {
   ui.abertos.clear(); ui.feitos.clear(); ui.minimizados.clear(); ui.painel.clear(); ui.painelSel = {}; ui.blocos.clear(); ui.itemSel = {};
-  Object.assign(ui, { grupoRen: null, item: null, carPos: {}, pagar: null, pedir: null, exportar: null, zoom: null, pix: null, gerando: false, cpf: '', ocupado: null });
-  if (ui.img) URL.revokeObjectURL(ui.img.url);
-  ui.img = null;
+  Object.assign(ui, { grupoRen: null, item: null, carPos: {}, pagar: null, pedir: null, zoom: null, pix: null, gerando: false, cpf: '', ocupado: null });
 }
 
 const admin = () => pode('guias:gerenciar') && estado.guias?.admin;
@@ -310,20 +305,21 @@ function grupoAdmin(g) {
   return h + '</div></div>';
 }
 
-// Cabeçalho de bloco de admin que abre e fecha (Cadastro de grupos e itens, Exportar pedido): começa minimizado.
+// Cabeçalho de bloco de admin que abre e fecha: começa minimizado.
 const cabBloco = (k, titulo, count = '') => {
   const ab = ui.blocos.has(k);
   return `<button class="grp-h dobra" data-act="guiabloco" data-k="${k}" aria-expanded="${ab}"><h2>${titulo}</h2><span class="count">${count} <span class="seta" aria-hidden="true">${ab ? '▾' : '▸'}</span></span></button>`;
 };
 
 function cardGrupos(G) {
-  // Com um item em edição, fica aberto (senão o formulário sumiria).
+  // Título e Cadastrar grupo sempre à vista; a lista de grupos abre e fecha (com um item em edição, fica aberta,
+  // senão o formulário sumiria).
   const ab = ui.blocos.has('grupos') || !!ui.item || !!ui.grupoRen;
-  if (!ab) return `<div class="card adm">${cabBloco('grupos', 'Cadastro de grupos e itens', G.grupos.length)}</div>`;
+  const lista = !ab ? '' : G.grupos.length ? `<div class="gg-lista">${G.grupos.map(grupoAdmin).join('')}</div>` : '<p class="muted" style="margin:0">Nenhum grupo cadastrado ainda.</p>';
   return `<div class="card adm">${cabBloco('grupos', 'Cadastro de grupos e itens', G.grupos.length)}
     <form id="f-guia-grupo" class="row" autocomplete="off"><label class="field" style="flex:1">Novo grupo<input type="text" id="gg-nova" maxlength="80" placeholder="Descrição do grupo" required></label>
       <button class="btn primary" type="submit">${rot('grupo', 'Cadastrar grupo', 'Salvando…')}</button></form>
-    ${G.grupos.length ? `<div class="gg-lista">${G.grupos.map(grupoAdmin).join('')}</div>` : '<p class="muted" style="margin:0">Nenhum grupo cadastrado ainda.</p>'}</div>`;
+    ${lista}</div>`;
 }
 
 // ---------- pedidos por grupo ----------
@@ -426,9 +422,8 @@ function itensDoPedido(g, linhas) {
 // (o quanto falta pagar ficava longo demais no celular). Aberto: Encerrar / Novo pedido do grupo e a lista por pessoa.
 function cardPainel(G) {
   if (!G.grupos.length) return '';
-  // Começa minimizado (como o Cadastro e o Exportar), toda vez que a aba abre.
-  const cab = cabBloco('painel', 'Painel de pedidos', plural(G.grupos.length, 'grupo', 'grupos'));
-  if (!ui.blocos.has('painel')) return `<div class="card adm">${cab}</div>`;
+  // Sempre aberto.
+  const cab = `<div class="grp-h"><h2>Painel de pedidos</h2><span class="count">${plural(G.grupos.length, 'grupo', 'grupos')}</span></div>`;
   const R0 = rodadas(G);
   const prox = proximoNumero(G);
   const blocos = G.grupos.map((g) => {
@@ -479,54 +474,6 @@ function cardFeitos(G) {
   }).join('') + '</div>';
 }
 
-// Texto e imagem de um pedido de um grupo para o WhatsApp.
-function textoPedido(p) {
-  const L = [`*Compras · ${p.nome} · Pedido nº ${p.numero}*`, p.encerradoEm ? `Encerrado em ${dia(p.encerradoEm)}` : 'Pedido aberto', ''];
-  porPessoa(p.linhas).forEach((x) => {
-    L.push(`*${x.nome}* · ${R(x.total)}`);
-    x.linhas.forEach((l) => L.push(`• ${l.quantidade}x ${l.descricao} · ${R(l.valor * l.quantidade)}`));
-    L.push('');
-  });
-  L.push(`Total: ${R(totalDe(p.linhas))}`);
-  return L.join('\n');
-}
-const dadosImagem = (p) => ({
-  rotulo: `Compras · ${p.nome}`, titulo: `Pedido nº ${p.numero}`, subtitulo: p.encerradoEm ? `Encerrado em ${dia(p.encerradoEm)}` : 'Pedido aberto',
-  linhas: porPessoa(p.linhas).map((x) => ({ texto: x.nome, valor: R(x.total), sub: x.linhas.map((l) => `${l.quantidade}x ${l.descricao}`).join(', ') })),
-  rodape: `Total: ${R(totalDe(p.linhas))}`,
-});
-
-// Exportar: escolhe o grupo e, dentro dele, o pedido (o aberto primeiro).
-const rodadasExportar = (G) => rodadas(G).filter((r) => !r.encerradoEm || r.linhas.length);
-function exportarEscolhido(G) {
-  const L = rodadasExportar(G);
-  return L.find((r) => r.chave === ui.exportar) || L[0] || null;
-}
-function cardExportar(G) {
-  const p = exportarEscolhido(G);
-  if (!p) return '';
-  const L = rodadasExportar(G);
-  const grupos = [...new Map(L.map((r) => [String(r.grupoId), r.nome])).entries()];
-  const doGrupo = L.filter((r) => String(r.grupoId) === String(p.grupoId));
-  const txt = textoPedido(p);
-  const img = ui.img && ui.img.chave === txt ? ui.img : null;
-  if (!ui.blocos.has('exportar')) return `<div class="card adm">${cabBloco('exportar', 'Exportar pedido')}</div>`;
-  return `<div class="card adm">${cabBloco('exportar', 'Exportar pedido')}
-    <div class="row gx-sel">
-      <label class="field">Grupo<select data-act="guiaexpgrupo">${grupos.map(([id, nome]) => `<option value="${esc(id)}" ${id === String(p.grupoId) ? 'selected' : ''}>${esc(nome)}</option>`).join('')}</select></label>
-      <label class="field">Pedido<select data-act="guiaexportar">${doGrupo.map((x) => `<option value="${esc(x.chave)}" ${x.chave === p.chave ? 'selected' : ''}>Nº ${x.numero} · ${x.encerradoEm ? 'encerrado em ' + dia(x.encerradoEm) : 'aberto'} · ${plural(porPessoa(x.linhas).length, 'pessoa', 'pessoas')}</option>`).join('')}</select></label>
-    </div>
-    ${p.linhas.length ? `<div class="grp exp"><textarea id="gx-txt" readonly aria-label="${esc(p.nome)}, pedido nº ${p.numero}">${esc(txt)}</textarea>
-      <div class="cp-bts">
-        <button class="btn primary" data-act="guiacopiar"><span aria-hidden="true">📋</span> Copiar</button>
-        <a class="btn" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener"><span aria-hidden="true">💬</span> WhatsApp</a>
-        <button class="btn" data-act="guiaimg"><span aria-hidden="true">🖼️</span> ${img ? 'Atualizar imagem' : 'Imagem'}</button>
-      </div>
-      ${img ? `<img class="prev" src="${img.url}" alt="Imagem do pedido nº ${p.numero}">
-        <div class="cp-bts"><button class="btn primary" data-act="guiashare"><span aria-hidden="true">📤</span> Compartilhar</button><button class="btn" data-act="guiasalvarimg"><span aria-hidden="true">💾</span> Salvar imagem</button></div>` : ''}
-    </div>` : '<p class="muted" style="margin:0">Este pedido não tem nenhuma linha.</p>'}</div>`;
-}
-
 // Foto do item em tela cheia (mesmo visual da aba Fotos); tocar em qualquer lugar fecha.
 function telaFoto() {
   const i = ui.zoom && acharItem(ui.zoom);
@@ -558,7 +505,7 @@ export function render() {
   if (admin() && pode('usuarios:gerenciar')) h += cardTopo(G);
   // Primeiro o que falta pagar (se houver), depois o que dá para comprar; os pedidos feitos ficam no fim, como histórico.
   h += cardPagar(G) + cardItens(G) + cardMeus(G);
-  if (admin()) h += cardGrupos(G) + cardPainel(G) + cardExportar(G) + cardFeitos(G);
+  if (admin()) h += cardGrupos(G) + cardPainel(G) + (pode('usuarios:gerenciar') ? cardFeitos(G) : '');
   setTimeout(restaurarCarrosseis, 0);
   return h + janelaPedir() + janelaPagar() + telaFoto() + '</section>';
 }
@@ -741,24 +688,6 @@ export const cliques = {
   async guiacancelar(el) { if (await confirmado('gl:' + el.dataset.id, 'cancelar', { id: el.dataset.id })) toast('Pedido cancelado.'); },
   async guiaencerrar(el) { if (await confirmado('genc:' + el.dataset.id, 'encerrar', { grupoId: el.dataset.id })) toast('Pedido do grupo encerrado.'); },
   async guianovo(el) { if (await confirmado('gnovo:' + el.dataset.id, 'novo', { grupoId: el.dataset.id })) toast('Novo pedido aberto para o grupo.'); },
-  guiacopiar() {
-    const txt = document.getElementById('gx-txt')?.value || '';
-    const fb = () => { const t = document.getElementById('gx-txt'); t.focus(); t.select(); toast('Lista selecionada. Copie com o menu do aparelho.'); };
-    try { navigator.clipboard.writeText(txt).then(() => toast('Copiado.'), fb); } catch { fb(); }
-  },
-  async guiaimg() {
-    const G = estado.guias;
-    const p = exportarEscolhido(G);
-    if (!p) return;
-    try {
-      const blob = await gerarImagemLista(dadosImagem(p));
-      if (ui.img) URL.revokeObjectURL(ui.img.url);
-      ui.img = { chave: textoPedido(p), blob, url: URL.createObjectURL(blob), nome: `pedido-compras-${p.numero}-${hoje()}.png` };
-      avisar();
-    } catch (e) { toast(e.message); }
-  },
-  async guiashare() { const i = ui.img; if (i && !(await compartilharImagem(i.blob, i.nome, 'Compras'))) toast('Este aparelho não compartilha imagens daqui. Use Salvar imagem.'); },
-  guiasalvarimg() { if (ui.img) baixar(ui.img.url, ui.img.nome); },
 };
 
 export const mudancas = {
@@ -768,9 +697,6 @@ export const mudancas = {
   guiaitemvisform(t) { if (ui.item) ui.item.visivel = t.checked; },
   guiaitemcpjform(t) { if (ui.item) ui.item.cpj = t.checked; },
   guiaitemdoacaoform(t) { if (ui.item) { ui.item.doacao = t.checked; avisar(); } },
-  guiaexportar(t) { ui.exportar = t.value; avisar(); },
-  // Trocar o grupo leva ao pedido mais recente dele (o aberto, se houver).
-  guiaexpgrupo(t) { const r = rodadasExportar(estado.guias).find((x) => String(x.grupoId) === t.value); ui.exportar = r ? r.chave : null; avisar(); },
   async guiafoto(t) {
     const arq = t.files && t.files[0];
     t.value = '';
