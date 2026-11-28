@@ -171,6 +171,30 @@ export function cardFilaGeral() {
   return `<div class="card fila-geral ${m ? m.tipo : ''}${m?.status === 'chamada' ? ' chamada' : ''}">${linha}${blocoDoacao()}</div>`;
 }
 
+// Na Geral da corrente (que não vê o bloco acima): com a fila aberta hoje, o atalho para pegar senha para alguém
+// (consulente sem celular ou que não conseguiu). A senha fica no celular de quem pegou, que avisa quando chamar.
+// Não depende do interruptor do root. Com senha pega (para si ou para alguém), mostra a senha e quantos estão na frente.
+export function cardFilaCorrente() {
+  if (!token() || emDemo() || !estado.me?.pessoaId) return '';
+  const data = hojeBR();
+  const g = estado.filaGeral?.data === data && estado.filaGeral.sessao === token() ? estado.filaGeral : null;
+  if (!g || Date.now() - g.em > VALIDADE_MS) buscar(data);
+  const f = g?.fila;
+  if (!f?.existe || f.encerrada) return '';
+  const m = f.minha;
+  if (m) {
+    const txt = m.status === 'aguardando' ? (m.aFrente ? `${m.aFrente} ${m.aFrente === 1 ? 'pessoa' : 'pessoas'} na frente` : 'É a próxima')
+      : m.status === 'chamada' ? 'A senha foi chamada' : m.status === 'atendida' ? 'Já foi para o atendimento' : 'Chamada quando não estava';
+    return `<div class="card fila-geral ${m.tipo}${m.status === 'chamada' ? ' chamada' : ''}"><a class="fila-geral-l" href="/fila"><span class="fila-geral-n">${esc(rotuloSenha(m.tipo, m.numero))}</span>
+      <span class="fila-geral-t"><small>Senha de ${esc((tipoFila(m.tipo)?.nome || '').toLowerCase())} · ${esc(m.nome)}</small><b>${txt}</b></span>
+      <span class="seta" aria-hidden="true">›</span></a></div>`;
+  }
+  if (!f.aberta || f.manual) return '';
+  return `<div class="card fila-geral fila-corrente"><a class="fila-geral-l" href="/fila?para=outra"><span class="fila-geral-ico" aria-hidden="true">🎟️</span>
+    <span class="fila-geral-t"><b>Pegar senha para alguém</b><small>Para quem não tem celular ou não conseguiu. A senha fica no seu celular e ele avisa quando chamar.</small></span>
+    <span class="seta" aria-hidden="true">›</span></a></div>`;
+}
+
 export const cliquesFilaGeral = {
   // Um valor pronto (ou o digitado no Outro valor) abre a confirmação aqui mesmo.
   filadoar(el) { outro = null; doa = { id: el.dataset.id, valor: Number(el.dataset.v), etapa: 'confirmar' }; avisar(); },

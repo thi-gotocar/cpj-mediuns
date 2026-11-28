@@ -85,10 +85,15 @@ export async function acaoFilaPublica(req, data, b) {
   const tipo = validarTipo(b.tipo);
   const nome = validarNome(b.nome || eu?.nome);
   const telefone = validarTelefone(b.telefone);
+  // Pegar para outra pessoa: só quem é da corrente, e o telefone dela é obrigatório (é por ele que ela vê a senha ao
+  // entrar no app).
+  const outra = b.outra === true;
+  if (outra && !autor?.startsWith('p:')) throw new HttpError(403, 'Só quem é da corrente pega senha para outra pessoa.');
+  if (outra && telefone.length < 10) throw new HttpError(400, 'Informe o telefone da pessoa, com DDD.');
   if (!noTerreiro(Number(b.lat), Number(b.lon))) throw new HttpError(403, 'Você precisa estar no terreiro para pegar a senha. Se não der, peça no balcão.');
   // Todos no Wi-Fi da casa saem pelo mesmo IP: o limite é largo, só para segurar robô.
   await limitarPorIp(req, 'fila', 150, 60, 'Muitas senhas pedidas desta rede. Peça a sua no balcão.');
-  return db.rpc('fila_entrar', { data, tipo, nome, telefone, autor, aparelho, balcao: false });
+  return db.rpc('fila_entrar', { data, tipo, nome, telefone, autor, aparelho, balcao: false, outra });
 }
 
 // Quem controla a fila. A função Senha vale pelo cadastro ou pela troca do dia (sen) nesta gira.

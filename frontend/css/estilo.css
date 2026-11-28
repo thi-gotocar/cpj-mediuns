@@ -2650,7 +2650,10 @@ div.pf-of-total{cursor:default}
 .fila-ch-q{display:grid;min-width:0}
 .fila-ch-q b{font-size:1.05rem;overflow-wrap:anywhere}
 .fila-ch-q small{color:var(--muted);font-size:.82rem}
-.fila-ch .fila-acoes{grid-column:1/-1;justify-content:flex-end}
+.fila-ch .fila-acoes{grid-column:1/-1;justify-content:flex-end;flex-wrap:nowrap}
+.fila-ch .fila-ok{flex:1;min-height:42px;font-size:1rem}
+.fila-ch .fila-acoes .btn:not(.fila-ok){font-size:.8rem;padding-inline:9px}
+.fila-lista-h h3{font-size:1rem}
 .fila-ch.rechamada{--cor:#ff4d55;background:color-mix(in srgb,#ff4d55 20%,var(--surface))}
 .fila-ch.rechamada .fila-ch-q small{color:#ffb3b7;font-weight:700}
 @media (prefers-reduced-motion:no-preference){
@@ -2669,6 +2672,16 @@ div.pf-of-total{cursor:default}
 .fila-cont{margin:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.92rem;color:var(--muted)}
 .fila-c b{font-variant-numeric:tabular-nums;color:var(--ink)}
 .atend-fila{margin:6px 0 0;font-size:.85rem}
+.fila-resumo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fila-r{--cor:var(--accent);display:grid;justify-items:center;align-content:start;gap:1px;padding:10px 4px 8px;border:1px solid var(--line);border-top:4px solid var(--cor);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;min-width:0}
+.fila-r.chamada{--cor:var(--gold)}
+.fila-r.atendida{--cor:var(--ok)}
+.fila-r[aria-pressed="true"]{background:color-mix(in srgb,var(--cor) 14%,var(--surface))}
+.fila-r>b{font:700 2rem/1.05 var(--f-display);color:var(--cor);font-variant-numeric:lining-nums tabular-nums}
+.fila-r>span{font-size:.85rem;font-weight:700}
+.fila-r small{display:flex;flex-wrap:wrap;justify-content:center;gap:0 6px;font-size:.72rem;color:var(--muted)}
+.fila-r small .preferencial{color:var(--orange)}
+.fila-r small .passe{color:var(--ok)}
 .fila-tot{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
 .fila-tot-t{margin:0;display:flex;justify-content:space-between;align-items:baseline;font-size:.92rem;color:var(--muted)}
 .fila-tot-t b{font:700 1.3rem var(--f-display);color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
@@ -2682,8 +2695,8 @@ div.pf-of-total{cursor:default}
 .fila-c.atendimento b{color:var(--accent)}
 .fila-c.passe b{color:var(--ok)}
 .fila-lotado{margin:0;padding:9px 12px;border-radius:9px;background:var(--warn-soft);color:var(--warn);font-size:.9rem;font-weight:700}
-.fila-balcao-bt{width:100%;display:grid;justify-items:center;gap:2px;min-height:72px;font-size:1.15rem;font-weight:700}
-.fila-balcao-bt small{font-weight:400;font-size:.85rem;opacity:.85}
+.fila-balcao-bt{width:100%;min-height:46px;font-weight:700;border-style:dashed}
+.fila-balcao-bt small{font-weight:400;font-size:.85rem;color:var(--muted)}
 .fila-balcao{display:grid;gap:9px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
 .fila-sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .fila-sec-h h3{margin:0}
@@ -2729,7 +2742,6 @@ div.pf-of-total{cursor:default}
 .fila-lote .btn{white-space:normal;line-height:1.2}
 .fila-lote-conf{display:grid;gap:8px;padding:12px;border:1px solid var(--accent);border-radius:10px;background:var(--accent-soft)}
 .fila-lote-conf p{margin:0;font-size:.92rem;overflow-wrap:anywhere}
-.fila-entrada{width:100%}
 /* Aba Geral (quem não é da corrente): a fila de senhas do dia, com a própria senha quando já pegou, e a doação das Compras */
 .fila-geral{--cor:var(--accent);gap:0;padding:0;overflow:hidden;border-left:4px solid var(--cor);background:color-mix(in srgb,var(--cor) 8%,var(--surface))}
 .fila-geral.preferencial{--cor:var(--orange)}

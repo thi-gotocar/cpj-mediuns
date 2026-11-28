@@ -3394,7 +3394,7 @@ test('v166: a página /fila recebe o nome e o telefone do cadastro de quem está
   const p = (await api('GET', '/api/pessoas', ADMIN)).json.find((x) => x.nome === 'Fila Cadastro');
   await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: p.id, info: { celular: '11987650001' } });
   const tok = await tokenCorrente('Fila Cadastro');
-  assert.deepEqual((await ver(tok)).eu, { nome: 'Fila Cadastro', telefone: '11987650001' });
+  assert.deepEqual((await ver(tok)).eu, { nome: 'Fila Cadastro', telefone: '11987650001', corrente: true });
   assert.equal((await ver(null)).eu, undefined, 'sem login, nada do cadastro');
   assert.equal((await ver('token-que-nao-vale')).eu, undefined, 'login inválido segue como quem não tem cadastro');
   // Logado, a sessão e a fila vão numa ida só: a senha pega com o login aparece em outro aparelho com o mesmo login.
@@ -3410,6 +3410,52 @@ test('v166: a página /fila recebe o nome e o telefone do cadastro de quem está
   assert.equal((await (await fetch(base + rota, { headers: { 'X-Fila-Token': 'aparelho-outro-00000000000002' } })).json()).minha, null);
   await api('DELETE', '/api/giras/' + hojeBR(), ADMIN);
   await api('DELETE', '/api/pessoas/' + p.id, ADMIN);
+});
+
+test('v194: senha pega para outra pessoa: telefone obrigatório e a pessoa vê a senha ao entrar com esse celular', async () => {
+  const { hojeBR } = await import('../api/_lib/http.js');
+  const { TERREIRO } = await import('../shared/amaci.js');
+  const g = '/api/giras/' + hojeBR();
+  const cel = async (aparelho, auth, corpo) => {
+    const r = await fetch(base + g + (corpo ? '' : '?lista=fila'), { method: corpo ? 'POST' : 'GET',
+      headers: { 'X-Fila-Token': aparelho, Authorization: 'Bearer ' + auth, ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
+      body: corpo ? JSON.stringify({ ...corpo, lat: TERREIRO.lat, lon: TERREIRO.lon }) : undefined });
+    return { status: r.status, json: await r.json() };
+  };
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Fila Quem Pega', funcao: 'cambone' });
+  await api('POST', '/api/pessoas', ADMIN, { nome: 'Lurdes Depois', funcao: 'cambone' });
+  const ps = (await api('GET', '/api/pessoas', ADMIN)).json;
+  const quem = ps.find((x) => x.nome === 'Fila Quem Pega');
+  const lurdes = ps.find((x) => x.nome === 'Lurdes Depois');
+  await api('POST', '/api/auth/perfil', ADMIN, { pessoaId: lurdes.id, info: { celular: '(11) 98765-0002' } });
+  const T1 = await tokenCorrente('Fila Quem Pega');
+  const T2 = await tokenCorrente('Lurdes Depois');
+  await api('DELETE', g, ADMIN);
+  await api('PUT', g, ADMIN, { titulo: 'Gira para outra pessoa' });
+  await api('POST', g, ADMIN, { acao: 'filaConfig', aberta: true });
+  const pedido = { acao: 'filaEntrar', tipo: 'passe', nome: 'Dona Lurdes', outra: true };
+  assert.equal((await cel('aparelho-quem-pega-000000001', T1, pedido)).status, 400, 'sem telefone não pega para outra pessoa');
+  assert.equal((await cel('aparelho-root-00000000000003', ADMIN, { ...pedido, telefone: '11987650002' })).status, 403, 'só a corrente pega para outra pessoa');
+  assert.equal((await cel('aparelho-quem-pega-000000001', T1)).json.eu.corrente, true);
+  const r = await cel('aparelho-quem-pega-000000001', T1, { ...pedido, telefone: '+55 11 98765-0002' });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.minha.quem, 'paraOutra');
+  // A pessoa entra no app (outro celular) com esse número no cadastro: vê a senha; pedir de novo devolve a mesma.
+  const v = (await cel('aparelho-lurdes-0000000000002', T2)).json;
+  assert.equal(v.minha?.nome, 'Dona Lurdes');
+  assert.equal(v.minha.quem, 'porOutro');
+  const de = await cel('aparelho-lurdes-0000000000002', T2, { acao: 'filaEntrar', tipo: 'atendimento', nome: 'Lurdes Depois' });
+  assert.equal(de.json.minha.numero, r.json.minha.numero);
+  assert.equal((await api('GET', g + '?lista=filaPainel', ADMIN)).json.senhas.length, 1);
+  // Sem "para outra pessoa", o telefone digitado não liga a senha a ninguém.
+  await api('POST', g, ADMIN, { acao: 'filaBalcao', tipo: 'passe', nome: 'Outra Lurdes', telefone: '11987650002' });
+  assert.equal((await cel('aparelho-lurdes-0000000000002', T2)).json.minha.nome, 'Dona Lurdes');
+  // Ela pode desistir; some para os dois.
+  assert.equal((await cel('aparelho-lurdes-0000000000002', T2, { acao: 'filaDesistir' })).json.minha, null);
+  assert.equal((await cel('aparelho-quem-pega-000000001', T1)).json.minha, null);
+  await api('DELETE', g, ADMIN);
+  await api('DELETE', '/api/pessoas/' + quem.id, ADMIN);
+  await api('DELETE', '/api/pessoas/' + lurdes.id, ADMIN);
 });
 
 test('doação pelo bloco da fila: qualquer logado doa (sem senha, sem a aba Compras); o resto das Compras segue travado', async () => {

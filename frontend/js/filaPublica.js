@@ -55,6 +55,9 @@ let enviando = false;
 let confirmarDesistir = false;
 let rascunho = { tipo: '', nome: '', telefone: '' };
 let mexeu = false;         // a pessoa já mexeu no nome ou no telefone (o cadastro não sobrescreve mais)
+// Logado: a senha é para a própria pessoa (nome do cadastro) ou para outra (consulente sem celular); ?para=outra já abre assim.
+let para = params.get('para') === 'outra' ? 'outra' : 'mim';
+const paraOutra = () => !!fila?.eu?.corrente && para === 'outra';   // só a corrente pega para outra pessoa
 let jaAvisou = '';        // id + hora da chamada já avisada (não repete o som a cada consulta)
 let timer = null;
 let tvVistas = null;      // senhas chamadas que a TV já mostrou (chave → hora da chamada); null = ainda não carregou (não toca na abertura)
@@ -133,12 +136,14 @@ function chamadasAgora() {
 
 function minhaSenha(m) {
   const chamada = m.status === 'chamada';
+  // paraOutra: peguei para alguém; porOutro: alguém da corrente pegou para mim (pelo telefone do meu cadastro).
+  const outra = m.quem === 'paraOutra';
   let canhoto;
-  if (m.status === 'aguardando') canhoto = m.aFrente ? `<span>Na sua frente</span><b>${plural(m.aFrente, 'pessoa', 'pessoas')}</b>` : '<b>Você é a próxima</b>';
-  else if (chamada) canhoto = '<b>Sua senha foi chamada</b>';
+  if (m.status === 'aguardando') canhoto = m.aFrente ? `<span>${outra ? 'Na frente' : 'Na sua frente'}</span><b>${plural(m.aFrente, 'pessoa', 'pessoas')}</b>` : `<b>${outra ? 'É a próxima' : 'Você é a próxima'}</b>`;
+  else if (chamada) canhoto = `<b>${outra ? 'A senha foi chamada' : 'Sua senha foi chamada'}</b>`;
   else if (m.status === 'atendida') canhoto = '<b>Você já foi para o atendimento</b>';
   else canhoto = '<b>Chamada quando você não estava</b>';
-  const aviso = chamada ? '<p class="fp-chamou">Sua senha foi chamada. Pode ir.</p>'
+  const aviso = chamada ? `<p class="fp-chamou">${outra ? `A senha de ${esc(m.nome)} foi chamada. Avise a pessoa.` : 'Sua senha foi chamada. Pode ir.'}</p>`
     : m.status === 'ausente' ? '<p class="fp-alerta">Procure quem está cuidando da fila para voltar ao seu lugar.</p>' : '';
   const som = m.status === 'aguardando' && !somLiberado()
     ? '<button type="button" class="fp-bt fp-som" data-act="som">🔔 Ligar o aviso sonoro</button>' : '';
@@ -148,12 +153,12 @@ function minhaSenha(m) {
     : '<button type="button" class="fp-link" data-act="perguntar">Desistir da senha</button>';
   return `${aviso}
     <div class="fila-cartao ${m.tipo}${chamada ? ' chamada' : ''}"><div class="fila-cartao-c">
-      <div class="fila-cartao-topo"><span class="fila-cartao-tipo">${esc(tipoFila(m.tipo)?.nome || '')}</span><span>sua senha</span></div>
+      <div class="fila-cartao-topo"><span class="fila-cartao-tipo">${esc(tipoFila(m.tipo)?.nome || '')}</span><span>${outra ? 'senha para outra pessoa' : m.quem === 'porOutro' ? 'pegaram para você' : 'sua senha'}</span></div>
       <b class="fila-cartao-n">${esc(rotuloSenha(m.tipo, m.numero))}</b>
       <span class="fila-cartao-q">${esc(m.nome)}</span></div>
       <div class="fila-canhoto">${canhoto}</div></div>
     ${som}
-    ${m.status === 'aguardando' ? '<p class="fp-muted">Deixe esta página aberta. Ela avisa quando a sua senha for chamada.</p>' : ''}
+    ${m.status === 'aguardando' ? `<p class="fp-muted">${outra ? `Deixe esta página aberta: ela avisa quando a senha de ${esc(m.nome)} for chamada. Mostre o número para a pessoa.` : 'Deixe esta página aberta. Ela avisa quando a sua senha for chamada.'}</p>` : ''}
     ${chamadasAgora()}
     ${desistir}`;
 }
@@ -165,6 +170,10 @@ function formulario() {
   const tipo = rascunho.tipo && !(rascunho.tipo === 'atendimento' && lotado) ? rascunho.tipo : '';
   return `${lotado ? '<p class="fp-alerta">As senhas de atendimento acabaram. Ainda dá para pegar senha de passe.</p>' : ''}
     <form id="fp-form" class="fp-form" autocomplete="on">
+      ${fila?.eu?.corrente ? `<fieldset class="fp-para"><legend>Para quem é a senha?</legend><div class="fp-para-l">
+        <button type="button" data-act="para" data-v="mim" aria-pressed="${para === 'mim'}"><span aria-hidden="true">🙋</span> Para mim</button>
+        <button type="button" data-act="para" data-v="outra" aria-pressed="${para === 'outra'}"><span aria-hidden="true">👤</span> Para outra pessoa</button></div>
+        ${para === 'outra' ? '<p class="fp-para-dica">Para quem não tem celular ou não conseguiu. A senha fica <b>neste celular</b>: deixe a página aberta, ela avisa quando chamar. Com o telefone da pessoa, ela também vê a senha quando entrar no app com esse número no cadastro. Uma senha aguardando por vez.</p>' : ''}</fieldset>` : ''}
       <fieldset class="fp-tipos"><legend>Que senha você quer?</legend>
         ${TIPOS_FILA.map((t) => {
           const off = t.k === 'atendimento' && lotado;
@@ -172,11 +181,11 @@ function formulario() {
             <span><b>${t.nome}</b>${sub[t.k] ? `<small>${esc(sub[t.k])}</small>` : ''}</span></label>`;
         }).join('')}
       </fieldset>
-      <label class="fp-campo">Seu nome<input type="text" name="nome" maxlength="80" autocomplete="name" required value="${esc(rascunho.nome)}"></label>
-      <label class="fp-campo"><span>Telefone <small>(opcional)</small></span><input type="tel" name="telefone" maxlength="20" inputmode="tel" autocomplete="tel" value="${esc(rascunho.telefone)}"></label>
-      ${fila.eu ? '<p class="fp-muted">Nome e telefone vêm do seu cadastro. Se a senha for para outra pessoa, é só trocar.</p>' : ''}
+      <label class="fp-campo">${paraOutra() ? 'Nome de quem vai ser atendido' : 'Seu nome'}<input type="text" name="nome" maxlength="80" autocomplete="${paraOutra() ? 'off' : 'name'}" required value="${esc(rascunho.nome)}"></label>
+      <label class="fp-campo"><span>${paraOutra() ? 'Telefone da pessoa, com DDD' : 'Telefone <small>(opcional)</small>'}</span><input type="tel" name="telefone" maxlength="20" inputmode="tel" autocomplete="${paraOutra() ? 'off' : 'tel'}"${paraOutra() ? ' required minlength="10"' : ''} value="${esc(rascunho.telefone)}"></label>
+      ${fila.eu && !paraOutra() ? '<p class="fp-muted">Nome e telefone vêm do seu cadastro.</p>' : ''}
       ${erro ? `<p class="fp-erro">${esc(erro)}</p>` : ''}
-      <button class="fp-bt fp-principal" type="submit" ${enviando ? 'disabled' : ''}>${enviando ? 'Conferindo a localização…' : 'Pegar senha'}</button>
+      <button class="fp-bt fp-principal" type="submit" ${enviando ? 'disabled' : ''}>${enviando ? 'Conferindo a localização…' : paraOutra() ? 'Pegar senha para esta pessoa' : 'Pegar senha'}</button>
       <p class="fp-muted">A página pede a sua localização para conferir que você está no terreiro. Se não der, peça a senha para quem está cuidando da fila.</p>
     </form>
     ${chamadasAgora()}`;
@@ -304,7 +313,7 @@ async function atualizar() {
     fila = await consultar();
     erroCarga = '';
     // Logado no app: o nome e o telefone do cadastro já vêm preenchidos (dá para trocar, se a senha for para outra pessoa).
-    if (fila.eu && !mexeu) rascunho = { ...rascunho, nome: fila.eu.nome || '', telefone: fila.eu.telefone || '' };
+    if (fila.eu && !mexeu && !paraOutra()) rascunho = { ...rascunho, nome: fila.eu.nome || '', telefone: fila.eu.telefone || '' };
     if (!fila.minha) confirmarDesistir = false;
   } catch (e) {
     erroCarga = e.message;
@@ -336,7 +345,8 @@ el.addEventListener('submit', async (e) => {
   enviando = true; erro = ''; desenhar();
   try {
     const pos = await pegarLocalizacao();
-    fila = pessoal = await api('POST', { acao: 'filaEntrar', tipo: rascunho.tipo, nome: rascunho.nome, telefone: rascunho.telefone, lat: pos.coords.latitude, lon: pos.coords.longitude });
+    const r = await api('POST', { acao: 'filaEntrar', tipo: rascunho.tipo, nome: rascunho.nome, telefone: rascunho.telefone, outra: paraOutra(), lat: pos.coords.latitude, lon: pos.coords.longitude });
+    fila = pessoal = r.eu || !fila?.eu ? r : { ...r, eu: fila.eu };
   } catch (x) {
     erro = x.message;
   }
@@ -350,6 +360,14 @@ el.addEventListener('click', async (e) => {
   if (!b) return;
   const a = b.dataset.act;
   if (a === 'imprimir') window.print();
+  if (a === 'para' && b.dataset.v !== para) {
+    para = b.dataset.v;
+    mexeu = false;
+    rascunho = { ...rascunho, nome: para === 'mim' ? fila?.eu?.nome || '' : '', telefone: para === 'mim' ? fila?.eu?.telefone || '' : '' };
+    erro = '';
+    desenhar();
+    if (para === 'outra') el.querySelector('#fp-form [name="nome"]')?.focus();
+  }
   if (a === 'recarregar') { erroCarga = ''; desenhar(); atualizar(); }
   if (a === 'som') { liberarSom(); setTimeout(desenhar, 100); }
   if (a === 'perguntar') { confirmarDesistir = true; desenhar(); }

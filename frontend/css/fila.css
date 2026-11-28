@@ -172,3 +172,11 @@ body.modo-cartaz{background:#fff;color:#111;color-scheme:light}
   @keyframes tv-l-nova{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--cor) 70%,transparent)}100%{box-shadow:0 0 0 24px transparent}}
   @keyframes tv-l-pisca{0%,45%{background:#d32f2f;box-shadow:0 0 0 6px #ff4d55}100%{background:color-mix(in srgb,#ff4d55 22%,var(--surface));box-shadow:0 0 0 0 transparent}}
 }
+/* Logado: Para mim / Para outra pessoa */
+.fp-para{border:0;margin:0;padding:0;display:grid;gap:8px;min-width:0}
+.fp-para legend{font:700 1.15rem var(--f-display);margin-bottom:8px;padding:0}
+.fp-para-l{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fp-para-l button{min-height:52px;padding:10px 8px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:700 1rem var(--f-body);cursor:pointer}
+.fp-para-l button[aria-pressed="true"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--surface));color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.fp-para-l button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fp-para-dica{margin:0;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,var(--surface));font-size:.92rem;line-height:1.4}

@@ -16,7 +16,7 @@ import { cardSemana, cardOracoes, cardAulaCurimba, cardCompromissos } from './gi
 import { blocoAusPrevia, avisoEntidade, contagemPresentes } from './giraInformacoes.js';
 import { duplasAbertas, botaoDobrar, acoesSorteio, tituloSorteio, confirmaSorteio, confirmaRemenajo, titDobra } from './giraEscala.js';
 import { cardConduta, cliquesConduta, mudancasConduta } from './giraConduta.js';
-import { cardFilaGeral, cliquesFilaGeral } from './giraFilaGeral.js';
+import { cardFilaGeral, cardFilaCorrente, cliquesFilaGeral } from './giraFilaGeral.js';
 import { cardAtrasos, cliquesAtrasos } from './giraAtrasos.js';
 import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
 import { montarNova, cliquesNova, fecharCompartilhar } from './giraNova.js';
@@ -289,7 +289,7 @@ export function render() {
   const g = giraDaGeral();
   if (g && prefs.data !== g.data) prefs.data = g.data;
   const eu = g && estado.me?.pessoaId ? blocoEu(g) : '';
-  return `<section class="panel geral">${cardAtrasos()}${eu}${cardAulaCurimba()}${cardCompromissos()}${cardAmaci()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;
+  return `<section class="panel geral">${cardAtrasos()}${eu}${cardFilaCorrente()}${cardAulaCurimba()}${cardCompromissos()}${cardAmaci()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;
 }
 
 // Cadastro novo pelo login (aluno sem turma): boas-vindas enquanto a administração libera o acesso.

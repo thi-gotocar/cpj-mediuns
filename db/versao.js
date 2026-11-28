@@ -2,4 +2,4 @@
 // as migrações (centenas de KB de SQL): db/esquema.js só é carregado quando o banco está atrás (api/_lib/db.js).
 // Ao acrescentar comandos no fim de MIGRACOES (db/esquema.js), aumente aqui.
 
-export const VERSAO = 193;  // v193: Vou ao amaci — também "Não vou"
+export const VERSAO = 194;  // v194: senha pega para outra pessoa (telefone obrigatório; a pessoa vê ao entrar)

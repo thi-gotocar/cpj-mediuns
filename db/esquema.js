@@ -6861,4 +6861,133 @@ export const MIGRACOES = [
      return amaci_vou_listar(p);
    end;
    $$`,
+
+  // ---------- v194: senha pega para outra pessoa ----------
+  // Logado, em "Para outra pessoa" o telefone dela é obrigatório (api/_lib/fila.js) e a senha sai com para_outra.
+  // Quando a pessoa entra no app com esse celular no cadastro, vê a senha também (e pode desistir); quem pegou continua
+  // vendo. O telefone compara como no login (DDD + 8 últimos dígitos; aceita +55). minha.quem: 'paraOutra' (eu peguei para alguém), 'porOutro'
+  // (pegaram para mim) ou null. fila_json, fila_entrar e fila_desistir redefinidas aqui; só a última vale.
+  `alter table fila_senhas add column if not exists para_outra boolean not null default false`,
+  `create or replace function fila_tel(v text)
+   returns text language sql immutable as $$
+     select case when length(d) in (10, 11) then left(d, 2) || right(d, 8) end
+       from (select case when length(x) in (12, 13) and x like '55%' then substr(x, 3) else x end as d
+               from (select regexp_replace(coalesce(v, ''), '[^0-9]', '', 'g') as x) a) b
+   $$`,
+  `create or replace function fila_tel_autor(v_autor text)
+   returns text language sql stable as $$
+     select fila_tel(x.c) from (
+       select pe.perfil -> 'info' ->> 'celular' as c from pessoas pe
+        where pe.saida is null and pe.id = case when v_autor like 'p:%' then substr(v_autor, 3)::uuid end
+       union all
+       select al.perfil -> 'info' ->> 'celular' from alunos al
+        where al.saida is null and al.id = case when v_autor like 'a:%' then substr(v_autor, 3)::uuid end) x
+     limit 1
+   $$`,
+  `create or replace function fila_json(v_data date, v_aparelho text, v_autor text)
+   returns jsonb language sql stable as $$
+     with g as (select data, fila_aberta, fila_limite, fila_manual, encerrada from giras where data = v_data),
+     s as (select * from fila_senhas where gira_data = v_data),
+     t as (select fila_tel_autor(v_autor) as tel),
+     minha as (
+       select s.*, ((v_aparelho is not null and s.aparelho = v_aparelho) or (v_autor is not null and s.autor = v_autor)) as meu
+         from s, t
+        where s.status <> 'cancelada'
+          and ((v_aparelho is not null and s.aparelho = v_aparelho) or (v_autor is not null and s.autor = v_autor)
+               or (t.tel is not null and s.para_outra and fila_tel(s.telefone) = t.tel))
+        order by s.criada_em desc limit 1
+     )
+     select case when not exists (select 1 from g) then jsonb_build_object('existe', false) else jsonb_build_object(
+       'existe', true,
+       'aberta', (select fila_aberta and not encerrada from g),
+       'encerrada', (select encerrada from g),
+       'limite', (select fila_limite from g),
+       'manual', (select fila_manual from g),
+       'emitidas', jsonb_build_object(
+         'preferencial', (select count(*) from s where tipo = 'preferencial' and status <> 'cancelada'),
+         'atendimento', (select count(*) from s where tipo = 'atendimento' and status <> 'cancelada'),
+         'passe', (select count(*) from s where tipo = 'passe' and status <> 'cancelada')),
+       'aguardando', jsonb_build_object(
+         'preferencial', (select count(*) from s where tipo = 'preferencial' and status = 'aguardando'),
+         'atendimento', (select count(*) from s where tipo = 'atendimento' and status = 'aguardando'),
+         'passe', (select count(*) from s where tipo = 'passe' and status = 'aguardando')),
+       'atendimentoLotado', coalesce((select g.fila_limite is not null
+           and (select count(*) from s where tipo = 'atendimento' and status <> 'cancelada') >= g.fila_limite from g), false),
+       'chamadas', coalesce((select jsonb_agg(jsonb_build_object('tipo', c.tipo, 'numero', c.numero, 'nome', c.nome, 'chamadaEm', c.chamada_em) order by c.chamada_em desc)
+           from (select * from s where status = 'chamada' order by chamada_em desc limit 10) c), '[]'::jsonb),
+       'minha', (select jsonb_build_object('id', m.id, 'tipo', m.tipo, 'numero', m.numero, 'nome', m.nome, 'status', m.status,
+                   'chamadaEm', m.chamada_em,
+                   'quem', case when not m.meu then 'porOutro' when m.para_outra then 'paraOutra' end,
+                   'aFrente', case when m.status <> 'aguardando' then null
+                                   when m.tipo = 'atendimento' then (select count(*) from s where status = 'aguardando'
+                                      and (tipo = 'preferencial' or (tipo = 'atendimento' and numero < m.numero)))
+                                   else (select count(*) from s where status = 'aguardando' and tipo = m.tipo and numero < m.numero) end)
+                   from minha m)
+     ) end
+   $$`,
+  `create or replace function fila_entrar(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_tipo text := p ->> 'tipo';
+     v_balcao boolean := coalesce((p ->> 'balcao')::boolean, false);
+     v_aparelho text := nullif(p ->> 'aparelho', '');
+     v_autor text := nullif(p ->> 'autor', '');
+     v_outra boolean := coalesce((p ->> 'outra')::boolean, false) and not coalesce((p ->> 'balcao')::boolean, false);
+     v_tel text := fila_tel_autor(nullif(p ->> 'autor', ''));
+     g giras;
+   begin
+     select * into g from giras where data = v_data for update;
+     if not found then raise exception using errcode = 'SM404', message = 'Hoje não tem gira cadastrada.'; end if;
+     if g.encerrada then raise exception using errcode = 'SM409', message = 'A gira já foi encerrada.'; end if;
+     if not v_balcao then
+       if not g.fila_aberta then raise exception using errcode = 'SM409', message = 'A fila ainda não está aberta.'; end if;
+       if g.fila_manual then raise exception using errcode = 'SM409', message = 'Hoje as senhas são só no balcão. Peça a sua a quem está cuidando da fila.'; end if;
+       if exists (select 1 from fila_senhas where gira_data = v_data and status in ('aguardando', 'ausente')
+                    and ((v_aparelho is not null and aparelho = v_aparelho) or (v_autor is not null and autor = v_autor)
+                         or (v_tel is not null and para_outra and fila_tel(telefone) = v_tel))) then
+         return fila_json(v_data, v_aparelho, v_autor);
+       end if;
+     end if;
+     if v_tipo = 'atendimento' and g.fila_limite is not null
+        and (select count(*) from fila_senhas where gira_data = v_data and tipo = 'atendimento' and status <> 'cancelada') >= g.fila_limite then
+       raise exception using errcode = 'SM409', message = 'As senhas de atendimento acabaram. Pegue uma senha de passe.';
+     end if;
+     insert into fila_senhas (gira_data, tipo, numero, nome, telefone, autor, aparelho, balcao, para_outra)
+     values (v_data, v_tipo,
+             coalesce((select max(numero) from fila_senhas where gira_data = v_data and tipo = v_tipo), 0) + 1,
+             btrim(p ->> 'nome'), btrim(coalesce(p ->> 'telefone', '')), v_autor, v_aparelho, v_balcao, v_outra);
+     if v_balcao then return fila_painel(jsonb_build_object('data', v_data)); end if;
+     return fila_json(v_data, v_aparelho, v_autor);
+   end;
+   $$`,
+  `create or replace function fila_desistir(p jsonb)
+   returns jsonb language plpgsql as $$
+   declare
+     v_data date := (p ->> 'data')::date;
+     v_aparelho text := nullif(p ->> 'aparelho', '');
+     v_autor text := nullif(p ->> 'autor', '');
+     v_tel text := fila_tel_autor(nullif(p ->> 'autor', ''));
+   begin
+     update fila_senhas set status = 'cancelada', mudou_em = now()
+      where gira_data = v_data and status in ('aguardando', 'ausente')
+        and ((v_aparelho is not null and aparelho = v_aparelho) or (v_autor is not null and autor = v_autor)
+             or (v_tel is not null and para_outra and fila_tel(telefone) = v_tel));
+     return fila_json(v_data, v_aparelho, v_autor);
+   end;
+   $$`,
+  // eu.corrente: só quem é da corrente vê o "Para outra pessoa" na /fila (o servidor confere em api/_lib/fila.js).
+  `create or replace function fila_obter(p jsonb)
+   returns jsonb language sql stable as $$
+     select fila_json((p ->> 'data')::date, nullif(p ->> 'aparelho', ''), nullif(p ->> 'autor', ''))
+       || jsonb_build_object('blocoGeral', coalesce((select valor = 'true' from sistema where chave = 'fila_bloco_geral'), false))
+       || coalesce((
+       select jsonb_build_object('eu', jsonb_build_object('nome', x.nome, 'telefone', coalesce(x.celular, ''), 'corrente', p ->> 'autor' like 'p:%'))
+         from (select pe.nome, pe.perfil -> 'info' ->> 'celular' as celular from pessoas pe
+                where p ->> 'autor' like 'p:%' and pe.saida is null and pe.id = substr(p ->> 'autor', 3)::uuid
+               union all
+               select al.nome, al.perfil -> 'info' ->> 'celular' from alunos al
+                where p ->> 'autor' like 'a:%' and al.saida is null and al.id = substr(p ->> 'autor', 3)::uuid) x
+        limit 1), '{}'::jsonb)
+   $$`,
 ];
