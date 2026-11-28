@@ -1088,6 +1088,15 @@ test('apelidos de entidade: root configura e a gira preserva o nome ligado à li
   assert.deepEqual(salvo.json, apelidos);
   assert.equal((await api('POST', '/api/giras', USER, { acao: 'entidadesApelidos', apelidos: [] })).status, 403);
   assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [{ nome: 'Caboclo', linha: 'caboclo' }] })).status, 400);
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [{ nome: 'X', linha: 'caboclo', atende: ['mista'] }] })).status, 400, 'Encontro das Linhas não se escolhe');
+  const comAtende = await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [...apelidos, { nome: 'Girão de Esquerda', linha: 'exus-pombagira', atende: ['exu-mirim', 'exu', 'exu'] }] });
+  assert.equal(comAtende.status, 200, JSON.stringify(comAtende.json));
+  assert.deepEqual(comAtende.json[1], { nome: 'Girão de Esquerda', linha: 'exus-pombagira', atende: ['exu', 'exu-mirim'] });
+  const nova = await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [...apelidos, { nome: 'Girão de Esquerda', linha: '', atende: ['exu'] }] });
+  assert.equal(nova.status, 200, JSON.stringify(nova.json));
+  assert.deepEqual(nova.json[1], { nome: 'Girão de Esquerda', linha: '', atende: ['exu'] }, 'entidade nova: sem linha');
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [{ nome: 'Exu & Pombagira', linha: '' }] })).status, 400, 'nome de gira existente sem linha');
+  assert.equal((await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos })).status, 200);
   const data = '2032-01-02';
   const criada = await api('PUT', '/api/giras/' + data, ADMIN, { entidade: 'Caboclo', entidadeNome: 'Caboclo de Pena' });
   assert.equal(criada.status, 200, JSON.stringify(criada.json));
@@ -1414,6 +1423,25 @@ test('a própria pessoa escolhe a entidade que vai atender em gira com mais de u
   assert.equal((await escolher('')).json.gira.atende[anaId], undefined, 'pode tirar a escolha');
   await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Caboclo' });
   assert.equal((await escolher('exu')).status, 400, 'gira de uma linha só não tem escolha');
+  // Nome alternativo com linhas marcadas (Admin root → Entidades das giras): vale só o que foi marcado.
+  const antes = (await api('GET', '/api/giras?lista=entidades', ADMIN)).json;
+  await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [...antes, { nome: 'Girão de Esquerda', linha: 'exus-pombagira', atende: ['exu', 'exu-mirim'] }] });
+  await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Exus & Pombagira', entidadeNome: 'Girão de Esquerda' });
+  const mirim = await escolher('exu-mirim');
+  assert.equal(mirim.status, 200, JSON.stringify(mirim.json));
+  assert.equal(mirim.json.gira.atende[anaId], 'exu-mirim');
+  assert.equal((await escolher('pomba-gira')).status, 400, 'não marcada no nome alternativo');
+  // Entidade nova (sem linha): a gira guarda o próprio nome e a corrente escolhe entre as marcadas.
+  await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: [...antes, { nome: 'Gira da Casa', atende: ['preto-velho', 'baiano'] }] });
+  const g = await api('PUT', '/api/giras/' + d, ADMIN, { entidade: 'Gira da Casa', entidadeNome: '' });
+  assert.equal(g.status, 200, JSON.stringify(g.json));
+  const baiano = await escolher('baiano');
+  assert.equal(baiano.status, 200, JSON.stringify(baiano.json));
+  assert.equal(baiano.json.gira.atende[anaId], 'baiano');
+  assert.equal((await escolher('exu')).status, 400, 'não marcada na entidade nova');
+  const sorteio = await api('POST', '/api/giras/' + d, ADMIN, { acao: 'sortear' });
+  assert.ok(sorteio.status < 500, JSON.stringify(sorteio.json));
+  await api('POST', '/api/giras', ADMIN, { acao: 'entidadesApelidos', apelidos: antes });
   await api('DELETE', '/api/giras/' + d, ADMIN);
 });
 

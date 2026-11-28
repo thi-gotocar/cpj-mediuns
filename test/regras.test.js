@@ -450,6 +450,47 @@ test('entidade escolhida pela pessoa em gira com mais de uma linha', async () =>
   assert.equal(podeEscolherEntidade({ ...p, funcao: 'senha' }, g), false);
 });
 
+test('nome alternativo da gira define as linhas que a corrente escolhe', async () => {
+  const { linhasParaEscolher, entidadeEscolhida, definirApelidosEntidade } = await import('../shared/regras.js');
+  const chaves = (g) => linhasParaEscolher(g).map(([k]) => k);
+  definirApelidosEntidade([
+    { nome: 'Girão de Esquerda', linha: 'exus-pombagira', atende: ['exu', 'pomba-gira', 'exu-mirim'] },
+    { nome: 'Gira de Boiadeiros e Caboclos', linha: 'caboclo', atende: ['caboclo', 'boiadeiro'] },
+    { nome: 'Caboclo de Pena', linha: 'caboclo' },
+  ]);
+  try {
+    const g = { data: '2030-01-02', entidade: 'Exus & Pombagira', entidadeNome: 'Girão de Esquerda', atende: { 1: 'exu-mirim' } };
+    assert.deepEqual(chaves(g), ['exu', 'pomba-gira', 'exu-mirim']);
+    assert.equal(entidadeEscolhida({ id: '1' }, g), 'exu-mirim');
+    assert.deepEqual(chaves({ entidade: 'Exus & Pombagira' }), ['exu', 'pomba-gira'], 'sem nome alternativo: o padrão');
+    assert.deepEqual(chaves({ entidade: 'Caboclo', entidadeNome: 'Gira de Boiadeiros e Caboclos' }), ['boiadeiro', 'caboclo'], 'linha simples também escolhe, na ordem das linhas');
+    assert.deepEqual(chaves({ entidade: 'Caboclo', entidadeNome: 'Caboclo de Pena' }), [], 'sem linhas marcadas: o padrão da linha');
+    assert.deepEqual(chaves({ ...g, evento: true }), []);
+  } finally { definirApelidosEntidade([]); }
+});
+
+test('entidade nova (sem linha): gira com o próprio nome e as linhas que a corrente escolhe', async () => {
+  const { linhasParaEscolher, definirApelidosEntidade, entidadeNova, foraDaLinha, guiaNaGira, temOrixa } = await import('../shared/regras.js');
+  definirApelidosEntidade([{ nome: 'Girão de Esquerda', linha: '', atende: ['exu', 'pomba-gira', 'exu-mirim'] }, { nome: 'Gira da Casa' }]);
+  try {
+    const g = { data: '2030-01-02', entidade: 'Girão de Esquerda', atende: {} };
+    assert.ok(entidadeNova('girao de esquerda'));
+    assert.deepEqual(linhasParaEscolher(g).map(([k]) => k), ['exu', 'pomba-gira', 'exu-mirim']);
+    assert.equal(temOrixa(g), false);
+    assert.equal(foraDaLinha({ funcao: 'extra', linhas: ['exu-mirim'] }, g), false);
+    assert.equal(foraDaLinha({ funcao: 'extra', linhas: ['exus-pombagira'] }, g), false, 'gira junta marcada vale');
+    assert.equal(foraDaLinha({ funcao: 'passe', linhas: ['caboclo'] }, g), true, 'sem nenhuma das linhas: cambona');
+    assert.equal(foraDaLinha({ funcao: 'passe', linhas: ['caboclo'] }, { entidade: 'Gira da Casa' }), false, 'sem linhas: ninguém é convertido');
+    assert.deepEqual(linhasParaEscolher({ entidade: 'Gira da Casa' }), []);
+    const p = { id: '1', guiasAtendimento: { exu: 'Tranca Rua', 'exu-mirim': 'Toquinho' } };
+    assert.equal(guiaNaGira(p, g), 'Tranca Rua / Toquinho');
+    assert.equal(guiaNaGira(p, { ...g, atende: { 1: 'exu-mirim' } }), 'Exu Mirim : Toquinho');
+    const grupos = opcoesGira([{ nome: 'Girão de Esquerda', linha: '' }]);
+    assert.deepEqual(grupos.at(-2), { grupo: 'Entidades da casa', itens: [['Girão de Esquerda', 'Girão de Esquerda', '']] });
+    assert.equal(grupos.at(-1).grupo, 'Outras');
+  } finally { definirApelidosEntidade([]); }
+});
+
 test('guia de atendimento na gira: pela linha da entidade (e gira junta)', async () => {
   const { guiaNaGira } = await import('../shared/regras.js');
   const p = { guiasAtendimento: { 'preto-velho': 'Pai Joaquim', exu: 'Tranca Rua', 'pomba-gira': 'Maria Padilha' } };

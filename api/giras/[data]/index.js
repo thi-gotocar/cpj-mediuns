@@ -28,7 +28,7 @@ import { ocultarSorteio } from '../../_lib/escala.js';
 import { configCasa, definirConfig } from '../../../shared/config.js';
 import { db } from '../../_lib/db.js';
 import { ACOES_FILA_PUBLICAS, ACOES_FILA_PAINEL, filaPublica, filaResumo, acaoFilaPublica, filaPainel, acaoFilaPainel } from '../../_lib/fila.js';
-import { giraVazia, STATUS_KEYS, turmasLimpeza, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, desfazerAuto, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher } from '../../../shared/regras.js';
+import { giraVazia, STATUS_KEYS, turmasLimpeza, ORIXAS, encerrar, reabrir, sortear, remanejar, pendentesDaGira, desfazerAuto, podeDeclararAusencia, podeEscolherEntidade, linhasParaEscolher, definirApelidosEntidade } from '../../../shared/regras.js';
 
 function validarDuplas(lista, nome) {
   if (!Array.isArray(lista) || lista.length > 500) throw new HttpError(400, `Lista de ${nome} inválida.`);
@@ -113,12 +113,16 @@ function validarParticipantes(v) {
 // Quem entra pelo acesso da corrente (cpj), com ou sem senha, avisa que não vai.
 // Sessão, gira e a própria pessoa numa ida só (só a pessoa, não a corrente inteira). A pessoa de um usuário
 // (cadastro ligado ao e-mail) só se conhece depois da sessão: aí ela vem numa ida à parte.
-async function giraEPessoa(req) {
+// comApelidos: lê também as Entidades das giras (as linhas que a corrente escolhe atender).
+async function giraEPessoa(req, comApelidos = false) {
   let data;
-  const [eu, atual, lista] = await exigirComLeitura(req, 'giras:ler', ({ pessoaId }) => [
+  const [eu, atual, ...resto] = await exigirComLeitura(req, 'giras:ler', ({ pessoaId }) => [
     { funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } },
+    ...(comApelidos ? [{ funcao: 'entidades_apelidos_listar' }] : []),
     ...(pessoaId ? [{ funcao: 'pessoas_listar', p: { id: pessoaId } }] : []),
   ]);
+  if (comApelidos) definirApelidosEntidade(resto.shift());
+  const lista = resto[0];
   const pessoas = lista || (eu.pessoaId ? await db.rpc('pessoas_listar', { id: eu.pessoaId }) : []);
   return { eu, data, atual, p: pessoas.find((x) => x.id === eu.pessoaId) };
 }
@@ -137,7 +141,7 @@ async function declararAusencia(req) {
 }
 
 async function escolherEntidade(req, linha) {
-  const { eu, data, atual, p } = await giraEPessoa(req);
+  const { eu, data, atual, p } = await giraEPessoa(req, true);
   if (!eu.pessoaId) throw new HttpError(403, 'Só quem tem cadastro na corrente escolhe a entidade.');
   if (!atual) throw new HttpError(404, 'Esta gira ainda não foi criada.');
   if (atual.encerrada) throw new HttpError(409, MSG_ENCERRADA);
@@ -151,8 +155,9 @@ async function escolherEntidade(req, linha) {
 // Sortear e Remanejar faltas: as regras usam a lista inteira de giras (histórico das duplas).
 async function sortearOuRemanejar(req, acao) {
   // Sessão, pessoas, giras e as Regras da casa (Suporte mínimo, 2º cambone) numa ida só ao banco.
-  const [perfil, pessoas, giras, cfg] = await exigirComLeitura(req, 'giras:sortear', () => [{ funcao: 'pessoas_listar' }, { funcao: 'giras_listar' }, { funcao: 'config_casa' }]);
+  const [perfil, pessoas, giras, cfg, apelidos] = await exigirComLeitura(req, 'giras:sortear', () => [{ funcao: 'pessoas_listar' }, { funcao: 'giras_listar' }, { funcao: 'config_casa' }, { funcao: 'entidades_apelidos_listar' }]);
   definirConfig(cfg);
+  definirApelidosEntidade(apelidos);
   const data = validarData(req.query.data);
   const g = giras.find((x) => x.data === data) || giraVazia(data);
   if (g.encerrada) throw new HttpError(409, MSG_ENCERRADA);
@@ -166,10 +171,12 @@ async function sortearOuRemanejar(req, acao) {
 // Todas as pessoas: uma gira antiga pode ter quem já saiu da corrente (as regras filtram pela data).
 async function encerrarOuReabrir(req, b) {
   let data;
-  const [perfil, pessoas, atual] = await exigirComLeitura(req, 'giras:editar', () => [
+  const [perfil, pessoas, atual, apelidos] = await exigirComLeitura(req, 'giras:editar', () => [
     { funcao: 'pessoas_listar', p: { todas: true } },
     { funcao: 'gira_obter', p: { data: (data = validarData(req.query.data)) } },
+    { funcao: 'entidades_apelidos_listar' },
   ]);
+  definirApelidosEntidade(apelidos);
   if (b.acao === 'reabrir') {
     if (!atual?.encerrada) return { gira: atual || giraVazia(data), mensagem: 'A gira já estava aberta.' };
     const { patch: { retrato, ...patch }, mensagem } = reabrir(pessoas, atual);

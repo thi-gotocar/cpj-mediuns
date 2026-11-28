@@ -1,6 +1,6 @@
 // Tela "Gira": data, entidade, presença, duplas e exportação.
 
-import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade } from '/shared/regras.js';
+import { FUNCOES, STATUS, opcoesGira, giraEspecial, nomeGira, tituloGira, tituloAutomaticoGira, contaNaPresenca, pendentesDaGira, ORIXAS, temOrixa, proximaTurma, status, presencaDe, papelDe, daGira, foraDaLinha, licencaEm, presente, cambonaHoje, paresPorMedium, escalaDaGira, custos, pessoasDaGira, linhaDaEntidade, entidadeNova } from '/shared/regras.js';
 import { estado, prefs, salvarPrefs, pode, visaoAtiva, pessoasOrd, pessoasComSaidas, nome, nomeNaGira, girasLista, historicoCompleto, giraAtual, editarGira, sortear, remanejar, encerrarGira, reabrirGira, cancelarSorteio, declararAusencia, acaoAusPrevia, carregarFila, salvarDiaGira, salvarRecadoCorrente, publicarEscala, travarEscala, acaoOracoes, doarItem, escolherEntidade, avisar } from '../estado.js';
 import { esc, dLong, dDM, pd, toast, baixar, hoje, podeCompartilharImagem, compartilharImagem, ajustarRolagem } from '../util.js';
 import { textoWhats } from '../exportar.js';
@@ -63,7 +63,7 @@ function seletorEntidade(atual, nomeAtual = '', travado = false) {
   const conhecida = linhaDaEntidade(atual);
   const especial = giraEspecial(atual);
   const valor = nomeGira(atual);
-  const antigo = valor && !conhecida && !especial ? `<option value="${esc(valor)}" selected>${esc(valor)} (fora da lista)</option>` : '';
+  const antigo = valor && !conhecida && !especial && !entidadeNova(atual) ? `<option value="${esc(valor)}" selected>${esc(valor)} (fora da lista)</option>` : '';
   return `<select id="f-ent" ${travado ? 'disabled' : ''}><option value="" ${!valor ? 'selected' : ''}>— escolha —</option>${antigo}
     ${opcoesGira(estado.entidadesApelidos).map((grp) => `<optgroup label="${grp.grupo}">${grp.itens.map(([canonico, label, alias]) => `<option value="${esc(canonico)}" data-alias="${esc(alias)}" ${canonico === valor && alias === nomeAtual ? 'selected' : ''}>${esc(label)}</option>`).join('')}</optgroup>`).join('')}
   </select>`;

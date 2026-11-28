@@ -6,6 +6,7 @@ import { estado, avisar, visaoAtiva, pode, nome, girasLista, carregarTudo } from
 import { api } from './api.js';
 import { token } from './auth.js';
 import { definirConfig } from '/shared/config.js';
+import { definirApelidosEntidade } from '/shared/regras.js';
 import { toast } from './util.js';
 
 // ---------- usuários (admin) ----------
@@ -198,6 +199,7 @@ export async function acaoEventos(acao, dados = {}) {
 export async function salvarApelidosEntidade(apelidos) {
   try {
     estado.entidadesApelidos = await api('POST', '/giras', { acao: 'entidadesApelidos', apelidos });
+    definirApelidosEntidade(estado.entidadesApelidos);
     avisar();
     return true;
   } catch (e) { toast(e.message); avisar(); return false; }

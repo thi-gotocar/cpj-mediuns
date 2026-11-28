@@ -11,7 +11,7 @@ import { emDemo } from '../auth.js';
 import { api } from '../api.js';
 import { renderAjustesPerfil, formSenha } from './perfil.js';
 import { corpoBackup, cliquesBackup } from './historico.js';
-import { LINHA_LABEL } from '/shared/regras.js';
+import { LINHA_LABEL, LINHAS_ESCOLHA } from '/shared/regras.js';
 import { CAMPOS_CONFIG, config, SEGUNDO_CAMBONE, LIMITES_REGRAS } from '/shared/config.js';
 import { cardAdmin as cardEbook } from './ebook.js';
 
@@ -311,21 +311,40 @@ function cardEntidades() {
   const aberto = abertosRoot.has('entidades');
   const aliases = estado.entidadesApelidos || [];
   const ed = estado.entidadeApelidoEdit;
+  const editando = ed && ed.index >= 0;
+  const atende = ed?.atende || [];
   const opcoes = Object.entries(LINHA_LABEL).map(([k, nome]) => `<option value="${esc(k)}" ${k === ed?.linha ? 'selected' : ''}>${esc(nome)}</option>`).join('');
+  const chips = LINHAS_ESCOLHA.map(([k, nome]) => `<label class="chip"><input type="checkbox" name="ea-atende" value="${esc(k)}" data-act="earascunho" ${atende.includes(k) ? 'checked' : ''}> ${esc(nome)}</label>`).join('');
+  const rotAtende = (x) => (x.atende?.length ? `<span class="muted" style="display:block;font-size:.85rem">Corrente escolhe: ${esc(x.atende.map((k) => LINHA_LABEL[k] || k).join(', '))}</span>` : '');
   return `<div class="card adm root">${cabRoot('entidades', '🏷️ Entidades das giras', aliases.length)}${!aberto ? '' : `
-    <p class="muted" style="margin:0;font-size:.88rem">Inclua nomes alternativos para uma linha existente. Eles aparecem nos cadastros de giras, mantendo as regras e afinidades da linha escolhida.</p>
-    <form id="f-entidade-alias" class="row" data-index="${ed ? ed.index : ''}" autocomplete="off">
-      <label class="field grow">Nome da entidade<input type="text" id="ea-nome" maxlength="80" required value="${esc(ed?.nome || '')}" placeholder="Ex.: nome usado pela casa"></label>
-      <label class="field grow">Linha correspondente<select id="ea-linha" required><option value="">— escolha a linha —</option>${opcoes}</select></label>
-      <span class="row"><button class="btn small primary" type="submit">${ed ? 'Salvar alteração' : '＋ Incluir nome'}</button>${ed ? '<button class="btn small" type="button" data-act="cancelaralias">Cancelar</button>' : ''}</span>
+    <p class="muted" style="margin:0;font-size:.88rem">Crie uma entidade nova ou um nome alternativo para uma linha existente. Elas aparecem no cadastro da gira. Com linha correspondente, valem as regras e afinidades dessa linha; sem linha, é uma entidade nova (sem orixá).</p>
+    <form id="f-entidade-alias" data-index="${editando ? ed.index : ''}" autocomplete="off">
+      <div class="row">
+        <label class="field grow">Nome da entidade<input type="text" id="ea-nome" data-act="earascunho" maxlength="80" required value="${esc(ed?.nome || '')}" placeholder="Ex.: Girão de Esquerda"></label>
+        <label class="field grow">Linha correspondente<select id="ea-linha" data-act="earascunho"><option value="">— nenhuma (entidade nova) —</option>${opcoes}</select></label>
+      </div>
+      <div class="field">Linhas que a corrente pode escolher para atender
+        <p class="muted" style="margin:2px 0 6px;font-size:.85rem">Para nomes compostos (ex.: Girão de Esquerda). Quem vai atender escolhe uma delas em Você nesta gira, e At. Extra e Passe que não marcaram nenhuma delas no cadastro cambonam. Sem nenhuma marcada, vale o padrão da linha (entidade nova: sem escolha).</p>
+        <div class="lchips">${chips}</div>
+      </div>
+      <span class="row"><button class="btn small primary" type="submit">${editando ? 'Salvar alteração' : '＋ Incluir entidade'}</button>${ed ? '<button class="btn small" type="button" data-act="cancelaralias">Cancelar</button>' : ''}</span>
     </form>
     ${aliases.length ? `<div class="al-grupos">${aliases.map((x, i) => `<div class="sn-l">
-      <span class="sn-nome"><b>${esc(x.nome)}</b><span class="muted"> · ${esc(LINHA_LABEL[x.linha] || x.linha)}</span></span>
+      <span class="sn-nome"><b>${esc(x.nome)}</b><span class="muted"> · ${x.linha ? esc(LINHA_LABEL[x.linha] || x.linha) : 'entidade nova'}</span>${rotAtende(x)}</span>
       <span class="sn-bts">${estado.confirm === 'entalias:' + i
         ? `<button class="btn small danger" data-act="removeralias" data-index="${i}">Confirmar remoção</button><button class="btn small" data-act="cancelaralias">Cancelar</button>`
         : `<button class="btn small" data-act="editaralias" data-index="${i}">Editar</button><button class="btn small" data-act="askalias" data-index="${i}">Remover</button>`}</span>
-    </div>`).join('')}</div>` : '<p class="muted" style="margin:0">Nenhum nome alternativo cadastrado.</p>'}
+    </div>`).join('')}</div>` : '<p class="muted" style="margin:0">Nenhuma entidade cadastrada.</p>'}
   `}</div>`;
+}
+// O que está digitado no bloco Entidades das giras (para o redesenho não apagar).
+function rascunhoEntidade(form) {
+  return {
+    nome: form.querySelector('#ea-nome').value.replace(/\s+/g, ' ').trim(),
+    linha: form.querySelector('#ea-linha').value,
+    atende: [...form.querySelectorAll('input[name="ea-atende"]:checked')].map((x) => x.value),
+    index: form.dataset.index === '' ? -1 : Number(form.dataset.index),
+  };
 }
 
 export const cliques = {
@@ -354,7 +373,7 @@ export const cliques = {
   async removeralias(el) {
     const index = Number(el.dataset.index);
     const aliases = (estado.entidadesApelidos || []).filter((_, i) => i !== index);
-    if (await salvarApelidosEntidade(aliases)) { estado.confirm = null; estado.entidadeApelidoEdit = null; toast('Nome alternativo removido.'); }
+    if (await salvarApelidosEntidade(aliases)) { estado.confirm = null; estado.entidadeApelidoEdit = null; toast('Entidade removida.'); }
   },
   cancelaralias() { estado.confirm = null; estado.entidadeApelidoEdit = null; avisar(); },
   limparentrada(el) { atualizarPessoa(el.dataset.id, { entrada: null }); },
@@ -452,23 +471,23 @@ export const mudancas = {
   },
   papel(t) { atualizarUsuario(t.dataset.id, { papel: t.value }); },
   ajpessoa(t) { estado.ajUi.pessoa = t.value; estado.senhaEdit = null; avisar(); },
+  earascunho(t) { const f = t.closest('form'); if (f) estado.entidadeApelidoEdit = rascunhoEntidade(f); },
   ajcampo(t) { estado.ajUi.campo = t.value; estado.senhaEdit = null; avisar(); },
   entrada(t) { atualizarPessoa(t.dataset.id, { entrada: t.value || null }); },
 };
 
 export async function salvarApelidoEntidade(form) {
-  const nome = document.getElementById('ea-nome').value.replace(/\s+/g, ' ').trim();
-  const linha = document.getElementById('ea-linha').value;
-  if (!nome || !linha) { toast('Informe o nome e a linha correspondente.'); return; }
-  const index = form.dataset.index === '' ? -1 : Number(form.dataset.index);
+  const { nome, linha, atende, index } = rascunhoEntidade(form);
+  estado.entidadeApelidoEdit = { nome, linha, atende, index };
+  if (!nome) { toast('Informe o nome da entidade.'); return; }
   const aliases = [...(estado.entidadesApelidos || [])];
-  const item = { nome, linha };
+  const item = atende.length ? { nome, linha, atende } : { nome, linha };
   if (index >= 0 && aliases[index]) aliases[index] = item;
   else aliases.push(item);
   if (await salvarApelidosEntidade(aliases)) {
     estado.entidadeApelidoEdit = null;
     estado.confirm = null;
-    toast(index >= 0 ? 'Nome alternativo atualizado.' : 'Nome alternativo incluído.');
+    toast(index >= 0 ? 'Entidade atualizada.' : 'Entidade incluída.');
     avisar();
   }
 }

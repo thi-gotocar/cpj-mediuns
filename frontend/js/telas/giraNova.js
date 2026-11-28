@@ -2,7 +2,7 @@
 // em ctx; aqui ficam a faixa da semana, o cabeçalho com um Compartilhar só, os 4 passos do admin (Preparar → Escala →
 // Presença → Encerrar) e, embaixo, o mesmo que a corrente vê.
 
-import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, proximaTurma } from '/shared/regras.js';
+import { tituloGira, orixaDaGira, nomeEntidadeGira, status, presencaDe, licencaEm, temLimpeza, limpezaDaGira, linhaDaEntidade, giraEspecial, entidadeNova, proximaTurma } from '/shared/regras.js';
 import { aniversariantesDoDia, rotuloTipo, ehAmaci } from '/shared/eventos.js';
 import { estado, prefs, salvarPrefs, pode, girasLista, giraAtual, excluirGira, avisar } from '../estado.js';
 import { esc, dLong, dDM, hoje, toast } from '../util.js';
@@ -153,7 +153,7 @@ function campoTurma(g, L) {
 function passoPadrao(ctx, pend) {
   const { g, temDuplas, publicada } = ctx;
   // Preparar (sem entidade) → Escala (até publicar) → Presença (no dia: presentes e faltas).
-  if (!g.evento && !linhaDaEntidade(g.entidade) && !giraEspecial(g.entidade)) return 1;
+  if (!g.evento && !linhaDaEntidade(g.entidade) && !giraEspecial(g.entidade) && !entidadeNova(g.entidade)) return 1;
   if (g.evento) return pend ? 2 : 4;
   return temDuplas && publicada ? 2 : 3;
 }
@@ -183,7 +183,7 @@ function conducao(ctx) {
 
   // 1. Preparar
   const L = !g.evento && temLimpeza(g) ? limpezaDaGira(estado.pessoas, g, girasLista()) : null;
-  const entOk = g.evento || !!linhaDaEntidade(g.entidade) || !!giraEspecial(g.entidade);
+  const entOk = g.evento || !!linhaDaEntidade(g.entidade) || !!giraEspecial(g.entidade) || !!entidadeNova(g.entidade);
   const r1 = [g.evento ? 'Evento' : g.entidade ? esc(nomeEntidadeGira(g)) : 'Escolha a entidade', orixaDaGira(g) ? esc(orixaDaGira(g)) : '',
     !g.evento && temLimpeza(g) ? (L ? `Turma ${L.turma}` : 'sem turma') : ''].filter(Boolean).join(' · ');
   const c1 = `<label class="field">Gira / entidade do dia${ctx.entidade}</label>

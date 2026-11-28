@@ -2,7 +2,7 @@
 
 import { estado, pode, veErvas, girasLista, carregarAusPrevias, carregarErvas, carregarOferendas } from '../estado.js';
 import { esc, dDM } from '../util.js';
-import { status, nomeEntidadeGira, turmasLimpeza, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, linhaDaEntidade, usaLinhas, pessoasDaGira, presente, cambonaHoje } from '/shared/regras.js';
+import { status, nomeEntidadeGira, turmasLimpeza, temLimpeza, limpezaDaGira, licencaEm, giraEspecial, linhaDaEntidade, usaLinhas, pessoasDaGira, presente, cambonaHoje, entidadeNova } from '/shared/regras.js';
 import { banhosDaGira } from '/shared/banhos.js';
 import { situacao, travadaPara, textoEntrega, ROTULO_MEDIUM, chaveDaLinha } from '/shared/oferendas.js';
 
@@ -57,7 +57,7 @@ export function avisoEntidade(ps, g, editar, admin) {
   if (giraEspecial(g.entidade)) {
     return admin ? `<p class="muted" style="margin:0;font-size:.88rem">${esc(nomeEntidadeGira(g))}: extras e passes atuam na própria função, sem olhar as linhas.</p>` : '';
   }
-  if (!linhaDaEntidade(g.entidade)) {
+  if (!linhaDaEntidade(g.entidade) && !entidadeNova(g.entidade)) {
     return editar ? `<div class="warnbox">Escolha a entidade do dia: é ela que define quem atua como extra ou passe e quem cambona.</div>` : '';
   }
   return '';

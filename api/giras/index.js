@@ -48,7 +48,7 @@ import { ACOES_FOTOS, exigirFotosAtiva, fotosEstado, acaoFoto } from '../_lib/fo
 import { importar } from '../_lib/importar.js';
 import { tarefas, acaoTarefas } from '../_lib/tarefas.js';
 import { pode } from '../../shared/permissoes.js';
-import { OPCOES_GIRA, LINHA_LABEL, compactarRetratos } from '../../shared/regras.js';
+import { OPCOES_GIRA, LINHA_LABEL, LINHAS_ESCOLHA, linhaDaEntidade, giraEspecial, compactarRetratos } from '../../shared/regras.js';
 
 const normalizarNome = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
 
@@ -62,10 +62,15 @@ function validarApelidos(lista) {
     const linha = String(x?.linha ?? '');
     const chave = normalizarNome(nome);
     if (!nome || nome.length > 80) throw new HttpError(400, 'Cada nome de entidade deve ter de 1 a 80 caracteres.');
-    if (!linhas.has(linha) || !LINHA_LABEL[linha]) throw new HttpError(400, 'Escolha uma linha válida para cada nome.');
+    // Sem linha = entidade nova (a gira guarda o próprio nome); o nome não pode ser lido como uma linha ou gira especial.
+    if (linha && (!linhas.has(linha) || !LINHA_LABEL[linha])) throw new HttpError(400, 'Escolha uma linha válida para cada nome.');
+    if (!linha && (linhaDaEntidade(nome) || giraEspecial(nome))) throw new HttpError(400, `"${nome}" já é o nome de uma gira existente: escolha a linha correspondente.`);
     if (nomes.has(chave) || usados.has(chave)) throw new HttpError(400, 'Os nomes alternativos não podem repetir entidades existentes ou entre si.');
     usados.add(chave);
-    return { nome, linha };
+    const atende = x?.atende ?? [];
+    if (!Array.isArray(atende) || atende.some((k) => !LINHAS_ESCOLHA.some(([l]) => l === k))) throw new HttpError(400, 'Escolha linhas válidas para a corrente atender.');
+    const escolha = LINHAS_ESCOLHA.map(([l]) => l).filter((l) => atende.includes(l));
+    return escolha.length ? { nome, linha, atende: escolha } : { nome, linha };
   });
 }
 

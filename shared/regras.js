@@ -55,22 +55,39 @@ const JUNTAS = Object.fromEntries(GIRAS_JUNTAS.map(([k, , ls]) => [k, ls]));
 // Gira junta (Exus & Pombagira): os das linhas dela. Sem nome cadastrado: ''.
 // Se a pessoa escolheu a entidade da gira: "Exu : Tranca Rua", ou só "Exu" sem nome cadastrado nessa linha.
 export function guiaNaGira(p, g) {
-  const l = linhaDaEntidade(g?.entidade);
-  if (!l || !p) return '';
+  const ls = linhasDaGira(g);
+  if (!ls.length || !p) return '';
   const G = p.guiasAtendimento || {};
   const escolhida = entidadeEscolhida(p, g);
   if (escolhida) {
     const nomeGuia = typeof G[escolhida] === 'string' ? G[escolhida].trim() : '';
     return nomeGuia ? `${LINHA_LABEL[escolhida]} : ${nomeGuia}` : LINHA_LABEL[escolhida];
   }
-  return [l, ...(JUNTAS[l] || [])].map((k) => G[k]).filter((x) => typeof x === 'string' && x.trim()).join(' / ');
+  return ls.map((k) => G[k]).filter((x) => typeof x === 'string' && x.trim()).join(' / ');
+}
+// Linhas que a corrente pode escolher atender (todas menos o Encontro das Linhas), como [chave, nome].
+export const LINHAS_ESCOLHA = LINHAS.flatMap((x) => x.itens).filter(([k]) => k !== 'mista');
+// Entidades das giras (Admin root): o nome alternativo pode trazer as linhas que a corrente escolhe (atende).
+let apelidosGira = [];
+export const definirApelidosEntidade = (lista) => { apelidosGira = Array.isArray(lista) ? lista : []; };
+// Entidade nova (sem linha correspondente): a gira guarda o nome dela em g.entidade.
+export const entidadeNova = (entidade) => (entidade ? apelidosGira.find((x) => !x.linha && normalizar(x.nome) === normalizar(entidade)) || null : null);
+// Linhas que valem na gira: a da entidade (com as da gira junta) ou, na entidade nova, as que a corrente escolhe.
+function linhasDaGira(g) {
+  const l = linhaDaEntidade(g?.entidade);
+  if (l) return [l, ...(JUNTAS[l] || [])];
+  return entidadeNova(g?.entidade)?.atende || [];
 }
 // Gira com mais de uma linha: as entidades que a pessoa pode escolher atender, como [chave, nome].
-// Encontro das Linhas: todas as linhas; gira junta: só as dela; as outras giras (e evento): nenhuma.
+// Nome alternativo com linhas marcadas: só elas. Senão, Encontro das Linhas: todas as linhas; gira junta: só as dela;
+// as outras giras (e evento): nenhuma.
 export function linhasParaEscolher(g) {
+  if (g?.evento) return [];
   const l = linhaDaEntidade(g?.entidade);
-  if (!l || g?.evento) return [];
-  if (l === 'mista') return LINHAS.flatMap((x) => x.itens).filter(([k]) => k !== 'mista');
+  const atende = l ? (g?.entidadeNome ? apelidoEntidade(g.entidadeNome, apelidosGira)?.atende : null) : entidadeNova(g?.entidade)?.atende;
+  if (!l && !atende?.length) return [];
+  if (Array.isArray(atende) && atende.length) return LINHAS_ESCOLHA.filter(([k]) => atende.includes(k));
+  if (l === 'mista') return LINHAS_ESCOLHA;
   return (JUNTAS[l] || []).map((k) => [k, LINHA_LABEL[k]]);
 }
 // Ignora escolha que deixou de valer (ex.: o admin trocou a entidade da gira).
@@ -87,8 +104,10 @@ const ENTIDADE_POR_CHAVE = Object.fromEntries([
   ...OPCOES_GIRA.flatMap((g) => g.itens),
 ]);
 // Apelidos configuráveis mantêm a linha canônica para as regras da gira.
+// Entidades novas (sem linha) entram num grupo próprio, antes de Outras, com o próprio nome como valor.
 export function opcoesGira(aliases = []) {
-  return OPCOES_GIRA.map((grupo) => {
+  const novas = aliases.filter((x) => !x.linha && x.nome).map((x) => [x.nome, x.nome, '']);
+  const grupos = OPCOES_GIRA.map((grupo) => {
     const chaves = new Set(grupo.itens.map(([chave]) => chave));
     const itens = grupo.itens.map(([, nome]) => [nome, nome, '']);
     aliases.filter((x) => chaves.has(x.linha)).forEach((x) => {
@@ -97,6 +116,8 @@ export function opcoesGira(aliases = []) {
     });
     return { grupo: grupo.grupo, itens };
   });
+  if (novas.length) grupos.splice(grupos.length - 1, 0, { grupo: 'Entidades da casa', itens: novas });
+  return grupos;
 }
 
 // Orixás (em ordem alfabética). Só as giras das linhas (não Esquerda nem Outras) têm orixá.
@@ -162,7 +183,12 @@ export const usaLinhas = (p) => (p.funcao === 'extra' || p.funcao === 'passe') &
 export function foraDaLinha(p, g) {
   if (!usaLinhas(p)) return false;
   const linha = linhaDaEntidade(g.entidade);
-  if (!linha) return false; // gira sem entidade definida: ninguém é convertido
+  if (!linha) {
+    // Entidade nova com linhas para escolher: vale quem marcou qualquer uma delas (ou a gira junta que a contém).
+    const ls = entidadeNova(g.entidade)?.atende;
+    if (!ls?.length) return false; // gira sem entidade definida: ninguém é convertido
+    return !p.linhas.some((l) => [l, ...(JUNTAS[l] || [])].some((x) => ls.includes(x)));
+  }
   // Gira junta (ex.: Exus & Pombagira): vale quem marcou a própria gira junta ou qualquer uma das linhas dela.
   return ![linha, ...(JUNTAS[linha] || [])].some((l) => p.linhas.includes(l));
 }

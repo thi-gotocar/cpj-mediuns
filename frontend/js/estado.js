@@ -3,7 +3,7 @@
 
 import { api, definirVerComo } from './api.js';
 import { token, emDemo } from './auth.js';
-import { giraVazia, ordenarPessoas, pessoasDe, expandirRetrato } from '/shared/regras.js';
+import { giraVazia, ordenarPessoas, pessoasDe, expandirRetrato, definirApelidosEntidade } from '/shared/regras.js';
 import { permissoesDe, permissoesAluno, PERFIS_PADRAO, PERMISSOES_GRUPO } from '/shared/permissoes.js';
 import { definirConfig } from '/shared/config.js';
 import { abaValida } from '/shared/visitas.js';
@@ -172,6 +172,7 @@ export async function carregarTudo() {
   estado.minhaCurimba = r.minhaCurimba?.aulas ? r.minhaCurimba : null;
   estado.pessoas = r.pessoas;
   estado.entidadesApelidos = r.entidadesApelidos || [];
+  definirApelidosEntidade(estado.entidadesApelidos);
   estado.giras = {};
   estado.girasCompletas = !r.girasDesde;
   definirGiras(r.giras, r.girasDesde);
@@ -291,6 +292,7 @@ export async function atualizarDoServidor() {
     estado.eventos = r.eventos || estado.eventos;
     estado.minhaCurimba = minhaCurimba?.aulas ? minhaCurimba : null;
     estado.entidadesApelidos = r.entidadesApelidos || estado.entidadesApelidos;
+    definirApelidosEntidade(estado.entidadesApelidos);
     if (r.giras) definirGiras(r.giras, r.girasDesde);
     await atualizarAbaAberta();
   } catch { /* silencioso: tenta de novo na próxima vez */ }
