@@ -2762,9 +2762,21 @@ div.pf-of-total{cursor:default}
 .fila-doa-pix .btn.primary{text-align:center;text-decoration:none}
 .fila-geral-sw{gap:6px}
 /* Aba Gira: Vou ao amaci (controle da corrente; não é a presença dos alunos) */
-.gn-amaci{display:grid;gap:8px;margin:2px 0 4px 1.6em}
-.gn-amaci-bts{display:flex;flex-wrap:wrap;gap:6px}
-.gn-amaci-vou{border-color:var(--ok);color:var(--ok)}
+.gn .am-vou{margin:2px 0 4px 1.6em}
+.am-geral{gap:10px;border-top:4px solid var(--gold)}
+.am-g-item{display:grid;gap:10px}
+.am-g-item+.am-g-item{border-top:1px solid var(--line);padding-top:10px}
+.am-g-top{display:flex;gap:10px;align-items:center}
+.am-g-nome{display:flex;flex-direction:column;min-width:0;overflow-wrap:break-word}
+.am-vou{display:grid;gap:8px}
+.am-vou-resp{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.am-vou-p{font-weight:700}
+.am-vou-seg button{min-height:36px;padding:7px 14px}
+.am-vou-seg button[data-v="vou"][aria-pressed="true"]{background:var(--ok);color:var(--surface)}
+.am-vou-seg button[data-v="nao"][aria-pressed="true"]{background:var(--off);color:var(--surface)}
+.am-vou-h{display:flex;align-items:center;gap:8px;font-size:.9rem}
+.am-vou-n{font-size:.75rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--surface);background:var(--ok);border-radius:20px;padding:1px 8px}
+.am-vou-nao{margin:0;font-size:.82rem}
 .gn-amaci-lista{display:flex;flex-wrap:wrap;gap:6px}
 .gn-nome.pres{background:var(--ok-soft);border-color:transparent;color:var(--ok);margin:0}
 .gn-ok{font-weight:900;margin-right:4px}

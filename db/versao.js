@@ -2,4 +2,4 @@
 // as migrações (centenas de KB de SQL): db/esquema.js só é carregado quando o banco está atrás (api/_lib/db.js).
 // Ao acrescentar comandos no fim de MIGRACOES (db/esquema.js), aumente aqui.
 
-export const VERSAO = 192;  // v192: Oráculo, a pessoa edita os próprios dados depois de reservar
+export const VERSAO = 193;  // v193: Vou ao amaci — também "Não vou"

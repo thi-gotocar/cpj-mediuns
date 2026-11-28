@@ -1,5 +1,5 @@
 // GET  /api/giras — todas as giras (com presença e duplas), da mais recente para a mais antiga.
-// GET  /api/giras?lista=amaciVou&evento=id · POST { acao: 'amaciVou', eventoId, vou } — quem da corrente vai ao amaci → { pessoas, eu, podeMarcar }
+// GET  /api/giras?lista=amaciVou&evento=id · POST { acao: 'amaciVou', eventoId, vou: true | false | null } — quem da corrente vai ao amaci → { pessoas, nao, eu, resposta, podeMarcar }
 // GET  /api/giras?lista=tarefas&data=AAAA-MM-DD · POST { acao: 'tarefas', op, data, ... } — Tarefas da corrente (api/_lib/tarefas.js)
 //      → [{ id, nome, tarefas: [{ id, descricao, responsavelId, responsavel, feito, por }] }]
 // GET  /api/giras?lista=filaGeral · POST { acao: 'filaGeral', ativa } — bloco da fila na aba Geral visível para todos (só o root) → { ativa }
@@ -74,6 +74,13 @@ function validarApelidos(lista) {
   });
 }
 
+// Vou ao amaci: quem vai, quem não vai e a resposta de quem pediu (null = ainda não respondeu).
+function respostasAmaci(lista, pessoaId) {
+  const so = (vou) => lista.filter((x) => x.vou === vou).map(({ pessoaId: id, nome }) => ({ pessoaId: id, nome }));
+  const minha = pessoaId ? lista.find((x) => x.pessoaId === pessoaId) : null;
+  return { pessoas: so(true), nao: so(false), eu: !!minha?.vou, resposta: minha ? (minha.vou ? 'vou' : 'nao') : null, podeMarcar: !!pessoaId };
+}
+
 export default rota({
   GET: async (req) => {
     if (req.query.lista === 'entidades') {
@@ -104,8 +111,7 @@ export default rota({
     // Amaci: quem da corrente vai (aviso, não é a presença dos alunos). Todos da corrente veem a lista.
     if (req.query.lista === 'amaciVou') {
       const eu = await exigir(req, 'giras:ler');
-      const pessoas = await db.rpc('amaci_vou_listar', { eventoId: validarId(req.query.evento, 'Amaci') });
-      return { pessoas, eu: !!eu.pessoaId && pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: !!eu.pessoaId };
+      return respostasAmaci(await db.rpc('amaci_vou_listar', { eventoId: validarId(req.query.evento, 'Amaci') }), eu.pessoaId);
     }
     if (req.query.lista === 'tarefas') {
       await exigir(req, 'giras:ler');
@@ -142,9 +148,8 @@ export default rota({
     if (b.acao === 'amaciVou') {
       const eu = await exigir(req, 'giras:ler');
       if (!eu.pessoaId) throw new HttpError(403, 'Só quem é da corrente marca que vai ao amaci.');
-      if (typeof b.vou !== 'boolean') throw new HttpError(400, 'Informe se você vai.');
-      const pessoas = await db.rpc('amaci_vou_marcar', { eventoId: validarId(b.eventoId, 'Amaci'), pessoaId: eu.pessoaId, vou: b.vou });
-      return { pessoas, eu: pessoas.some((x) => x.pessoaId === eu.pessoaId), podeMarcar: true };
+      if (typeof b.vou !== 'boolean' && b.vou !== null) throw new HttpError(400, 'Informe se você vai.');
+      return respostasAmaci(await db.rpc('amaci_vou_marcar', { eventoId: validarId(b.eventoId, 'Amaci'), pessoaId: eu.pessoaId, vou: b.vou }), eu.pessoaId);
     }
     if (b.acao === 'tarefas') return acaoTarefas(await exigir(req, 'giras:ler'), b);
     // Recado para a corrente (topo da aba Gira, todos os dias): até 5 linhas e 300 letras; '' tira → a config da casa.

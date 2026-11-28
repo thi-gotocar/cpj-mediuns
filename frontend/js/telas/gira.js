@@ -21,6 +21,7 @@ import { cardAtrasos, cliquesAtrasos } from './giraAtrasos.js';
 import { cardAno, cliquesAno, mudancasAno } from './giraAno.js';
 import { montarNova, cliquesNova, fecharCompartilhar } from './giraNova.js';
 import { cliquesTarefas, mudancasTarefas } from './giraTarefas.js';
+import { cardAmaci, cliquesAmaci } from './giraAmaci.js';
 export { enviarOracao } from './giraTopo.js';
 export { enviarConduta, digitarConduta } from './giraConduta.js';
 import { imagemOracoesPronta, prepararOracoes, imagemNiverPronta, prepararNiver, botaoWhatsLimpeza, imagemPronta, imagemEventoPronta, botaoImagemEvento, prepararImagemEvento, prepararImagem, blocoImagemEscala, atualizarJanela } from './giraJanelas.js';
@@ -288,7 +289,7 @@ export function render() {
   const g = giraDaGeral();
   if (g && prefs.data !== g.data) prefs.data = g.data;
   const eu = g && estado.me?.pessoaId ? blocoEu(g) : '';
-  return `<section class="panel geral">${cardAtrasos()}${eu}${cardAulaCurimba()}${cardCompromissos()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;
+  return `<section class="panel geral">${cardAtrasos()}${eu}${cardAulaCurimba()}${cardCompromissos()}${cardAmaci()}${cardSemana()}${cardOracoes()}${cardConduta()}</section>`;
 }
 
 // Cadastro novo pelo login (aluno sem turma): boas-vindas enquanto a administração libera o acesso.
@@ -541,6 +542,7 @@ export const cliques = {
   ...cliquesAno,
   ...cliquesNova,
   ...cliquesTarefas,
+  ...cliquesAmaci,
   // Resumo pelo Compartilhar (data-de="comp"): só abre (não fecha se já estiver aberto) e rola até ele.
   rsabrir(el) {
     if (el.dataset.de === 'comp') {

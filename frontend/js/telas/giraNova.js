@@ -12,6 +12,7 @@ import { ICONE_WHATS, htmlStatus } from './giraComum.js';
 import { blocoLimpeza, blocoBanho, blocoPedirErvas, blocosOferenda, escolhaTurma } from './giraInformacoes.js';
 import { atualizarJanela } from './giraJanelas.js';
 import { blocoTarefas } from './giraTarefas.js';
+import { amaciVou } from './giraAmaci.js';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -77,31 +78,6 @@ function extrasDoDia(data, titulo) {
   const niver = aniversariantesDoDia(estado.pessoas, data);
   return `${agenda.join('')}
     ${niver.length ? `<p class="gn-extra"><span aria-hidden="true">🎈</span> Aniversário: ${niver.map((p) => esc(p.nome)).join(', ')}</p>` : ''}`;
-}
-
-// ---------- Amaci: quem da corrente vai ----------
-// Só um controle da corrente (não é a presença dos alunos no amaci): cada pessoa marca Vou ao amaci até o dia, e todos
-// da corrente veem a lista de quem vai, já aberta, com o ✓ de presente em cada nome. Lido do servidor quando o amaci
-// aparece na tela.
-const amaciLendo = new Set();
-function lerAmaciVou(id) {
-  if (amaciLendo.has(id)) return;
-  amaciLendo.add(id);
-  api('GET', `/giras?lista=amaciVou&evento=${id}`)
-    .then((r) => { estado.amaciVou = { ...(estado.amaciVou || {}), [id]: r }; }, () => { estado.amaciVou = { ...(estado.amaciVou || {}), [id]: { pessoas: [], eu: false, podeMarcar: false, erro: true } }; })
-    .finally(() => { amaciLendo.delete(id); avisar(); });
-}
-function amaciVou(e) {
-  const v = estado.amaciVou?.[e.id];
-  if (!v) { lerAmaciVou(e.id); return '<div class="gn-amaci"><span class="muted">Carregando quem vai…</span></div>'; }
-  if (v.erro) return '';
-  const n = v.pessoas.length;
-  const marcar = v.podeMarcar && e.data >= hoje()
-    ? `<div class="gn-amaci-bts"><button type="button" class="btn small ${v.eu ? 'gn-amaci-vou' : 'primary'}" data-act="amacivou" data-id="${esc(e.id)}" data-v="${v.eu ? '0' : '1'}" aria-pressed="${v.eu}">${v.eu ? '✓ Você vai · desmarcar' : '🙋 Vou ao amaci'}</button></div>` : '';
-  const lista = n
-    ? v.pessoas.map((p) => `<span class="gn-nome pres"><span class="gn-ok" aria-hidden="true">✓</span>${esc(p.nome)}</span>`).join('')
-    : '<span class="muted">Ninguém marcou ainda.</span>';
-  return `<div class="gn-amaci">${marcar}<div class="gn-amaci-lista" aria-label="Quem vai ao amaci: ${n}">${lista}</div></div>`;
 }
 
 // ---------- Compartilhar: um botão só, com as opções que a pessoa tem ----------
@@ -308,15 +284,6 @@ export function montarNova(ctx) {
 }
 
 export const cliquesNova = {
-  async amacivou(el) {
-    const id = el.dataset.id;
-    el.disabled = true;
-    try {
-      estado.amaciVou = { ...(estado.amaciVou || {}), [id]: await api('POST', '/giras', { acao: 'amaciVou', eventoId: id, vou: el.dataset.v === '1' }) };
-      toast(el.dataset.v === '1' ? 'Marcado: você vai ao amaci.' : 'Desmarcado.');
-    } catch (e) { toast(e.message); }
-    avisar();
-  },
   gnpasso(el) {
     const d = giraAtual().data, n = Number(el.dataset.n);
     passos.set(d, passos.get(d) === n ? 0 : n);

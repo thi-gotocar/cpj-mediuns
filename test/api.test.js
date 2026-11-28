@@ -3469,7 +3469,7 @@ test('v169: Vou ao amaci — só a corrente marca, até o dia; todos da corrente
   const ler = (tok) => api('GET', '/api/giras?lista=amaciVou&evento=' + ev.id, tok);
   const marcar = (tok, vou, eventoId = ev.id) => api('POST', '/api/giras', tok, { acao: 'amaciVou', eventoId, vou });
 
-  assert.deepEqual((await ler(VAI)).json, { pessoas: [], eu: false, podeMarcar: true });
+  assert.deepEqual((await ler(VAI)).json, { pessoas: [], nao: [], eu: false, resposta: null, podeMarcar: true });
   assert.equal((await marcar(ADMIN, true)).status, 403, 'o root sem cadastro na corrente não marca');
   assert.equal((await marcar(VAI, 'sim')).status, 400);
   assert.equal((await marcar(VAI, true, outro.id)).status, 404, 'só evento de amaci');
@@ -3481,7 +3481,12 @@ test('v169: Vou ao amaci — só a corrente marca, até o dia; todos da corrente
   assert.equal(visto.eu, false);
   assert.equal((await ler(ADMIN)).json.podeMarcar, false, 'o root vê a lista');
   assert.equal(sql(`select count(*) from amaci_presencas where evento_id = '${ev.id}'`), '0', 'não é presença de aluno');
-  assert.deepEqual((await marcar(VAI, false)).json.pessoas, []);
+  const nao = (await marcar(VAI, false)).json;
+  assert.deepEqual(nao.pessoas, []);
+  assert.deepEqual(nao.nao.map((p) => p.nome), ['Vai Ao Amaci'], 'Não vou fica registrado');
+  assert.equal(nao.resposta, 'nao');
+  assert.equal(nao.eu, false);
+  assert.deepEqual((await marcar(VAI, null)).json, { pessoas: [], nao: [], eu: false, resposta: null, podeMarcar: true }, 'null apaga a resposta');
   // Amaci que já passou: não marca mais.
   await marcar(VAI, true);
   sql(`update eventos set data = '2001-01-01' where id = '${ev.id}'`);
